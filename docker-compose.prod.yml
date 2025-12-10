@@ -20,7 +20,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./backups:/backups  # For database backups
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-proryv}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-proryv} -d ${POSTGRES_DB:-proryv_lms}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -112,7 +112,7 @@ services:
     networks:
       - proryv_network
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r => {if(!r.ok) throw new Error(r.statusText)}).catch(e => {console.error(e); process.exit(1)})"]
       interval: 30s
       timeout: 10s
       retries: 3

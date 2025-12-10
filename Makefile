@@ -4,23 +4,23 @@
 
 # Start services
 up:
-	docker-compose -f docker-compose.prod.yml up -d
+	docker compose -f docker-compose.prod.yml up -d
 
 # Stop services
 down:
-	docker-compose -f docker-compose.prod.yml down
+	docker compose -f docker-compose.prod.yml down
 
 # Restart services
 restart:
-	docker-compose -f docker-compose.prod.yml restart
+	docker compose -f docker-compose.prod.yml restart
 
 # View logs
 logs:
-	docker-compose -f docker-compose.prod.yml logs -f
+	docker compose -f docker-compose.prod.yml logs -f
 
 # Check status
 ps:
-	docker-compose -f docker-compose.prod.yml ps
+	docker compose -f docker-compose.prod.yml ps
 
 # Backup database
 backup:
@@ -36,3 +36,7 @@ shell-app:
 # Shell access to Database
 shell-db:
 	docker exec -it proryv_postgres psql -U proryv -d proryv_lms
+
+# Run database migrations
+migrate:
+	docker exec proryv_app npx prisma@5.7.1 migrate deploy
