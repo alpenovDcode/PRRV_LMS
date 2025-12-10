@@ -1,0 +1,476 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-arm64-openssl-1.1.x", "linux-musl-arm64-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id                      String                  @id @default(uuid())
+  email                   String                  @unique
+  passwordHash            String                  @map("password_hash")
+  fullName                String?                 @map("full_name")
+  avatarUrl               String?                 @map("avatar_url")
+  role                    UserRole                @default(student)
+  sessionId               String?                 @map("session_id")
+  emailVerified           Boolean                 @default(false) @map("email_verified")
+  createdAt               DateTime                @default(now()) @map("created_at")
+  updatedAt               DateTime                @updatedAt @map("updated_at")
+  passwordResetExpires    DateTime?               @map("password_reset_expires")
+  passwordResetToken      String?                 @map("password_reset_token")
+  about                   String?
+  phone                   String?
+  track                   String?
+  auditLogs               AuditLog[]
+  courses                 Course[]                @relation("CourseAuthor")
+  enrollments             Enrollment[]
+  groupMembers            GroupMember[]
+  reviewedHomeworkHistory HomeworkHistory[]       @relation("HomeworkHistoryReviewer")
+  reviewedHomework        HomeworkSubmission[]    @relation("HomeworkReviewer")
+  homework                HomeworkSubmission[]
+  lessonComments          LessonComment[]
+  progress                LessonProgress[]
+  uploadedMedia           MediaFile[]             @relation("MediaUploader")
+  notificationPreference  NotificationPreference?
+  notifications           Notification[]
+  reviewedQuizzes         QuizAttempt[]           @relation("QuizReviewer")
+  quizAttempts            QuizAttempt[]
+  twoFactorAuth           TwoFactorAuth?
+  userSessions            UserSession[]
+  errorLogs               ErrorLog[]
+
+  @@index([email])
+  @@map("users")
+}
+
+model Course {
+  id          String       @id @default(uuid())
+  title       String
+  slug        String       @unique
+  description String?
+  coverImage  String?      @map("cover_image")
+  isPublished Boolean      @default(false) @map("is_published")
+  authorId    String       @map("author_id")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  author      User         @relation("CourseAuthor", fields: [authorId], references: [id])
+  enrollments Enrollment[]
+  groups      Group[]
+  modules     Module[]
+
+  @@index([slug])
+  @@index([authorId])
+  @@map("courses")
+}
+
+model Module {
+  id         String   @id @default(uuid())
+  courseId   String   @map("course_id")
+  title      String
+  orderIndex Int      @map("order_index")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  lessons    Lesson[]
+  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId])
+  @@map("modules")
+}
+
+model Lesson {
+  id                 String               @id @default(uuid())
+  moduleId           String               @map("module_id")
+  title              String
+  type               LessonType
+  content            Json?
+  videoId            String?              @map("video_id")
+  videoDuration      Int?                 @map("video_duration")
+  thumbnailUrl       String?              @map("thumbnail_url")
+  isFree             Boolean              @default(false) @map("is_free")
+  isStopLesson       Boolean              @default(false) @map("is_stop_lesson")
+  dripRule           Json?                @map("drip_rule")
+  settings           Json?
+  orderIndex         Int                  @map("order_index")
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime             @updatedAt @map("updated_at")
+  quizMaxAttempts    Int?                 @default(3) @map("quiz_max_attempts")
+  quizPassingScore   Int?                 @map("quiz_passing_score")
+  quizRequiresReview Boolean              @default(false) @map("quiz_requires_review")
+  quizTimeLimit      Int?                 @map("quiz_time_limit")
+  homework           HomeworkSubmission[]
+  comments           LessonComment[]
+  LessonMedia        LessonMedia[]
+  progress           LessonProgress[]
+  module             Module               @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  quizAttempts       QuizAttempt[]
+
+  @@index([moduleId])
+  @@map("lessons")
+}
+
+model Enrollment {
+  id        String           @id @default(uuid())
+  userId    String           @map("user_id")
+  courseId  String           @map("course_id")
+  status    EnrollmentStatus @default(active)
+  startDate DateTime         @map("start_date")
+  expiresAt DateTime?        @map("expires_at")
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+  course    Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([courseId])
+  @@map("enrollments")
+}
+
+model Group {
+  id          String        @id @default(uuid())
+  name        String
+  description String?
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  courseId    String?       @map("course_id")
+  startDate   DateTime?     @map("start_date")
+  members     GroupMember[]
+  course      Course?       @relation(fields: [courseId], references: [id])
+
+  @@map("groups")
+}
+
+model GroupMember {
+  id        String   @id @default(uuid())
+  groupId   String   @map("group_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([groupId])
+  @@index([userId])
+  @@map("group_members")
+}
+
+model LessonProgress {
+  userId      String         @map("user_id")
+  lessonId    String         @map("lesson_id")
+  status      ProgressStatus @default(not_started)
+  watchedTime Int            @default(0) @map("watched_time")
+  completedAt DateTime?      @map("completed_at")
+  lastUpdated DateTime       @default(now()) @updatedAt @map("last_updated")
+  rating      Int?           @map("rating")
+  lesson      Lesson         @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, lessonId])
+  @@index([userId])
+  @@index([lessonId])
+  @@map("lesson_progress")
+}
+
+model HomeworkSubmission {
+  id             String            @id @default(uuid())
+  userId         String            @map("user_id")
+  lessonId       String            @map("lesson_id")
+  content        String?
+  files          Json?
+  status         HomeworkStatus    @default(pending)
+  curatorComment String?           @map("curator_comment")
+  curatorId      String?           @map("curator_id")
+  reviewedAt     DateTime?         @map("reviewed_at")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+  history        HomeworkHistory[]
+  curator        User?             @relation("HomeworkReviewer", fields: [curatorId], references: [id])
+  lesson         Lesson            @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([lessonId])
+  @@index([status])
+  @@map("homework_submissions")
+}
+
+model HomeworkHistory {
+  id             String             @id @default(uuid())
+  submissionId   String             @map("submission_id")
+  content        String?
+  files          Json?
+  status         HomeworkStatus
+  curatorComment String?            @map("curator_comment")
+  curatorId      String?            @map("curator_id")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  curator        User?              @relation("HomeworkHistoryReviewer", fields: [curatorId], references: [id])
+  submission     HomeworkSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId])
+  @@index([createdAt])
+  @@map("homework_history")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  type      String
+  title     String
+  message   String
+  isRead    Boolean  @default(false) @map("is_read")
+  link      String?
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([isRead])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  action    String
+  entity    String
+  entityId  String?  @map("entity_id")
+  details   Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model QuizAttempt {
+  id             String    @id @default(uuid())
+  userId         String    @map("user_id")
+  lessonId       String    @map("lesson_id")
+  attemptNumber  Int       @map("attempt_number")
+  answers        Json
+  score          Int?
+  isPassed       Boolean   @default(false) @map("is_passed")
+  isAutoGraded   Boolean   @default(false) @map("is_auto_graded")
+  requiresReview Boolean   @default(false) @map("requires_review")
+  curatorComment String?   @map("curator_comment")
+  curatorId      String?   @map("curator_id")
+  startedAt      DateTime  @default(now()) @map("started_at")
+  submittedAt    DateTime? @map("submitted_at")
+  timeSpent      Int?      @map("time_spent")
+  curator        User?     @relation("QuizReviewer", fields: [curatorId], references: [id])
+  lesson         Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, lessonId])
+  @@index([lessonId])
+  @@index([isPassed])
+  @@map("quiz_attempts")
+}
+
+model MediaFile {
+  id               String        @id @default(uuid())
+  name             String
+  originalName     String        @map("original_name")
+  mimeType         String        @map("mime_type")
+  size             Int
+  url              String
+  signedUrl        String?       @map("signed_url")
+  signedUrlExpires DateTime?     @map("signed_url_expires")
+  uploadedById     String        @map("uploaded_by_id")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+  lessonMedia      LessonMedia[]
+  uploadedBy       User          @relation("MediaUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([uploadedById])
+  @@index([mimeType])
+  @@map("media_files")
+}
+
+model LessonMedia {
+  id         String    @id @default(uuid())
+  lessonId   String    @map("lesson_id")
+  mediaId    String    @map("media_id")
+  orderIndex Int       @default(0) @map("order_index")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  lesson     Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  media      MediaFile @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@unique([lessonId, mediaId])
+  @@index([lessonId])
+  @@map("lesson_media")
+}
+
+model LessonComment {
+  id        String          @id @default(uuid())
+  lessonId  String          @map("lesson_id")
+  userId    String          @map("user_id")
+  parentId  String?         @map("parent_id")
+  content   String
+  isDeleted Boolean         @default(false) @map("is_deleted")
+  createdAt DateTime        @default(now()) @map("created_at")
+  updatedAt DateTime        @updatedAt @map("updated_at")
+  lesson    Lesson          @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  parent    LessonComment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies   LessonComment[] @relation("CommentReplies")
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([lessonId])
+  @@index([userId])
+  @@index([parentId])
+  @@map("lesson_comments")
+}
+
+model NotificationPreference {
+  id          String   @id @default(uuid())
+  userId      String   @unique @map("user_id")
+  channels    Json
+  preferences Json
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
+}
+
+model UserSession {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  sessionId      String   @map("session_id")
+  deviceName     String?  @map("device_name")
+  deviceType     String?  @map("device_type")
+  ipAddress      String?  @map("ip_address")
+  userAgent      String?  @map("user_agent")
+  isActive       Boolean  @default(true) @map("is_active")
+  lastActivityAt DateTime @default(now()) @updatedAt @map("last_activity_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, sessionId])
+  @@index([userId])
+  @@index([isActive])
+  @@map("user_sessions")
+}
+
+model TwoFactorAuth {
+  id          String   @id @default(uuid())
+  userId      String   @unique @map("user_id")
+  secret      String
+  isEnabled   Boolean  @default(false) @map("is_enabled")
+  backupCodes String[] @map("backup_codes")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("two_factor_auth")
+}
+
+enum TwoFactorMethod {
+  totp
+  sms
+  email
+
+  @@map("two_factor_method")
+}
+
+model ErrorLog {
+  id          String        @id @default(uuid())
+  groupId     String?       @map("group_id")
+  message     String
+  stack       String?       @db.Text
+  url         String?
+  userAgent   String?       @map("user_agent")
+  userId      String?       @map("user_id")
+  sessionId   String?       @map("session_id")
+  severity    ErrorSeverity @default(error)
+  status      ErrorStatus   @default(new)
+  metadata    Json?
+  browserInfo Json?         @map("browser_info")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  group ErrorGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  user  User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([groupId])
+  @@index([userId])
+  @@index([severity])
+  @@index([status])
+  @@index([createdAt])
+  @@map("error_logs")
+}
+
+model ErrorGroup {
+  id            String        @id @default(uuid())
+  fingerprint   String        @unique
+  title         String
+  message       String
+  count         Int           @default(1)
+  status        ErrorStatus   @default(new)
+  severity      ErrorSeverity @default(error)
+  firstOccurred DateTime      @default(now()) @map("first_occurred")
+  lastOccurred  DateTime      @default(now()) @map("last_occurred")
+  resolvedAt    DateTime?     @map("resolved_at")
+  resolvedBy    String?       @map("resolved_by")
+  notes         String?       @db.Text
+
+  errors ErrorLog[]
+
+  @@index([fingerprint])
+  @@index([status])
+  @@index([lastOccurred])
+  @@map("error_groups")
+}
+
+enum ErrorSeverity {
+  critical
+  error
+  warning
+  info
+
+  @@map("error_severity")
+}
+
+enum ErrorStatus {
+  new
+  investigating
+  resolved
+  ignored
+
+  @@map("error_status")
+}
+
+enum UserRole {
+  student
+  admin
+  curator
+}
+
+enum LessonType {
+  video
+  text
+  quiz
+}
+
+enum EnrollmentStatus {
+  active
+  expired
+  frozen
+}
+
+enum ProgressStatus {
+  not_started
+  in_progress
+  completed
+  failed
+}
+
+enum HomeworkStatus {
+  pending
+  approved
+  rejected
+}

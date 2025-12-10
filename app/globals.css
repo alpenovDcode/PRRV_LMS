@@ -1,0 +1,102 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 12%; /* #1E1E1E */
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 12%;
+    --primary: 210 100% 78%; /* #7EADFF */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 100% 95%; /* #D8E6FF */
+    --secondary-foreground: 0 0% 12%;
+    --muted: 210 100% 97%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 340 85% 78%; /* #f78da7 */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+    --warning: 24 100% 50%; /* #ff6900 */
+    --warning-foreground: 0 0% 100%;
+    --border: 210 40% 90%;
+    --input: 210 100% 97%;
+    --ring: 210 100% 78%;
+    --radius: 0.75rem;
+    --sidebar-bg: 210 100% 99%;
+    --sidebar-active: 210 100% 78%;
+    --sidebar-hover: 210 100% 95%;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-gradient-to-br from-[#D8E6FF]/30 via-white to-white text-[#1E1E1E];
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  
+  /* Градиенты */
+  .gradient-primary {
+    background: linear-gradient(135deg, #7EADFF 0%, #5A8FE6 100%);
+  }
+  
+  .gradient-accent {
+    background: linear-gradient(135deg, #f78da7 0%, #e66a8a 100%);
+  }
+  
+  .gradient-warning {
+    background: linear-gradient(135deg, #ff6900 0%, #e55a00 100%);
+  }
+  
+  .gradient-soft {
+    background: linear-gradient(135deg, #D8E6FF 0%, #ffffff 100%);
+  }
+  
+  /* Тени */
+  .shadow-soft {
+    box-shadow: 0 2px 8px rgba(126, 173, 255, 0.1), 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+  
+  .shadow-accent {
+    box-shadow: 0 4px 12px rgba(247, 141, 167, 0.2), 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  
+  .shadow-primary {
+    box-shadow: 0 4px 12px rgba(126, 173, 255, 0.25), 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+}
+

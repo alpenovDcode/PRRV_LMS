@@ -1,0 +1,181 @@
+# Production Docker Compose Configuration
+# Optimized for production deployment
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: proryv_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-proryv}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-proryv_lms}
+      # Performance tuning
+      POSTGRES_SHARED_BUFFERS: ${POSTGRES_SHARED_BUFFERS:-256MB}
+      POSTGRES_EFFECTIVE_CACHE_SIZE: ${POSTGRES_EFFECTIVE_CACHE_SIZE:-1GB}
+      POSTGRES_MAX_CONNECTIONS: ${POSTGRES_MAX_CONNECTIONS:-100}
+    ports:
+      - "127.0.0.1:5432:5432"  # Only localhost access
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups  # For database backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-proryv}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - proryv_network
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  redis:
+    image: redis:7-alpine
+    container_name: proryv_redis
+    restart: always
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    ports:
+      - "127.0.0.1:6379:6379"  # Only localhost access
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - proryv_network
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NODE_ENV: production
+    image: proryv-lms:latest
+    container_name: proryv_app
+    restart: always
+    environment:
+      # Database
+      DATABASE_URL: postgresql://${POSTGRES_USER:-proryv}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-proryv_lms}?schema=public&connection_limit=10&pool_timeout=20
+      DIRECT_URL: postgresql://${POSTGRES_USER:-proryv}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-proryv_lms}?schema=public
+      
+      # Redis
+      REDIS_URL: redis://redis:6379
+      
+      # JWT
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-30m}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      
+      # Application
+      NODE_ENV: production
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+      ALLOWED_ORIGIN: ${ALLOWED_ORIGIN}
+      
+      # Cloudflare Stream
+      CLOUDFLARE_ACCOUNT_ID: ${CLOUDFLARE_ACCOUNT_ID:-}
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:-}
+      CLOUDFLARE_STREAM_CUSTOMER_CODE: ${CLOUDFLARE_STREAM_CUSTOMER_CODE:-}
+      NEXT_PUBLIC_CLOUDFLARE_STREAM_CUSTOMER_CODE: ${NEXT_PUBLIC_CLOUDFLARE_STREAM_CUSTOMER_CODE:-}
+      
+      # Cloudflare Images
+      CLOUDFLARE_IMAGES_ACCOUNT_ID: ${CLOUDFLARE_IMAGES_ACCOUNT_ID:-}
+      CLOUDFLARE_IMAGES_ACCOUNT_HASH: ${CLOUDFLARE_IMAGES_ACCOUNT_HASH:-}
+      NEXT_PUBLIC_CLOUDFLARE_IMAGES_ACCOUNT_HASH: ${NEXT_PUBLIC_CLOUDFLARE_IMAGES_ACCOUNT_HASH:-}
+      
+      # Sentry (optional)
+      NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
+    ports:
+      - "127.0.0.1:3000:3000"  # Only localhost access (nginx proxy)
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - proryv_network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  nginx:
+    image: nginx:alpine
+    container_name: proryv_nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./public:/usr/share/nginx/html/static:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro  # Let's Encrypt certificates
+      - /var/www/certbot:/var/www/certbot:ro  # ACME challenge
+      - nginx_cache:/var/cache/nginx
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - proryv_network
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 64M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  nginx_cache:
+    driver: local
+
+networks:
+  proryv_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
