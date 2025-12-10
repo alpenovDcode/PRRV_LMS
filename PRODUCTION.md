@@ -18,31 +18,35 @@
 
 ```bash
 # 1. Setup production (first time only)
-sudo ./scripts/setup-production.sh
+# Create .env.production from .env.example and fill secrets
+cp .env.example .env.production
+nano .env.production
 
-# 2. Deploy updates
-./scripts/deploy-production.sh
+# 2. Start services
+make up
 
 # 3. View logs
-docker-compose -f docker-compose.prod.yml logs -f
+make logs
 ```
 
 ## Important Commands
 
 ```bash
 # Check status
-docker-compose -f docker-compose.prod.yml ps
+make ps
 
 # Restart services
-docker-compose -f docker-compose.prod.yml restart
+make restart
 
 # Stop all
-docker-compose -f docker-compose.prod.yml down
+make down
 
 # Database backup
-./scripts/backup-db.sh
+make backup
 
 # SSL renewal
+# Certbot is handled by nginx container or host, usually auto-renewed if set up correctly.
+# If running certbot on host:
 sudo certbot renew
 ```
 
