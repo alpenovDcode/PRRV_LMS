@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useAuth } from "@/hooks/use-auth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,12 +20,15 @@ import {
   BookOpen, 
   CheckCircle2, 
   MessageSquare, 
-  LogIn 
+  LogIn,
+  Shield,
+  User
 } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDate } from "@/lib/utils";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const profileSchema = z.object({
   fullName: z.string().min(2, "Имя должно содержать минимум 2 символа"),
@@ -37,7 +40,7 @@ const profileSchema = z.object({
 
 const passwordSchema = z
   .object({
-    currentPassword: z.string().min(6, "Пароль должен содержать минимум 6 символов"),
+    currentPassword: z.string().min(1, "Введите текущий пароль"),
     newPassword: z.string().min(6, "Пароль должен содержать минимум 6 символов"),
     confirmPassword: z.string(),
   })
@@ -48,8 +51,6 @@ const passwordSchema = z
 
 type ProfileFormValues = z.infer<typeof profileSchema>;
 type PasswordFormValues = z.infer<typeof passwordSchema>;
-
-
 
 export default function ProfilePage() {
   const { user: authUser } = useAuth();
@@ -116,15 +117,16 @@ export default function ProfilePage() {
 
   const updatePasswordMutation = useMutation({
     mutationFn: async (data: { currentPassword: string; newPassword: string }) => {
-      const response = await apiClient.put("/profile/password", data);
+      const response = await apiClient.put("/api/profile/password", data);
       return response.data;
     },
     onSuccess: () => {
-      toast.success("Пароль изменен");
+      toast.success("Пароль успешно изменен");
       passwordForm.reset();
     },
-    onError: () => {
-      toast.error("Не удалось изменить пароль");
+    onError: (error: any) => {
+      const message = error.response?.data?.error?.message || "Не удалось изменить пароль";
+      toast.error(message);
     },
   });
 
@@ -139,286 +141,235 @@ export default function ProfilePage() {
     });
   };
 
-  // Inline Edit Mode (Dashboard Style with Inputs)
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">Профиль студента</h1>
-        <Button 
-          onClick={profileForm.handleSubmit(onProfileSubmit)} 
-          disabled={updateProfileMutation.isPending}
-          className="bg-blue-600 hover:bg-blue-700 text-white"
-        >
-          {updateProfileMutation.isPending ? "Сохранение..." : "Сохранить изменения"}
-        </Button>
+    <div className="container mx-auto px-4 py-8 max-w-5xl space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">Настройки профиля</h1>
+        <p className="text-muted-foreground mt-2">
+          Управляйте личной информацией и настройками безопасности
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Profile Card & Contact Info */}
-        <div className="space-y-6">
-          {/* Profile Card */}
-          <Card className="border-gray-200 shadow-sm overflow-hidden">
-            <div className="h-32 bg-gradient-to-r from-blue-400 to-indigo-500"></div>
-            <CardContent className="relative pt-0 text-center pb-8">
-              <div className="relative -mt-16 mb-4 inline-block group">
-                <div className="h-32 w-32 rounded-full border-4 border-white bg-white shadow-md overflow-hidden flex items-center justify-center text-4xl font-bold text-gray-400 relative">
-                  {profileForm.watch("avatarUrl") ? (
-                    <img src={profileForm.watch("avatarUrl")!} alt="Avatar" className="h-full w-full object-cover" />
-                  ) : (
-                    user?.fullName?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "U"
-                  )}
-                  
-                  {/* Avatar Upload Overlay */}
-                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" onClick={() => document.getElementById("avatar-upload-inline")?.click()}>
-                    <Camera className="text-white h-8 w-8" />
+      <Tabs defaultValue="general" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
+          <TabsTrigger value="general">Общие</TabsTrigger>
+          <TabsTrigger value="security">Безопасность</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="general" className="mt-6 space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Avatar Section */}
+            <Card className="lg:col-span-1 border-none shadow-md">
+              <CardContent className="pt-6 flex flex-col items-center text-center">
+                <div className="relative group mb-4">
+                  <div className="h-32 w-32 rounded-full border-4 border-white bg-gray-100 shadow-lg overflow-hidden flex items-center justify-center text-4xl font-bold text-gray-400 relative">
+                    {profileForm.watch("avatarUrl") ? (
+                      <img src={profileForm.watch("avatarUrl")!} alt="Avatar" className="h-full w-full object-cover" />
+                    ) : (
+                      user?.fullName?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || <User className="h-12 w-12" />
+                    )}
+                    
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" onClick={() => document.getElementById("avatar-upload")?.click()}>
+                      <Camera className="text-white h-8 w-8" />
+                    </div>
                   </div>
-                </div>
-                <input
-                  type="file"
-                  id="avatar-upload-inline"
-                  className="hidden"
-                  accept="image/*"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
+                  <input
+                    type="file"
+                    id="avatar-upload"
+                    className="hidden"
+                    accept="image/*"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
 
-                    const formData = new FormData();
-                    formData.append("file", file);
+                      const formData = new FormData();
+                      formData.append("file", file);
 
-                    try {
-                      const uploadPromise = apiClient.post("/upload", formData);
-                      
-                      toast.promise(uploadPromise, {
-                        loading: "Загрузка...",
-                        success: "Фото загружено",
-                        error: "Ошибка загрузки",
-                      });
+                      try {
+                        const uploadPromise = apiClient.post("/upload", formData);
+                        
+                        toast.promise(uploadPromise, {
+                          loading: "Загрузка...",
+                          success: "Фото загружено",
+                          error: "Ошибка загрузки",
+                        });
 
-                      const response = await uploadPromise;
-                      const fileUrl = response.data.data.url;
-                      profileForm.setValue("avatarUrl", fileUrl);
-                    } catch (error) {
-                      console.error("Upload failed", error);
-                    }
-                  }}
-                />
-              </div>
-              
-              <div className="space-y-3 px-4">
-                <div className="space-y-1">
-                  <Label htmlFor="fullName" className="sr-only">Имя</Label>
-                  <Input
-                    id="fullName"
-                    {...profileForm.register("fullName")}
-                    placeholder="Ваше имя"
-                    className="text-center font-bold text-lg border-transparent hover:border-gray-300 focus:border-blue-500 bg-transparent hover:bg-gray-50 focus:bg-white transition-all"
+                        const response = await uploadPromise;
+                        const fileUrl = response.data.data.url;
+                        profileForm.setValue("avatarUrl", fileUrl);
+                        // Auto-save avatar
+                        updateProfileMutation.mutate({ ...profileForm.getValues(), avatarUrl: fileUrl });
+                      } catch (error) {
+                        console.error("Upload failed", error);
+                      }
+                    }}
                   />
                 </div>
                 
-                <div className="space-y-1">
-                  <Label htmlFor="email" className="sr-only">Email</Label>
-                  <Input
-                    id="email"
-                    {...profileForm.register("email")}
-                    placeholder="Email"
-                    className="text-center text-gray-500 border-transparent hover:border-gray-300 focus:border-blue-500 bg-transparent hover:bg-gray-50 focus:bg-white transition-all h-8"
-                  />
-                </div>
-              </div>
-              
-              <div className="flex flex-wrap justify-center gap-2 my-4">
-                <Badge variant="secondary" className="bg-purple-100 text-purple-700 hover:bg-purple-200">
-                  {user?.role === "student" ? "Студент" : user?.role}
-                </Badge>
-                <Badge variant="secondary" className="bg-green-100 text-green-700 hover:bg-green-200">
-                  Активен
-                </Badge>
-                {user?.track && (
-                  <Badge variant="outline" className="border-purple-200 text-purple-700 bg-purple-50">
-                    Трек: {user.track}
+                <h3 className="font-bold text-xl">{user?.fullName || "Пользователь"}</h3>
+                <p className="text-sm text-muted-foreground mb-4">{user?.email}</p>
+                
+                <div className="flex flex-wrap justify-center gap-2">
+                  <Badge variant="secondary" className="bg-blue-50 text-blue-700 hover:bg-blue-100">
+                    {user?.role === "student" ? "Студент" : user?.role}
                   </Badge>
-                )}
-              </div>
+                  {user?.track && (
+                    <Badge variant="outline" className="border-purple-200 text-purple-700 bg-purple-50">
+                      {user.track}
+                    </Badge>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
 
-              <div className="px-4">
-                <Label htmlFor="about" className="sr-only">О себе</Label>
-                <Textarea
-                  id="about"
-                  {...profileForm.register("about")}
-                  placeholder="Расскажите о себе..."
-                  className="text-sm text-gray-600 min-h-[80px] resize-none border-transparent hover:border-gray-300 focus:border-blue-500 bg-transparent hover:bg-gray-50 focus:bg-white transition-all"
-                />
-              </div>
-            </CardContent>
-          </Card>
+            {/* Form Section */}
+            <Card className="lg:col-span-2 border-none shadow-md">
+              <CardHeader>
+                <CardTitle>Личная информация</CardTitle>
+                <CardDescription>
+                  Обновите свои контактные данные и информацию о себе
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="fullName">Полное имя</Label>
+                      <Input
+                        id="fullName"
+                        {...profileForm.register("fullName")}
+                        placeholder="Ваше имя"
+                      />
+                      {profileForm.formState.errors.fullName && (
+                        <p className="text-xs text-red-500">{profileForm.formState.errors.fullName.message}</p>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email</Label>
+                      <Input
+                        id="email"
+                        {...profileForm.register("email")}
+                        placeholder="Email"
+                        disabled // Email changing usually requires verification
+                        className="bg-gray-50"
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="phone">Телефон</Label>
+                      <Input
+                        id="phone"
+                        {...profileForm.register("phone")}
+                        placeholder="+7 (999) 000-00-00"
+                      />
+                    </div>
 
-          {/* Contact Information */}
-          <Card className="border-gray-200 shadow-sm">
+                    <div className="space-y-2">
+                      <Label>Дата регистрации</Label>
+                      <div className="flex items-center h-10 px-3 rounded-md border bg-gray-50 text-sm text-muted-foreground">
+                        <Calendar className="mr-2 h-4 w-4" />
+                        {user?.createdAt ? formatDate(user.createdAt) : "Неизвестно"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="about">О себе</Label>
+                    <Textarea
+                      id="about"
+                      {...profileForm.register("about")}
+                      placeholder="Расскажите о своих целях и интересах..."
+                      className="min-h-[100px] resize-none"
+                    />
+                    <p className="text-xs text-muted-foreground text-right">
+                      {profileForm.watch("about")?.length || 0}/500
+                    </p>
+                  </div>
+
+                  <div className="flex justify-end pt-4">
+                    <Button 
+                      type="submit" 
+                      disabled={updateProfileMutation.isPending}
+                      className="bg-blue-600 hover:bg-blue-700"
+                    >
+                      {updateProfileMutation.isPending ? "Сохранение..." : "Сохранить изменения"}
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="security" className="mt-6">
+          <Card className="border-none shadow-md max-w-2xl mx-auto">
             <CardHeader>
-              <CardTitle className="text-lg font-semibold">Контактная информация</CardTitle>
+              <div className="flex items-center gap-2">
+                <Shield className="h-5 w-5 text-blue-600" />
+                <CardTitle>Безопасность</CardTitle>
+              </div>
+              <CardDescription>
+                Измените пароль для входа в аккаунт
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center gap-3 text-gray-600">
-                <div className="h-8 w-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 flex-shrink-0">
-                  <Phone className="h-4 w-4" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-xs text-gray-400 mb-1">Телефон</p>
+            <CardContent>
+              <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="currentPassword">Текущий пароль</Label>
                   <Input
-                    {...profileForm.register("phone")}
-                    placeholder="+7 (999) 000-00-00"
-                    className="h-8 text-sm border-transparent hover:border-gray-300 focus:border-blue-500 bg-transparent hover:bg-gray-50 focus:bg-white transition-all px-2 -ml-2 w-full"
-                  />
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-3 text-gray-600">
-                <div className="h-8 w-8 rounded-full bg-purple-50 flex items-center justify-center text-purple-600 flex-shrink-0">
-                  <MapPin className="h-4 w-4" />
-                </div>
-                <div>
-                  <p className="text-xs text-gray-400">Адрес</p>
-                  <p className="text-sm font-medium text-gray-900">Москва, Россия</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 text-gray-600">
-                <div className="h-8 w-8 rounded-full bg-green-50 flex items-center justify-center text-green-600 flex-shrink-0">
-                  <Calendar className="h-4 w-4" />
-                </div>
-                <div>
-                  <p className="text-xs text-gray-400">Дата регистрации</p>
-                  <p className="text-sm font-medium text-gray-900">
-                    {user?.createdAt ? formatDate(user.createdAt) : "Неизвестно"}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Security (Password) - Collapsible or Card */}
-          <Card className="border-gray-200 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold">Безопасность</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-3">
-                <div className="space-y-1">
-                  <Input
+                    id="currentPassword"
                     type="password"
                     {...passwordForm.register("currentPassword")}
-                    placeholder="Текущий пароль"
-                    className="text-sm"
+                    placeholder="••••••••"
                   />
+                  {passwordForm.formState.errors.currentPassword && (
+                    <p className="text-xs text-red-500">{passwordForm.formState.errors.currentPassword.message}</p>
+                  )}
                 </div>
-                <div className="space-y-1">
-                  <Input
-                    type="password"
-                    {...passwordForm.register("newPassword")}
-                    placeholder="Новый пароль"
-                    className="text-sm"
-                  />
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="newPassword">Новый пароль</Label>
+                    <Input
+                      id="newPassword"
+                      type="password"
+                      {...passwordForm.register("newPassword")}
+                      placeholder="••••••••"
+                    />
+                    {passwordForm.formState.errors.newPassword && (
+                      <p className="text-xs text-red-500">{passwordForm.formState.errors.newPassword.message}</p>
+                    )}
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmPassword">Подтвердите пароль</Label>
+                    <Input
+                      id="confirmPassword"
+                      type="password"
+                      {...passwordForm.register("confirmPassword")}
+                      placeholder="••••••••"
+                    />
+                    {passwordForm.formState.errors.confirmPassword && (
+                      <p className="text-xs text-red-500">{passwordForm.formState.errors.confirmPassword.message}</p>
+                    )}
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <Input
-                    type="password"
-                    {...passwordForm.register("confirmPassword")}
-                    placeholder="Подтвердите пароль"
-                    className="text-sm"
-                  />
+
+                <div className="flex justify-end pt-4">
+                  <Button 
+                    type="submit" 
+                    disabled={updatePasswordMutation.isPending}
+                    variant="outline"
+                  >
+                    {updatePasswordMutation.isPending ? "Изменение..." : "Обновить пароль"}
+                  </Button>
                 </div>
-                <Button 
-                  type="submit" 
-                  size="sm"
-                  variant="outline"
-                  disabled={updatePasswordMutation.isPending}
-                  className="w-full"
-                >
-                  {updatePasswordMutation.isPending ? "Изменение..." : "Обновить пароль"}
-                </Button>
               </form>
             </CardContent>
           </Card>
-        </div>
-
-        {/* Right Column: Course Progress & Activity */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Course Enrollment & Progress */}
-          <Card className="border-gray-200 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-lg font-semibold">Курсы и прогресс</CardTitle>
-              <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-700">
-                Посмотреть все
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {user?.enrollments && user.enrollments.length > 0 ? (
-                user.enrollments.map((enrollment: any) => (
-                  <div key={enrollment.id} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600">
-                          <BookOpen className="h-5 w-5" />
-                        </div>
-                        <span className="font-medium text-gray-900">{enrollment.course.title}</span>
-                      </div>
-                      <span className="font-bold text-gray-900">
-                        {enrollment.progress || 0}%
-                      </span>
-                    </div>
-                    <Progress value={enrollment.progress || 0} className="h-2" indicatorClassName="bg-green-500" />
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  Нет активных курсов
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Recent Activity */}
-          <Card className="border-gray-200 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold">Последняя активность</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                {/* Mock Activity Items */}
-                <div className="flex gap-4">
-                  <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center text-green-600 flex-shrink-0">
-                    <CheckCircle2 className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">Завершен урок &quot;Введение в платформу&quot;</p>
-                    <p className="text-xs text-gray-500">Курс: Основы LMS • 2 часа назад</p>
-                  </div>
-                </div>
-
-                <div className="flex gap-4">
-                  <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 flex-shrink-0">
-                    <MessageSquare className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">Оставлен комментарий к заданию</p>
-                    <p className="text-xs text-gray-500">Курс: Основы LMS • 1 день назад</p>
-                  </div>
-                </div>
-
-                <div className="flex gap-4">
-                  <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 flex-shrink-0">
-                    <LogIn className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">Вход в систему</p>
-                    <p className="text-xs text-gray-500">IP: 192.168.1.1 • 3 дня назад</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

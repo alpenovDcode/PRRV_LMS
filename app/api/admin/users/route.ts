@@ -116,6 +116,7 @@ export async function POST(request: NextRequest) {
             fullName,
             role: role as UserRole,
             sessionId,
+            track: role === "student" ? (body.track as string) : undefined,
           },
           select: {
             id: true,

@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
       httpOnly: true, // Теперь httpOnly для безопасности
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict", // Строгая защита от CSRF
-      maxAge: 60 * 30, // 30 minutes
+      maxAge: 60 * 60 * 24 * 30, // 30 days
       path: "/",
     });
 

@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { useState } from "react";
+import { NotificationsPopover } from "@/components/notifications-popover";
 
 const curatorNavigation = [
   { name: "Входящие ДЗ", href: "/curator/inbox", icon: Inbox },
@@ -114,15 +115,14 @@ export function CuratorLayout({ children }: { children: React.ReactNode }) {
             <Menu className="h-5 w-5" />
           </Button>
 
+
+
           <div className="flex flex-1 items-center justify-between gap-4">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <CheckSquare className="h-4 w-4" />
               <span>Кабинет куратора</span>
             </div>
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="h-5 w-5" />
-              <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-destructive" />
-            </Button>
+            <NotificationsPopover />
           </div>
         </header>
 

@@ -171,6 +171,31 @@ export async function POST(
           groupName: group.name,
         });
 
+        // Send notification
+        const { createNotification } = await import("@/lib/notifications");
+        
+        let message = `Вы были добавлены в группу "${group.name}"`;
+        let link = "/dashboard";
+
+        // Check if group has a course to provide better context
+        const groupWithCourse = await db.group.findUnique({
+          where: { id },
+          include: { course: { select: { title: true, slug: true } } }
+        });
+
+        if (groupWithCourse?.course) {
+          message += ` и зачислены на курс "${groupWithCourse.course.title}"`;
+          link = `/courses/${groupWithCourse.course.slug}`;
+        }
+
+        await createNotification(
+          userId,
+          "group_invite",
+          "Вас добавили в группу",
+          message,
+          link
+        );
+
         return NextResponse.json<ApiResponse>({ success: true, data: member }, { status: 201 });
       } catch (error) {
         if (error instanceof Error && error.message === "ALREADY_MEMBER") {

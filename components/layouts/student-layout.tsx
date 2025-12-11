@@ -23,7 +23,6 @@ import { apiClient } from "@/lib/api-client";
 const navigation = [
   { name: "Главная", href: "/dashboard", icon: Home },
   { name: "Мои курсы", href: "/courses", icon: BookOpen },
-  { name: "Достижения", href: "/achievements", icon: Trophy },
   { name: "Календарь", href: "/dashboard/calendar", icon: Calendar },
   { name: "Настройки профиля", href: "/profile", icon: Settings },
 ];

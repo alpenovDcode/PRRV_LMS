@@ -198,6 +198,28 @@ export default function AdminUsersPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                {formData.role === "student" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="track">Трек обучения</Label>
+                    <Select
+                      value={(formData as any).track || ""}
+                      onValueChange={(value) =>
+                        setFormData({ ...formData, track: value } as any)
+                      }
+                    >
+                      <SelectTrigger id="track">
+                        <SelectValue placeholder="Выберите трек" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Заполнить расписание">Заполнить расписание</SelectItem>
+                        <SelectItem value="Повысить чек">Повысить чек</SelectItem>
+                        <SelectItem value="Перейти на онлайн">Перейти на онлайн</SelectItem>
+                        <SelectItem value="Стать репетитором">Стать репетитором</SelectItem>
+                        <SelectItem value="Перейти на группы">Перейти на группы</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
               <DialogFooter>
                 <Button
@@ -292,6 +314,7 @@ export default function AdminUsersPage() {
                   <th className="py-2 text-left font-medium">Имя</th>
                   <th className="py-2 text-left font-medium">Email</th>
                   <th className="py-2 text-left font-medium">Роль</th>
+                  <th className="py-2 text-left font-medium">Трек</th>
                   <th className="py-2 text-left font-medium">Зарегистрирован</th>
                 </tr>
               </thead>
@@ -335,6 +358,15 @@ export default function AdminUsersPage() {
                               ? "Куратор"
                               : "Админ"}
                           </Badge>
+                        </td>
+                        <td className="py-3 text-muted-foreground">
+                          {user.role === "student" && (user as any).track ? (
+                            <Badge variant="secondary" className="bg-purple-50 text-purple-700 border-purple-100">
+                              {(user as any).track}
+                            </Badge>
+                          ) : (
+                            <span className="text-gray-300">-</span>
+                          )}
                         </td>
                         <td className="py-3 text-muted-foreground text-xs">
                           {new Date(user.createdAt).toLocaleDateString("ru-RU")}
