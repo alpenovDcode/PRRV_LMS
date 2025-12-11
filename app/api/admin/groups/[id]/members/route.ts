@@ -253,7 +253,7 @@ export async function DELETE(
           );
         }
 
-        // Получаем информацию перед удалением для audit log
+        // Получаем информацию перед удалением для audit log и уведомления
         const member = await db.groupMember.findUnique({
           where: {
             groupId_userId: {
@@ -262,7 +262,7 @@ export async function DELETE(
             },
           },
           include: {
-            group: { select: { name: true } },
+            group: { select: { name: true, courseId: true, course: { select: { title: true } } } },
             user: { select: { email: true } },
           },
         });
@@ -280,13 +280,27 @@ export async function DELETE(
           );
         }
 
-        await db.groupMember.delete({
-          where: {
-            groupId_userId: {
-              groupId: id,
-              userId,
+        // Используем транзакцию для атомарного удаления участника и доступа к курсу
+        await db.$transaction(async (tx) => {
+          // Удаляем участника из группы
+          await tx.groupMember.delete({
+            where: {
+              groupId_userId: {
+                groupId: id,
+                userId,
+              },
             },
-          },
+          });
+
+          // Если у группы есть курс, удаляем доступ (enrollment)
+          if (member.group.courseId) {
+            await tx.enrollment.deleteMany({
+              where: {
+                userId,
+                courseId: member.group.courseId,
+              },
+            });
+          }
         });
 
         // Audit log
@@ -295,6 +309,23 @@ export async function DELETE(
           userEmail: member.user.email,
           groupName: member.group.name,
         });
+
+        // Send notification
+        const { createNotification } = await import("@/lib/notifications");
+        
+        let message = `Вы были исключены из группы "${member.group.name}"`;
+        
+        if (member.group.courseId && member.group.course) {
+          message += ` и потеряли доступ к курсу "${member.group.course.title}"`;
+        }
+
+        await createNotification(
+          userId,
+          "group_removal",
+          "Исключение из группы",
+          message,
+          "/dashboard"
+        );
 
         return NextResponse.json<ApiResponse>({ success: true }, { status: 200 });
       } catch (error) {

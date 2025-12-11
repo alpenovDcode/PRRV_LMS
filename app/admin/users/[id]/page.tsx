@@ -305,10 +305,6 @@ export default function AdminUserDetailPage() {
               Войти как пользователь
             </Button>
           )}
-          <Button variant="outline" className="bg-white">
-            <MessageSquare className="mr-2 h-4 w-4" />
-            Написать
-          </Button>
         </div>
       </div>
 

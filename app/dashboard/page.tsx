@@ -82,6 +82,8 @@ export default function DashboardPage() {
         return [];
       }
     },
+    // Poll every 5 seconds to update course list immediately after enrollment
+    refetchInterval: 5000,
   });
 
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
@@ -107,6 +109,8 @@ export default function DashboardPage() {
         };
       }
     },
+    // Poll stats as well
+    refetchInterval: 5000,
   });
 
   const { data: continueLesson, isLoading: continueLoading } = useQuery<ContinueLesson | null>({

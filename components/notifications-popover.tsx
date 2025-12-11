@@ -44,8 +44,8 @@ export function NotificationsPopover() {
         return [];
       }
     },
-    // Poll every minute
-    refetchInterval: 60000,
+    // Poll every 5 seconds for better responsiveness
+    refetchInterval: 5000,
   });
 
   const markAllReadMutation = useMutation({
