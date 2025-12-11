@@ -1,34 +1,67 @@
-import fs from "fs/promises";
-import path from "path";
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { v4 as uuidv4 } from "uuid";
+import path from "path";
 
-const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
+const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
+const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
+const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
+const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME;
+const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL;
+
+if (!R2_ACCOUNT_ID || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY || !R2_BUCKET_NAME || !R2_PUBLIC_URL) {
+  console.warn("R2 credentials are missing. File uploads will fail.");
+}
+
+const s3Client = new S3Client({
+  region: "auto",
+  endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  credentials: {
+    accessKeyId: R2_ACCESS_KEY_ID || "",
+    secretAccessKey: R2_SECRET_ACCESS_KEY || "",
+  },
+});
 
 export async function saveFile(file: File, customFilename?: string): Promise<string> {
   try {
-    // Ensure upload directory exists
-    await fs.mkdir(UPLOAD_DIR, { recursive: true });
-
     const buffer = Buffer.from(await file.arrayBuffer());
     const fileName = customFilename || `${uuidv4()}${path.extname(file.name)}`;
-    const filePath = path.join(UPLOAD_DIR, fileName);
+    
+    // Determine content type
+    const contentType = file.type || "application/octet-stream";
 
-    await fs.writeFile(filePath, buffer);
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: R2_BUCKET_NAME,
+        Key: fileName,
+        Body: buffer,
+        ContentType: contentType,
+        // ACL: "public-read", // R2 doesn't support ACLs the same way, usually controlled by bucket settings
+      })
+    );
 
-    return `/uploads/${fileName}`;
+    return `${R2_PUBLIC_URL}/${fileName}`;
   } catch (error) {
-    console.error("Error saving file:", error);
+    console.error("Error saving file to R2:", error);
     throw new Error("Failed to save file");
   }
 }
 
 export async function deleteFile(fileUrl: string): Promise<void> {
   try {
-    const fileName = path.basename(fileUrl);
-    const filePath = path.join(UPLOAD_DIR, fileName);
-    await fs.unlink(filePath);
+    // Extract filename from URL
+    // URL format: https://storage.prrv.tech/filename.ext
+    const fileName = fileUrl.split("/").pop();
+    
+    if (!fileName) return;
+
+    await s3Client.send(
+      new DeleteObjectCommand({
+        Bucket: R2_BUCKET_NAME,
+        Key: fileName,
+      })
+    );
   } catch (error) {
-    console.error("Error deleting file:", error);
+    console.error("Error deleting file from R2:", error);
     // Don't throw error if file doesn't exist or can't be deleted
   }
 }

@@ -56,6 +56,10 @@ const nextConfig = {
         protocol: "https",
         hostname: "**.yell.ru",
       },
+      {
+        protocol: "https",
+        hostname: "storage.prrv.tech",
+      },
     ],
   },
   // CORS настройки через headers
