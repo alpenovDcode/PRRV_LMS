@@ -12,7 +12,7 @@ down:
 
 # Restart services
 restart:
-	docker compose -f docker-compose.prod.yml down && docker compose -f docker-compose.prod.yml build && docker compose -f docker-compose.prod.yml uo -d
+	docker compose -f docker-compose.prod.yml down && docker compose -f docker-compose.prod.yml build && docker compose -f docker-compose.prod.yml up -d
 
 # View logs
 logs:

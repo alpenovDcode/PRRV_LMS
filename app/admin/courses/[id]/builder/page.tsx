@@ -58,12 +58,28 @@ function AccessSettingsDialog({ module, open, onOpenChange, onSave }: AccessSett
   const [tariffs, setTariffs] = useState<string[]>(module.allowedTariffs || []);
   const [tracks, setTracks] = useState<string[]>(module.allowedTracks || []);
   const [groups, setGroups] = useState<string[]>(module.allowedGroups || []);
-  const [newTrack, setNewTrack] = useState("");
-  const [newGroup, setNewGroup] = useState("");
 
-  // Mock data for groups (in real app, fetch from API)
-  // For now we use text input for tracks and groups as per plan, or simple list management
-  
+  // Mock data for tracks (in real app, could be fetched or defined in constants)
+  const availableTracks = [
+    "Заполнить расписание",
+    "Повысить чек",
+    "Выйти из операционки",
+    "Масштабировать школу",
+    "Создать онлайн-продукт"
+  ];
+
+  // Fetch groups using React Query
+  const { data: groupsData } = useQuery({
+    queryKey: ["admin", "groups"],
+    queryFn: async () => {
+      const response = await apiClient.get("/admin/groups");
+      return response.data.data; // Assuming API returns { data: Group[] }
+    },
+    enabled: open, // Only fetch when dialog is open
+  });
+
+  const availableGroups = groupsData || [];
+
   const handleSave = () => {
     onSave({ allowedTariffs: tariffs, allowedTracks: tracks, allowedGroups: groups });
     onOpenChange(false);
@@ -75,26 +91,22 @@ function AccessSettingsDialog({ module, open, onOpenChange, onSave }: AccessSett
     );
   };
 
-  const addTrack = () => {
-    if (newTrack && !tracks.includes(newTrack)) {
-      setTracks([...tracks, newTrack]);
-      setNewTrack("");
-    }
+  const toggleTrack = (track: string) => {
+    setTracks(prev => 
+      prev.includes(track) ? prev.filter(t => t !== track) : [...prev, track]
+    );
   };
 
-  const removeTrack = (track: string) => {
-    setTracks(tracks.filter(t => t !== track));
+  const toggleGroup = (groupId: string) => {
+    setGroups(prev => 
+      prev.includes(groupId) ? prev.filter(g => g !== groupId) : [...prev, groupId]
+    );
   };
 
-  const addGroup = () => {
-    if (newGroup && !groups.includes(newGroup)) {
-      setGroups([...groups, newGroup]);
-      setNewGroup("");
-    }
-  };
-
-  const removeGroup = (group: string) => {
-    setGroups(groups.filter(g => g !== group));
+  const tariffLabels: Record<string, string> = {
+    "VR": "ВР (Востребованный)",
+    "LR": "ЛР (Лидер Рынка)",
+    "SR": "СР (Самостоятельный)"
   };
 
   return (
@@ -111,7 +123,7 @@ function AccessSettingsDialog({ module, open, onOpenChange, onSave }: AccessSett
           {/* Tariffs */}
           <div className="space-y-2">
             <Label>Тарифы</Label>
-            <div className="flex gap-4">
+            <div className="flex flex-col gap-2">
               {["VR", "LR", "SR"].map((tariff) => (
                 <div key={tariff} className="flex items-center space-x-2">
                   <Checkbox 
@@ -123,33 +135,42 @@ function AccessSettingsDialog({ module, open, onOpenChange, onSave }: AccessSett
                     htmlFor={`tariff-${tariff}`}
                     className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                   >
-                    {tariff}
+                    {tariffLabels[tariff]}
                   </label>
                 </div>
               ))}
             </div>
             <p className="text-xs text-gray-500">
-              {tariffs.length === 0 ? "Доступно для всех тарифов" : `Доступно только для: ${tariffs.join(", ")}`}
+              {tariffs.length === 0 ? "Доступно для всех тарифов" : `Выбрано: ${tariffs.map(t => tariffLabels[t].split(" ")[0]).join(", ")}`}
             </p>
           </div>
 
           {/* Tracks */}
           <div className="space-y-2">
             <Label>Треки</Label>
-            <div className="flex gap-2">
-              <Input 
-                value={newTrack} 
-                onChange={(e) => setNewTrack(e.target.value)} 
-                placeholder="Название трека"
-                className="h-8"
-              />
-              <Button size="sm" onClick={addTrack} type="button" variant="secondary">Добавить</Button>
-            </div>
+            <Select 
+              onValueChange={(value) => toggleTrack(value)} 
+              value={tracks.length > 0 ? tracks[tracks.length - 1] : undefined} // Dummy value to reset
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Выберите треки" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableTracks.map((track) => (
+                  <SelectItem key={track} value={track}>
+                    <div className="flex items-center gap-2">
+                      <Checkbox checked={tracks.includes(track)} />
+                      <span>{track}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <div className="flex flex-wrap gap-2 mt-2">
               {tracks.map(track => (
                 <Badge key={track} variant="secondary" className="gap-1">
                   {track}
-                  <X className="h-3 w-3 cursor-pointer" onClick={() => removeTrack(track)} />
+                  <X className="h-3 w-3 cursor-pointer" onClick={() => toggleTrack(track)} />
                 </Badge>
               ))}
             </div>
@@ -158,23 +179,37 @@ function AccessSettingsDialog({ module, open, onOpenChange, onSave }: AccessSett
 
           {/* Groups */}
           <div className="space-y-2">
-            <Label>Группы (ID)</Label>
-            <div className="flex gap-2">
-              <Input 
-                value={newGroup} 
-                onChange={(e) => setNewGroup(e.target.value)} 
-                placeholder="ID группы"
-                className="h-8"
-              />
-              <Button size="sm" onClick={addGroup} type="button" variant="secondary">Добавить</Button>
-            </div>
+            <Label>Группы</Label>
+            <Select 
+              onValueChange={(value) => toggleGroup(value)}
+              value={groups.length > 0 ? groups[groups.length - 1] : undefined}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Выберите группы" />
+              </SelectTrigger>
+              <SelectContent>
+                {/* @ts-ignore - groupsData might be any */}
+                {availableGroups.map((group: any) => (
+                  <SelectItem key={group.id} value={group.id}>
+                    <div className="flex items-center gap-2">
+                      <Checkbox checked={groups.includes(group.id)} />
+                      <span>{group.name}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <div className="flex flex-wrap gap-2 mt-2">
-              {groups.map(group => (
-                <Badge key={group} variant="secondary" className="gap-1">
-                  {group}
-                  <X className="h-3 w-3 cursor-pointer" onClick={() => removeGroup(group)} />
-                </Badge>
-              ))}
+              {groups.map(groupId => {
+                // @ts-ignore
+                const groupName = availableGroups.find((g: any) => g.id === groupId)?.name || groupId;
+                return (
+                  <Badge key={groupId} variant="secondary" className="gap-1">
+                    {groupName}
+                    <X className="h-3 w-3 cursor-pointer" onClick={() => toggleGroup(groupId)} />
+                  </Badge>
+                );
+              })}
             </div>
             {groups.length === 0 && <p className="text-xs text-gray-500">Доступно для всех групп</p>}
           </div>
@@ -230,9 +265,14 @@ export default function CourseBuilderPage() {
     },
     onSuccess: () => {
       setEditingModuleId(null);
+      setAccessSettingsModuleId(null);
       queryClient.invalidateQueries({ queryKey: ["admin", "courses", courseId] });
       toast.success("Модуль обновлен");
     },
+    onError: (error) => {
+      console.error("Failed to update module:", error);
+      toast.error("Ошибка при обновлении модуля");
+    }
   });
 
   const deleteModuleMutation = useMutation({
@@ -798,30 +838,30 @@ export default function CourseBuilderPage() {
               {/* Modules list */}
               <div className="space-y-4">
                 {rootModules.length === 0 && (
-                  <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-lg">
-                    <p className="text-gray-500">Модулей пока нет — добавьте первый модуль.</p>
-                  </div>
+                  <p className="text-center text-gray-500 py-8">
+                    В курсе пока нет модулей. Создайте первый модуль выше.
+                  </p>
                 )}
-                {rootModules.map((module) => renderModule(module))}
+                {rootModules.map(module => renderModule(module))}
               </div>
             </CardContent>
           </Card>
-
-          {/* Access Settings Dialog */}
-          {accessSettingsModuleId && (
-            <AccessSettingsDialog
-              module={data.modules.find(m => m.id === accessSettingsModuleId)!}
-              open={!!accessSettingsModuleId}
-              onOpenChange={(open) => !open && setAccessSettingsModuleId(null)}
-              onSave={(settings) => {
-                updateModuleMutation.mutate({
-                  moduleId: accessSettingsModuleId,
-                  ...settings
-                });
-              }}
-            />
-          )}
         </>
+      )}
+
+      {/* Access Settings Dialog */}
+      {accessSettingsModuleId && data && (
+        <AccessSettingsDialog
+          open={!!accessSettingsModuleId}
+          onOpenChange={(open) => !open && setAccessSettingsModuleId(null)}
+          module={data.modules.find(m => m.id === accessSettingsModuleId)!}
+          onSave={(settings) => {
+            updateModuleMutation.mutate({
+              moduleId: accessSettingsModuleId,
+              ...settings
+            });
+          }}
+        />
       )}
     </div>
   );
