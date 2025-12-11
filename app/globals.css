@@ -58,8 +58,11 @@
   * {
     @apply border-border;
   }
+  html {
+    @apply bg-white;
+  }
   body {
-    @apply bg-gradient-to-br from-[#D8E6FF]/30 via-white to-white text-[#1E1E1E];
+    @apply bg-gradient-to-br from-[#D8E6FF]/30 via-white to-white text-[#1E1E1E] min-h-screen;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 }

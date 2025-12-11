@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -22,7 +22,9 @@ import {
   MessageSquare, 
   LogIn,
   Shield,
-  User
+  User,
+  Eye,
+  EyeOff
 } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
@@ -55,6 +57,9 @@ type PasswordFormValues = z.infer<typeof passwordSchema>;
 export default function ProfilePage() {
   const { user: authUser } = useAuth();
   const queryClient = useQueryClient();
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Fetch full profile data
   const { data: profileData } = useQuery({
@@ -117,7 +122,8 @@ export default function ProfilePage() {
 
   const updatePasswordMutation = useMutation({
     mutationFn: async (data: { currentPassword: string; newPassword: string }) => {
-      const response = await apiClient.put("/api/profile/password", data);
+      // Fix: remove /api prefix as it is added by baseURL
+      const response = await apiClient.put("/profile/password", data);
       return response.data;
     },
     onSuccess: () => {
@@ -125,6 +131,7 @@ export default function ProfilePage() {
       passwordForm.reset();
     },
     onError: (error: any) => {
+      console.error("Password change error:", error);
       const message = error.response?.data?.error?.message || "Не удалось изменить пароль";
       toast.error(message);
     },
@@ -317,12 +324,22 @@ export default function ProfilePage() {
               <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="currentPassword">Текущий пароль</Label>
-                  <Input
-                    id="currentPassword"
-                    type="password"
-                    {...passwordForm.register("currentPassword")}
-                    placeholder="••••••••"
-                  />
+                  <div className="relative">
+                    <Input
+                      id="currentPassword"
+                      type={showCurrentPassword ? "text" : "password"}
+                      {...passwordForm.register("currentPassword")}
+                      placeholder="••••••••"
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    >
+                      {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                   {passwordForm.formState.errors.currentPassword && (
                     <p className="text-xs text-red-500">{passwordForm.formState.errors.currentPassword.message}</p>
                   )}
@@ -331,12 +348,22 @@ export default function ProfilePage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="newPassword">Новый пароль</Label>
-                    <Input
-                      id="newPassword"
-                      type="password"
-                      {...passwordForm.register("newPassword")}
-                      placeholder="••••••••"
-                    />
+                    <div className="relative">
+                      <Input
+                        id="newPassword"
+                        type={showNewPassword ? "text" : "password"}
+                        {...passwordForm.register("newPassword")}
+                        placeholder="••••••••"
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                      >
+                        {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                     {passwordForm.formState.errors.newPassword && (
                       <p className="text-xs text-red-500">{passwordForm.formState.errors.newPassword.message}</p>
                     )}
@@ -344,12 +371,22 @@ export default function ProfilePage() {
                   
                   <div className="space-y-2">
                     <Label htmlFor="confirmPassword">Подтвердите пароль</Label>
-                    <Input
-                      id="confirmPassword"
-                      type="password"
-                      {...passwordForm.register("confirmPassword")}
-                      placeholder="••••••••"
-                    />
+                    <div className="relative">
+                      <Input
+                        id="confirmPassword"
+                        type={showConfirmPassword ? "text" : "password"}
+                        {...passwordForm.register("confirmPassword")}
+                        placeholder="••••••••"
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                      >
+                        {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                     {passwordForm.formState.errors.confirmPassword && (
                       <p className="text-xs text-red-500">{passwordForm.formState.errors.confirmPassword.message}</p>
                     )}
