@@ -26,37 +26,7 @@ async function main() {
 
   console.log("✅ Admin user created:", admin.email);
 
-  // Создание тестового студента
-  const studentPassword = await hashPassword("student123");
-  const student = await prisma.user.upsert({
-    where: { email: "student@test.ru" },
-    update: {},
-    create: {
-      email: "student@test.ru",
-      passwordHash: studentPassword,
-      fullName: "Тестовый Студент",
-      role: UserRole.student,
-      emailVerified: true,
-    },
-  });
 
-  console.log("✅ Student user created:", student.email);
-
-  // Создание тестового куратора
-  const curatorPassword = await hashPassword("curator123");
-  const curator = await prisma.user.upsert({
-    where: { email: "curator@test.ru" },
-    update: {},
-    create: {
-      email: "curator@test.ru",
-      passwordHash: curatorPassword,
-      fullName: "Тестовый Куратор",
-      role: UserRole.curator,
-      emailVerified: true,
-    },
-  });
-
-  console.log("✅ Curator user created:", curator.email);
 
   console.log("🎉 Seeding completed!");
 }

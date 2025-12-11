@@ -12,7 +12,7 @@ down:
 
 # Restart services
 restart:
-	docker compose -f docker-compose.prod.yml restart
+	docker compose -f docker-compose.prod.yml down && docker compose -f docker-compose.prod.yml build && docker compose -f docker-compose.prod.yml uo -d
 
 # View logs
 logs:
@@ -40,3 +40,6 @@ shell-db:
 # Run database migrations
 migrate:
 	docker exec proryv_app npx prisma@5.7.1 migrate deploy
+
+backup:
+	./backup.sh
