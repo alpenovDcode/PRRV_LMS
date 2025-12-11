@@ -13,6 +13,7 @@ const updateUserSchema = z.object({
   role: z.enum(["student", "admin", "curator"]).optional(),
   password: z.string().min(6).optional(),
   phone: z.string().optional(),
+  telegram: z.string().optional(),
   about: z.string().optional(),
   avatarUrl: z.string().optional(),
   track: z.string().optional(),

@@ -9,6 +9,7 @@ const updateProfileSchema = z.object({
   email: z.string().email().optional(),
   avatarUrl: z.string().optional(),
   phone: z.string().optional(), // We'll accept it but might not store it if DB doesn't have it, or store in a separate table/field if added later.
+  telegram: z.string().optional(),
   about: z.string().optional(),
 });
 
@@ -24,6 +25,7 @@ export async function GET(request: NextRequest) {
           role: true,
           avatarUrl: true,
           phone: true,
+          telegram: true,
           about: true,
           track: true,
           createdAt: true,

@@ -36,6 +36,7 @@ const profileSchema = z.object({
   fullName: z.string().min(2, "Имя должно содержать минимум 2 символа"),
   email: z.string().email("Некорректный email"),
   phone: z.string().optional(),
+  telegram: z.string().optional(),
   about: z.string().max(500, "Максимум 500 символов").optional(),
   avatarUrl: z.string().optional(),
 });
@@ -78,6 +79,7 @@ export default function ProfilePage() {
       fullName: "",
       email: "",
       phone: "",
+      telegram: "",
       about: "",
       avatarUrl: "",
     },
@@ -90,6 +92,7 @@ export default function ProfilePage() {
         fullName: user.fullName || "",
         email: user.email || "",
         phone: user.phone || "",
+        telegram: user.telegram || "",
         about: user.about || "",
         avatarUrl: user.avatarUrl || "",
       });
@@ -269,6 +272,15 @@ export default function ProfilePage() {
                         id="phone"
                         {...profileForm.register("phone")}
                         placeholder="+7 (999) 000-00-00"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="telegram">Telegram</Label>
+                      <Input
+                        id="telegram"
+                        {...profileForm.register("telegram")}
+                        placeholder="@username"
                       />
                     </div>
 

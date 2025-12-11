@@ -56,9 +56,16 @@ interface AdminUserDetail {
   avatarUrl: string | null;
   createdAt: string;
   phone: string | null;
+  telegram: string | null;
   about: string | null;
   track: string | null;
   tariff: "VR" | "LR" | "SR" | null;
+  groupMembers: {
+    group: {
+      id: string;
+      name: string;
+    }
+  }[];
   enrollments: {
     id: string;
     courseId: string;
@@ -385,6 +392,15 @@ export default function AdminUserDetailPage() {
                     Трек: {user.track}
                   </Badge>
                 )}
+                {user.groupMembers && user.groupMembers.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {user.groupMembers.map((gm, i) => (
+                      <Badge key={i} variant="secondary" className="bg-orange-50 text-orange-700 border-orange-200">
+                        Поток: {gm.group.name}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
             
@@ -400,6 +416,14 @@ export default function AdminUserDetailPage() {
                   </div>
                 </div>
                 
+                <div className="flex items-start gap-3">
+                  <MessageSquare className="h-5 w-5 text-blue-500 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{user.telegram || "Не указан"}</p>
+                    <p className="text-xs text-gray-500">Telegram</p>
+                  </div>
+                </div>
+
                 <div className="flex items-start gap-3">
                   <MapPin className="h-5 w-5 text-purple-500 mt-0.5" />
                   <div>
