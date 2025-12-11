@@ -321,14 +321,15 @@ export default function AdminGroupDetailPage() {
                           <CommandEmpty>Пользователь не найден.</CommandEmpty>
                           <CommandGroup>
                             {users?.map((user) => (
-                              <CommandItem
-                                key={user.id}
-                                value={user.email}
-                                onSelect={() => {
-                                  setSelectedUserId(user.id);
-                                  setOpenCombobox(false);
-                                }}
-                              >
+                                <CommandItem
+                                  key={user.id}
+                                  value={user.id}
+                                  keywords={[user.email, user.fullName || ""]}
+                                  onSelect={() => {
+                                    setSelectedUserId(user.id);
+                                    setOpenCombobox(false);
+                                  }}
+                                >
                                 <Check
                                   className={cn(
                                     "mr-2 h-4 w-4",
