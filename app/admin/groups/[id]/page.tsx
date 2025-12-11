@@ -314,36 +314,44 @@ export default function AdminGroupDetailPage() {
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-[300px] p-0">
-                      <Command>
-                        <CommandInput placeholder="Поиск по email..." />
+                    <PopoverContent className="w-[400px] p-0" align="start">
+                      <Command shouldFilter={false}>
+                        <CommandInput placeholder="Поиск по email или имени..." />
                         <CommandList>
                           <CommandEmpty>Пользователь не найден.</CommandEmpty>
                           <CommandGroup>
-                            {users?.map((user) => (
+                            {users
+                              ?.filter((user) => {
+                                const searchTerm = (document.querySelector('[cmdk-input]') as HTMLInputElement)?.value?.toLowerCase() || '';
+                                if (!searchTerm) return true;
+                                return (
+                                  user.email.toLowerCase().includes(searchTerm) ||
+                                  user.fullName?.toLowerCase().includes(searchTerm)
+                                );
+                              })
+                              .map((user) => (
                                 <CommandItem
                                   key={user.id}
-                                  value={user.email}
-                                  keywords={[user.fullName || ""]}
-                                  disabled={false}
-                                  onSelect={() => {
-                                    setSelectedUserId(user.id);
+                                  value={user.id}
+                                  onSelect={(currentValue) => {
+                                    setSelectedUserId(currentValue);
                                     setOpenCombobox(false);
                                   }}
-                                  className="cursor-pointer"
                                 >
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    selectedUserId === user.id ? "opacity-100" : "opacity-0"
-                                  )}
-                                />
-                                <div className="flex flex-col">
-                                  <span>{user.fullName || "Без имени"}</span>
-                                  <span className="text-xs text-muted-foreground">{user.email} ({user.role})</span>
-                                </div>
-                              </CommandItem>
-                            ))}
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      selectedUserId === user.id ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  <div className="flex flex-col">
+                                    <span>{user.fullName || "Без имени"}</span>
+                                    <span className="text-xs text-muted-foreground">
+                                      {user.email} ({user.role})
+                                    </span>
+                                  </div>
+                                </CommandItem>
+                              ))}
                           </CommandGroup>
                         </CommandList>
                       </Command>
