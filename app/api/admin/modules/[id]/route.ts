@@ -16,18 +16,24 @@ export async function PATCH(
       try {
         const { id } = await params;
         const body = await request.json();
-        const { title } = adminModuleUpdateSchema.parse(body);
+        const { title, allowedTariffs, allowedTracks, allowedGroups } = adminModuleUpdateSchema.parse(body);
 
         const moduleData = await db.module.update({
           where: { id },
           data: {
             title,
+            allowedTariffs: allowedTariffs || [],
+            allowedTracks: allowedTracks || [],
+            allowedGroups: allowedGroups || [],
           },
         });
 
         // Audit log
         await logAction(req.user!.userId, "UPDATE_MODULE", "module", moduleData.id, {
           title: moduleData.title,
+          allowedTariffs: moduleData.allowedTariffs,
+          allowedTracks: moduleData.allowedTracks,
+          allowedGroups: moduleData.allowedGroups,
         });
 
         return NextResponse.json<ApiResponse>({ success: true, data: moduleData }, { status: 200 });
@@ -105,5 +111,3 @@ export async function DELETE(
     { roles: [UserRole.admin] }
   );
 }
-
-

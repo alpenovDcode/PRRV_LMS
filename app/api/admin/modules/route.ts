@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     async (req) => {
       try {
         const body = await request.json();
-        const { courseId, title } = adminModuleCreateSchema.parse(body);
+        const { courseId, title, parentId, allowedTariffs, allowedTracks, allowedGroups } = adminModuleCreateSchema.parse(body);
 
         // Проверяем существование курса
         const course = await db.course.findUnique({
@@ -33,10 +33,47 @@ export async function POST(request: NextRequest) {
           );
         }
 
+        // Если указан parentId, проверяем существование родительского модуля
+        if (parentId) {
+          const parentModule = await db.module.findUnique({
+            where: { id: parentId },
+            select: { id: true, courseId: true },
+          });
+
+          if (!parentModule) {
+            return NextResponse.json<ApiResponse>(
+              {
+                success: false,
+                error: {
+                  code: "NOT_FOUND",
+                  message: "Родительский модуль не найден",
+                },
+              },
+              { status: 404 }
+            );
+          }
+
+          if (parentModule.courseId !== courseId) {
+            return NextResponse.json<ApiResponse>(
+              {
+                success: false,
+                error: {
+                  code: "INVALID_DATA",
+                  message: "Родительский модуль принадлежит другому курсу",
+                },
+              },
+              { status: 400 }
+            );
+          }
+        }
+
         // Используем транзакцию для атомарного получения orderIndex и создания модуля
         const moduleData = await db.$transaction(async (tx) => {
           const lastModule = await tx.module.findFirst({
-            where: { courseId },
+            where: { 
+              courseId,
+              parentId: parentId || null 
+            },
             orderBy: { orderIndex: "desc" },
           });
 
@@ -46,7 +83,11 @@ export async function POST(request: NextRequest) {
             data: {
               courseId,
               title,
+              parentId,
               orderIndex,
+              allowedTariffs: allowedTariffs || [],
+              allowedTracks: allowedTracks || [],
+              allowedGroups: allowedGroups || [],
             },
           });
         });
@@ -55,6 +96,11 @@ export async function POST(request: NextRequest) {
         await logAction(req.user!.userId, "CREATE_MODULE", "module", moduleData.id, {
           title: moduleData.title,
           courseId,
+          access: {
+            tariffs: allowedTariffs,
+            tracks: allowedTracks,
+            groups: allowedGroups,
+          }
         });
 
         return NextResponse.json<ApiResponse>({ success: true, data: moduleData }, { status: 201 });
@@ -75,5 +121,3 @@ export async function POST(request: NextRequest) {
     { roles: [UserRole.admin] }
   );
 }
-
-

@@ -62,10 +62,18 @@ export const adminEnrollmentSchema = z.object({
 export const adminModuleCreateSchema = z.object({
   courseId: z.string().min(1, "courseId обязателен"),
   title: z.string().min(1, "Название модуля обязательно"),
+  parentId: z.string().optional(),
+  allowedTariffs: z.array(z.enum(["VR", "LR", "SR"])).optional(),
+  allowedTracks: z.array(z.string()).optional(),
+  allowedGroups: z.array(z.string()).optional(),
 });
 
 export const adminModuleUpdateSchema = z.object({
   title: z.string().min(1, "Название модуля обязательно"),
+  parentId: z.string().optional(),
+  allowedTariffs: z.array(z.enum(["VR", "LR", "SR"])).optional(),
+  allowedTracks: z.array(z.string()).optional(),
+  allowedGroups: z.array(z.string()).optional(),
 });
 
 export const adminLessonCreateSchema = z.object({
@@ -84,5 +92,6 @@ export const adminUserCreateSchema = z.object({
   password: z.string().min(6, "Пароль должен содержать минимум 6 символов"),
   fullName: z.string().min(2, "Имя должно содержать минимум 2 символа").optional(),
   role: z.enum(["student", "curator", "admin"]).default("student"),
+  tariff: z.enum(["VR", "LR", "SR"]).optional(),
+  track: z.string().optional(),
 });
-

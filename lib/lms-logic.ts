@@ -10,20 +10,38 @@ export interface DripRule {
 
 export interface LessonAvailabilityResult {
   isAvailable: boolean;
-  reason?: "not_enrolled" | "enrollment_not_active" | "enrollment_expired" | "drip_locked" | "prerequisites_not_met" | "hard_deadline_passed";
+  reason?: "not_enrolled" | "enrollment_not_active" | "enrollment_expired" | "drip_locked" | "prerequisites_not_met" | "hard_deadline_passed" | "access_denied";
   availableDate?: string;
   requiredLessonId?: string;
 }
 
 export async function checkLessonAvailability(userId: string, lessonId: string): Promise<LessonAvailabilityResult> {
-  // ... (keep existing enrollment checks) ...
-  // Note: I need to re-implement the function body properly because previous replace was partial/broken
-  
+  // 1. Fetch user details for access control
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: {
+      tariff: true,
+      track: true,
+      groupMembers: {
+        select: { groupId: true },
+      },
+    },
+  });
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  // 2. Fetch lesson with module access settings
   const lesson = await db.lesson.findUnique({
     where: { id: lessonId },
     include: {
       module: {
-        include: {
+        select: {
+          id: true,
+          allowedTariffs: true,
+          allowedTracks: true,
+          allowedGroups: true,
           course: {
             include: {
               enrollments: {
@@ -33,6 +51,12 @@ export async function checkLessonAvailability(userId: string, lessonId: string):
           },
         },
       },
+      progress: {
+        where: {
+          userId,
+        },
+        take: 1,
+      },
     },
   });
 
@@ -40,6 +64,35 @@ export async function checkLessonAvailability(userId: string, lessonId: string):
     throw new Error("Lesson not found");
   }
 
+  // 3. Check Module Access Control (Tariff, Track, Group)
+  const module = lesson.module;
+  const userGroupIds = user.groupMembers.map((gm) => gm.groupId);
+
+  // Check Tariff
+  if (module.allowedTariffs && module.allowedTariffs.length > 0) {
+    if (!user.tariff || !module.allowedTariffs.includes(user.tariff)) {
+      return { isAvailable: false, reason: "access_denied" };
+    }
+  }
+
+  // Check Track
+  if (module.allowedTracks && module.allowedTracks.length > 0) {
+    if (!user.track || !module.allowedTracks.includes(user.track)) {
+      return { isAvailable: false, reason: "access_denied" };
+    }
+  }
+
+  // Check Group
+  if (module.allowedGroups && module.allowedGroups.length > 0) {
+    const hasGroupAccess = module.allowedGroups.some((allowedGroupId) =>
+      userGroupIds.includes(allowedGroupId)
+    );
+    if (!hasGroupAccess) {
+      return { isAvailable: false, reason: "access_denied" };
+    }
+  }
+
+  // 4. Check Enrollment
   const enrollment = lesson.module.course.enrollments[0];
   if (!enrollment) {
     return { isAvailable: false, reason: "not_enrolled" };
@@ -53,7 +106,7 @@ export async function checkLessonAvailability(userId: string, lessonId: string):
     return { isAvailable: false, reason: "enrollment_expired" };
   }
 
-  // Use enhanced drip check
+  // 5. Check Drip Content
   try {
     const dripResult = await checkEnhancedDripAvailability(userId, lessonId);
     if (!dripResult.isAvailable) {
@@ -67,7 +120,7 @@ export async function checkLessonAvailability(userId: string, lessonId: string):
     console.error("Drip check failed:", error);
   }
 
-  // Проверка prerequisites (стоп-уроки)
+  // 6. Check Prerequisites (Stop Lessons)
   const previousLesson = await db.lesson.findFirst({
     where: {
       moduleId: lesson.moduleId,
@@ -104,8 +157,6 @@ export async function checkLessonAvailability(userId: string, lessonId: string):
 
   return { isAvailable: true };
 }
-
-// ...
 
 /**
  * Проверяет prerequisites для урока (стоп-уроки)

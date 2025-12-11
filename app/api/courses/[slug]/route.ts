@@ -105,11 +105,65 @@ export async function GET(
       const totalLessons = allLessons.length;
       const progress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
 
+      // Fetch user details for access control
+      const user = await db.user.findUnique({
+        where: { id: req.user!.userId },
+        include: {
+          groupMembers: {
+            select: { groupId: true },
+          },
+        },
+      });
+
+      if (!user) {
+        return NextResponse.json<ApiResponse>(
+          {
+            success: false,
+            error: {
+              code: "USER_NOT_FOUND",
+              message: "Пользователь не найден",
+            },
+          },
+          { status: 404 }
+        );
+      }
+
+      const userGroupIds = user.groupMembers.map(gm => gm.groupId);
+
+      // Filter modules based on access rules
+      const accessibleModules = course.modules.filter((module: any) => {
+        // 1. Tariff check
+        if (module.allowedTariffs && module.allowedTariffs.length > 0) {
+          if (!user.tariff || !module.allowedTariffs.includes(user.tariff)) {
+            return false;
+          }
+        }
+
+        // 2. Track check
+        if (module.allowedTracks && module.allowedTracks.length > 0) {
+          if (!user.track || !module.allowedTracks.includes(user.track)) {
+            return false;
+          }
+        }
+
+        // 3. Group check
+        if (module.allowedGroups && module.allowedGroups.length > 0) {
+          const hasGroupAccess = module.allowedGroups.some((allowedGroupId: string) => 
+            userGroupIds.includes(allowedGroupId)
+          );
+          if (!hasGroupAccess) {
+            return false;
+          }
+        }
+
+        return true;
+      });
+
       // Используем централизованную бизнес-логику для проверки доступности уроков
       const startDate = new Date(enrollment.startDate);
 
       const modulesWithLessons = await Promise.all(
-        course.modules.map(async (module: any) => ({
+        accessibleModules.map(async (module: any) => ({
           ...module,
           lessons: await Promise.all(
             module.lessons.map(async (lesson: any) => {
@@ -150,8 +204,33 @@ export async function GET(
               };
             })
           ),
+          children: [], // Initialize children array
         }))
       );
+
+      // Build hierarchy
+      const modulesMap = new Map();
+      const rootModules: any[] = [];
+
+      modulesWithLessons.forEach((module) => {
+        modulesMap.set(module.id, module);
+      });
+
+      modulesWithLessons.forEach((module) => {
+        if (module.parentId) {
+          const parent = modulesMap.get(module.parentId);
+          if (parent) {
+            parent.children.push(module);
+            // Sort children by orderIndex
+            parent.children.sort((a: any, b: any) => a.orderIndex - b.orderIndex);
+          }
+        } else {
+          rootModules.push(module);
+        }
+      });
+
+      // Sort root modules
+      rootModules.sort((a: any, b: any) => a.orderIndex - b.orderIndex);
 
       return NextResponse.json<ApiResponse>(
         {
@@ -161,7 +240,7 @@ export async function GET(
             title: course.title,
             description: course.description,
             coverImage: course.coverImage,
-            modules: modulesWithLessons,
+            modules: rootModules,
             progress,
             enrollment: {
               status: enrollment.status,
@@ -188,4 +267,3 @@ export async function GET(
     }
   });
 }
-

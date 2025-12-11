@@ -55,6 +55,8 @@ export async function GET(request: NextRequest) {
             email: true,
             fullName: true,
             role: true,
+            tariff: true,
+            track: true,
             createdAt: true,
           },
           orderBy: { createdAt: "desc" },
@@ -86,7 +88,7 @@ export async function POST(request: NextRequest) {
     async (req) => {
       try {
         const body = await request.json();
-        const { email, password, fullName, role } = adminUserCreateSchema.parse(body);
+        const { email, password, fullName, role, tariff, track } = adminUserCreateSchema.parse(body);
 
         // Проверяем, существует ли пользователь с таким email
         const existingUser = await db.user.findUnique({
@@ -116,13 +118,16 @@ export async function POST(request: NextRequest) {
             fullName,
             role: role as UserRole,
             sessionId,
-            track: role === "student" ? (body.track as string) : undefined,
+            track: role === "student" ? track : undefined,
+            tariff: role === "student" ? (tariff as "VR" | "LR" | "SR") : undefined,
           },
           select: {
             id: true,
             email: true,
             fullName: true,
             role: true,
+            tariff: true,
+            track: true,
             createdAt: true,
           },
         });
@@ -131,6 +136,7 @@ export async function POST(request: NextRequest) {
         await logAction(req.user!.userId, "CREATE_USER", "user", user.id, {
           email: user.email,
           role: user.role,
+          tariff: user.tariff,
         });
 
         return NextResponse.json<ApiResponse>({ success: true, data: user }, { status: 201 });
@@ -165,5 +171,3 @@ export async function POST(request: NextRequest) {
     { roles: [UserRole.admin] }
   );
 }
-
-

@@ -58,6 +58,7 @@ interface AdminUserDetail {
   phone: string | null;
   about: string | null;
   track: string | null;
+  tariff: "VR" | "LR" | "SR" | null;
   enrollments: {
     id: string;
     courseId: string;
@@ -96,6 +97,7 @@ const updateUserSchema = z.object({
   phone: z.string().optional(),
   about: z.string().optional(),
   track: z.string().optional(),
+  tariff: z.enum(["VR", "LR", "SR"]).optional().nullable(),
   password: z.string().optional().or(z.literal("")),
 });
 
@@ -116,6 +118,7 @@ function EditUserDialog({ user, open, onOpenChange, onSuccess }: {
       phone: user.phone || "",
       about: user.about || "",
       track: user.track || "",
+      tariff: user.tariff || null,
       password: "",
     },
   });
@@ -177,6 +180,23 @@ function EditUserDialog({ user, open, onOpenChange, onSuccess }: {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="tariff">Тариф</Label>
+            <Select 
+              defaultValue={user.tariff || undefined} 
+              onValueChange={(value) => form.setValue("tariff", value as "VR" | "LR" | "SR")}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Выберите тариф" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="VR">Востребованный (VR)</SelectItem>
+                <SelectItem value="LR">Лидер Рынка (LR)</SelectItem>
+                <SelectItem value="SR">Самостоятельный (SR)</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">
@@ -354,13 +374,18 @@ export default function AdminUserDetailPage() {
                   {user.about}
                 </p>
               )}
-              {user.track && (
-                <div className="mt-4">
+              <div className="mt-4 flex flex-col gap-2">
+                {user.tariff && (
+                  <Badge variant="outline" className="border-blue-200 text-blue-700 bg-blue-50">
+                    Тариф: {user.tariff}
+                  </Badge>
+                )}
+                {user.track && (
                   <Badge variant="outline" className="border-purple-200 text-purple-700 bg-purple-50">
                     Трек: {user.track}
                   </Badge>
-                </div>
-              )}
+                )}
+              </div>
             </div>
             
             <div className="p-6 space-y-6">

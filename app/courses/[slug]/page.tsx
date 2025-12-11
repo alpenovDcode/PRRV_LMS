@@ -13,7 +13,8 @@ import {
   Clock, 
   ChevronRight,
   AlertCircle,
-  BarChart
+  BarChart,
+  CornerDownRight
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -46,6 +47,7 @@ interface Module {
   title: string;
   orderIndex: number;
   lessons: Lesson[];
+  children?: Module[];
 }
 
 interface CourseDetail {
@@ -112,9 +114,74 @@ export default function CourseDetailPage() {
   }
 
   const sortedModules = [...course.modules].sort((a, b) => a.orderIndex - b.orderIndex);
-  const allLessons = sortedModules.flatMap((m) => m.lessons);
+  
+  // Recursive function to get all lessons
+  const getAllLessons = (modules: Module[]): Lesson[] => {
+    return modules.flatMap(m => [
+      ...m.lessons,
+      ...(m.children ? getAllLessons(m.children) : [])
+    ]);
+  };
+
+  const allLessons = getAllLessons(sortedModules);
   const completedLessons = allLessons.filter(l => l.progress?.status === "completed").length;
   const firstAvailableLesson = allLessons.find((l) => l.isAvailable && l.progress?.status !== "completed") || allLessons.find((l) => l.isAvailable);
+
+  const renderLesson = (lesson: Lesson, slug: string) => (
+    <Link
+      key={lesson.id}
+      href={lesson.isAvailable ? `/learn/${slug}/${lesson.id}` : "#"}
+      onClick={(e) => !lesson.isAvailable && e.preventDefault()}
+      className={cn(
+        "flex items-center gap-4 px-6 py-4 transition-all duration-200 group",
+        lesson.isAvailable 
+          ? "hover:bg-blue-50/50 cursor-pointer" 
+          : "opacity-60 cursor-not-allowed bg-gray-50/50"
+      )}
+    >
+      <div className="shrink-0">
+        {lesson.progress?.status === "completed" ? (
+          <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
+            <CheckCircle2 className="h-5 w-5 text-green-600" />
+          </div>
+        ) : lesson.isAvailable ? (
+          <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center group-hover:bg-blue-200 transition-colors">
+            <Play className="h-4 w-4 text-blue-600 ml-0.5" />
+          </div>
+        ) : (
+          <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center">
+            <Lock className="h-4 w-4 text-gray-400" />
+          </div>
+        )}
+      </div>
+      
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1">
+          <h4 className={cn(
+            "font-medium text-base truncate",
+            lesson.isAvailable ? "text-gray-900 group-hover:text-blue-700" : "text-gray-500"
+          )}>
+            {lesson.title}
+          </h4>
+          {lesson.type === "video" && (
+            <Badge variant="secondary" className="h-5 px-1.5 text-[10px] uppercase tracking-wider bg-gray-100 text-gray-500">
+              Видео
+            </Badge>
+          )}
+        </div>
+        {!lesson.isAvailable && lesson.availableDate && (
+          <p className="text-xs text-orange-600 font-medium flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            Откроется {new Date(lesson.availableDate).toLocaleDateString("ru-RU")}
+          </p>
+        )}
+      </div>
+
+      {lesson.isAvailable && (
+        <ChevronRight className="h-5 w-5 text-gray-300 group-hover:text-blue-400 transition-colors" />
+      )}
+    </Link>
+  );
 
   return (
     <div className="min-h-screen bg-gray-50/50 pb-12">
@@ -189,6 +256,9 @@ export default function CourseDetailPage() {
               <Accordion type="multiple" defaultValue={[sortedModules[0]?.id]} className="w-full">
                 {sortedModules.map((module, index) => {
                   const sortedLessons = [...module.lessons].sort((a, b) => a.orderIndex - b.orderIndex);
+                  const sortedChildren = module.children ? [...module.children].sort((a, b) => a.orderIndex - b.orderIndex) : [];
+                  const totalLessonsInModule = module.lessons.length + sortedChildren.reduce((acc, child) => acc + child.lessons.length, 0);
+
                   return (
                     <AccordionItem key={module.id} value={module.id} className="border-b border-gray-100 last:border-0">
                       <AccordionTrigger className="px-6 py-4 hover:bg-gray-50 transition-colors">
@@ -199,69 +269,35 @@ export default function CourseDetailPage() {
                           <div>
                             <h3 className="font-semibold text-gray-900 text-lg">{module.title}</h3>
                             <p className="text-sm text-gray-500 font-normal">
-                              {sortedLessons.length} уроков
+                              {totalLessonsInModule} уроков
                             </p>
                           </div>
                         </div>
                       </AccordionTrigger>
                       <AccordionContent className="px-0 pb-0">
                         <div className="divide-y divide-gray-100">
-                          {sortedLessons.map((lesson) => (
-                            <Link
-                              key={lesson.id}
-                              href={lesson.isAvailable ? `/learn/${slug}/${lesson.id}` : "#"}
-                              onClick={(e) => !lesson.isAvailable && e.preventDefault()}
-                              className={cn(
-                                "flex items-center gap-4 px-6 py-4 transition-all duration-200 group",
-                                lesson.isAvailable 
-                                  ? "hover:bg-blue-50/50 cursor-pointer" 
-                                  : "opacity-60 cursor-not-allowed bg-gray-50/50"
-                              )}
-                            >
-                              <div className="shrink-0">
-                                {lesson.progress?.status === "completed" ? (
-                                  <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
-                                    <CheckCircle2 className="h-5 w-5 text-green-600" />
-                                  </div>
-                                ) : lesson.isAvailable ? (
-                                  <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center group-hover:bg-blue-200 transition-colors">
-                                    <Play className="h-4 w-4 text-blue-600 ml-0.5" />
-                                  </div>
-                                ) : (
-                                  <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center">
-                                    <Lock className="h-4 w-4 text-gray-400" />
-                                  </div>
-                                )}
-                              </div>
-                              
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <h4 className={cn(
-                                    "font-medium text-base truncate",
-                                    lesson.isAvailable ? "text-gray-900 group-hover:text-blue-700" : "text-gray-500"
-                                  )}>
-                                    {lesson.title}
-                                  </h4>
-                                  {lesson.type === "video" && (
-                                    <Badge variant="secondary" className="h-5 px-1.5 text-[10px] uppercase tracking-wider bg-gray-100 text-gray-500">
-                                      Видео
-                                    </Badge>
-                                  )}
-                                </div>
-                                {!lesson.isAvailable && lesson.availableDate && (
-                                  <p className="text-xs text-orange-600 font-medium flex items-center gap-1">
-                                    <Clock className="h-3 w-3" />
-                                    Откроется {new Date(lesson.availableDate).toLocaleDateString("ru-RU")}
-                                  </p>
-                                )}
-                              </div>
-
-                              {lesson.isAvailable && (
-                                <ChevronRight className="h-5 w-5 text-gray-300 group-hover:text-blue-400 transition-colors" />
-                              )}
-                            </Link>
-                          ))}
+                          {sortedLessons.map(lesson => renderLesson(lesson, slug))}
                         </div>
+                        
+                        {/* Submodules */}
+                        {sortedChildren.length > 0 && (
+                          <div className="bg-gray-50/30">
+                            {sortedChildren.map((submodule) => {
+                              const subLessons = [...submodule.lessons].sort((a, b) => a.orderIndex - b.orderIndex);
+                              return (
+                                <div key={submodule.id} className="border-t border-gray-100">
+                                  <div className="px-6 py-3 bg-gray-50 flex items-center gap-2">
+                                    <CornerDownRight className="h-4 w-4 text-gray-400" />
+                                    <h4 className="font-medium text-gray-700">{submodule.title}</h4>
+                                  </div>
+                                  <div className="divide-y divide-gray-100 pl-6">
+                                    {subLessons.map(lesson => renderLesson(lesson, slug))}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </AccordionContent>
                     </AccordionItem>
                   );

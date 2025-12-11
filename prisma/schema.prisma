@@ -9,6 +9,12 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+enum UserTariff {
+  VR // Vostrebovannyi
+  LR // Lider Rynka
+  SR // Samostoyatelnyi
+}
+
 model User {
   id                      String                  @id @default(uuid())
   email                   String                  @unique
@@ -16,6 +22,7 @@ model User {
   fullName                String?                 @map("full_name")
   avatarUrl               String?                 @map("avatar_url")
   role                    UserRole                @default(student)
+  tariff                  UserTariff?             @map("tariff")
   sessionId               String?                 @map("session_id")
   emailVerified           Boolean                 @default(false) @map("email_verified")
   createdAt               DateTime                @default(now()) @map("created_at")
@@ -68,16 +75,23 @@ model Course {
 }
 
 model Module {
-  id         String   @id @default(uuid())
-  courseId   String   @map("course_id")
-  title      String
-  orderIndex Int      @map("order_index")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
-  lessons    Lesson[]
-  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  id             String       @id @default(uuid())
+  courseId       String       @map("course_id")
+  parentId       String?      @map("parent_id")
+  title          String
+  orderIndex     Int          @map("order_index")
+  allowedTariffs UserTariff[] @map("allowed_tariffs")
+  allowedTracks  String[]     @map("allowed_tracks")
+  allowedGroups  String[]     @map("allowed_groups")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  lessons        Lesson[]
+  course         Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  parent         Module?      @relation("ModuleHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children       Module[]     @relation("ModuleHierarchy")
 
   @@index([courseId])
+  @@index([parentId])
   @@map("modules")
 }
 
@@ -222,7 +236,7 @@ model Notification {
   title     String
   message   String
   isRead    Boolean  @default(false) @map("is_read")
-  link      String?
+  link      String?  @map("link")
   createdAt DateTime @default(now()) @map("created_at")
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 

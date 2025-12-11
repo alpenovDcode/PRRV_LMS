@@ -34,6 +34,8 @@ interface AdminUser {
   email: string;
   fullName: string | null;
   role: "student" | "admin" | "curator";
+  tariff?: "VR" | "LR" | "SR" | null;
+  track?: string | null;
   createdAt: string;
 }
 
@@ -49,6 +51,8 @@ export default function AdminUsersPage() {
     password: "",
     fullName: "",
     role: "student" as "student" | "curator" | "admin",
+    tariff: "VR" as "VR" | "LR" | "SR",
+    track: "",
   });
 
   const { data, isLoading, error } = useQuery<AdminUser[]>({
@@ -75,7 +79,7 @@ export default function AdminUsersPage() {
     onSuccess: () => {
       toast.success("Пользователь успешно создан");
       setIsDialogOpen(false);
-      setFormData({ email: "", password: "", fullName: "", role: "student" });
+      setFormData({ email: "", password: "", fullName: "", role: "student", tariff: "VR", track: "" });
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
     },
     onError: (error: any) => {
@@ -199,26 +203,46 @@ export default function AdminUsersPage() {
                   </Select>
                 </div>
                 {formData.role === "student" && (
-                  <div className="space-y-2">
-                    <Label htmlFor="track">Трек обучения</Label>
-                    <Select
-                      value={(formData as any).track || ""}
-                      onValueChange={(value) =>
-                        setFormData({ ...formData, track: value } as any)
-                      }
-                    >
-                      <SelectTrigger id="track">
-                        <SelectValue placeholder="Выберите трек" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Заполнить расписание">Заполнить расписание</SelectItem>
-                        <SelectItem value="Повысить чек">Повысить чек</SelectItem>
-                        <SelectItem value="Перейти на онлайн">Перейти на онлайн</SelectItem>
-                        <SelectItem value="Стать репетитором">Стать репетитором</SelectItem>
-                        <SelectItem value="Перейти на группы">Перейти на группы</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="tariff">Тариф</Label>
+                      <Select
+                        value={formData.tariff}
+                        onValueChange={(value: "VR" | "LR" | "SR") =>
+                          setFormData({ ...formData, tariff: value })
+                        }
+                      >
+                        <SelectTrigger id="tariff">
+                          <SelectValue placeholder="Выберите тариф" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="VR">Востребованный (VR)</SelectItem>
+                          <SelectItem value="LR">Лидер Рынка (LR)</SelectItem>
+                          <SelectItem value="SR">Самостоятельный (SR)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="track">Трек обучения</Label>
+                      <Select
+                        value={formData.track}
+                        onValueChange={(value) =>
+                          setFormData({ ...formData, track: value })
+                        }
+                      >
+                        <SelectTrigger id="track">
+                          <SelectValue placeholder="Выберите трек" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Заполнить расписание">Заполнить расписание</SelectItem>
+                          <SelectItem value="Повысить чек">Повысить чек</SelectItem>
+                          <SelectItem value="Перейти на онлайн">Перейти на онлайн</SelectItem>
+                          <SelectItem value="Стать репетитором">Стать репетитором</SelectItem>
+                          <SelectItem value="Перейти на группы">Перейти на группы</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
                 )}
               </div>
               <DialogFooter>
@@ -314,6 +338,7 @@ export default function AdminUsersPage() {
                   <th className="py-2 text-left font-medium">Имя</th>
                   <th className="py-2 text-left font-medium">Email</th>
                   <th className="py-2 text-left font-medium">Роль</th>
+                  <th className="py-2 text-left font-medium">Тариф</th>
                   <th className="py-2 text-left font-medium">Трек</th>
                   <th className="py-2 text-left font-medium">Зарегистрирован</th>
                 </tr>
@@ -330,6 +355,12 @@ export default function AdminUsersPage() {
                         </td>
                         <td className="py-3">
                           <Skeleton className="h-4 w-16" />
+                        </td>
+                        <td className="py-3">
+                          <Skeleton className="h-4 w-16" />
+                        </td>
+                        <td className="py-3">
+                          <Skeleton className="h-4 w-24" />
                         </td>
                         <td className="py-3">
                           <Skeleton className="h-4 w-24" />
@@ -359,10 +390,19 @@ export default function AdminUsersPage() {
                               : "Админ"}
                           </Badge>
                         </td>
+                        <td className="py-3">
+                          {user.role === "student" && user.tariff ? (
+                            <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-100">
+                              {user.tariff}
+                            </Badge>
+                          ) : (
+                            <span className="text-gray-300">-</span>
+                          )}
+                        </td>
                         <td className="py-3 text-muted-foreground">
-                          {user.role === "student" && (user as any).track ? (
+                          {user.role === "student" && user.track ? (
                             <Badge variant="secondary" className="bg-purple-50 text-purple-700 border-purple-100">
-                              {(user as any).track}
+                              {user.track}
                             </Badge>
                           ) : (
                             <span className="text-gray-300">-</span>
@@ -375,7 +415,7 @@ export default function AdminUsersPage() {
                     ))}
                 {!isLoading && data && data.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="py-6 text-center text-muted-foreground">
+                    <td colSpan={6} className="py-6 text-center text-muted-foreground">
                       {hasActiveFilters
                         ? "Пользователи не найдены по заданным фильтрам."
                         : "Пользователей пока нет."}
