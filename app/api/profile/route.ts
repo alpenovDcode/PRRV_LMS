@@ -126,7 +126,7 @@ export async function PUT(request: NextRequest) {
   return withAuth(request, async (req) => {
     try {
       const body = await request.json();
-      const { fullName, email, avatarUrl, phone, about } = updateProfileSchema.parse(body);
+      const { fullName, email, avatarUrl, phone, about, telegram } = updateProfileSchema.parse(body);
 
       // Check if email is taken by another user
       if (email) {
@@ -156,6 +156,7 @@ export async function PUT(request: NextRequest) {
           avatarUrl,
           phone,
           about,
+          telegram,
         },
         select: {
           id: true,
@@ -164,6 +165,7 @@ export async function PUT(request: NextRequest) {
           role: true,
           avatarUrl: true,
           phone: true,
+          telegram: true,
           about: true,
         },
       });

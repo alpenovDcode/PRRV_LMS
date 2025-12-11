@@ -44,6 +44,7 @@ export async function GET(
             createdAt: true,
             updatedAt: true,
             phone: true,
+            telegram: true,
             about: true,
             track: true,
             enrollments: {
@@ -287,7 +288,7 @@ export async function PATCH(
       try {
         const { id } = await params;
         const body = await request.json();
-        const { email, fullName, role, password, phone, about, avatarUrl, track } = updateUserSchema.parse(body);
+        const { email, fullName, role, password, phone, about, avatarUrl, track, telegram } = updateUserSchema.parse(body);
 
         // Проверяем существование пользователя
         const existingUser = await db.user.findUnique({
@@ -334,6 +335,7 @@ export async function PATCH(
         if (fullName !== undefined) updateData.fullName = fullName;
         if (role !== undefined) updateData.role = role;
         if (phone !== undefined) updateData.phone = phone;
+        if (telegram !== undefined) updateData.telegram = telegram;
         if (about !== undefined) updateData.about = about;
         if (avatarUrl !== undefined) updateData.avatarUrl = avatarUrl;
         if (track !== undefined) updateData.track = track;
@@ -353,6 +355,7 @@ export async function PATCH(
             role: true,
             updatedAt: true,
             phone: true,
+            telegram: true,
             about: true,
             avatarUrl: true,
             track: true,
