@@ -31,7 +31,21 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Pencil } from "lucide-react";
+import { Pencil, Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 interface GroupDetail {
   id: string;
@@ -73,6 +87,7 @@ export default function AdminGroupDetailPage() {
   const groupId = params.id as string;
   const queryClient = useQueryClient();
   const [isEditOpen, setIsEditOpen] = React.useState(false);
+  const [openCombobox, setOpenCombobox] = React.useState(false);
   const [selectedUserId, setSelectedUserId] = React.useState<string>("");
   const [selectedCourseId, setSelectedCourseId] = React.useState<string>("");
 
@@ -115,6 +130,7 @@ export default function AdminGroupDetailPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "groups", groupId, "members"] });
+      setSelectedUserId(""); // Reset selection
     },
   });
 
@@ -284,18 +300,52 @@ export default function AdminGroupDetailPage() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label>Пользователь</Label>
-                  <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Выберите пользователя" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {users?.map((u) => (
-                        <SelectItem key={u.id} value={u.id}>
-                          {(u.fullName || u.email) + ` (${u.role})`}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={openCombobox}
+                        className="w-full justify-between"
+                      >
+                        {selectedUserId
+                          ? users?.find((user) => user.id === selectedUserId)?.email
+                          : "Выберите пользователя..."}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[300px] p-0">
+                      <Command>
+                        <CommandInput placeholder="Поиск по email..." />
+                        <CommandList>
+                          <CommandEmpty>Пользователь не найден.</CommandEmpty>
+                          <CommandGroup>
+                            {users?.map((user) => (
+                              <CommandItem
+                                key={user.id}
+                                value={user.email}
+                                onSelect={() => {
+                                  setSelectedUserId(user.id);
+                                  setOpenCombobox(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    selectedUserId === user.id ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                <div className="flex flex-col">
+                                  <span>{user.fullName || "Без имени"}</span>
+                                  <span className="text-xs text-muted-foreground">{user.email} ({user.role})</span>
+                                </div>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 <Button
                   disabled={!selectedUserId || addMemberMutation.isPending}
