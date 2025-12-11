@@ -4,7 +4,10 @@ import { db } from "@/lib/db";
 import { ApiResponse } from "@/types";
 import { UserRole } from "@prisma/client";
 import { adminGroupMemberSchema } from "@/lib/validations";
+import { createNotification } from "@/lib/notifications";
 import { logAction } from "@/lib/audit";
+
+
 
 export async function GET(
   request: NextRequest,
@@ -310,9 +313,6 @@ export async function DELETE(
           groupName: member.group.name,
         });
 
-        // Send notification
-        const { createNotification } = await import("@/lib/notifications");
-        
         let message = `Вы были исключены из группы "${member.group.name}"`;
         
         if (member.group.courseId && member.group.course) {
