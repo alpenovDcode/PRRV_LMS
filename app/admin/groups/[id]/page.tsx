@@ -324,10 +324,13 @@ export default function AdminGroupDetailPage() {
                                 <CommandItem
                                   key={user.id}
                                   value={user.email}
+                                  keywords={[user.fullName || ""]}
+                                  disabled={false}
                                   onSelect={() => {
                                     setSelectedUserId(user.id);
                                     setOpenCombobox(false);
                                   }}
+                                  className="cursor-pointer"
                                 >
                                 <Check
                                   className={cn(
