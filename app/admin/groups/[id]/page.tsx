@@ -323,8 +323,7 @@ export default function AdminGroupDetailPage() {
                             {users?.map((user) => (
                                 <CommandItem
                                   key={user.id}
-                                  value={user.id}
-                                  keywords={[user.email, user.fullName || ""]}
+                                  value={user.email}
                                   onSelect={() => {
                                     setSelectedUserId(user.id);
                                     setOpenCombobox(false);
