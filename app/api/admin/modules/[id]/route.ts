@@ -18,14 +18,15 @@ export async function PATCH(
         const body = await request.json();
         const { title, allowedTariffs, allowedTracks, allowedGroups } = adminModuleUpdateSchema.parse(body);
 
+        const updateData: any = {};
+        if (title !== undefined) updateData.title = title;
+        if (allowedTariffs !== undefined) updateData.allowedTariffs = allowedTariffs;
+        if (allowedTracks !== undefined) updateData.allowedTracks = allowedTracks;
+        if (allowedGroups !== undefined) updateData.allowedGroups = allowedGroups;
+
         const moduleData = await db.module.update({
           where: { id },
-          data: {
-            title,
-            allowedTariffs: allowedTariffs || [],
-            allowedTracks: allowedTracks || [],
-            allowedGroups: allowedGroups || [],
-          },
+          data: updateData,
         });
 
         // Audit log

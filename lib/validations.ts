@@ -69,7 +69,7 @@ export const adminModuleCreateSchema = z.object({
 });
 
 export const adminModuleUpdateSchema = z.object({
-  title: z.string().min(1, "Название модуля обязательно"),
+  title: z.string().min(1, "Название модуля обязательно").optional(),
   parentId: z.string().optional(),
   allowedTariffs: z.array(z.enum(["VR", "LR", "SR"])).optional(),
   allowedTracks: z.array(z.string()).optional(),
