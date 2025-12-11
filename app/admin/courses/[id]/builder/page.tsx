@@ -59,13 +59,13 @@ function AccessSettingsDialog({ module, open, onOpenChange, onSave }: AccessSett
   const [tracks, setTracks] = useState<string[]>(module.allowedTracks || []);
   const [groups, setGroups] = useState<string[]>(module.allowedGroups || []);
 
-  // Mock data for tracks (in real app, could be fetched or defined in constants)
+  // Updated track list as per user request
   const availableTracks = [
     "Заполнить расписание",
     "Повысить чек",
-    "Выйти из операционки",
-    "Масштабировать школу",
-    "Создать онлайн-продукт"
+    "Перейти на онлайн",
+    "Стать репетитором",
+    "Перейти на группы"
   ];
 
   // Fetch groups using React Query
@@ -81,7 +81,12 @@ function AccessSettingsDialog({ module, open, onOpenChange, onSave }: AccessSett
   const availableGroups = groupsData || [];
 
   const handleSave = () => {
-    onSave({ allowedTariffs: tariffs, allowedTracks: tracks, allowedGroups: groups });
+    // Ensure we send arrays, never undefined/null
+    onSave({ 
+      allowedTariffs: tariffs || [], 
+      allowedTracks: tracks || [], 
+      allowedGroups: groups || [] 
+    });
     onOpenChange(false);
   };
 
@@ -261,7 +266,14 @@ export default function CourseBuilderPage() {
 
   const updateModuleMutation = useMutation({
     mutationFn: async ({ moduleId, title, allowedTariffs, allowedTracks, allowedGroups }: { moduleId: string; title?: string; allowedTariffs?: string[]; allowedTracks?: string[]; allowedGroups?: string[] }) => {
-      await apiClient.patch(`/admin/modules/${moduleId}`, { title, allowedTariffs, allowedTracks, allowedGroups });
+      // Ensure we send arrays, never undefined/null
+      const payload = {
+        title,
+        allowedTariffs: allowedTariffs || [],
+        allowedTracks: allowedTracks || [],
+        allowedGroups: allowedGroups || []
+      };
+      await apiClient.patch(`/admin/modules/${moduleId}`, payload);
     },
     onSuccess: () => {
       setEditingModuleId(null);
