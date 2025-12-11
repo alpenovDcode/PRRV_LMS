@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Save, FileText, Video, HelpCircle, Plus, Trash2, GripVertical } from "lucide-react";
@@ -51,9 +52,11 @@ export default function LessonEditorPage() {
   const [title, setTitle] = useState("");
   const [type, setType] = useState<"video" | "text" | "quiz">("video");
   const [content, setContent] = useState<any>(null);
-  const [videoId, setVideoId] = useState("");
-  const [videoDuration, setVideoDuration] = useState("");
+  // Video state
+  const [videos, setVideos] = useState<Array<{ videoId: string; title?: string; duration: number }>>([]);
+  const [links, setLinks] = useState<Array<{ label: string; url: string }>>([]);
   const [thumbnailUrl, setThumbnailUrl] = useState("");
+  
   const [isFree, setIsFree] = useState(false);
   const [isStopLesson, setIsStopLesson] = useState(false);
   const [dripRule, setDripRule] = useState<any>(null);
@@ -73,25 +76,46 @@ export default function LessonEditorPage() {
     if (lesson) {
       setTitle(lesson.title);
       setType(lesson.type);
-      // Для quiz типа убеждаемся, что content имеет правильную структуру
+      
+      // Content handling
+      let lessonContent = lesson.content;
       if (lesson.type === "quiz") {
-        if (lesson.content && typeof lesson.content === "object" && lesson.content.questions) {
-          setContent(lesson.content);
-        } else if (lesson.content && typeof lesson.content === "string") {
+        if (lessonContent && typeof lessonContent === "object" && lessonContent.questions) {
+          // ok
+        } else if (lessonContent && typeof lessonContent === "string") {
           try {
-            const parsed = JSON.parse(lesson.content);
-            setContent(parsed);
+            lessonContent = JSON.parse(lessonContent);
           } catch {
-            setContent({ questions: [] });
+            lessonContent = { questions: [] };
           }
         } else {
-          setContent({ questions: [] });
+          lessonContent = { questions: [] };
         }
       } else {
-        setContent(lesson.content);
+        setContent(lessonContent);
       }
-      setVideoId(lesson.videoId || "");
-      setVideoDuration(lesson.videoDuration?.toString() || "");
+
+      // Video handling
+      if (lesson.content?.videos && Array.isArray(lesson.content.videos)) {
+        setVideos(lesson.content.videos);
+      } else if (lesson.videoId) {
+        // Migration/Fallback: create single video entry from legacy columns
+        setVideos([{
+          videoId: lesson.videoId,
+          duration: lesson.videoDuration || 0,
+          title: "Основное видео"
+        }]);
+      } else {
+        setVideos([]);
+      }
+
+      // Links handling
+      if (lesson.content?.links && Array.isArray(lesson.content.links)) {
+        setLinks(lesson.content.links);
+      } else {
+        setLinks([]);
+      }
+
       setThumbnailUrl(lesson.thumbnailUrl || "");
       setIsFree(lesson.isFree);
       setIsStopLesson(lesson.isStopLesson);
@@ -159,12 +183,22 @@ export default function LessonEditorPage() {
       }
     }
 
+    // Prepare content with videos and links
+    const updatedContent = { ...content };
+    if (type === "video") {
+      updatedContent.videos = videos;
+    }
+    updatedContent.links = links;
+
+    // Legacy columns sync (take first video)
+    const mainVideo = videos.length > 0 ? videos[0] : null;
+
     const updateData: any = {
       title,
       type,
-      content,
-      videoId: videoId || null,
-      videoDuration: videoDuration ? parseInt(videoDuration) : null,
+      content: updatedContent,
+      videoId: mainVideo?.videoId || null,
+      videoDuration: mainVideo?.duration || null,
       thumbnailUrl: thumbnailUrl || null,
       isFree,
       isStopLesson,
@@ -328,35 +362,101 @@ export default function LessonEditorPage() {
                   Настройки видеоконтента урока
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="videoId" className="text-gray-700">
-                    Cloudflare Stream Video ID
-                  </Label>
-                  <Input
-                    id="videoId"
-                    value={videoId}
-                    onChange={(e) => setVideoId(e.target.value)}
-                    placeholder="Введите Video ID из Cloudflare Stream"
-                    className="border-gray-300 focus:border-blue-500"
-                  />
-                  <p className="text-xs text-gray-500">
-                    ID видео из Cloudflare Stream. Видео должно быть загружено заранее.
-                  </p>
-                </div>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-gray-700">Список видео</Label>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setVideos([...videos, { videoId: "", duration: 0, title: "" }]);
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Добавить видео
+                    </Button>
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="videoDuration" className="text-gray-700">
-                    Длительность (секунды)
-                  </Label>
-                  <Input
-                    id="videoDuration"
-                    type="number"
-                    value={videoDuration}
-                    onChange={(e) => setVideoDuration(e.target.value)}
-                    placeholder="3600"
-                    className="border-gray-300 focus:border-blue-500"
-                  />
+                  {videos.length === 0 ? (
+                    <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-lg">
+                      <Video className="h-10 w-10 text-gray-400 mx-auto mb-2" />
+                      <p className="text-sm text-gray-500">Нет добавленных видео</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {videos.map((video, index) => (
+                        <Card key={index} className="bg-gray-50 border-gray-200">
+                          <CardContent className="p-4 space-y-4">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex items-center gap-2">
+                                <Badge variant="secondary" className="h-6 w-6 flex items-center justify-center rounded-full p-0">
+                                  {index + 1}
+                                </Badge>
+                                <span className="font-medium text-sm text-gray-700">Видео {index + 1}</span>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  const newVideos = videos.filter((_, i) => i !== index);
+                                  setVideos(newVideos);
+                                }}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+
+                            <div className="grid gap-4 md:grid-cols-2">
+                              <div className="space-y-2">
+                                <Label className="text-xs text-gray-600">Cloudflare Video ID</Label>
+                                <Input
+                                  value={video.videoId}
+                                  onChange={(e) => {
+                                    const newVideos = [...videos];
+                                    newVideos[index] = { ...video, videoId: e.target.value };
+                                    setVideos(newVideos);
+                                  }}
+                                  placeholder="Video ID"
+                                  className="bg-white"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label className="text-xs text-gray-600">Название (опционально)</Label>
+                                <Input
+                                  value={video.title || ""}
+                                  onChange={(e) => {
+                                    const newVideos = [...videos];
+                                    newVideos[index] = { ...video, title: e.target.value };
+                                    setVideos(newVideos);
+                                  }}
+                                  placeholder="Название видео"
+                                  className="bg-white"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label className="text-xs text-gray-600">Длительность (сек)</Label>
+                                <Input
+                                  type="number"
+                                  value={video.duration || ""}
+                                  onChange={(e) => {
+                                    const newVideos = [...videos];
+                                    newVideos[index] = { ...video, duration: parseInt(e.target.value) || 0 };
+                                    setVideos(newVideos);
+                                  }}
+                                  placeholder="0"
+                                  className="bg-white"
+                                />
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -622,6 +722,97 @@ export default function LessonEditorPage() {
 
           <Card className="border-gray-200">
             <CardHeader>
+              <CardTitle className="text-gray-900">Кнопки и ссылки</CardTitle>
+              <CardDescription className="text-gray-600">
+                Добавьте кнопки с ссылками, которые будут отображаться под видео
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label className="text-gray-700">Список ссылок</Label>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setLinks([...links, { label: "", url: "" }]);
+                    }}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Добавить кнопку
+                  </Button>
+                </div>
+
+                {links.length === 0 ? (
+                  <div className="text-center py-6 border-2 border-dashed border-gray-200 rounded-lg">
+                    <p className="text-sm text-gray-500">Нет добавленных кнопок</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {links.map((link, index) => (
+                      <Card key={index} className="bg-gray-50 border-gray-200">
+                        <CardContent className="p-4 space-y-4">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="secondary" className="h-6 w-6 flex items-center justify-center rounded-full p-0">
+                                {index + 1}
+                              </Badge>
+                              <span className="font-medium text-sm text-gray-700">Кнопка {index + 1}</span>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                const newLinks = links.filter((_, i) => i !== index);
+                                setLinks(newLinks);
+                              }}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+
+                          <div className="grid gap-4 md:grid-cols-2">
+                            <div className="space-y-2">
+                              <Label className="text-xs text-gray-600">Текст кнопки</Label>
+                              <Input
+                                value={link.label}
+                                onChange={(e) => {
+                                  const newLinks = [...links];
+                                  newLinks[index] = { ...link, label: e.target.value };
+                                  setLinks(newLinks);
+                                }}
+                                placeholder="Например: Скачать материалы"
+                                className="bg-white"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-xs text-gray-600">Ссылка (URL)</Label>
+                              <Input
+                                value={link.url}
+                                onChange={(e) => {
+                                  const newLinks = [...links];
+                                  newLinks[index] = { ...link, url: e.target.value };
+                                  setLinks(newLinks);
+                                }}
+                                placeholder="https://..."
+                                className="bg-white"
+                              />
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-gray-200">
+            <CardHeader>
               <CardTitle className="text-gray-900">Дополнительное содержание</CardTitle>
               <CardDescription className="text-gray-600">
                 Что вы узнаете, материалы для скачивания и т.д.
@@ -880,15 +1071,23 @@ export default function LessonEditorPage() {
                 </div>
               </div>
 
-              {type === "video" && videoId && (
-                <div className="bg-gray-100 rounded-lg p-4">
-                  <p className="text-sm text-gray-600 mb-2">Видео:</p>
-                  <p className="font-mono text-sm">Video ID: {videoId}</p>
-                  {videoDuration && (
-                    <p className="text-sm text-gray-600 mt-1">
-                      Длительность: {Math.floor(parseInt(videoDuration) / 60)}:{(parseInt(videoDuration) % 60).toString().padStart(2, "0")}
-                    </p>
-                  )}
+              {type === "video" && videos.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm text-gray-600">Видео ({videos.length}):</p>
+                  {videos.map((video, idx) => (
+                    <div key={idx} className="bg-gray-100 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                         <span className="font-medium text-sm">Видео {idx + 1}</span>
+                         {video.title && <span className="text-xs text-gray-500">{video.title}</span>}
+                      </div>
+                      <p className="font-mono text-sm mb-1">ID: {video.videoId || "Не указан"}</p>
+                      {video.duration > 0 && (
+                        <p className="text-sm text-gray-600">
+                          Длительность: {Math.floor(video.duration / 60)}:{(video.duration % 60).toString().padStart(2, "0")}
+                        </p>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
 

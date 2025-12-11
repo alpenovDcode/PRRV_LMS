@@ -24,6 +24,7 @@ import {
   X,
   Menu,
   Star,
+  ExternalLink,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -106,8 +107,14 @@ export default function LessonPlayerPage() {
   const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState("details");
   const [hoverRating, setHoverRating] = useState(0);
+  const [activeVideoIndex, setActiveVideoIndex] = useState(0);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Reset active video when lesson changes
+  useEffect(() => {
+    setActiveVideoIndex(0);
+  }, [lessonId]);
 
   const { data: lesson, isLoading: lessonLoading } = useQuery<Lesson>({
     queryKey: ["lesson", lessonId],
@@ -167,7 +174,10 @@ export default function LessonPlayerPage() {
 
   // Авто-сохранение прогресса и авто-переход
   useEffect(() => {
-    if (lesson?.type === "video" && videoRef.current && courseNav?.nextLessonId) {
+    const videos = lesson?.content?.videos || (lesson?.videoId ? [{ videoId: lesson.videoId, duration: lesson.videoDuration || 0 }] : []);
+    const activeVideo = videos[activeVideoIndex];
+
+    if (lesson?.type === "video" && videoRef.current && activeVideo) {
       const video = videoRef.current;
 
       const handleTimeUpdate = () => {
@@ -178,14 +188,14 @@ export default function LessonPlayerPage() {
         if (currentTime % 10 === 0) {
           updateProgressMutation.mutate({
             watchedTime: currentTime,
-            status: currentTime / (lesson.videoDuration || 1) > 0.9 ? "completed" : "in_progress",
+            status: activeVideo.duration && currentTime / activeVideo.duration > 0.9 ? "completed" : "in_progress",
           });
         }
 
         // Mark as completed at 90%
         if (
-          lesson.videoDuration &&
-          currentTime / lesson.videoDuration >= 0.9 &&
+          activeVideo.duration &&
+          currentTime / activeVideo.duration >= 0.9 &&
           lesson.progress?.status !== "completed"
         ) {
           updateProgressMutation.mutate({
@@ -196,11 +206,15 @@ export default function LessonPlayerPage() {
         }
 
         // Авто-переход на следующий урок через 5 секунд после окончания
+        // Только если это последнее видео в плейлисте или если урок уже помечен как завершенный
+        const isLastVideo = activeVideoIndex === videos.length - 1;
+        
         if (
-          lesson.videoDuration &&
-          currentTime >= lesson.videoDuration - 1 &&
+          activeVideo.duration &&
+          currentTime >= activeVideo.duration - 1 &&
           !isAutoNextScheduled &&
-          courseNav.nextLessonId
+          courseNav?.nextLessonId &&
+          (isLastVideo || lesson.progress?.status === "completed")
         ) {
           setIsAutoNextScheduled(true);
           setTimeout(() => {
@@ -213,10 +227,15 @@ export default function LessonPlayerPage() {
 
       const handleEnded = () => {
         updateProgressMutation.mutate({
-          watchedTime: lesson.videoDuration || 0,
+          watchedTime: activeVideo.duration || 0,
           status: "completed",
         });
         queryClient.invalidateQueries({ queryKey: ["lesson", lessonId] });
+        
+        // Auto-advance to next video in playlist if available
+        if (activeVideoIndex < videos.length - 1) {
+           setActiveVideoIndex(prev => prev + 1);
+        }
       };
 
       video.addEventListener("timeupdate", handleTimeUpdate);
@@ -227,7 +246,7 @@ export default function LessonPlayerPage() {
         video.removeEventListener("ended", handleEnded);
       };
     }
-  }, [lesson, lessonId, courseNav, router, slug, isAutoNextScheduled, queryClient, updateProgressMutation]);
+  }, [lesson, lessonId, courseNav, router, slug, isAutoNextScheduled, queryClient, updateProgressMutation, activeVideoIndex]);
 
   // Загрузка файлов
   const uploadFileMutation = useMutation({
@@ -430,38 +449,97 @@ export default function LessonPlayerPage() {
             <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-6">{lesson.title}</h1>
 
             {/* Video Player */}
-            {lesson.type === "video" && lesson.videoId ? (
-              <Card className="mb-6 border-gray-200 shadow-sm">
-                <CardContent className="p-0">
-                  <div className="relative aspect-video bg-black rounded-t-lg overflow-hidden">
-                    {/* Cloudflare Stream Player */}
-                    <iframe
-                      src={`https://${process.env.NEXT_PUBLIC_CLOUDFLARE_STREAM_CUSTOMER_CODE}.cloudflarestream.com/${lesson.videoId}/iframe?preload=true&poster=https%3A%2F%2F${process.env.NEXT_PUBLIC_CLOUDFLARE_STREAM_CUSTOMER_CODE}.cloudflarestream.com%2F${lesson.videoId}%2Fthumbnails%2Fthumbnail.jpg`}
-                      className="w-full aspect-video"
-                      allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
-                      allowFullScreen
-                    ></iframe>
-                    <video
-                      ref={videoRef}
-                      className="hidden"
-                      controls
-                      src={`https://${process.env.NEXT_PUBLIC_CLOUDFLARE_STREAM_CUSTOMER_CODE}.cloudflarestream.com/${lesson.videoId}/manifest/video.m3u8`}
-                    />
-                  </div>
-                  {lesson.videoDuration && lesson.videoDuration > 0 && (
-                    <div className="p-4 bg-gray-50 border-t border-gray-200">
-                      <div className="flex items-center justify-between text-sm mb-2">
-                        <span className="text-gray-600">Прогресс просмотра</span>
-                        <span className="font-semibold text-gray-900">
-                          {formatTime(watchedTime)} / {formatTime(lesson.videoDuration)}
-                        </span>
-                      </div>
-                      <Progress value={watchedPercent} className="h-2" />
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ) : lesson.type === "text" ? (
+            {lesson.type === "video" && (
+              <div className="space-y-4 mb-6">
+                {(() => {
+                  const videos = lesson.content?.videos || (lesson.videoId ? [{ videoId: lesson.videoId, duration: lesson.videoDuration || 0, title: "Основное видео" }] : []);
+                  const activeVideo = videos[activeVideoIndex];
+
+                  if (!activeVideo || !activeVideo.videoId) return null;
+
+                  return (
+                    <>
+                      <Card className="border-gray-200 shadow-sm overflow-hidden">
+                        <CardContent className="p-0">
+                          <div className="relative aspect-video bg-black">
+                            {/* Cloudflare Stream Player */}
+                            <iframe
+                              src={`https://${process.env.NEXT_PUBLIC_CLOUDFLARE_STREAM_CUSTOMER_CODE}.cloudflarestream.com/${activeVideo.videoId}/iframe?preload=true&poster=https%3A%2F%2F${process.env.NEXT_PUBLIC_CLOUDFLARE_STREAM_CUSTOMER_CODE}.cloudflarestream.com%2F${activeVideo.videoId}%2Fthumbnails%2Fthumbnail.jpg`}
+                              className="w-full aspect-video"
+                              allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                              allowFullScreen
+                            ></iframe>
+                            <video
+                              ref={videoRef}
+                              className="hidden"
+                              controls
+                              src={`https://${process.env.NEXT_PUBLIC_CLOUDFLARE_STREAM_CUSTOMER_CODE}.cloudflarestream.com/${activeVideo.videoId}/manifest/video.m3u8`}
+                            />
+                          </div>
+                          {activeVideo.duration > 0 && (
+                            <div className="p-4 bg-gray-50 border-t border-gray-200">
+                              <div className="flex items-center justify-between text-sm mb-2">
+                                <span className="text-gray-600">Прогресс просмотра</span>
+                                <span className="font-semibold text-gray-900">
+                                  {formatTime(watchedTime)} / {formatTime(activeVideo.duration)}
+                                </span>
+                              </div>
+                              <Progress 
+                                value={Math.round((watchedTime / activeVideo.duration) * 100)} 
+                                className="h-2" 
+                              />
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+
+                      {/* Playlist */}
+                      {videos.length > 1 && (
+                        <Card className="border-gray-200">
+                          <CardContent className="p-4">
+                            <h3 className="font-semibold text-gray-900 mb-3">Плейлист урока</h3>
+                            <div className="space-y-2">
+                              {videos.map((video: any, idx: number) => (
+                                <button
+                                  key={idx}
+                                  onClick={() => setActiveVideoIndex(idx)}
+                                  className={cn(
+                                    "w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors",
+                                    idx === activeVideoIndex
+                                      ? "bg-blue-50 text-blue-700 ring-1 ring-blue-200"
+                                      : "hover:bg-gray-50 text-gray-700"
+                                  )}
+                                >
+                                  <div className={cn(
+                                    "flex items-center justify-center w-8 h-8 rounded-full text-xs font-medium",
+                                    idx === activeVideoIndex
+                                      ? "bg-blue-200 text-blue-700"
+                                      : "bg-gray-100 text-gray-500"
+                                  )}>
+                                    {idx === activeVideoIndex ? <Play className="h-3 w-3 fill-current" /> : idx + 1}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">
+                                      {video.title || `Видео ${idx + 1}`}
+                                    </p>
+                                    {video.duration > 0 && (
+                                      <p className="text-xs text-gray-500 mt-0.5">
+                                        {formatTime(video.duration)}
+                                      </p>
+                                    )}
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+            {lesson.type === "text" && (
               <Card className="mb-6 border-gray-200">
                 <CardContent className="prose prose-sm max-w-none dark:prose-invert p-6">
                   {lesson.content?.markdown ? (
@@ -471,14 +549,37 @@ export default function LessonPlayerPage() {
                   )}
                 </CardContent>
               </Card>
-            ) : lesson.type === "quiz" ? (
+            )}
+
+            {lesson.type === "quiz" && (
               <QuizPlayer lessonId={lessonId} content={lesson.content} />
-            ) : (
+            )}
+
+            {lesson.type !== "video" && lesson.type !== "text" && lesson.type !== "quiz" && (
               <Card className="mb-6 border-gray-200">
                 <CardContent className="p-6">
                   <p className="text-gray-500">Тип урока не поддерживается: {lesson.type}</p>
                 </CardContent>
               </Card>
+            )}
+
+            {/* Links/Buttons */}
+            {lesson.content?.links && Array.isArray(lesson.content.links) && lesson.content.links.length > 0 && (
+              <div className="flex flex-wrap gap-3 mb-6">
+                {lesson.content.links.map((link: any, idx: number) => (
+                  <Button
+                    key={idx}
+                    asChild
+                    variant="outline"
+                    className="border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800"
+                  >
+                    <a href={link.url} target="_blank" rel="noopener noreferrer">
+                      {link.label}
+                      <ExternalLink className="ml-2 h-4 w-4" />
+                    </a>
+                  </Button>
+                ))}
+              </div>
             )}
 
             {/* Tabs */}
