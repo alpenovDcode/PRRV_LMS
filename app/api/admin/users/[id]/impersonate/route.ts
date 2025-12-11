@@ -96,12 +96,7 @@ export async function POST(
         // Сохраняем оригинальный токен администратора для возможности возврата
         const originalAdminToken = request.cookies.get("accessToken")?.value;
         
-        console.log("[IMPERSONATE] Admin impersonating user:", {
-          adminId: req.user!.userId,
-          targetUserId: targetUser.id,
-          targetEmail: targetUser.email,
-          hasOriginalToken: !!originalAdminToken,
-        });
+
 
         // НЕ возвращаем токены в body для безопасности
         const response = NextResponse.json<ApiResponse>(
@@ -122,7 +117,7 @@ export async function POST(
 
         // Сохраняем оригинальный токен администратора в специальной cookie
         if (originalAdminToken) {
-          console.log("[IMPERSONATE] Setting originalAdminToken cookie, length:", originalAdminToken.length);
+
           response.cookies.set("originalAdminToken", originalAdminToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
@@ -130,9 +125,9 @@ export async function POST(
             maxAge: 60 * 60 * 24, // 24 часа (достаточно для сессии impersonation)
             path: "/",
           });
-          console.log("[IMPERSONATE] Cookie set successfully");
+
         } else {
-          console.log("[IMPERSONATE] WARNING: No originalAdminToken found!");
+
         }
 
         // Устанавливаем токены целевого пользователя
@@ -152,11 +147,11 @@ export async function POST(
           path: "/",
         });
         
-        console.log("[IMPERSONATE] All cookies set - ready to impersonate");
+
 
         return response;
       } catch (error) {
-        console.error("Impersonate user error:", error);
+
         return NextResponse.json<ApiResponse>(
           {
             success: false,

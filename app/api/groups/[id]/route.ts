@@ -7,6 +7,8 @@ import { z } from "zod";
 const updateGroupSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
+  courseId: z.string().optional().nullable(),
+  startDate: z.string().optional().nullable(),
 });
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -53,7 +55,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const body = await request.json();
     const data = updateGroupSchema.parse(body);
 
-    const group = await updateGroup(id, data);
+    // Convert startDate string to Date object if present
+    const updateData: any = { ...data };
+    if (data.startDate) {
+      updateData.startDate = new Date(data.startDate);
+    } else if (data.startDate === null) {
+      updateData.startDate = null;
+    }
+
+    const group = await updateGroup(id, updateData);
 
     return NextResponse.json<ApiResponse>({
       success: true,

@@ -11,16 +11,10 @@ export async function GET(request: NextRequest) {
     const originalAdminToken = request.cookies.get("originalAdminToken")?.value;
     const accessToken = request.cookies.get("accessToken")?.value;
     
-    console.log("[IMPERSONATE CHECK] Cookies:", {
-      hasOriginalAdminToken: !!originalAdminToken,
-      hasAccessToken: !!accessToken,
-      originalTokenLength: originalAdminToken?.length,
-      accessTokenLength: accessToken?.length,
-      allCookies: request.cookies.getAll().map(c => c.name),
-    });
+
 
     if (!originalAdminToken) {
-      console.log("[IMPERSONATE CHECK] No originalAdminToken found - not impersonating");
+
       return NextResponse.json<ApiResponse>(
         {
           success: true,
@@ -33,11 +27,7 @@ export async function GET(request: NextRequest) {
     }
 
     const adminPayload = await verifyAccessTokenEdge(originalAdminToken);
-    console.log("[IMPERSONATE CHECK] Admin payload:", {
-      hasPayload: !!adminPayload,
-      role: adminPayload?.role,
-      userId: adminPayload?.userId,
-    });
+
 
     return NextResponse.json<ApiResponse>(
       {
@@ -50,7 +40,7 @@ export async function GET(request: NextRequest) {
       { status: 200 }
     );
   } catch (error) {
-    console.error("[IMPERSONATE CHECK] Error:", error);
+
     return NextResponse.json<ApiResponse>(
       {
         success: true,

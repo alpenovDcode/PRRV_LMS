@@ -14,7 +14,7 @@ export async function getRedisClient() {
   });
 
   redisClient.on("error", (err) => {
-    console.error("Redis Client Error", err);
+
   });
 
   await redisClient.connect();

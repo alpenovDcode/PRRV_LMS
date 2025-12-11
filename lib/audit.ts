@@ -15,7 +15,7 @@ export async function logAction(
     });
 
     if (!userExists) {
-      console.warn(`Skipping audit log: user ${userId} not found`);
+
       return null;
     }
 
@@ -29,7 +29,7 @@ export async function logAction(
       },
     });
   } catch (error) {
-    console.error('Failed to create audit log:', error);
+
     // Don't throw - audit logging should not break the main flow
     return null;
   }

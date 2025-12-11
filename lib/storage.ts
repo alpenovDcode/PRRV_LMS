@@ -8,9 +8,7 @@ const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
 const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME;
 const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL;
 
-if (!R2_ACCOUNT_ID || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY || !R2_BUCKET_NAME || !R2_PUBLIC_URL) {
-  console.warn("R2 credentials are missing. File uploads will fail.");
-}
+
 
 const s3Client = new S3Client({
   region: "auto",
@@ -41,7 +39,7 @@ export async function saveFile(file: File, customFilename?: string): Promise<str
 
     return `${R2_PUBLIC_URL}/${fileName}`;
   } catch (error) {
-    console.error("Error saving file to R2:", error);
+
     throw new Error("Failed to save file");
   }
 }
@@ -61,7 +59,7 @@ export async function deleteFile(fileUrl: string): Promise<void> {
       })
     );
   } catch (error) {
-    console.error("Error deleting file from R2:", error);
+
     // Don't throw error if file doesn't exist or can't be deleted
   }
 }

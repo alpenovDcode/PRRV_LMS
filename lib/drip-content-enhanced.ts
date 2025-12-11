@@ -219,7 +219,7 @@ export async function checkEnhancedDripAvailability(
       }
     }
 
-    console.log(`[DRIP CHECK] Lesson ${lessonId} (${lesson.title}) depends on previous. Found previous: ${previousLesson?.id} (${previousLesson?.title}). Completed: ${previousLesson?.progress.length ? "YES" : "NO"}`);
+
 
     if (previousLesson && previousLesson.progress.length > 0) {
       previousLessonCompletedAt = previousLesson.progress[0].completedAt || undefined;

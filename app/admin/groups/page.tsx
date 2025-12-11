@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Layers, Plus } from "lucide-react";
+import { Layers, Plus, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -52,6 +52,21 @@ export default function AdminGroupsPage() {
       queryClient.invalidateQueries({ queryKey: ["admin", "groups"] });
     },
   });
+
+  const deleteGroupMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiClient.delete(`/admin/groups/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "groups"] });
+    },
+  });
+
+  const handleDelete = (id: string) => {
+    if (confirm("Вы уверены, что хотите удалить эту группу? Все участники будут исключены из нее.")) {
+      deleteGroupMutation.mutate(id);
+    }
+  };
 
   const handleCreate = (formData: FormData) => {
     const name = (formData.get("name") as string)?.trim();
@@ -167,8 +182,8 @@ export default function AdminGroupsPage() {
             ) : (
               <div className="space-y-2">
                 {groups.map((group) => (
-                  <Link key={group.id} href={`/admin/groups/${group.id}`}>
-                    <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm hover:bg-accent/40 cursor-pointer">
+                  <div key={group.id} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm hover:bg-accent/40">
+                    <Link href={`/admin/groups/${group.id}`} className="flex-1 cursor-pointer">
                       <div>
                         <div className="font-medium">{group.name}</div>
                         <div className="text-xs text-muted-foreground">
@@ -177,11 +192,22 @@ export default function AdminGroupsPage() {
                           {group.course && ` • Курс: ${group.course.title}`}
                         </div>
                       </div>
+                    </Link>
+                    <div className="flex items-center gap-4">
                       <div className="text-xs text-muted-foreground">
                         {group._count.members} участников
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => handleDelete(group.id)}
+                        disabled={deleteGroupMutation.isPending}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
-                  </Link>
+                  </div>
                 ))}
               </div>
             )}

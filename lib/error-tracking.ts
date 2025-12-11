@@ -99,8 +99,8 @@ export async function logError(data: ErrorLogData): Promise<string> {
     return errorLog.id;
   } catch (error) {
     // Если не можем залогировать в БД, логируем в консоль
-    console.error("Failed to log error to database:", error);
-    console.error("Original error:", data);
+
+
     throw error;
   }
 }

@@ -39,14 +39,10 @@ export async function logSuspiciousActivity(
     }
 
     // Дополнительное логирование в консоль для мониторинга
-    console.warn(`[SECURITY] Suspicious activity detected:`, {
-      type: activityType,
-      userId: userId || "anonymous",
-      ...details,
-    });
+
   } catch (error) {
     // Не блокируем основную логику при ошибках логирования
-    console.error("Failed to log suspicious activity:", error);
+
   }
 }
 

@@ -150,3 +150,76 @@ export async function PATCH(
 }
 
 
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  // CSRF защита
+  if (!validateOrigin(request)) {
+    return NextResponse.json<ApiResponse>(
+      {
+        success: false,
+        error: {
+          code: "CSRF_ERROR",
+          message: "Запрос отклонен из соображений безопасности",
+        },
+      },
+      { status: 403 }
+    );
+  }
+
+  return withAuth(
+    request,
+    async (req) => {
+      try {
+        const { id } = await params;
+        
+        const course = await db.course.findUnique({
+          where: { id },
+        });
+
+        if (!course) {
+          return NextResponse.json<ApiResponse>(
+            {
+              success: false,
+              error: {
+                code: "NOT_FOUND",
+                message: "Курс не найден",
+              },
+            },
+            { status: 404 }
+          );
+        }
+
+        // Удаляем курс (каскадное удаление настроено в схеме Prisma)
+        await db.course.delete({
+          where: { id },
+        });
+
+        // Audit log
+        await logAction(req.user!.userId, "DELETE_COURSE", "course", id, {
+          title: course.title,
+        });
+
+        return NextResponse.json<ApiResponse>({
+          success: true,
+          data: { message: "Курс успешно удален" },
+        });
+      } catch (error) {
+        console.error("Delete course error:", error);
+        return NextResponse.json<ApiResponse>(
+          {
+            success: false,
+            error: {
+              code: "INTERNAL_ERROR",
+              message: "Не удалось удалить курс",
+            },
+          },
+          { status: 500 }
+        );
+      }
+    },
+    { roles: [UserRole.admin] }
+  );
+}

@@ -21,6 +21,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Pencil } from "lucide-react";
 
 interface GroupDetail {
   id: string;
@@ -61,6 +72,9 @@ export default function AdminGroupDetailPage() {
   const params = useParams();
   const groupId = params.id as string;
   const queryClient = useQueryClient();
+  const [isEditOpen, setIsEditOpen] = React.useState(false);
+  const [selectedUserId, setSelectedUserId] = React.useState<string>("");
+  const [selectedCourseId, setSelectedCourseId] = React.useState<string>("");
 
   const { data: group, isLoading } = useQuery<GroupDetail>({
     queryKey: ["admin", "groups", groupId],
@@ -87,6 +101,14 @@ export default function AdminGroupDetailPage() {
     },
   });
 
+  const { data: courses } = useQuery<AdminCourseOption[]>({
+    queryKey: ["admin", "courses", "options"],
+    queryFn: async () => {
+      const response = await apiClient.get("/admin/courses");
+      return response.data.data;
+    },
+  });
+
   const addMemberMutation = useMutation({
     mutationFn: async (userId: string) => {
       await apiClient.post(`/admin/groups/${groupId}/members`, { userId });
@@ -106,14 +128,6 @@ export default function AdminGroupDetailPage() {
     },
   });
 
-  const { data: courses } = useQuery<AdminCourseOption[]>({
-    queryKey: ["admin", "courses", "options"],
-    queryFn: async () => {
-      const response = await apiClient.get("/admin/courses");
-      return response.data.data;
-    },
-  });
-
   const bulkEnrollMutation = useMutation({
     mutationFn: async (payload: { courseId: string }) => {
       await apiClient.post(`/admin/groups/${groupId}/enrollments`, payload);
@@ -123,8 +137,31 @@ export default function AdminGroupDetailPage() {
     },
   });
 
-  const [selectedUserId, setSelectedUserId] = React.useState<string>("");
-  const [selectedCourseId, setSelectedCourseId] = React.useState<string>("");
+  const updateGroupMutation = useMutation({
+    mutationFn: async (payload: { name: string; description?: string; courseId?: string | null; startDate?: string | null }) => {
+      await apiClient.patch(`/admin/groups/${groupId}`, payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "groups", groupId] });
+      setIsEditOpen(false);
+    },
+  });
+
+  const handleEdit = (formData: FormData) => {
+    const name = (formData.get("name") as string)?.trim();
+    const description = (formData.get("description") as string)?.trim();
+    const courseId = (formData.get("courseId") as string)?.trim() || null;
+    const startDate = (formData.get("startDate") as string)?.trim() || null;
+
+    if (!name) return;
+
+    updateGroupMutation.mutate({
+      name,
+      description: description || undefined,
+      courseId,
+      startDate: startDate ? new Date(startDate).toISOString() : null,
+    });
+  };
 
   return (
     <div className="container mx-auto max-w-5xl px-4 py-8 space-y-6">
@@ -136,7 +173,85 @@ export default function AdminGroupDetailPage() {
       ) : (
         <>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">{group.name}</h1>
+            <div className="flex items-center justify-between">
+              <h1 className="text-2xl font-bold tracking-tight">{group.name}</h1>
+              <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Pencil className="mr-2 h-4 w-4" />
+                    Редактировать
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Редактирование группы</DialogTitle>
+                    <DialogDescription>
+                      Измените параметры группы.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <form
+                    className="space-y-4"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const formData = new FormData(e.currentTarget);
+                      handleEdit(formData);
+                    }}
+                  >
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-name">Название</Label>
+                      <Input
+                        id="edit-name"
+                        name="name"
+                        defaultValue={group.name}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-description">Описание</Label>
+                      <Input
+                        id="edit-description"
+                        name="description"
+                        defaultValue={group.description || ""}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-courseId">Курс</Label>
+                      <select
+                        id="edit-courseId"
+                        name="courseId"
+                        defaultValue={group.courseId || ""}
+                        className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <option value="">Без курса</option>
+                        {courses?.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.title}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-startDate">Дата старта</Label>
+                      <Input
+                        id="edit-startDate"
+                        name="startDate"
+                        type="date"
+                        defaultValue={
+                          group.startDate
+                            ? new Date(group.startDate).toISOString().split("T")[0]
+                            : ""
+                        }
+                      />
+                    </div>
+                    <DialogFooter>
+                      <Button type="submit" disabled={updateGroupMutation.isPending}>
+                        Сохранить
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
             <div className="flex flex-col gap-1 mt-1">
               {group.description && (
                 <p className="text-muted-foreground">{group.description}</p>
@@ -271,5 +386,3 @@ export default function AdminGroupDetailPage() {
     </div>
   );
 }
-
-

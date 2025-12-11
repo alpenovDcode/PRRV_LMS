@@ -33,21 +33,21 @@ export function StudentLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [hasImpersonation, setHasImpersonation] = useState(false);
   
-  console.log("[STUDENT LAYOUT] Render - hasImpersonation:", hasImpersonation, "user:", user);
+
 
   // Проверяем наличие originalAdminToken (impersonation) через API
   useEffect(() => {
-    console.log("[STUDENT LAYOUT] useEffect triggered - checking impersonation");
+
     const checkImpersonation = async () => {
       try {
-        console.log("[STUDENT LAYOUT] Calling /auth/impersonate/check");
+
         const response = await apiClient.get("/auth/impersonate/check");
-        console.log("[STUDENT LAYOUT] Response:", response.data);
+
         const isImpersonating = response.data.data.isImpersonating;
-        console.log("[STUDENT LAYOUT] Impersonation status:", isImpersonating);
+
         setHasImpersonation(isImpersonating);
       } catch (error) {
-        console.error("[STUDENT LAYOUT] Failed to check impersonation:", error);
+
         setHasImpersonation(false);
       }
     };
@@ -122,7 +122,7 @@ export function StudentLayout({ children }: { children: React.ReactNode }) {
                     // Редирект на админ-панель
                     window.location.href = "/admin";
                   } catch (error) {
-                    console.error("Failed to restore admin account:", error);
+
                     // Если не удалось восстановить, просто редиректим (может быть обычный админ)
                     window.location.href = "/admin";
                   }
@@ -209,7 +209,7 @@ export function StudentLayout({ children }: { children: React.ReactNode }) {
                 });
                 window.location.href = "/admin";
               } catch (error) {
-                console.error("Failed to restore admin account:", error);
+
                 window.location.href = "/admin";
               }
             }}

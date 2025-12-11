@@ -119,7 +119,7 @@ export async function validateMagicBytes(
       return signature.every((byte, index) => bytes[index] === byte);
     });
   } catch (error) {
-    console.error("Error validating magic bytes:", error);
+
     return false;
   }
 }

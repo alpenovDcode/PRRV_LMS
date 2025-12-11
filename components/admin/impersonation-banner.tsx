@@ -17,7 +17,7 @@ export function ImpersonationBanner() {
       // Жесткая перезагрузка для обновления состояния и редиректа
       window.location.href = "/admin/users";
     } catch (error) {
-      console.error("Failed to stop impersonation:", error);
+
       toast.error("Не удалось выйти из режима просмотра");
     }
   };

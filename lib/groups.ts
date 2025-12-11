@@ -6,7 +6,7 @@ export async function createGroup(data: { name: string; description?: string }) 
   });
 }
 
-export async function updateGroup(id: string, data: { name?: string; description?: string }) {
+export async function updateGroup(id: string, data: { name?: string; description?: string; courseId?: string | null; startDate?: Date | null }) {
   return db.group.update({
     where: { id },
     data,

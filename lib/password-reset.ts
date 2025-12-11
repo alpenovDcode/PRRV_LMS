@@ -84,7 +84,7 @@ export async function sendPasswordResetEmail(email: string, token: string): Prom
   // Например, через SendGrid, AWS SES, Resend и т.д.
   const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/recover-password?token=${token}`;
   
-  console.log(`Password reset email for ${email}: ${resetUrl}`);
+
   
   // TODO: Интегрировать реальный email сервис
   // await emailService.send({

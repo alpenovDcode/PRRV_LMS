@@ -115,13 +115,13 @@ export async function createNotification(
   // Отправляем email, если включено
   if (channels.email) {
     // TODO: Интеграция с email сервисом (Resend/SendGrid)
-    console.log(`Email notification to ${userId}: ${title} - ${message}`);
+
   }
 
   // Отправляем Telegram, если включено
   if (channels.telegram) {
     // TODO: Интеграция с Telegram Bot API
-    console.log(`Telegram notification to ${userId}: ${title} - ${message}`);
+
   }
 
   return true;
@@ -144,6 +144,6 @@ export async function sendEmailNotification(
   //   html,
   // });
   
-  console.log(`Email to ${email}: ${subject}`);
+
 }
 

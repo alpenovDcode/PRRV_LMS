@@ -34,8 +34,7 @@ export async function trackError(error: ErrorInfo): Promise<void> {
     });
   } catch (err) {
     // Если не можем отправить на сервер, логируем в консоль
-    console.error("Failed to track error:", err);
-    console.error("Original error:", error);
+
   }
 }
 

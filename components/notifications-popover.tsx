@@ -40,7 +40,7 @@ export function NotificationsPopover() {
         const data = response.data.data;
         return Array.isArray(data) ? data : [];
       } catch (error) {
-        console.error("Failed to load notifications:", error);
+
         return [];
       }
     },

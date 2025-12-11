@@ -30,7 +30,7 @@ export async function rateLimit(
     };
   } catch (e) {
     // В случае проблем с Redis не блокируем запрос, чтобы не ломать прод
-    console.error("Rate limit error:", e);
+
     return { allowed: true, remaining: limit };
   }
 }

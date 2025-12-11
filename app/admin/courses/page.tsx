@@ -37,6 +37,21 @@ export default function AdminCoursesPage() {
     },
   });
 
+  const deleteCourseMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiClient.delete(`/admin/courses/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "courses"] });
+    },
+  });
+
+  const handleDelete = (id: string) => {
+    if (confirm("Вы уверены, что хотите удалить этот курс? Это действие необратимо.")) {
+      deleteCourseMutation.mutate(id);
+    }
+  };
+
   return (
     <div className="container mx-auto max-w-6xl px-4 py-8 space-y-6">
       <div className="flex items-center justify-between gap-2">
@@ -121,6 +136,14 @@ export default function AdminCoursesPage() {
                           </Button>
                           <Button variant="outline" size="sm" asChild>
                             <Link href={`/admin/courses/${course.id}`}>Настройки</Link>
+                          </Button>
+                          <Button 
+                            variant="destructive" 
+                            size="sm"
+                            onClick={() => handleDelete(course.id)}
+                            disabled={deleteCourseMutation.isPending}
+                          >
+                            Удалить
                           </Button>
                         </td>
                       </tr>

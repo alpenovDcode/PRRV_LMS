@@ -9,7 +9,7 @@ export async function createNotification(
   link?: string
 ) {
   try {
-    console.log(`Creating notification for user ${userId}: ${type} - ${title}`);
+
     await db.notification.create({
       data: {
         userId,
@@ -19,9 +19,9 @@ export async function createNotification(
         link,
       },
     });
-    console.log(`Notification created successfully for user ${userId}`);
+
   } catch (error) {
-    console.error("Failed to create notification:", error);
+
   }
 }
 

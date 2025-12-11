@@ -91,7 +91,7 @@ export async function withAuth(
 
     return handler(authenticatedRequest);
   } catch (error) {
-    console.error("Auth middleware error:", error);
+
     return NextResponse.json<ApiResponse>(
       {
         success: false,
