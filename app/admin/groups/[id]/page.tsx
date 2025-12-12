@@ -31,16 +31,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Pencil, Check, ChevronsUpDown } from "lucide-react";
+import { Pencil, Check, ChevronsUpDown, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
 import {
   Popover,
   PopoverContent,
@@ -316,61 +308,67 @@ export default function AdminGroupDetailPage() {
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-[400px] p-0" align="start">
-                      <Command shouldFilter={false} filter={() => 1}>
-                        <CommandInput 
-                          placeholder="Поиск по email или имени..." 
-                          value={searchTerm}
-                          onValueChange={setSearchTerm}
-                        />
-                        <CommandList>
-                          <CommandEmpty>Пользователь не найден.</CommandEmpty>
-                          <CommandGroup>
-                            {users
-                              ?.filter((user) => {
-                                if (!searchTerm) return true;
-                                const term = searchTerm.toLowerCase();
-                                return (
-                                  user.email.toLowerCase().includes(term) ||
-                                  user.fullName?.toLowerCase().includes(term)
-                                );
-                              })
-                              .map((user) => (
-                                <CommandItem
-                                  key={user.id}
-                                  value={user.email}
-                                  onSelect={() => {
-                                    setSelectedUserId(user.id);
-                                    setOpenCombobox(false);
-                                    setSearchTerm("");
-                                  }}
-                                  onMouseDown={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                  }}
-                                  onClick={() => {
-                                    setSelectedUserId(user.id);
-                                    setOpenCombobox(false);
-                                    setSearchTerm("");
-                                  }}
-                                  className="cursor-pointer"
-                                >
-                                  <Check
-                                    className={cn(
-                                      "mr-2 h-4 w-4",
-                                      selectedUserId === user.id ? "opacity-100" : "opacity-0"
-                                    )}
-                                  />
-                                  <div className="flex flex-col">
-                                    <span>{user.fullName || "Без имени"}</span>
-                                    <span className="text-xs text-muted-foreground">
-                                      {user.email} ({user.role})
-                                    </span>
-                                  </div>
-                                </CommandItem>
-                              ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
+                      <div className="flex flex-col">
+                        <div className="flex items-center border-b px-3">
+                          <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                          <Input
+                            placeholder="Поиск по email или имени..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                          />
+                        </div>
+                        <div className="max-h-[300px] overflow-y-auto p-1">
+                          {users
+                            ?.filter((user) => {
+                              if (!searchTerm) return true;
+                              const term = searchTerm.toLowerCase();
+                              return (
+                                user.email.toLowerCase().includes(term) ||
+                                user.fullName?.toLowerCase().includes(term)
+                              );
+                            })
+                            .map((user) => (
+                              <div
+                                key={user.id}
+                                onClick={() => {
+                                  setSelectedUserId(user.id);
+                                  setOpenCombobox(false);
+                                  setSearchTerm("");
+                                }}
+                                className={cn(
+                                  "relative flex cursor-pointer select-none items-center rounded-sm px-2 py-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground",
+                                  selectedUserId === user.id && "bg-accent"
+                                )}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    selectedUserId === user.id ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                <div className="flex flex-col">
+                                  <span>{user.fullName || "Без имени"}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {user.email} ({user.role})
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          {users?.filter((user) => {
+                            if (!searchTerm) return true;
+                            const term = searchTerm.toLowerCase();
+                            return (
+                              user.email.toLowerCase().includes(term) ||
+                              user.fullName?.toLowerCase().includes(term)
+                            );
+                          }).length === 0 && (
+                            <div className="py-6 text-center text-sm text-muted-foreground">
+                              Пользователь не найден.
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </PopoverContent>
                   </Popover>
                 </div>
