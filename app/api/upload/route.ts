@@ -54,12 +54,27 @@ export async function POST(request: NextRequest) {
     }
 
     // Comprehensive file validation with magic bytes checking
+    console.log('[UPLOAD] Starting file validation:', {
+      fileName: file.name,
+      fileType: file.type,
+      fileSize: file.size,
+      category,
+    });
+
     const validationResult = await validateFile(file, {
       category: category as "images" | "documents" | "videos" | "archives",
       checkMagicBytes: true,
     });
 
+    console.log('[UPLOAD] Validation result:', validationResult);
+
     if (!validationResult.valid) {
+      console.error('[UPLOAD] Validation failed:', {
+        error: validationResult.error,
+        fileName: file.name,
+        fileType: file.type,
+        category,
+      });
       return NextResponse.json<ApiResponse>(
         {
           success: false,
@@ -74,6 +89,13 @@ export async function POST(request: NextRequest) {
 
     // Save file with sanitized filename
     const fileUrl = await saveFile(file, validationResult.sanitizedFilename);
+
+    console.log('[UPLOAD] File saved successfully:', {
+      originalName: file.name,
+      sanitizedName: validationResult.sanitizedFilename,
+      fileUrl,
+      R2_PUBLIC_URL: process.env.R2_PUBLIC_URL,
+    });
 
     return NextResponse.json<ApiResponse>(
       {
