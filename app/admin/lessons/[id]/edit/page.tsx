@@ -559,15 +559,27 @@ export default function LessonEditorPage() {
                               const start = textarea.selectionStart;
                               const end = textarea.selectionEnd;
                               const currentValue = content?.markdown || "";
-                              const imageMarkdown = `\n\n![Описание изображения](cloudflare:${imageId})\n\n`;
-                              const newValue = currentValue.substring(0, start) + imageMarkdown + currentValue.substring(end);
+                              
+                              // Ensure we have newlines before and after for proper markdown parsing
+                              const before = currentValue.substring(0, start);
+                              const after = currentValue.substring(end);
+                              
+                              // Add newlines if not at start/end and previous char is not newline
+                              const needsNewlineBefore = start > 0 && !before.endsWith('\n');
+                              const needsNewlineAfter = end < currentValue.length && !after.startsWith('\n');
+                              
+                              const imageMarkdown = `${needsNewlineBefore ? '\n\n' : ''}![Описание изображения](cloudflare:${imageId})${needsNewlineAfter ? '\n\n' : ''}`;
+                              const newValue = before + imageMarkdown + after;
+                              
                               handleContentChange("markdown", newValue);
                               toast.success("Изображение вставлено!");
                               if (input) input.value = "";
+                              
                               // Set cursor position after inserted image
                               setTimeout(() => {
                                 textarea.focus();
-                                textarea.setSelectionRange(start + imageMarkdown.length, start + imageMarkdown.length);
+                                const newPosition = start + imageMarkdown.length;
+                                textarea.setSelectionRange(newPosition, newPosition);
                               }, 0);
                             }
                           }}
