@@ -17,6 +17,9 @@ import { ArrowLeft, Save, FileText, Video, HelpCircle, Plus, Trash2, GripVertica
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { getCloudflareImageUrl } from "@/lib/cloudflare-images";
 
 interface LessonDetail {
   id: string;
@@ -1194,7 +1197,31 @@ export default function LessonEditorPage() {
 
               {type === "text" && content?.markdown && (
                 <div className="prose prose-sm max-w-none border border-gray-200 rounded-lg p-4">
-                  <pre className="whitespace-pre-wrap text-sm">{content.markdown}</pre>
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      img: ({ node, src, alt, ...props }) => {
+                        // Check if image uses Cloudflare Images syntax
+                        if (src?.startsWith('cloudflare:')) {
+                          const imageId = src.replace('cloudflare:', '');
+                          const imageUrl = getCloudflareImageUrl(imageId);
+                          return (
+                            <img
+                              src={imageUrl}
+                              alt={alt || 'Изображение урока'}
+                              className="rounded-lg my-4 max-w-full h-auto"
+                              loading="lazy"
+                              {...props}
+                            />
+                          );
+                        }
+                        // Regular image
+                        return <img src={src} alt={alt} className="rounded-lg my-4 max-w-full h-auto" loading="lazy" {...props} />;
+                      },
+                    }}
+                  >
+                    {content.markdown}
+                  </ReactMarkdown>
                 </div>
               )}
 
