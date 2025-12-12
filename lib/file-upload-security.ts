@@ -21,6 +21,17 @@ export const ALLOWED_MIME_TYPES = {
     "application/vnd.ms-powerpoint",
     "application/vnd.openxmlformats-officedocument.presentationml.presentation", // .pptx
     "text/plain",
+    "text/html", // .html
+    "text/css", // .css
+    "text/javascript", // .js
+    "application/javascript", // .js
+    "application/json", // .json
+    "application/xml", // .xml
+    "text/xml", // .xml
+    "application/zip", // .zip
+    "application/x-zip-compressed", // .zip
+    "application/x-rar-compressed", // .rar
+    "application/x-7z-compressed", // .7z
   ] as const,
   videos: [
     "video/mp4",
