@@ -1,3 +1,6 @@
+// Load environment variables from .env file in production
+require('dotenv').config();
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
