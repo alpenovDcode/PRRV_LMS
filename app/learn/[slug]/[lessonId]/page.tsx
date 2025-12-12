@@ -796,16 +796,17 @@ export default function LessonPlayerPage() {
                             <p className="text-sm text-gray-600 mb-2">
                               Перетащите файлы сюда или
                             </p>
-                            <label className="cursor-pointer">
+                            <label htmlFor="homework-file-input" className="cursor-pointer inline-block">
                               <input
+                                id="homework-file-input"
                                 type="file"
                                 multiple
                                 onChange={handleFileInput}
                                 className="hidden"
                               />
-                              <Button type="button" variant="outline" size="sm" className="border-gray-300">
+                              <span className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-gray-300 bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3">
                                 Выбрать файлы
-                              </Button>
+                              </span>
                             </label>
                             <p className="text-xs text-gray-500 mt-2">
                               Поддерживаются: .html, .css, .zip, .pdf
