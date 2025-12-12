@@ -71,14 +71,14 @@ export function NotificationsPopover() {
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-96 max-h-[600px] overflow-y-auto bg-white shadow-xl border border-gray-200">
-        <DropdownMenuLabel className="flex items-center justify-between py-3 px-4 border-b border-gray-100">
-          <span className="text-base font-semibold text-gray-900">Уведомления</span>
+      <DropdownMenuContent align="end" className="w-96 max-h-[600px] overflow-y-auto bg-slate-900 border-slate-700 shadow-2xl">
+        <DropdownMenuLabel className="flex items-center justify-between py-3 px-4 border-b border-slate-700">
+          <span className="text-base font-semibold text-white">Уведомления</span>
           {unreadCount > 0 && (
             <Button
               variant="ghost"
               size="sm"
-              className="h-auto px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+              className="h-auto px-3 py-1.5 text-xs font-medium text-blue-400 hover:text-blue-300 hover:bg-slate-800"
               onClick={(e) => {
                 e.preventDefault();
                 markAllReadMutation.mutate();
@@ -89,21 +89,21 @@ export function NotificationsPopover() {
             </Button>
           )}
         </DropdownMenuLabel>
-        <DropdownMenuSeparator className="bg-gray-100" />
+        <DropdownMenuSeparator className="bg-slate-700" />
         {notifications.length === 0 ? (
           <div className="p-8 text-center">
-            <Bell className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-sm font-medium text-gray-500">Нет новых уведомлений</p>
+            <Bell className="h-12 w-12 text-slate-600 mx-auto mb-3" />
+            <p className="text-sm font-medium text-slate-400">Нет новых уведомлений</p>
           </div>
         ) : (
           notifications.map((notification) => (
             <DropdownMenuItem
               key={notification.id}
               className={cn(
-                "flex flex-col items-start gap-2 p-4 cursor-pointer border-b border-gray-50 last:border-0 transition-colors",
+                "flex flex-col items-start gap-2 p-4 cursor-pointer border-b border-slate-800 last:border-0 transition-colors",
                 !notification.isRead 
-                  ? "bg-blue-50/50 hover:bg-blue-50" 
-                  : "hover:bg-gray-50"
+                  ? "bg-slate-800/50 hover:bg-slate-800" 
+                  : "hover:bg-slate-800/30"
               )}
               asChild
             >
@@ -111,11 +111,11 @@ export function NotificationsPopover() {
                 <div className="flex w-full justify-between gap-3">
                   <span className={cn(
                     "font-semibold text-sm leading-tight",
-                    !notification.isRead ? "text-gray-900" : "text-gray-700"
+                    !notification.isRead ? "text-white" : "text-slate-300"
                   )}>
                     {notification.title}
                   </span>
-                  <span className="text-xs text-gray-500 whitespace-nowrap flex-shrink-0">
+                  <span className="text-xs text-slate-500 whitespace-nowrap flex-shrink-0">
                     {formatDistanceToNow(new Date(notification.createdAt), {
                       addSuffix: true,
                       locale: ru,
@@ -124,7 +124,7 @@ export function NotificationsPopover() {
                 </div>
                 <p className={cn(
                   "text-sm line-clamp-2 leading-relaxed",
-                  !notification.isRead ? "text-gray-700" : "text-gray-600"
+                  !notification.isRead ? "text-slate-300" : "text-slate-400"
                 )}>
                   {notification.message}
                 </p>
