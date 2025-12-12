@@ -812,7 +812,7 @@ export default function LessonPlayerPage() {
                               </span>
                             </label>
                             <p className="text-xs text-gray-500 mt-2">
-                              Поддерживаются: .html, .css, .zip, .pdf
+                              Поддерживаются: PDF, DOC, DOCX, TXT, XLS, XLSX, PPT, PPTX, изображения (JPG, PNG, GIF, WebP, SVG)
                             </p>
                           </div>
 
