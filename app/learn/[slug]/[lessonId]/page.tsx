@@ -550,21 +550,25 @@ export default function LessonPlayerPage() {
                     <ReactMarkdown
                       components={{
                         img: ({ node, src, alt, ...props }) => {
+                          console.log('Image component called:', { src, alt });
                           // Check if image uses Cloudflare Images syntax
                           if (src?.startsWith('cloudflare:')) {
                             const imageId = src.replace('cloudflare:', '');
                             const imageUrl = getCloudflareImageUrl(imageId);
+                            console.log('Cloudflare image detected:', { imageId, imageUrl });
                             return (
                               <img
                                 src={imageUrl}
                                 alt={alt || 'Изображение урока'}
                                 className="rounded-lg my-4 max-w-full h-auto"
+                                loading="lazy"
                                 {...props}
                               />
                             );
                           }
                           // Regular image
-                          return <img src={src} alt={alt} className="rounded-lg my-4 max-w-full h-auto" {...props} />;
+                          console.log('Regular image:', src);
+                          return <img src={src} alt={alt} className="rounded-lg my-4 max-w-full h-auto" loading="lazy" {...props} />;
                         },
                       }}
                     >
