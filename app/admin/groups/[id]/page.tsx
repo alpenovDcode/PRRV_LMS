@@ -88,6 +88,7 @@ export default function AdminGroupDetailPage() {
   const queryClient = useQueryClient();
   const [isEditOpen, setIsEditOpen] = React.useState(false);
   const [openCombobox, setOpenCombobox] = React.useState(false);
+  const [searchTerm, setSearchTerm] = React.useState("");
   const [selectedUserId, setSelectedUserId] = React.useState<string>("");
   const [selectedCourseId, setSelectedCourseId] = React.useState<string>("");
 
@@ -316,17 +317,21 @@ export default function AdminGroupDetailPage() {
                     </PopoverTrigger>
                     <PopoverContent className="w-[400px] p-0" align="start">
                       <Command shouldFilter={false}>
-                        <CommandInput placeholder="Поиск по email или имени..." />
+                        <CommandInput 
+                          placeholder="Поиск по email или имени..." 
+                          value={searchTerm}
+                          onValueChange={setSearchTerm}
+                        />
                         <CommandList>
                           <CommandEmpty>Пользователь не найден.</CommandEmpty>
                           <CommandGroup>
                             {users
                               ?.filter((user) => {
-                                const searchTerm = (document.querySelector('[cmdk-input]') as HTMLInputElement)?.value?.toLowerCase() || '';
                                 if (!searchTerm) return true;
+                                const term = searchTerm.toLowerCase();
                                 return (
-                                  user.email.toLowerCase().includes(searchTerm) ||
-                                  user.fullName?.toLowerCase().includes(searchTerm)
+                                  user.email.toLowerCase().includes(term) ||
+                                  user.fullName?.toLowerCase().includes(term)
                                 );
                               })
                               .map((user) => (
@@ -336,6 +341,7 @@ export default function AdminGroupDetailPage() {
                                   onSelect={(currentValue) => {
                                     setSelectedUserId(currentValue);
                                     setOpenCombobox(false);
+                                    setSearchTerm("");
                                   }}
                                 >
                                   <Check
