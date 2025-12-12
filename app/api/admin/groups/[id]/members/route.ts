@@ -175,11 +175,8 @@ export async function POST(
         });
 
         // Send notification
-        const { createNotification } = await import("@/lib/notifications");
+        const { notifyCourseEnrolled } = await import("@/lib/notifications");
         
-        let message = `Вы были добавлены в группу "${group.name}"`;
-        let link = "/dashboard";
-
         // Check if group has a course to provide better context
         const groupWithCourse = await db.group.findUnique({
           where: { id },
@@ -187,17 +184,22 @@ export async function POST(
         });
 
         if (groupWithCourse?.course) {
-          message += ` и зачислены на курс "${groupWithCourse.course.title}"`;
-          link = `/courses/${groupWithCourse.course.slug}`;
+          // Notify about course enrollment
+          await notifyCourseEnrolled(
+            userId,
+            groupWithCourse.course.title,
+            groupWithCourse.course.slug
+          );
+        } else {
+          // Fallback notification for groups without courses
+          await createNotification(
+            userId,
+            "group_invite",
+            "Вас добавили в группу",
+            `Вы были добавлены в группу "${group.name}"`,
+            "/dashboard"
+          );
         }
-
-        await createNotification(
-          userId,
-          "group_invite",
-          "Вас добавили в группу",
-          message,
-          link
-        );
 
         return NextResponse.json<ApiResponse>({ success: true, data: member }, { status: 201 });
       } catch (error) {

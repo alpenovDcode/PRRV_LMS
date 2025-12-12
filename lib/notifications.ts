@@ -70,3 +70,32 @@ export async function notifyHomeworkReviewed(
     "/dashboard" 
   );
 }
+
+export async function notifyLessonUnlocked(
+  userId: string,
+  lessonTitle: string,
+  courseSlug: string,
+  lessonId: string
+) {
+  await createNotification(
+    userId,
+    "lesson_unlocked",
+    "Новый урок доступен",
+    `Урок "${lessonTitle}" теперь доступен для изучения`,
+    `/learn/${courseSlug}/${lessonId}`
+  );
+}
+
+export async function notifyCourseEnrolled(
+  userId: string,
+  courseTitle: string,
+  courseSlug: string
+) {
+  await createNotification(
+    userId,
+    "course_enrolled",
+    "Добро пожаловать на курс!",
+    `Вы записаны на курс "${courseTitle}"`,
+    `/learn/${courseSlug}`
+  );
+}

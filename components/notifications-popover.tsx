@@ -32,16 +32,15 @@ export function NotificationsPopover() {
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
 
-  const { data: notifications = [] } = useQuery<Notification[]>({
+  const { data } = useQuery<{ notifications: Notification[]; unreadCount: number }>({
     queryKey: ["notifications"],
     queryFn: async () => {
       try {
         const response = await apiClient.get("/notifications");
-        const data = response.data.data;
-        return Array.isArray(data) ? data : [];
+        return response.data.data; // Returns { notifications: [], unreadCount: number }
       } catch (error) {
-
-        return [];
+        console.error("Failed to fetch notifications:", error);
+        return { notifications: [], unreadCount: 0 };
       }
     },
     // Poll every 5 seconds for better responsiveness
@@ -50,15 +49,15 @@ export function NotificationsPopover() {
 
   const markAllReadMutation = useMutation({
     mutationFn: async () => {
-      await apiClient.patch("/notifications", {});
+      await apiClient.patch("/notifications", { markAllAsRead: true });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
   });
 
-  const safeNotifications = Array.isArray(notifications) ? notifications : [];
-  const unreadCount = safeNotifications.filter((n) => !n.isRead).length;
+  const notifications = data?.notifications || [];
+  const unreadCount = data?.unreadCount || 0;
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
@@ -94,7 +93,7 @@ export function NotificationsPopover() {
             Нет новых уведомлений
           </div>
         ) : (
-          safeNotifications.map((notification) => (
+          notifications.map((notification) => (
             <DropdownMenuItem
               key={notification.id}
               className={cn(
