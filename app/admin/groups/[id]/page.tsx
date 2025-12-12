@@ -343,6 +343,16 @@ export default function AdminGroupDetailPage() {
                                     setOpenCombobox(false);
                                     setSearchTerm("");
                                   }}
+                                  onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                  }}
+                                  onClick={() => {
+                                    setSelectedUserId(user.id);
+                                    setOpenCombobox(false);
+                                    setSearchTerm("");
+                                  }}
+                                  className="cursor-pointer"
                                 >
                                   <Check
                                     className={cn(
