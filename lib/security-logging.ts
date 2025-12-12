@@ -23,18 +23,10 @@ export async function logSuspiciousActivity(
         timestamp: new Date().toISOString(),
       });
     } else {
-      // Для анонимных действий создаем запись без userId
-      await db.auditLog.create({
-        data: {
-          userId: "system", // Используем системный ID для анонимных действий
-          action: `SUSPICIOUS_${activityType}`,
-          entity: "security",
-          details: {
-            ...details,
-            timestamp: new Date().toISOString(),
-            anonymous: true,
-          },
-        },
+      // Для анонимных действий просто логируем в консоль
+      console.warn(`[Security] Anonymous suspicious activity: ${activityType}`, {
+        ...details,
+        timestamp: new Date().toISOString(),
       });
     }
 
