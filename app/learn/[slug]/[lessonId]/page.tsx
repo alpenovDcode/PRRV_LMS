@@ -108,6 +108,7 @@ export default function LessonPlayerPage() {
   const [activeTab, setActiveTab] = useState("details");
   const [hoverRating, setHoverRating] = useState(0);
   const [activeVideoIndex, setActiveVideoIndex] = useState(0);
+  const [isEditingHomework, setIsEditingHomework] = useState(false);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -157,6 +158,7 @@ export default function LessonPlayerPage() {
       queryClient.invalidateQueries({ queryKey: ["homework", lessonId] });
       setHomeworkContent("");
       setUploadedFiles([]);
+      setIsEditingHomework(false);
     },
     onError: (error: any) => {
       const message = error?.response?.data?.error?.message || "Не удалось отправить задание";
@@ -686,7 +688,7 @@ export default function LessonPlayerPage() {
                         <div className="h-4 bg-gray-200 rounded w-3/4" />
                         <div className="h-32 bg-gray-200 rounded" />
                       </div>
-                    ) : homework ? (
+                    ) : homework && !isEditingHomework ? (
                       <div className="space-y-4">
                         <div className="flex items-center justify-between">
                           <h3 className="text-lg font-semibold text-gray-900">Ваше задание</h3>
@@ -751,8 +753,9 @@ export default function LessonPlayerPage() {
                         {homework.status === "rejected" && (
                           <Button
                             onClick={() => {
-                              setActiveTab("homework");
+                              setIsEditingHomework(true);
                               setHomeworkContent(homework.content || "");
+                              setUploadedFiles(homework.files || []);
                             }}
                             variant="outline"
                             className="border-gray-300"

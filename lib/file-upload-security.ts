@@ -32,6 +32,13 @@ export const ALLOWED_MIME_TYPES = {
     "application/x-zip-compressed", // .zip
     "application/x-rar-compressed", // .rar
     "application/x-7z-compressed", // .7z
+    // Images (for screenshots, diagrams, etc.)
+    "image/jpeg", // .jpg, .jpeg
+    "image/jpg", // .jpg
+    "image/png", // .png
+    "image/gif", // .gif
+    "image/webp", // .webp
+    "image/svg+xml", // .svg
   ] as const,
   videos: [
     "video/mp4",
