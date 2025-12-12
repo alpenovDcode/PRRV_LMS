@@ -316,7 +316,7 @@ export default function AdminGroupDetailPage() {
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-[400px] p-0" align="start">
-                      <Command shouldFilter={false}>
+                      <Command shouldFilter={false} filter={() => 1}>
                         <CommandInput 
                           placeholder="Поиск по email или имени..." 
                           value={searchTerm}
@@ -337,9 +337,9 @@ export default function AdminGroupDetailPage() {
                               .map((user) => (
                                 <CommandItem
                                   key={user.id}
-                                  value={user.id}
-                                  onSelect={(currentValue) => {
-                                    setSelectedUserId(currentValue);
+                                  value={user.email}
+                                  onSelect={() => {
+                                    setSelectedUserId(user.id);
                                     setOpenCombobox(false);
                                     setSearchTerm("");
                                   }}
