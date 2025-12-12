@@ -50,9 +50,26 @@ model User {
   twoFactorAuth           TwoFactorAuth?
   userSessions            UserSession[]
   errorLogs               ErrorLog[]
+  loginTokens             LoginToken[]
 
   @@index([email])
   @@map("users")
+}
+
+model LoginToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime @map("expires_at")
+  used      Boolean  @default(false)
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  @@index([token])
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("login_tokens")
 }
 
 model Course {
