@@ -30,6 +30,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { getCloudflareImageUrl } from "@/lib/cloudflare-images";
 import Image from "next/image";
 import { toast } from "sonner";
@@ -548,6 +549,7 @@ export default function LessonPlayerPage() {
                 <CardContent className="prose prose-sm max-w-none dark:prose-invert p-6">
                   {lesson.content?.markdown ? (
                     <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
                       components={{
                         img: ({ node, src, alt, ...props }) => {
                           console.log('Image component called:', { src, alt });
