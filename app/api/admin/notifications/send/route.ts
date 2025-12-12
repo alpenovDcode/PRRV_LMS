@@ -3,7 +3,7 @@ import { withAuth } from "@/lib/api-middleware";
 import { ApiResponse } from "@/types";
 import { UserRole } from "@prisma/client";
 import { db } from "@/lib/db";
-import { createNotification } from "@/lib/notifications-enhanced";
+import { createNotification } from "@/lib/notifications";
 import { logAction } from "@/lib/audit";
 import { z } from "zod";
 

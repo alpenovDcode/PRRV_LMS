@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Save, FileText, Video, HelpCircle, Plus, Trash2, GripVertical } from "lucide-react";
+import { ArrowLeft, Save, FileText, Video, HelpCircle, Plus, Trash2, GripVertical, Image } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -499,6 +499,95 @@ export default function LessonEditorPage() {
                     className="border-gray-300 focus:border-blue-500 font-mono text-sm"
                   />
                 </div>
+
+                {/* Cloudflare Image Insert Helper */}
+                <Card className="bg-blue-50 border-blue-200">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <Image className="h-4 w-4" />
+                      Вставить изображение из Cloudflare
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="imageId" className="text-xs text-gray-700">
+                        ID изображения из Cloudflare Images
+                      </Label>
+                      <div className="flex gap-2">
+                        <Input
+                          id="imageId"
+                          placeholder="Например: abc123-def456-ghi789"
+                          className="bg-white font-mono text-sm"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              const imageId = (e.target as HTMLInputElement).value.trim();
+                              if (imageId) {
+                                const textarea = document.getElementById('markdown') as HTMLTextAreaElement;
+                                if (textarea) {
+                                  const start = textarea.selectionStart;
+                                  const end = textarea.selectionEnd;
+                                  const currentValue = content?.markdown || "";
+                                  const imageMarkdown = `\n\n![Описание изображения](cloudflare:${imageId})\n\n`;
+                                  const newValue = currentValue.substring(0, start) + imageMarkdown + currentValue.substring(end);
+                                  handleContentChange("markdown", newValue);
+                                  toast.success("Изображение вставлено!");
+                                  (e.target as HTMLInputElement).value = "";
+                                  // Set cursor position after inserted image
+                                  setTimeout(() => {
+                                    textarea.focus();
+                                    textarea.setSelectionRange(start + imageMarkdown.length, start + imageMarkdown.length);
+                                  }, 0);
+                                }
+                              }
+                            }
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => {
+                            const input = document.getElementById('imageId') as HTMLInputElement;
+                            const imageId = input?.value.trim();
+                            if (!imageId) {
+                              toast.error("Введите ID изображения");
+                              return;
+                            }
+                            const textarea = document.getElementById('markdown') as HTMLTextAreaElement;
+                            if (textarea) {
+                              const start = textarea.selectionStart;
+                              const end = textarea.selectionEnd;
+                              const currentValue = content?.markdown || "";
+                              const imageMarkdown = `\n\n![Описание изображения](cloudflare:${imageId})\n\n`;
+                              const newValue = currentValue.substring(0, start) + imageMarkdown + currentValue.substring(end);
+                              handleContentChange("markdown", newValue);
+                              toast.success("Изображение вставлено!");
+                              if (input) input.value = "";
+                              // Set cursor position after inserted image
+                              setTimeout(() => {
+                                textarea.focus();
+                                textarea.setSelectionRange(start + imageMarkdown.length, start + imageMarkdown.length);
+                              }, 0);
+                            }
+                          }}
+                        >
+                          <Plus className="h-4 w-4 mr-1" />
+                          Вставить
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="text-xs text-gray-600 space-y-1 bg-white p-3 rounded border border-blue-100">
+                      <p className="font-medium">Синтаксис:</p>
+                      <code className="block bg-gray-100 p-2 rounded font-mono text-xs">
+                        ![Описание](cloudflare:IMAGE_ID)
+                      </code>
+                      <p className="text-gray-500 mt-2">
+                        Изображение будет автоматически загружено из Cloudflare Images при отображении урока студентам.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
 
                 <div className="space-y-2">
                   <Label htmlFor="description" className="text-gray-700">

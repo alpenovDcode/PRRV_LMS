@@ -30,6 +30,8 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import { getCloudflareImageUrl } from "@/lib/cloudflare-images";
+import Image from "next/image";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -545,7 +547,29 @@ export default function LessonPlayerPage() {
               <Card className="mb-6 border-gray-200">
                 <CardContent className="prose prose-sm max-w-none dark:prose-invert p-6">
                   {lesson.content?.markdown ? (
-                    <ReactMarkdown>{lesson.content.markdown}</ReactMarkdown>
+                    <ReactMarkdown
+                      components={{
+                        img: ({ node, src, alt, ...props }) => {
+                          // Check if image uses Cloudflare Images syntax
+                          if (src?.startsWith('cloudflare:')) {
+                            const imageId = src.replace('cloudflare:', '');
+                            const imageUrl = getCloudflareImageUrl(imageId);
+                            return (
+                              <img
+                                src={imageUrl}
+                                alt={alt || 'Изображение урока'}
+                                className="rounded-lg my-4 max-w-full h-auto"
+                                {...props}
+                              />
+                            );
+                          }
+                          // Regular image
+                          return <img src={src} alt={alt} className="rounded-lg my-4 max-w-full h-auto" {...props} />;
+                        },
+                      }}
+                    >
+                      {lesson.content.markdown}
+                    </ReactMarkdown>
                   ) : (
                     <p className="text-gray-500">Контент урока</p>
                   )}
