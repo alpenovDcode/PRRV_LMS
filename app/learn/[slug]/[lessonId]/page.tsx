@@ -721,12 +721,22 @@ export default function LessonPlayerPage() {
                         {homework.files && homework.files.length > 0 && (
                           <div>
                             <h4 className="text-sm font-medium text-gray-900 mb-2">Прикрепленные файлы:</h4>
-                            <div className="flex flex-wrap gap-2">
-                              {homework.files.map((file, idx) => (
-                                <Badge key={idx} variant="outline" className="border-gray-300">
-                                  {file}
-                                </Badge>
-                              ))}
+                            <div className="space-y-2">
+                              {homework.files.map((file, idx) => {
+                                const fileName = file.split('/').pop() || file;
+                                return (
+                                  <a
+                                    key={idx}
+                                    href={file}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-2 p-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                                  >
+                                    <FileText className="h-4 w-4 text-gray-500" />
+                                    <span className="text-sm text-gray-700 truncate flex-1">{fileName}</span>
+                                  </a>
+                                );
+                              })}
                             </div>
                           </div>
                         )}

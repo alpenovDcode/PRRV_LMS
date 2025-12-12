@@ -186,18 +186,22 @@ export default function AdminHomeworkReviewPage() {
                 <div className="space-y-2">
                   <h3 className="font-medium">Прикрепленные файлы:</h3>
                   <div className="space-y-2">
-                    {submission.files.map((file, idx) => (
-                      <a
-                        key={idx}
-                        href={file}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 p-2 border rounded-lg hover:bg-accent transition-colors"
-                      >
-                        <FileText className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm truncate">{file}</span>
-                      </a>
-                    ))}
+                    {submission.files.map((file, idx) => {
+                      // Extract filename from URL (last part after /)
+                      const fileName = file.split('/').pop() || file;
+                      return (
+                        <a
+                          key={idx}
+                          href={file}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 p-2 border rounded-lg hover:bg-accent transition-colors"
+                        >
+                          <FileText className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm truncate flex-1">{fileName}</span>
+                        </a>
+                      );
+                    })}
                   </div>
                 </div>
               )}
