@@ -25,7 +25,7 @@ export default function AdminNotificationsPage() {
   const [targetRole, setTargetRole] = useState("all");
 
   // Fetch users for statistics
-  const { data: usersData } = useQuery<{ users: User[]; total: number }>({
+  const { data: usersData } = useQuery<User[]>({
     queryKey: ["admin-users"],
     queryFn: async () => {
       const response = await apiClient.get("/admin/users");
@@ -63,8 +63,8 @@ export default function AdminNotificationsPage() {
 
   const getRecipientCount = () => {
     if (!usersData) return 0;
-    if (targetRole === "all") return usersData.total;
-    return usersData.users.filter(u => u.role === targetRole).length;
+    if (targetRole === "all") return usersData.length;
+    return usersData.filter(u => u.role === targetRole).length;
   };
 
   return (
@@ -100,17 +100,17 @@ export default function AdminNotificationsPage() {
                   <SelectItem value="all">
                     <div className="flex items-center gap-2">
                       <Users className="h-4 w-4" />
-                      Всем пользователям ({usersData?.total || 0})
+                      Всем пользователям ({usersData?.length || 0})
                     </div>
                   </SelectItem>
                   <SelectItem value="student">
-                    Только студентам ({usersData?.users.filter(u => u.role === 'student').length || 0})
+                    Только студентам ({usersData?.filter(u => u.role === 'student').length || 0})
                   </SelectItem>
                   <SelectItem value="curator">
-                    Только кураторам ({usersData?.users.filter(u => u.role === 'curator').length || 0})
+                    Только кураторам ({usersData?.filter(u => u.role === 'curator').length || 0})
                   </SelectItem>
                   <SelectItem value="admin">
-                    Только администраторам ({usersData?.users.filter(u => u.role === 'admin').length || 0})
+                    Только администраторам ({usersData?.filter(u => u.role === 'admin').length || 0})
                   </SelectItem>
                 </SelectContent>
               </Select>
