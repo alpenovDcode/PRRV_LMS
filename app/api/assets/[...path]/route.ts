@@ -17,10 +17,11 @@ const s3Client = new S3Client({
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
   try {
-    const key = params.path.join("/");
+    const { path } = await params;
+    const key = path.join("/");
     
     const command = new GetObjectCommand({
       Bucket: R2_BUCKET_NAME,
