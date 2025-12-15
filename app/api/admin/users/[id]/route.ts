@@ -288,12 +288,24 @@ export async function PATCH(
       try {
         const { id } = await params;
         const body = await request.json();
-        const { email, fullName, role, password, phone, about, avatarUrl, track, telegram } = updateUserSchema.parse(body);
+        const { email, fullName, role, password, phone, about, avatarUrl, track, telegram, isBlocked, frozenUntil } = z.object({
+          email: z.string().email().optional(),
+          fullName: z.string().optional(),
+          role: z.enum(["student", "admin", "curator"]).optional(),
+          password: z.string().min(6).optional(),
+          phone: z.string().optional(),
+          telegram: z.string().optional(),
+          about: z.string().optional(),
+          avatarUrl: z.string().optional(),
+          track: z.string().optional(),
+          isBlocked: z.boolean().optional(),
+          frozenUntil: z.string().nullable().optional(), // Receive as string date or null
+        }).parse(body);
 
         // Проверяем существование пользователя
         const existingUser = await db.user.findUnique({
           where: { id },
-          select: { id: true, email: true, role: true },
+          select: { id: true, email: true, role: true, isBlocked: true, frozenUntil: true },
         });
 
         if (!existingUser) {
@@ -339,6 +351,15 @@ export async function PATCH(
         if (about !== undefined) updateData.about = about;
         if (avatarUrl !== undefined) updateData.avatarUrl = avatarUrl;
         if (track !== undefined) updateData.track = track;
+        if (isBlocked !== undefined) {
+            updateData.isBlocked = isBlocked;
+            // Reset sessions if blocked
+            if (isBlocked) {
+                updateData.sessionId = null;
+            }
+        }
+        if (frozenUntil !== undefined) updateData.frozenUntil = frozenUntil ? new Date(frozenUntil) : null;
+        
         if (password !== undefined) {
           updateData.passwordHash = await hashPassword(password);
           // При смене пароля инвалидируем все сессии
@@ -359,6 +380,8 @@ export async function PATCH(
             about: true,
             avatarUrl: true,
             track: true,
+            isBlocked: true,
+            frozenUntil: true,
           },
         });
 
@@ -366,6 +389,8 @@ export async function PATCH(
         await logAction(req.user!.userId, "UPDATE_USER", "user", id, {
           email: email || existingUser.email,
           role: role || existingUser.role,
+          isBlocked: isBlocked !== undefined ? isBlocked : existingUser.isBlocked,
+          frozenUntil: frozenUntil !== undefined ? frozenUntil : existingUser.frozenUntil,
           passwordChanged: !!password,
         });
 

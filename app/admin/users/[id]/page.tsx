@@ -268,32 +268,61 @@ function EditUserDialog({ user, open, onOpenChange, onSuccess }: {
 export default function AdminUserDetailPage() {
   const params = useParams();
   const userId = params.id as string;
-  const [isEditOpen, setIsEditOpen] = useState(false);
-  const queryClient = useQueryClient();
+  /* Existing code above remains... I need to insert the state and dialogs */
+  const [isBlockOpen, setIsBlockOpen] = useState(false);
+  const [isFreezeOpen, setIsFreezeOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [freezeDuration, setFreezeDuration] = useState("7"); // Days
 
-  const { data: user, isLoading } = useQuery<AdminUserDetail>({
-    queryKey: ["admin", "users", userId],
-    queryFn: async () => {
-      const response = await apiClient.get(`/admin/users/${userId}`);
-      return response.data.data;
+  const router = useRouter(); // Need router for redirect after delete
+
+  const blockMutation = useMutation({
+    mutationFn: async (shouldBlock: boolean) => {
+      await apiClient.patch(`/admin/users/${userId}`, { isBlocked: shouldBlock });
+    },
+    onSuccess: (_, shouldBlock) => {
+      toast.success(shouldBlock ? "Пользователь заблокирован" : "Пользователь разблокирован");
+      setIsBlockOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["admin", "users", userId] });
+    },
+    onError: () => toast.error("Ошибка при обновлении статуса блокировки"),
+  });
+
+  const freezeMutation = useMutation({
+    mutationFn: async () => {
+      const date = new Date();
+      date.setDate(date.getDate() + parseInt(freezeDuration));
+      await apiClient.patch(`/admin/users/${userId}`, { frozenUntil: date.toISOString() });
+    },
+    onSuccess: () => {
+      toast.success(`Пользователь заморожен на ${freezeDuration} дней`);
+      setIsFreezeOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["admin", "users", userId] });
+    },
+    onError: () => toast.error("Ошибка при заморозке пользователя"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      await apiClient.delete(`/admin/users/${userId}`);
+    },
+    onSuccess: () => {
+      toast.success("Пользователь удален");
+      setIsDeleteOpen(false);
+      router.push("/admin/users");
+    },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.error?.message || "Ошибка при удалении пользователя");
     },
   });
 
-  const impersonateMutation = useMutation({
+  const unfreezeMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiClient.post(`/admin/users/${userId}/impersonate`, {}, {
-        withCredentials: true,
-      });
-      return response.data.data;
+      await apiClient.patch(`/admin/users/${userId}`, { frozenUntil: null });
     },
-    onSuccess: (data) => {
-      toast.success(`Вход выполнен от имени ${data.user.fullName || data.user.email}`);
-      setTimeout(() => {
-        window.location.href = "/dashboard";
-      }, 100);
-    },
-    onError: () => {
-      toast.error("Не удалось войти от имени пользователя");
+    onSuccess: () => {
+      toast.success("Заморозка снята");
+      queryClient.invalidateQueries({ queryKey: ["admin", "users", userId] });
     },
   });
 
@@ -308,6 +337,10 @@ export default function AdminUserDetailPage() {
       </div>
     );
   }
+
+  const isBlocked = (user as any).isBlocked;
+  const frozenUntil = (user as any).frozenUntil;
+  const isFrozen = frozenUntil && new Date(frozenUntil) > new Date();
 
   return (
     <div className="container mx-auto max-w-6xl px-4 py-8 space-y-6 bg-gray-50 min-h-screen">
@@ -329,11 +362,82 @@ export default function AdminUserDetailPage() {
               className="bg-purple-600 hover:bg-purple-700 text-white"
             >
               <LogIn className="mr-2 h-4 w-4" />
-              Войти как пользователь
+              Войти
             </Button>
           )}
         </div>
       </div>
+
+      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Удалить пользователя?</DialogTitle>
+            <DialogDescription>
+              Это действие необратимо. Все данные пользователя, включая прогресс и домашние задания, будут удалены.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>Отмена</Button>
+            <Button variant="destructive" onClick={() => deleteMutation.mutate()} disabled={deleteMutation.isPending}>
+              {deleteMutation.isPending ? "Удаление..." : "Удалить"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isBlockOpen} onOpenChange={setIsBlockOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{isBlocked ? "Разблокировать пользователя?" : "Заблокировать пользователя?"}</DialogTitle>
+            <DialogDescription>
+              {isBlocked 
+                ? "Пользователь снова сможет входить в систему и проходить курсы." 
+                : "Пользователь потеряет доступ к платформе до разблокировки."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsBlockOpen(false)}>Отмена</Button>
+            <Button 
+              variant={isBlocked ? "default" : "destructive"} 
+              onClick={() => blockMutation.mutate(!isBlocked)}
+              disabled={blockMutation.isPending}
+            >
+              {isBlocked ? "Разблокировать" : "Заблокировать"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isFreezeOpen} onOpenChange={setIsFreezeOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Заморозить доступ</DialogTitle>
+            <DialogDescription>
+              Выберите период заморозки. В это время пользователь не сможет проходить обучение, но дедлайны будут сдвинуты (если настроено).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label>Период заморозки</Label>
+            <Select value={freezeDuration} onValueChange={setFreezeDuration}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="7">7 дней</SelectItem>
+                <SelectItem value="14">14 дней</SelectItem>
+                <SelectItem value="30">30 дней</SelectItem>
+                <SelectItem value="90">3 месяца</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsFreezeOpen(false)}>Отмена</Button>
+            <Button onClick={() => freezeMutation.mutate()} disabled={freezeMutation.isPending}>
+              Заморозить
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <EditUserDialog 
         user={user} 
@@ -343,7 +447,7 @@ export default function AdminUserDetailPage() {
       />
 
       <div className="flex items-baseline justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">Профиль студента</h1>
+        <h1 className="text-3xl font-bold text-gray-900">Профиль {user.role === 'student' ? 'студента' : user.role === 'curator' ? 'куратора' : 'администратора'}</h1>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -362,7 +466,7 @@ export default function AdminUserDetailPage() {
               </div>
               <h2 className="text-xl font-bold text-gray-900">{user.fullName || "Без имени"}</h2>
               <p className="text-gray-500 text-sm mb-3">{user.email}</p>
-              <div className="flex gap-2 justify-center">
+              <div className="flex gap-2 justify-center flex-wrap">
                 <Badge 
                   className={`${
                     user.role === "admin" ? "bg-purple-100 text-purple-700" : 
@@ -372,15 +476,46 @@ export default function AdminUserDetailPage() {
                 >
                   {user.role === "student" ? "Студент" : user.role === "curator" ? "Куратор" : "Администратор"}
                 </Badge>
-                <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-none px-3 py-1">
-                  Активен
-                </Badge>
+                {isBlocked ? (
+                   <Badge className="bg-red-100 text-red-700 hover:bg-red-200 border-none px-3 py-1">
+                     Заблокирован
+                   </Badge>
+                ) : isFrozen ? (
+                   <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-200 border-none px-3 py-1">
+                     Заморожен до {new Date(frozenUntil).toLocaleDateString()}
+                   </Badge>
+                ) : (
+                   <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-none px-3 py-1">
+                     Активен
+                   </Badge>
+                )}
               </div>
+
+              {/* Action Buttons */}
+              <div className="grid grid-cols-2 gap-2 w-full mt-6 text-sm">
+                 <Button variant="outline" size="sm" className="w-full text-red-600 border-red-200 hover:bg-red-50" onClick={() => setIsBlockOpen(true)}>
+                   {isBlocked ? "Разблокировать" : "Заблокировать"}
+                 </Button>
+                 {isFrozen ? (
+                    <Button variant="outline" size="sm" className="w-full text-blue-600 border-blue-200 hover:bg-blue-50" onClick={() => unfreezeMutation.mutate()}>
+                      Разморозить
+                    </Button>
+                 ) : (
+                    <Button variant="outline" size="sm" className="w-full text-blue-600 border-blue-200 hover:bg-blue-50" onClick={() => setIsFreezeOpen(true)}>
+                      Заморозить
+                    </Button>
+                 )}
+                 <Button variant="outline" size="sm" className="w-full col-span-2 text-gray-600 border-gray-200 hover:bg-gray-100" onClick={() => setIsDeleteOpen(true)}>
+                   Удалить профиль
+                 </Button>
+              </div>
+
               {user.about && (
                 <p className="text-sm text-gray-600 mt-4 max-w-xs">
                   {user.about}
                 </p>
               )}
+              {/* Existing badges code ... */}
               <div className="mt-4 flex flex-col gap-2">
                 {user.tariff && (
                   <Badge variant="outline" className="border-blue-200 text-blue-700 bg-blue-50">

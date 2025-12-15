@@ -24,6 +24,8 @@ model User {
   role                    UserRole                @default(student)
   tariff                  UserTariff?             @map("tariff")
   sessionId               String?                 @map("session_id")
+  isBlocked               Boolean                 @default(false) @map("is_blocked")
+  frozenUntil             DateTime?               @map("frozen_until")
   emailVerified           Boolean                 @default(false) @map("email_verified")
   createdAt               DateTime                @default(now()) @map("created_at")
   updatedAt               DateTime                @updatedAt @map("updated_at")
