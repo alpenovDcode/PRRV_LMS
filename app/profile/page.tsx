@@ -212,7 +212,11 @@ export default function ProfilePage() {
                             formData.append("file", file);
 
                             try {
-                              const uploadPromise = apiClient.post("/upload", formData);
+                              const uploadPromise = apiClient.post("/upload", formData, {
+                                headers: {
+                                  "Content-Type": "multipart/form-data",
+                                },
+                              });
 
                               toast.promise(uploadPromise, {
                                 loading: "Загрузка...",
