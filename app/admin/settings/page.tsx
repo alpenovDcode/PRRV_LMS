@@ -150,60 +150,7 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Mail className="h-5 w-5" />
-              Настройки SMTP
-            </CardTitle>
-            <CardDescription>
-              Конфигурация для отправки email-уведомлений
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="smtpHost">SMTP Host</Label>
-                <Input
-                  id="smtpHost"
-                  value={formData.smtpHost}
-                  onChange={(e) => handleChange("smtpHost", e.target.value)}
-                  placeholder="smtp.example.com"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="smtpPort">SMTP Port</Label>
-                <Input
-                  id="smtpPort"
-                  value={formData.smtpPort}
-                  onChange={(e) => handleChange("smtpPort", e.target.value)}
-                  placeholder="587"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="smtpUser">SMTP User</Label>
-                <Input
-                  id="smtpUser"
-                  value={formData.smtpUser}
-                  onChange={(e) => handleChange("smtpUser", e.target.value)}
-                  placeholder="user@example.com"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="smtpPass">SMTP Password</Label>
-                <Input
-                  id="smtpPass"
-                  type="password"
-                  value={formData.smtpPass}
-                  onChange={(e) => handleChange("smtpPass", e.target.value)}
-                  placeholder="••••••••"
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+
 
         <div className="flex justify-end">
           <Button

@@ -149,6 +149,18 @@ export default function LessonPlayerPage() {
     mutationFn: async (data: { watchedTime: number; status?: string; rating?: number }) => {
       await apiClient.post(`/lessons/${lessonId}/progress`, data);
     },
+    onSuccess: (data, variables) => {
+      // Invalidate lesson query to update progress state (including rating)
+      queryClient.invalidateQueries({ queryKey: ["lesson", lessonId] });
+      
+      // Show toast only if rating was updated
+      if (variables.rating) {
+        toast.success("Спасибо за оценку!");
+      }
+    },
+    onError: (error: any) => {
+      toast.error("Не удалось сохранить прогресс");
+    },
   });
 
   const submitHomeworkMutation = useMutation({

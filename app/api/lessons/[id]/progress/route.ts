@@ -57,6 +57,20 @@ export async function POST(
         );
       }
 
+      // Проверяем существующий прогресс, чтобы не дать изменить оценку
+      const existingProgress = await db.lessonProgress.findUnique({
+        where: {
+          userId_lessonId: {
+            userId: req.user!.userId,
+            lessonId: id,
+          },
+        },
+      });
+
+      // Если оценка уже есть, мы не должны её менять
+      // Если оценки нет, то можем записать новую (если она пришла)
+      const ratingToSave = existingProgress?.rating ? undefined : rating;
+
       // Обновляем или создаем прогресс
       const progress = await db.lessonProgress.upsert({
         where: {
@@ -68,7 +82,8 @@ export async function POST(
         update: {
           watchedTime,
           status: status || "in_progress",
-          rating: rating,
+          // Если ratingToSave === undefined, Prisma просто не будет обновлять это поле
+          rating: ratingToSave,
           completedAt: status === "completed" ? new Date() : undefined,
           lastUpdated: new Date(),
         },
@@ -77,7 +92,7 @@ export async function POST(
           lessonId: id,
           watchedTime,
           status: status || "in_progress",
-          rating: rating,
+          rating: rating, // При создании можно ставить оценку
           completedAt: status === "completed" ? new Date() : undefined,
         },
       });

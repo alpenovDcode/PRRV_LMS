@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 import { getCloudflareImageUrl } from "@/lib/cloudflare-images";
 
 interface LessonDetail {
@@ -1119,31 +1120,7 @@ export default function LessonEditorPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-gray-200">
-            <CardHeader>
-              <CardTitle className="text-gray-900">Домашнее задание</CardTitle>
-              <CardDescription className="text-gray-600">
-                Настройки дедлайна для домашнего задания
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="homeworkDeadline" className="text-gray-700">
-                  Дедлайн для ДЗ
-                </Label>
-                <Input
-                  id="homeworkDeadline"
-                  type="datetime-local"
-                  value={homeworkDeadline}
-                  onChange={(e) => setHomeworkDeadline(e.target.value)}
-                  className="border-gray-300 focus:border-blue-500"
-                />
-                <p className="text-xs text-gray-500">
-                  Оставьте пустым, если дедлайна нет. Дедлайн будет показан студентам в дашборде.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+
         </TabsContent>
 
         {/* Просмотр */}
@@ -1198,7 +1175,7 @@ export default function LessonEditorPage() {
               {type === "text" && content?.markdown && (
                 <div className="prose prose-sm max-w-none border border-gray-200 rounded-lg p-4">
                   <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
+                    remarkPlugins={[remarkGfm, remarkBreaks]}
                     components={{
                       img: ({ node, src, alt, ...props }) => {
                         // Check if image uses Cloudflare Images syntax
