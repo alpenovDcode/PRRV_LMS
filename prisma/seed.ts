@@ -11,7 +11,7 @@ async function main() {
   console.log("🌱 Seeding database...");
 
   // Создание админа
-  const adminPassword = await hashPassword("0a3682fdd1d9c397658409c41247edcf696c6b40a7890c89c60a33c4183a3e52");
+  const adminPassword = await hashPassword("Evgeni2323_admin");
   const admin = await prisma.user.upsert({
     where: { email: "prrv_admin@proryv.ru" },
     update: {},
