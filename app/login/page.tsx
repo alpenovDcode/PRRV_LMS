@@ -112,14 +112,7 @@ export default function LoginPage() {
                   )}
                 </div>
 
-                <div className="flex items-center justify-between text-sm">
-                  <Link
-                    href="/recover-password"
-                    className="text-sm font-medium text-orange-600 hover:text-orange-700 hover:underline"
-                  >
-                    Забыли пароль?
-                  </Link>
-                </div>
+
 
                 <Button 
                   type="submit" 
@@ -130,12 +123,7 @@ export default function LoginPage() {
                 </Button>
               </form>
 
-              <div className="mt-4 text-center text-sm text-gray-600">
-                Нет аккаунта?{" "}
-                <Link href="/register" className="font-medium text-orange-600 hover:text-orange-700 hover:underline">
-                  Зарегистрироваться
-                </Link>
-              </div>
+
             </CardContent>
           </Card>
         </div>
