@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -268,7 +268,35 @@ function EditUserDialog({ user, open, onOpenChange, onSuccess }: {
 export default function AdminUserDetailPage() {
   const params = useParams();
   const userId = params.id as string;
-  /* Existing code above remains... I need to insert the state and dialogs */
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const queryClient = useQueryClient();
+
+  const { data: user, isLoading } = useQuery<AdminUserDetail>({
+    queryKey: ["admin", "users", userId],
+    queryFn: async () => {
+      const response = await apiClient.get(`/admin/users/${userId}`);
+      return response.data.data;
+    },
+  });
+
+  const impersonateMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiClient.post(`/admin/users/${userId}/impersonate`, {}, {
+        withCredentials: true,
+      });
+      return response.data.data;
+    },
+    onSuccess: (data) => {
+      toast.success(`Вход выполнен от имени ${data.user.fullName || data.user.email}`);
+      setTimeout(() => {
+        window.location.href = "/dashboard";
+      }, 100);
+    },
+    onError: () => {
+      toast.error("Не удалось войти от имени пользователя");
+    },
+  });
+
   const [isBlockOpen, setIsBlockOpen] = useState(false);
   const [isFreezeOpen, setIsFreezeOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
