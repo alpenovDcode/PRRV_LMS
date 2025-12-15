@@ -36,6 +36,9 @@ ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
+# Install tsx globally for seeding
+RUN npm install -g tsx
+
 # Copy public directory
 COPY --from=builder /app/public ./public
 # Copy Prisma schema and migrations for runtime migrations
