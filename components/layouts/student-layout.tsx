@@ -75,7 +75,7 @@ export function StudentLayout({ children }: { children: React.ReactNode }) {
         <div className="flex h-full flex-col">
           {/* Logo */}
           <div className="flex h-16 items-center justify-between px-6 border-b border-primary/10 bg-gradient-primary">
-            <Link href="/dashboard" className="text-xl font-bold text-orange-500">
+            <Link href="/dashboard" className="text-3xl font-bold text-orange-500">
               Прорыв
             </Link>
             <Button
