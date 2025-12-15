@@ -108,10 +108,16 @@ export async function POST(request: NextRequest) {
       },
       { status: 201 }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error("Upload error:", error);
     return NextResponse.json<ApiResponse>(
-      { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to upload file" } },
+      { 
+        success: false, 
+        error: { 
+          code: "INTERNAL_ERROR", 
+          message: error?.message || "Failed to upload file" 
+        } 
+      },
       { status: 500 }
     );
   }
