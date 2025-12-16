@@ -231,8 +231,13 @@ export async function GET(
             parent.children.push(module);
             // Sort children by orderIndex
             parent.children.sort((a: any, b: any) => a.orderIndex - b.orderIndex);
+          } else {
+             console.log(`DEBUG: ORPHAN DETECTED! Module ${module.title} has parentId ${module.parentId} but parent not found in map.`);
+             // If parent is missing (filtered out), should we show it as root? 
+             // Currently it is DROPPED.
           }
         } else {
+          console.log(`DEBUG: Module ${module.title} pushed to ROOT. ParentId: ${module.parentId}`);
           rootModules.push(module);
         }
       });
