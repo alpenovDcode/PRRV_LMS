@@ -105,6 +105,7 @@ export async function GET(
               ? {
                   status: progress.status,
                   watchedTime: progress.watchedTime,
+                  rating: progress.rating,
                 }
               : null,
           },

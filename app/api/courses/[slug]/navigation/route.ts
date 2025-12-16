@@ -143,8 +143,12 @@ export async function GET(
               };
             })
           ),
+          parentId: module.parentId, // Ensure parentId is passed
         }))
       );
+
+      // Structure modules hierarchically
+      const structuredModules = structureModules(modulesWithLessons);
 
       // Determine prev/next navigation
       const flattenedLessons = modulesWithLessons.flatMap(m => m.lessons);
@@ -175,7 +179,7 @@ export async function GET(
         {
           success: true,
           data: {
-            modules: modulesWithLessons,
+            modules: structuredModules,
             currentLessonId,
             prevLessonId,
             nextLessonId,
@@ -197,4 +201,34 @@ export async function GET(
       );
     }
   });
+}
+
+function structureModules(modules: any[]) {
+  const modulesMap = new Map();
+  const rootModules: any[] = [];
+
+  // Initialize map and ensure children array
+  modules.forEach((module) => {
+    if (!module.children) module.children = [];
+    modulesMap.set(module.id, module);
+  });
+
+  // Build hierarchy
+  modules.forEach((module) => {
+    if (module.parentId) {
+      const parent = modulesMap.get(module.parentId);
+      if (parent) {
+        parent.children.push(module);
+        // Sort children by orderIndex
+        parent.children.sort((a: any, b: any) => a.orderIndex - b.orderIndex);
+      }
+    } else {
+      rootModules.push(module);
+    }
+  });
+
+  // Sort root modules
+  rootModules.sort((a: any, b: any) => a.orderIndex - b.orderIndex);
+
+  return rootModules;
 }

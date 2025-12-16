@@ -70,6 +70,7 @@ interface CourseNav {
       isAvailable: boolean;
       progress?: { status: string };
     }>;
+    children?: Array<any>;
   }>;
   currentLessonId: string;
   prevLessonId: string | null;
@@ -368,7 +369,7 @@ export default function LessonPlayerPage() {
       {/* Sidebar navigation (Desktop & Mobile) */}
       <aside 
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-80 transform bg-white border-r border-gray-100 transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:block overflow-y-auto",
+          "fixed inset-y-0 left-0 z-50 w-80 transform bg-white border-r border-gray-50 transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:block overflow-y-auto",
           mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
@@ -395,48 +396,12 @@ export default function LessonPlayerPage() {
               <Progress value={45} className="h-2" />
               <p className="text-xs text-gray-500 mt-1">45% завершено</p>
             </div>
-            <Accordion type="multiple" className="w-full" defaultValue={courseNav.modules.map(m => m.id)}>
-              {courseNav.modules.map((module) => (
-                <AccordionItem key={module.id} value={module.id} className="border-gray-100">
-                  <AccordionTrigger className="text-sm font-medium text-gray-900 hover:no-underline py-2">
-                    {module.title}
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <div className="space-y-1 pt-2">
-                      {module.lessons.map((l) => {
-                        const isCurrent = l.id === lessonId;
-                        const isCompleted = l.progress?.status === "completed";
-                        return (
-                          <Link
-                            key={l.id}
-                            href={l.isAvailable ? `/learn/${slug}/${l.id}` : "#"}
-                            className={cn(
-                              "flex items-center gap-2 rounded-md p-2 text-sm transition-colors",
-                              isCurrent
-                                ? "bg-blue-50 text-blue-600 font-medium"
-                                : l.isAvailable
-                                  ? "hover:bg-gray-50 text-gray-700"
-                                  : "opacity-50 cursor-not-allowed text-gray-400"
-                            )}
-                            onClick={(e) => {
-                              if (!l.isAvailable) e.preventDefault();
-                              setMobileMenuOpen(false);
-                            }}
-                          >
-                            {isCompleted ? (
-                              <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
-                            ) : (
-                              <Play className="h-4 w-4 flex-shrink-0" />
-                            )}
-                            <span className="flex-1 truncate">{l.title}</span>
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-              ))}
-            </Accordion>
+            <ModuleList 
+              modules={courseNav.modules} 
+              slug={slug} 
+              lessonId={lessonId} 
+              setMobileMenuOpen={setMobileMenuOpen} 
+            />
           </div>
         )}
       </aside>
@@ -1009,5 +974,75 @@ export default function LessonPlayerPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function ModuleList({ 
+  modules, 
+  slug, 
+  lessonId, 
+  setMobileMenuOpen 
+}: { 
+  modules: any[], 
+  slug: string, 
+  lessonId: string, 
+  setMobileMenuOpen: (open: boolean) => void 
+}) {
+  return (
+    <Accordion type="multiple" className="w-full" defaultValue={modules.map(m => m.id)}>
+      {modules.map((module) => (
+        <AccordionItem key={module.id} value={module.id} className="border-gray-50 border-b">
+          <AccordionTrigger className="text-sm font-medium text-gray-900 hover:no-underline py-2">
+            {module.title}
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="space-y-1 pt-1 pb-2">
+              {/* Lessons */}
+              {module.lessons.map((l: any) => {
+                const isCurrent = l.id === lessonId;
+                const isCompleted = l.progress?.status === "completed";
+                return (
+                  <Link
+                    key={l.id}
+                    href={l.isAvailable ? `/learn/${slug}/${l.id}` : "#"}
+                    className={cn(
+                      "flex items-center gap-2 rounded-md p-2 text-sm transition-colors ml-2",
+                      isCurrent
+                        ? "bg-blue-50 text-blue-600 font-medium"
+                        : l.isAvailable
+                          ? "hover:bg-gray-50 text-gray-700"
+                          : "opacity-50 cursor-not-allowed text-gray-400"
+                    )}
+                    onClick={(e) => {
+                      if (!l.isAvailable) e.preventDefault();
+                      setMobileMenuOpen(false);
+                    }}
+                  >
+                    {isCompleted ? (
+                      <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
+                    ) : (
+                      <Play className="h-4 w-4 flex-shrink-0" />
+                    )}
+                    <span className="flex-1 truncate">{l.title}</span>
+                  </Link>
+                );
+              })}
+
+              {/* Recursive Children (Submodules) */}
+              {module.children && module.children.length > 0 && (
+                <div className="ml-4 mt-2 border-l border-gray-100 pl-2">
+                  <ModuleList 
+                    modules={module.children} 
+                    slug={slug} 
+                    lessonId={lessonId} 
+                    setMobileMenuOpen={setMobileMenuOpen} 
+                  />
+                </div>
+              )}
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      ))}
+    </Accordion>
   );
 }
