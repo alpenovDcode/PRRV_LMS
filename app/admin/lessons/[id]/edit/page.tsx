@@ -13,7 +13,21 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Save, FileText, Video, HelpCircle, Plus, Trash2, GripVertical, Image } from "lucide-react";
+import { ArrowLeft, Save, FileText, Video, HelpCircle, Plus, Trash2, GripVertical, Image, Check, ChevronsUpDown } from "lucide-react";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -58,6 +72,7 @@ export default function LessonEditorPage() {
   const [content, setContent] = useState<any>(null);
   // Video state
   const [videos, setVideos] = useState<Array<{ videoId: string; title?: string; duration: number }>>([]);
+  const [openComboboxIndex, setOpenComboboxIndex] = useState<number | null>(null);
   const [links, setLinks] = useState<Array<{ label: string; url: string }>>([]);
   const [thumbnailUrl, setThumbnailUrl] = useState("");
   
@@ -71,6 +86,14 @@ export default function LessonEditorPage() {
     queryKey: ["admin", "lesson", lessonId],
     queryFn: async () => {
       const response = await apiClient.get(`/admin/lessons/${lessonId}`);
+      return response.data.data;
+    },
+  });
+
+  const { data: videoLibrary } = useQuery({
+    queryKey: ["admin", "video-library"],
+    queryFn: async () => {
+      const response = await apiClient.get("/admin/video-library");
       return response.data.data;
     },
   });
@@ -415,18 +438,61 @@ export default function LessonEditorPage() {
                             </div>
 
                             <div className="grid gap-4 md:grid-cols-2">
-                              <div className="space-y-2">
-                                <Label className="text-xs text-gray-600">Cloudflare Video ID</Label>
-                                <Input
-                                  value={video.videoId}
-                                  onChange={(e) => {
-                                    const newVideos = [...videos];
-                                    newVideos[index] = { ...video, videoId: e.target.value };
-                                    setVideos(newVideos);
-                                  }}
-                                  placeholder="Video ID"
-                                  className="bg-white"
-                                />
+                              <div className="space-y-2 flex flex-col">
+                                <Label className="text-xs text-gray-600">Найти видео</Label>
+                                <Popover
+                                  open={openComboboxIndex === index}
+                                  onOpenChange={(open) => setOpenComboboxIndex(open ? index : null)}
+                                >
+                                  <PopoverTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      role="combobox"
+                                      aria-expanded={openComboboxIndex === index}
+                                      className="justify-between bg-white font-normal text-left h-auto min-h-[40px]"
+                                    >
+                                      <span className="truncate">
+                                        {video.title || (video.videoId ? `ID: ${video.videoId.slice(0, 8)}...` : "Выберите видео...")}
+                                      </span>
+                                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-[300px] p-0" align="start">
+                                    <Command>
+                                      <CommandInput placeholder="Поиск видео..." />
+                                      <CommandList>
+                                          <CommandEmpty>Видео не найдено.</CommandEmpty>
+                                          <CommandGroup>
+                                          {videoLibrary?.map((v: any) => (
+                                              <CommandItem
+                                              key={v.id}
+                                              value={v.title}
+                                              onSelect={() => {
+                                                  const newVideos = [...videos];
+                                                  newVideos[index] = {
+                                                      ...video,
+                                                      videoId: v.cloudflareId,
+                                                      title: v.title,
+                                                      duration: v.duration || 0,
+                                                  };
+                                                  setVideos(newVideos);
+                                                  setOpenComboboxIndex(null);
+                                              }}
+                                              >
+                                              <Check
+                                                  className={cn(
+                                                  "mr-2 h-4 w-4",
+                                                  video.videoId === v.cloudflareId ? "opacity-100" : "opacity-0"
+                                                  )}
+                                              />
+                                              {v.title}
+                                              </CommandItem>
+                                          ))}
+                                          </CommandGroup>
+                                      </CommandList>
+                                    </Command>
+                                  </PopoverContent>
+                                </Popover>
                               </div>
                               <div className="space-y-2">
                                 <Label className="text-xs text-gray-600">Название (опционально)</Label>

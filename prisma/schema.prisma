@@ -508,3 +508,14 @@ enum HomeworkStatus {
   approved
   rejected
 }
+
+model VideoLibrary {
+  id           String   @id @default(uuid())
+  title        String
+  cloudflareId String   @unique @map("cloudflare_id")
+  duration     Int?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("video_library")
+}
