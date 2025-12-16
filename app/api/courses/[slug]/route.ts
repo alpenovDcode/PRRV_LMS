@@ -25,6 +25,14 @@ export async function GET(
         },
       });
 
+      if (course) {
+        console.log("DEBUG: Course found:", course.title);
+        console.log("DEBUG: Modules count:", course.modules.length);
+        course.modules.forEach((m: any) => {
+          console.log(`DEBUG: Module ${m.title} (ID: ${m.id}, Parent: ${m.parentId}) - Lessons: ${m.lessons.length}`);
+        });
+      }
+
       if (!course) {
         return NextResponse.json<ApiResponse>(
           {
