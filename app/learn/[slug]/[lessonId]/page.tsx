@@ -386,8 +386,8 @@ export default function LessonPlayerPage() {
            localStorage.setItem("lesson-sidebar-scroll", target.scrollTop.toString());
         }}
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-96 transform bg-white border-r border-gray-50 transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:block overflow-y-auto",
-          mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+          "fixed inset-y-0 left-0 z-50 w-96 transform bg-white border-r border-gray-50 transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:block overflow-y-auto thin-scrollbar",
+          mobileMenuOpen ? "translate-x-0" : "-translate-x-full" /**/
         )}
       >
         <div className="p-4 border-b border-gray-100 flex items-center justify-between">

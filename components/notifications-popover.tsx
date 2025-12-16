@@ -56,6 +56,15 @@ export function NotificationsPopover() {
     },
   });
 
+  const markAsReadMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiClient.patch("/notifications", { notificationIds: [id] });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+
   const notifications = data?.notifications || [];
   const unreadCount = data?.unreadCount || 0;
 
@@ -100,35 +109,38 @@ export function NotificationsPopover() {
             <DropdownMenuItem
               key={notification.id}
               className={cn(
-                "flex flex-col items-start gap-2 p-4 cursor-pointer border-b border-slate-800 last:border-0 transition-colors",
+                "flex flex-col items-start gap-2 p-4 cursor-pointer border-b border-slate-800 last:border-0 transition-colors focus:bg-slate-800",
                 !notification.isRead 
                   ? "bg-slate-800/50 hover:bg-slate-800" 
                   : "hover:bg-slate-800/30"
               )}
-              asChild
+              onClick={(e) => {
+                e.preventDefault();
+                if (!notification.isRead) {
+                  markAsReadMutation.mutate(notification.id);
+                }
+              }}
             >
-              <Link href={notification.link || "#"}>
-                <div className="flex w-full justify-between gap-3">
-                  <span className={cn(
-                    "font-semibold text-sm leading-tight",
-                    !notification.isRead ? "text-white" : "text-slate-300"
-                  )}>
-                    {notification.title}
-                  </span>
-                  <span className="text-xs text-slate-500 whitespace-nowrap flex-shrink-0">
-                    {formatDistanceToNow(new Date(notification.createdAt), {
-                      addSuffix: true,
-                      locale: ru,
-                    })}
-                  </span>
-                </div>
-                <p className={cn(
-                  "text-sm line-clamp-2 leading-relaxed",
-                  !notification.isRead ? "text-slate-300" : "text-slate-400"
+              <div className="flex w-full justify-between gap-3">
+                <span className={cn(
+                  "font-semibold text-sm leading-tight",
+                  !notification.isRead ? "text-white" : "text-slate-300"
                 )}>
-                  {notification.message}
-                </p>
-              </Link>
+                  {notification.title}
+                </span>
+                <span className="text-xs text-slate-500 whitespace-nowrap flex-shrink-0">
+                  {formatDistanceToNow(new Date(notification.createdAt), {
+                    addSuffix: true,
+                    locale: ru,
+                  })}
+                </span>
+              </div>
+              <p className={cn(
+                "text-sm line-clamp-2 leading-relaxed",
+                !notification.isRead ? "text-slate-300" : "text-slate-400"
+              )}>
+                {notification.message}
+              </p>
             </DropdownMenuItem>
           ))
         )}
