@@ -25,14 +25,6 @@ export async function GET(
         },
       });
 
-      if (course) {
-        console.log("DEBUG: Course found:", course.title);
-        console.log("DEBUG: Modules count:", course.modules.length);
-        course.modules.forEach((m: any) => {
-          console.log(`DEBUG: Module ${m.title} (ID: ${m.id}, Parent: ${m.parentId}) - Lessons: ${m.lessons.length}`);
-        });
-      }
-
       if (!course) {
         return NextResponse.json<ApiResponse>(
           {
@@ -58,8 +50,23 @@ export async function GET(
 
       const hasAccess = enrollment && enrollment.status === "active";
       
-      // If no access, return course info without detailed lesson data
+      // If no access, return course info without detailed lesson data but WITH hierarchy
       if (!hasAccess) {
+        const flatModules = course.modules.map((module: any) => ({
+          ...module,
+          lessons: module.lessons.map((lesson: any) => ({
+            id: lesson.id,
+            title: lesson.title,
+            type: lesson.type,
+            orderIndex: lesson.orderIndex,
+            isFree: lesson.isFree,
+            isAvailable: false, // No access to lessons
+          })),
+          children: [],
+        }));
+
+        const structuredModules = structureModules(flatModules);
+
         return NextResponse.json<ApiResponse>(
           {
             success: true,
@@ -68,19 +75,13 @@ export async function GET(
               title: course.title,
               description: course.description,
               coverImage: course.coverImage,
-              modules: course.modules.map((module: any) => ({
-                ...module,
-                lessons: module.lessons.map((lesson: any) => ({
-                  id: lesson.id,
-                  title: lesson.title,
-                  type: lesson.type,
-                  orderIndex: lesson.orderIndex,
-                  isFree: lesson.isFree,
-                  isAvailable: false, // No access to lessons
-                })),
-              })),
+              modules: structuredModules,
               progress: 0,
-              enrollment: null,
+              enrollment: enrollment ? {
+                status: enrollment.status,
+                startDate: enrollment.startDate.toISOString(),
+                expiresAt: enrollment.expiresAt?.toISOString() || null,
+              } : null,
               hasAccess: false,
             },
           },
@@ -216,34 +217,7 @@ export async function GET(
         }))
       );
 
-      // Build hierarchy
-      const modulesMap = new Map();
-      const rootModules: any[] = [];
-
-      modulesWithLessons.forEach((module) => {
-        modulesMap.set(module.id, module);
-      });
-
-      modulesWithLessons.forEach((module) => {
-        if (module.parentId) {
-          const parent = modulesMap.get(module.parentId);
-          if (parent) {
-            parent.children.push(module);
-            // Sort children by orderIndex
-            parent.children.sort((a: any, b: any) => a.orderIndex - b.orderIndex);
-          } else {
-             console.log(`DEBUG: ORPHAN DETECTED! Module ${module.title} has parentId ${module.parentId} but parent not found in map.`);
-             // If parent is missing (filtered out), should we show it as root? 
-             // Currently it is DROPPED.
-          }
-        } else {
-          console.log(`DEBUG: Module ${module.title} pushed to ROOT. ParentId: ${module.parentId}`);
-          rootModules.push(module);
-        }
-      });
-
-      // Sort root modules
-      rootModules.sort((a: any, b: any) => a.orderIndex - b.orderIndex);
+      const structuredModules = structureModules(modulesWithLessons);
 
       return NextResponse.json<ApiResponse>(
         {
@@ -253,7 +227,7 @@ export async function GET(
             title: course.title,
             description: course.description,
             coverImage: course.coverImage,
-            modules: rootModules,
+            modules: structuredModules,
             progress,
             enrollment: {
               status: enrollment.status,
@@ -279,4 +253,36 @@ export async function GET(
       );
     }
   });
+}
+
+function structureModules(modules: any[]) {
+  const modulesMap = new Map();
+  const rootModules: any[] = [];
+
+  // Initialize map and ensure children array
+  modules.forEach((module) => {
+    if (!module.children) module.children = [];
+    modulesMap.set(module.id, module);
+  });
+
+  // Build hierarchy
+  modules.forEach((module) => {
+    if (module.parentId) {
+      const parent = modulesMap.get(module.parentId);
+      if (parent) {
+        parent.children.push(module);
+        // Sort children by orderIndex
+        parent.children.sort((a: any, b: any) => a.orderIndex - b.orderIndex);
+      }
+      // If parent not found (e.g. filtered out), module effectively disappears or becomes orphan
+      // Current logic: drop it. If you want to show orphans as roots, push to rootModules here.
+    } else {
+      rootModules.push(module);
+    }
+  });
+
+  // Sort root modules
+  rootModules.sort((a: any, b: any) => a.orderIndex - b.orderIndex);
+
+  return rootModules;
 }

@@ -368,11 +368,11 @@ export default function LessonPlayerPage() {
       {/* Sidebar navigation (Desktop & Mobile) */}
       <aside 
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-80 transform bg-white border-r border-gray-200 transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:block overflow-y-auto",
+          "fixed inset-y-0 left-0 z-50 w-80 transform bg-white border-r border-gray-100 transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:block overflow-y-auto",
           mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+        <div className="p-4 border-b border-gray-100 flex items-center justify-between">
           <Button variant="ghost" asChild className="justify-start text-gray-700 hover:bg-gray-50 px-2">
             <Link href={`/courses/${slug}`}>
               <ChevronLeft className="mr-2 h-4 w-4" />
@@ -397,7 +397,7 @@ export default function LessonPlayerPage() {
             </div>
             <Accordion type="multiple" className="w-full" defaultValue={courseNav.modules.map(m => m.id)}>
               {courseNav.modules.map((module) => (
-                <AccordionItem key={module.id} value={module.id} className="border-gray-200">
+                <AccordionItem key={module.id} value={module.id} className="border-gray-100">
                   <AccordionTrigger className="text-sm font-medium text-gray-900 hover:no-underline py-2">
                     {module.title}
                   </AccordionTrigger>
@@ -650,39 +650,52 @@ export default function LessonPlayerPage() {
                       <div>
                         <h3 className="text-lg font-semibold text-gray-900 mb-1">О чем этот урок</h3>
                         <div className="flex items-center gap-1">
-                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((star) => (
-                            <button
-                              key={star}
-                              type="button"
-                              disabled={!!lesson.progress?.rating}
-                              className={cn(
-                                "transition-all",
-                                lesson.progress?.rating 
-                                  ? "cursor-not-allowed opacity-75" 
-                                  : "cursor-pointer hover:scale-110"
-                              )}
-                              onMouseEnter={() => !lesson.progress?.rating && setHoverRating(star)}
-                              onMouseLeave={() => !lesson.progress?.rating && setHoverRating(0)}
-                              onClick={() => {
-                                if (lesson.progress?.rating) return;
-                                updateProgressMutation.mutate({
-                                  watchedTime: watchedTime,
-                                  status: lesson.progress?.status,
-                                  rating: star,
-                                });
-                                toast.success("Спасибо за оценку!");
-                              }}
-                            >
-                              <Star
-                                className={cn(
-                                  "h-5 w-5 transition-colors",
-                                  (hoverRating || lesson.progress?.rating || 0) >= star
-                                    ? "fill-yellow-400 text-yellow-400"
-                                    : "text-gray-300"
-                                )}
-                              />
-                            </button>
-                          ))}
+                          {lesson.progress?.rating ? (
+                            // Static display for rated lesson
+                            <div className="flex items-center gap-1 cursor-default">
+                              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((star) => (
+                                <Star
+                                  key={star}
+                                  className={cn(
+                                    "h-5 w-5",
+                                    lesson.progress!.rating! >= star
+                                      ? "fill-yellow-400 text-yellow-400"
+                                      : "text-gray-300"
+                                  )}
+                                />
+                              ))}
+                            </div>
+                          ) : (
+                            // Interactive rating for unrated lesson
+                            <div className="flex items-center gap-1">
+                              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((star) => (
+                                <button
+                                  key={star}
+                                  type="button"
+                                  className="cursor-pointer hover:scale-110 transition-all"
+                                  onMouseEnter={() => setHoverRating(star)}
+                                  onMouseLeave={() => setHoverRating(0)}
+                                  onClick={() => {
+                                    updateProgressMutation.mutate({
+                                      watchedTime: watchedTime,
+                                      status: lesson.progress?.status,
+                                      rating: star,
+                                    });
+                                    toast.success("Спасибо за оценку!");
+                                  }}
+                                >
+                                  <Star
+                                    className={cn(
+                                      "h-5 w-5 transition-colors",
+                                      (hoverRating || 0) >= star
+                                        ? "fill-yellow-400 text-yellow-400"
+                                        : "text-gray-300"
+                                    )}
+                                  />
+                                </button>
+                              ))}
+                            </div>
+                          )}
                           <span className={cn(
                             "ml-2 text-sm",
                             lesson.progress?.rating 
