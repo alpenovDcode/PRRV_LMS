@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const { email, password } = loginSchema.parse(body);
+    const { email, password, rememberMe } = loginSchema.parse(body);
 
     const user = await db.user.findUnique({
       where: { email },
@@ -138,6 +138,9 @@ export async function POST(request: NextRequest) {
     const accessToken = generateAccessToken(payload);
     const refreshToken = generateRefreshToken(payload);
 
+    // Determine cookie expiration based on rememberMe
+    const maxAge = rememberMe ? 60 * 60 * 24 * 30 : 60 * 60 * 24; // 30 days vs 24 hours
+
     // НЕ возвращаем токены в body для безопасности
     const response = NextResponse.json<ApiResponse>(
       {
@@ -160,7 +163,7 @@ export async function POST(request: NextRequest) {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict", // Строгая защита от CSRF
-      maxAge: 60 * 60 * 24 * 30, // 30 days
+      maxAge: maxAge, 
       path: "/",
     });
 
@@ -169,7 +172,7 @@ export async function POST(request: NextRequest) {
       httpOnly: true, // Теперь httpOnly для безопасности
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict", // Строгая защита от CSRF
-      maxAge: 60 * 60 * 24 * 30, // 30 days
+      maxAge: maxAge, 
       path: "/",
     });
 

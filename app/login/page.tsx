@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Card,
   CardContent,
@@ -28,6 +29,7 @@ export default function LoginPage() {
     defaultValues: {
       email: "",
       password: "",
+      rememberMe: false,
     },
   });
 
@@ -110,6 +112,22 @@ export default function LoginPage() {
                       {form.formState.errors.password.message?.toString()}
                     </p>
                   )}
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="rememberMe" 
+                    onCheckedChange={(checked) => {
+                      form.setValue("rememberMe", checked as boolean);
+                    }}
+                    {...form.register("rememberMe")}
+                  />
+                  <Label 
+                    htmlFor="rememberMe" 
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    Запомнить меня
+                  </Label>
                 </div>
 
 

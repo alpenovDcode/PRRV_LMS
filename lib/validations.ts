@@ -3,6 +3,7 @@ import { z } from "zod";
 export const loginSchema = z.object({
   email: z.string().email("Некорректный email"),
   password: z.string().min(6, "Пароль должен содержать минимум 6 символов"),
+  rememberMe: z.boolean().optional(),
 });
 
 export const registerSchema = z.object({
