@@ -115,6 +115,15 @@ export default function LessonPlayerPage() {
   const [isEditingHomework, setIsEditingHomework] = useState(false);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const sidebarRef = useRef<HTMLElement>(null);
+
+  // Restore scroll position
+  useEffect(() => {
+    const savedScroll = localStorage.getItem("lesson-sidebar-scroll");
+    if (savedScroll && sidebarRef.current) {
+       sidebarRef.current.scrollTop = parseInt(savedScroll, 10);
+    }
+  }, []);
 
   // Reset active video when lesson changes
   useEffect(() => {
@@ -368,8 +377,16 @@ export default function LessonPlayerPage() {
 
       {/* Sidebar navigation (Desktop & Mobile) */}
       <aside 
+        id="lesson-sidebar"
+        ref={sidebarRef}
+        onScroll={(e) => {
+           // Save scroll position
+           const target = e.target as HTMLElement;
+           // Debounce could be added here, but simple assignment is cheap
+           localStorage.setItem("lesson-sidebar-scroll", target.scrollTop.toString());
+        }}
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-80 transform bg-white border-r border-gray-50 transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:block overflow-y-auto",
+          "fixed inset-y-0 left-0 z-50 w-96 transform bg-white border-r border-gray-50 transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:block overflow-y-auto",
           mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
@@ -988,10 +1005,110 @@ function ModuleList({
   lessonId: string, 
   setMobileMenuOpen: (open: boolean) => void 
 }) {
+  // Initialize with all expanded to match default behavior and server rendering
+  const [expandedItems, setExpandedItems] = useState<string[]>(modules.map(m => m.id));
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+    // Restore state from localStorage on mount
+    const saved = localStorage.getItem("expanded_modules");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          // Intersection of saved IDs and current module IDs
+          // But wait, we want to know if *these* modules should be open.
+          // The saved list contains ALL open IDs globally.
+          // We filter it to match only IDs present in this list instance.
+          const moduleIds = modules.map(m => m.id);
+          const relevantState = moduleIds.filter(id => parsed.includes(id));
+          
+          // However, if the user has NEVER interacted, maybe we want default? 
+          // But if "expanded_modules" exists, user has interacted or we saved it.
+          // Let's assume if key exists, we respect it.
+          
+          // Wait, if I collapse one module, the key exists.
+          // If I then navigate to a new course with new modules, they won't be in the list.
+          // Should they be closed?
+          // If the list is a whitelist of OPEN modules, any unknown module will be closed.
+          // That might be annoying for new content.
+          // Better UX: Default to OPEN if not explicitly known? 
+          // Or just default to "All Open" if not found in list?
+          
+          // Let's stick to: Whitelist. If you collapse everything, it's empty.
+          // Issues with new items defaulting to closed.
+          // Fix: Logic check. If an ID is NOT in the saved list, is it because it was closed or because it's new?
+          // We can't know easily without storing "closed" list.
+          // For now, let's just restore exactly what is saved. If new modules appear, the user will open them.
+          
+          setExpandedItems(relevantState);
+        }
+      } catch (e) {
+        console.error("Failed to parse expanded_modules", e);
+      }
+    }
+  }, [modules]);
+
+  const handleValueChange = (value: string[]) => {
+    setExpandedItems(value);
+    
+    // Update global storage
+    try {
+      const saved = localStorage.getItem("expanded_modules");
+      let allExpanded = saved ? JSON.parse(saved) : [];
+      if (!Array.isArray(allExpanded)) allExpanded = [];
+      
+      const currentModuleIds = modules.map(m => m.id);
+      
+      // Remove all IDs belonging to this component from the global list
+      allExpanded = allExpanded.filter((id: string) => !currentModuleIds.includes(id));
+      
+      // Add the currently expanded IDs from this component
+      allExpanded = [...allExpanded, ...value];
+      
+      localStorage.setItem("expanded_modules", JSON.stringify(allExpanded));
+    } catch (e) {
+      console.error("Failed to save expanded_modules", e);
+    }
+  };
+
+  if (!isClient) {
+     // Render default state (all open) to match SSR
+     return (
+       <Accordion type="multiple" className="w-full" defaultValue={modules.map(m => m.id)}>
+         {modules.map((module) => (
+             <ModuleItem 
+               key={module.id} 
+               module={module} 
+               slug={slug} 
+               lessonId={lessonId} 
+               setMobileMenuOpen={setMobileMenuOpen} 
+             />
+         ))}
+       </Accordion>
+     )
+  }
+
   return (
-    <Accordion type="multiple" className="w-full" defaultValue={modules.map(m => m.id)}>
+    <Accordion type="multiple" className="w-full" value={expandedItems} onValueChange={handleValueChange}>
       {modules.map((module) => (
-        <AccordionItem key={module.id} value={module.id} className="border-gray-50 border-b">
+        <ModuleItem 
+           key={module.id} 
+           module={module} 
+           slug={slug} 
+           lessonId={lessonId} 
+           setMobileMenuOpen={setMobileMenuOpen} 
+        />
+      ))}
+    </Accordion>
+  );
+}
+
+// Extract Item to separate component to avoid recursion issues in map
+function ModuleItem({ module, slug, lessonId, setMobileMenuOpen }: any) {
+  return (
+    <AccordionItem value={module.id} className="border-gray-50 border-b">
           <AccordionTrigger className="text-sm font-medium text-gray-900 hover:no-underline py-2">
             {module.title}
           </AccordionTrigger>
@@ -1042,7 +1159,5 @@ function ModuleList({
             </div>
           </AccordionContent>
         </AccordionItem>
-      ))}
-    </Accordion>
-  );
+  )
 }
