@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
           },
         },
         orderBy: { title: "asc" },
-        take: 50,
+        take: 1000,
       });
 
       return NextResponse.json<ApiResponse>({
