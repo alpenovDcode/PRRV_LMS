@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Save, FileText, Video, HelpCircle, Plus, Trash2, GripVertical, Image, Check, ChevronsUpDown } from "lucide-react";
+import { ArrowLeft, Save, FileText, Video, HelpCircle, Plus, Trash2, GripVertical, Image, Check, ChevronsUpDown, Search } from "lucide-react";
 import {
   Command,
   CommandEmpty,
@@ -73,6 +73,7 @@ export default function LessonEditorPage() {
   // Video state
   const [videos, setVideos] = useState<Array<{ videoId: string; title?: string; duration: number }>>([]);
   const [openComboboxIndex, setOpenComboboxIndex] = useState<number | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
   const [links, setLinks] = useState<Array<{ label: string; url: string }>>([]);
   const [thumbnailUrl, setThumbnailUrl] = useState("");
   
@@ -442,7 +443,10 @@ export default function LessonEditorPage() {
                                 <Label className="text-xs text-gray-600">Найти видео</Label>
                                 <Popover
                                   open={openComboboxIndex === index}
-                                  onOpenChange={(open) => setOpenComboboxIndex(open ? index : null)}
+                                  onOpenChange={(open) => {
+                                    setOpenComboboxIndex(open ? index : null);
+                                    if(open) setSearchTerm("");
+                                  }}
                                 >
                                   <PopoverTrigger asChild>
                                     <Button
@@ -458,16 +462,27 @@ export default function LessonEditorPage() {
                                     </Button>
                                   </PopoverTrigger>
                                   <PopoverContent className="w-[300px] p-0" align="start">
-                                    <Command>
-                                      <CommandInput placeholder="Поиск видео..." />
-                                      <CommandList>
-                                          <CommandEmpty>Видео не найдено.</CommandEmpty>
-                                          <CommandGroup>
-                                          {videoLibrary?.map((v: any) => (
-                                              <CommandItem
-                                              key={v.id}
-                                              value={v.title}
-                                              onSelect={() => {
+                                    <div className="flex flex-col">
+                                      <div className="flex items-center border-b px-3">
+                                        <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                                        <Input
+                                          placeholder="Поиск видео..."
+                                          value={searchTerm}
+                                          onChange={(e) => setSearchTerm(e.target.value)}
+                                          className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 h-9"
+                                        />
+                                      </div>
+                                      <div className="max-h-[300px] overflow-y-auto p-1">
+                                        {videoLibrary && videoLibrary.length > 0 ? (
+                                          videoLibrary
+                                            .filter((v: any) => {
+                                              if (!searchTerm) return true;
+                                              return v.title.toLowerCase().includes(searchTerm.toLowerCase());
+                                            })
+                                            .map((v: any) => (
+                                              <div
+                                                key={v.id}
+                                                onClick={() => {
                                                   const newVideos = [...videos];
                                                   newVideos[index] = {
                                                       ...video,
@@ -477,20 +492,33 @@ export default function LessonEditorPage() {
                                                   };
                                                   setVideos(newVideos);
                                                   setOpenComboboxIndex(null);
-                                              }}
+                                                }}
+                                                className={cn(
+                                                  "relative flex cursor-pointer select-none items-center rounded-sm px-2 py-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground",
+                                                  video.videoId === v.cloudflareId && "bg-accent"
+                                                )}
                                               >
-                                              <Check
+                                                <Check
                                                   className={cn(
-                                                  "mr-2 h-4 w-4",
-                                                  video.videoId === v.cloudflareId ? "opacity-100" : "opacity-0"
+                                                    "mr-2 h-4 w-4",
+                                                    video.videoId === v.cloudflareId ? "opacity-100" : "opacity-0"
                                                   )}
-                                              />
-                                              {v.title}
-                                              </CommandItem>
-                                          ))}
-                                          </CommandGroup>
-                                      </CommandList>
-                                    </Command>
+                                                />
+                                                <span className="truncate">{v.title}</span>
+                                              </div>
+                                            ))
+                                        ) : (
+                                          <div className="py-6 text-center text-sm text-gray-500">
+                                            Нет доступных видео
+                                          </div>
+                                        )}
+                                        {videoLibrary && videoLibrary.filter((v: any) => v.title.toLowerCase().includes(searchTerm.toLowerCase())).length === 0 && (
+                                           <div className="py-6 text-center text-sm text-gray-500">
+                                             Видео не найдено
+                                           </div>
+                                        )}
+                                      </div>
+                                    </div>
                                   </PopoverContent>
                                 </Popover>
                               </div>
