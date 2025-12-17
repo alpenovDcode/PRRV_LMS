@@ -43,6 +43,8 @@ RUN npm install -g tsx
 COPY --from=builder /app/public ./public
 # Copy Prisma schema and migrations for runtime migrations
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+# Copy scripts for seeding
+COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
