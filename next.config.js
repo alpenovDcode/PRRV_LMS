@@ -98,7 +98,7 @@ const nextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline'", // 'unsafe-eval' для Next.js в dev
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://embed.cloudflarestream.com https://*.cloudflarestream.com", // 'unsafe-eval' для Next.js в dev
               "style-src 'self' 'unsafe-inline'", // 'unsafe-inline' для Tailwind
               "img-src 'self' data: https: blob:",
               "font-src 'self' data:",
