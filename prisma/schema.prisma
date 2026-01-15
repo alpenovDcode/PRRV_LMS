@@ -147,16 +147,18 @@ model Lesson {
 }
 
 model Enrollment {
-  id        String           @id @default(uuid())
-  userId    String           @map("user_id")
-  courseId  String           @map("course_id")
-  status    EnrollmentStatus @default(active)
-  startDate DateTime         @map("start_date")
-  expiresAt DateTime?        @map("expires_at")
-  createdAt DateTime         @default(now()) @map("created_at")
-  updatedAt DateTime         @updatedAt @map("updated_at")
-  course    Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                String           @id @default(uuid())
+  userId            String           @map("user_id")
+  courseId          String           @map("course_id")
+  status            EnrollmentStatus @default(active)
+  startDate         DateTime         @map("start_date")
+  expiresAt         DateTime?        @map("expires_at")
+  restrictedModules String[]         @default([]) @map("restricted_modules")
+  restrictedLessons String[]         @default([]) @map("restricted_lessons")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+  course            Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, courseId])
   @@index([userId])
@@ -215,6 +217,7 @@ model HomeworkSubmission {
   lessonId       String            @map("lesson_id")
   content        String?
   files          Json?
+  curatorFiles   Json?             @map("curator_files")
   status         HomeworkStatus    @default(pending)
   curatorComment String?           @map("curator_comment")
   curatorId      String?           @map("curator_id")

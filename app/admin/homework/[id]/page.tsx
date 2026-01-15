@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, CheckCircle2, X, FileText, User, Clock } from "lucide-react";
+import { ArrowLeft, CheckCircle2, X, FileText, User, Clock, Upload, Trash2, Paperclip } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -55,6 +55,9 @@ export default function AdminHomeworkReviewPage() {
   const queryClient = useQueryClient();
 
   const [comment, setComment] = useState("");
+  const [curatorFiles, setCuratorFiles] = useState<string[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  
   // Removed unused selectedTemplate state
 
   const { data: submission, isLoading } = useQuery<HomeworkSubmission>({
@@ -70,6 +73,7 @@ export default function AdminHomeworkReviewPage() {
       await apiClient.patch(`/curator/homework/${submissionId}`, {
         status,
         curatorComment: comment || undefined,
+        curatorFiles,
       });
     },
     onSuccess: () => {

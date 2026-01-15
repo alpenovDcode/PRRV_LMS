@@ -26,7 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import Link from "next/link";
-import { Plus, Search, X } from "lucide-react";
+import { Plus, Search, X, Wand2, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 
 interface AdminUser {
@@ -46,6 +46,7 @@ export default function AdminUsersPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -54,6 +55,17 @@ export default function AdminUsersPage() {
     tariff: "VR" as "VR" | "LR" | "SR",
     track: "",
   });
+
+  const generatePassword = () => {
+    const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+    let password = "";
+    for (let i = 0; i < 12; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setFormData(prev => ({ ...prev, password }));
+    setShowPassword(true); // Show the password so they can see/copy it
+    toast.info("Пароль сгенерирован");
+  };
 
   const { data, isLoading, error } = useQuery<AdminUser[]>({
     queryKey: ["admin", "users", search, roleFilter, dateFrom, dateTo],
@@ -161,17 +173,46 @@ export default function AdminUsersPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="password">Пароль *</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) =>
-                      setFormData({ ...formData, password: e.target.value })
-                    }
-                    required
-                    minLength={6}
-                    placeholder="Минимум 6 символов"
-                  />
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      value={formData.password}
+                      onChange={(e) =>
+                        setFormData({ ...formData, password: e.target.value })
+                      }
+                      required
+                      minLength={6}
+                      placeholder="Минимум 6 символов"
+                      className="pr-20"
+                    />
+                    <div className="absolute right-0 top-0 h-full flex items-center pr-2 gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                        onClick={() => setShowPassword(!showPassword)}
+                        title={showPassword ? "Скрыть пароль" : "Показать пароль"}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                        onClick={generatePassword}
+                        title="Сгенерировать пароль"
+                      >
+                        <Wand2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="fullName">Полное имя</Label>

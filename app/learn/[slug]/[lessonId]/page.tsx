@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { getCloudflareImageUrl } from "@/lib/cloudflare-images";
@@ -191,6 +191,34 @@ export default function LessonPlayerPage() {
       toast.error(message);
     },
   });
+
+  // Filter out locked content for the sidebar
+  const rawModules = courseNav?.modules || [];
+  
+  const filterAvailableNodes = (nodes: any[]): any[] => {
+    return nodes
+      .map((node) => {
+        // Filter lessons
+        const visibleLessons = node.lessons ? node.lessons.filter((l: any) => l.isAvailable) : [];
+
+        // Filter children (recursive)
+        const visibleChildren = node.children ? filterAvailableNodes(node.children) : [];
+
+        // Only keep node if it has visible content
+        if (visibleLessons.length === 0 && visibleChildren.length === 0) {
+          return null;
+        }
+
+        return {
+          ...node,
+          lessons: visibleLessons,
+          children: visibleChildren,
+        };
+      })
+      .filter(Boolean);
+  };
+
+  const modules = useMemo(() => filterAvailableNodes(rawModules), [rawModules]);
 
   // Восстановление позиции видео - handled by CloudflarePlayer initialTime prop
   useEffect(() => {

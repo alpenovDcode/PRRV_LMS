@@ -46,6 +46,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AccessManager } from "./_components/access-manager";
+
 type UserRole = "student" | "admin" | "curator";
 
 interface AdminUserDetail {
@@ -478,221 +481,273 @@ export default function AdminUserDetailPage() {
         <h1 className="text-3xl font-bold text-gray-900">Профиль {user.role === 'student' ? 'студента' : user.role === 'curator' ? 'куратора' : 'администратора'}</h1>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Profile Card */}
-        <div className="space-y-6">
-          <Card className="border-none shadow-sm bg-white overflow-hidden">
-            <div className="p-6 flex flex-col items-center text-center border-b border-gray-100">
-              <div className="relative mb-4">
-                <div className="h-32 w-32 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-4xl font-semibold overflow-hidden border-4 border-white shadow-sm">
-                  {user.avatarUrl ? (
-                    <img src={user.avatarUrl} alt={user.fullName || "User"} className="h-full w-full object-cover" />
-                  ) : (
-                    user.fullName?.[0]?.toUpperCase() || user.email[0].toUpperCase()
-                  )}
-                </div>
-              </div>
-              <h2 className="text-xl font-bold text-gray-900">{user.fullName || "Без имени"}</h2>
-              <p className="text-gray-500 text-sm mb-3">{user.email}</p>
-              <div className="flex gap-2 justify-center flex-wrap">
-                <Badge 
-                  className={`${
-                    user.role === "admin" ? "bg-purple-100 text-purple-700" : 
-                    user.role === "curator" ? "bg-blue-100 text-blue-700" : 
-                    "bg-green-100 text-green-700"
-                  } hover:bg-opacity-80 border-none px-3 py-1`}
-                >
-                  {user.role === "student" ? "Студент" : user.role === "curator" ? "Куратор" : "Администратор"}
-                </Badge>
-                {isBlocked ? (
-                   <Badge className="bg-red-100 text-red-700 hover:bg-red-200 border-none px-3 py-1">
-                     Заблокирован
-                   </Badge>
-                ) : isFrozen ? (
-                   <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-200 border-none px-3 py-1">
-                     Заморожен до {new Date(frozenUntil).toLocaleDateString()}
-                   </Badge>
-                ) : (
-                   <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-none px-3 py-1">
-                     Активен
-                   </Badge>
-                )}
-              </div>
+      <Tabs defaultValue="profile" className="w-full">
+        <TabsList className="mb-6">
+          <TabsTrigger value="profile">Профиль</TabsTrigger>
+          <TabsTrigger value="access">Доступы</TabsTrigger>
+        </TabsList>
 
-              {/* Action Buttons */}
-              <div className="grid grid-cols-2 gap-2 w-full mt-6 text-sm">
-                 <Button variant="outline" size="sm" className="w-full text-red-600 border-red-200 hover:bg-red-50" onClick={() => setIsBlockOpen(true)}>
-                   {isBlocked ? "Разблокировать" : "Заблокировать"}
-                 </Button>
-                 {isFrozen ? (
-                    <Button variant="outline" size="sm" className="w-full text-blue-600 border-blue-200 hover:bg-blue-50" onClick={() => unfreezeMutation.mutate()}>
-                      Разморозить
-                    </Button>
-                 ) : (
-                    <Button variant="outline" size="sm" className="w-full text-blue-600 border-blue-200 hover:bg-blue-50" onClick={() => setIsFreezeOpen(true)}>
-                      Заморозить
-                    </Button>
-                 )}
-                 <Button variant="outline" size="sm" className="w-full col-span-2 text-gray-600 border-gray-200 hover:bg-gray-100" onClick={() => setIsDeleteOpen(true)}>
-                   Удалить профиль
-                 </Button>
-              </div>
-
-              {user.about && (
-                <p className="text-sm text-gray-600 mt-4 max-w-xs">
-                  {user.about}
-                </p>
-              )}
-              {/* Existing badges code ... */}
-              <div className="mt-4 flex flex-col gap-2">
-                {user.tariff && (
-                  <Badge variant="outline" className="border-blue-200 text-blue-700 bg-blue-50">
-                    Тариф: {user.tariff}
-                  </Badge>
-                )}
-                {user.track && (
-                  <Badge variant="outline" className="border-purple-200 text-purple-700 bg-purple-50">
-                    Трек: {user.track}
-                  </Badge>
-                )}
-                {user.groupMembers && user.groupMembers.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {user.groupMembers.map((gm, i) => (
-                      <Badge key={i} variant="secondary" className="bg-orange-50 text-orange-700 border-orange-200">
-                        Поток: {gm.group.name}
-                      </Badge>
-                    ))}
+        <TabsContent value="profile" className="space-y-6">
+           {/* Existing layout content here */}
+           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left Column: Profile Card */}
+            <div className="space-y-6">
+              <Card className="border-none shadow-sm bg-white overflow-hidden">
+                <div className="p-6 flex flex-col items-center text-center border-b border-gray-100">
+                  <div className="relative mb-4">
+                    <div className="h-32 w-32 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-4xl font-semibold overflow-hidden border-4 border-white shadow-sm">
+                      {user.avatarUrl ? (
+                        <img src={user.avatarUrl} alt={user.fullName || "User"} className="h-full w-full object-cover" />
+                      ) : (
+                        user.fullName?.[0]?.toUpperCase() || user.email[0].toUpperCase()
+                      )}
+                    </div>
                   </div>
-                )}
-              </div>
-            </div>
-            
-            <div className="p-6 space-y-6">
-              <h3 className="font-semibold text-gray-900">Контактная информация</h3>
-              
-              <div className="space-y-4">
-                <div className="flex items-start gap-3">
-                  <Phone className="h-5 w-5 text-purple-500 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{user.phone || "Не указан"}</p>
-                    <p className="text-xs text-gray-500">Мобильный</p>
+                  <h2 className="text-xl font-bold text-gray-900">{user.fullName || "Без имени"}</h2>
+                  <p className="text-gray-500 text-sm mb-3">{user.email}</p>
+                  <div className="flex gap-2 justify-center flex-wrap">
+                    <Badge 
+                      className={`${
+                        user.role === "admin" ? "bg-purple-100 text-purple-700" : 
+                        user.role === "curator" ? "bg-blue-100 text-blue-700" : 
+                        "bg-green-100 text-green-700"
+                      } hover:bg-opacity-80 border-none px-3 py-1`}
+                    >
+                      {user.role === "student" ? "Студент" : user.role === "curator" ? "Куратор" : "Администратор"}
+                    </Badge>
+                    {isBlocked ? (
+                      <Badge className="bg-red-100 text-red-700 hover:bg-red-200 border-none px-3 py-1">
+                        Заблокирован
+                      </Badge>
+                    ) : isFrozen ? (
+                      <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-200 border-none px-3 py-1">
+                        Заморожен до {new Date(frozenUntil).toLocaleDateString()}
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-none px-3 py-1">
+                        Активен
+                      </Badge>
+                    )}
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="grid grid-cols-2 gap-2 w-full mt-6 text-sm">
+                    <Button variant="outline" size="sm" className="w-full text-red-600 border-red-200 hover:bg-red-50" onClick={() => setIsBlockOpen(true)}>
+                      {isBlocked ? "Разблокировать" : "Заблокировать"}
+                    </Button>
+                    {isFrozen ? (
+                        <Button variant="outline" size="sm" className="w-full text-blue-600 border-blue-200 hover:bg-blue-50" onClick={() => unfreezeMutation.mutate()}>
+                          Разморозить
+                        </Button>
+                    ) : (
+                        <Button variant="outline" size="sm" className="w-full text-blue-600 border-blue-200 hover:bg-blue-50" onClick={() => setIsFreezeOpen(true)}>
+                          Заморозить
+                        </Button>
+                    )}
+                    <Button variant="outline" size="sm" className="w-full col-span-2 text-gray-600 border-gray-200 hover:bg-gray-100" onClick={() => setIsDeleteOpen(true)}>
+                      Удалить профиль
+                    </Button>
+                  </div>
+
+                  {user.about && (
+                    <p className="text-sm text-gray-600 mt-4 max-w-xs">
+                      {user.about}
+                    </p>
+                  )}
+                  <div className="mt-4 flex flex-col gap-2">
+                    {user.tariff && (
+                      <Badge variant="outline" className="border-blue-200 text-blue-700 bg-blue-50">
+                        Тариф: {user.tariff}
+                      </Badge>
+                    )}
+                    {user.track && (
+                      <Badge variant="outline" className="border-purple-200 text-purple-700 bg-purple-50">
+                        Трек: {user.track}
+                      </Badge>
+                    )}
+                    {user.groupMembers && user.groupMembers.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {user.groupMembers.map((gm, i) => (
+                          <Badge key={i} variant="secondary" className="bg-orange-50 text-orange-700 border-orange-200">
+                            Поток: {gm.group.name}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
                 
-                <div className="flex items-start gap-3">
-                  <MessageSquare className="h-5 w-5 text-blue-500 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{user.telegram || "Не указан"}</p>
-                    <p className="text-xs text-gray-500">Telegram</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <MapPin className="h-5 w-5 text-purple-500 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">Москва, Россия</p>
-                    <p className="text-xs text-gray-500">Адрес</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <Users className="h-5 w-5 text-purple-500 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">Иванов Иван</p>
-                    <p className="text-xs text-gray-500">Куратор</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <Calendar className="h-5 w-5 text-purple-500 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{formatDate(user.createdAt)}</p>
-                    <p className="text-xs text-gray-500">Дата регистрации</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </Card>
-        </div>
-
-        {/* Right Column: Content */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Course Enrollment & Progress */}
-          <Card className="border-none shadow-sm bg-white">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-lg font-bold text-gray-900">Курсы и прогресс</CardTitle>
-              <Button variant="ghost" className="text-purple-600 text-sm font-medium hover:text-purple-700 hover:bg-purple-50">
-                Показать все
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {user.enrollments.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <BookOpen className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                  <p>Нет активных курсов</p>
-                </div>
-              ) : (
-                user.enrollments.map((enrollment) => (
-                  <div key={enrollment.id} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center">
-                          <BookOpen className="h-5 w-5 text-blue-600" />
-                        </div>
-                        <span className="font-semibold text-gray-900">{enrollment.course.title}</span>
-                      </div>
-                      <span className="text-sm font-bold text-gray-900">
-                        {enrollment.progress || 0}%
-                      </span>
-                    </div>
-                    <Progress value={enrollment.progress || 0} className="h-2 bg-gray-100" indicatorClassName="bg-green-500" />
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Recent Activity */}
-          <Card className="border-none shadow-sm bg-white">
-            <CardHeader>
-              <CardTitle className="text-lg font-bold text-gray-900">Последняя активность</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                {user.activity && user.activity.length > 0 ? (
-                  user.activity.map((activity) => (
-                    <div key={activity.id} className="flex gap-4">
-                      <div className={`h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                        activity.type === 'homework' ? 'bg-green-100 text-green-600' :
-                        activity.type === 'comment' ? 'bg-blue-100 text-blue-600' :
-                        activity.type === 'lesson_completed' ? 'bg-green-100 text-green-600' :
-                        'bg-purple-100 text-purple-600'
-                      }`}>
-                        {activity.type === 'homework' ? <CheckCircle2 className="h-5 w-5" /> :
-                         activity.type === 'comment' ? <MessageSquare className="h-5 w-5" /> :
-                         activity.type === 'lesson_completed' ? <CheckCircle2 className="h-5 w-5" /> :
-                         <LogIn className="h-5 w-5" />}
-                      </div>
+                <div className="p-6 space-y-6">
+                  <h3 className="font-semibold text-gray-900">Контактная информация</h3>
+                  
+                  <div className="space-y-4">
+                    <div className="flex items-start gap-3">
+                      <Phone className="h-5 w-5 text-purple-500 mt-0.5" />
                       <div>
-                        <h4 className="font-semibold text-gray-900">{activity.title}</h4>
-                        <p className="text-sm text-gray-500">
-                          {activity.courseName && <span className="text-gray-400">Курс: {activity.courseName} • </span>}
-                          {activity.description}
-                        </p>
-                        <p className="text-xs text-gray-400 mt-1">{formatDate(activity.date)}</p>
+                        <p className="text-sm font-medium text-gray-900">{user.phone || "Не указан"}</p>
+                        <p className="text-xs text-gray-500">Мобильный</p>
                       </div>
                     </div>
-                  ))
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    Нет недавней активности
+                    
+                    <div className="flex items-start gap-3">
+                      <MessageSquare className="h-5 w-5 text-blue-500 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{user.telegram || "Не указан"}</p>
+                        <p className="text-xs text-gray-500">Telegram</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <MapPin className="h-5 w-5 text-purple-500 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">Москва, Россия</p>
+                        <p className="text-xs text-gray-500">Адрес</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <Users className="h-5 w-5 text-purple-500 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">Иванов Иван</p>
+                        <p className="text-xs text-gray-500">Куратор</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <Calendar className="h-5 w-5 text-purple-500 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{formatDate(user.createdAt)}</p>
+                        <p className="text-xs text-gray-500">Дата регистрации</p>
+                      </div>
+                    </div>
                   </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+                </div>
+              </Card>
+            </div>
+
+            {/* Right Column: Content */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Course Enrollment & Progress */}
+              <Card className="border-none shadow-sm bg-white">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-lg font-bold text-gray-900">Курсы и прогресс</CardTitle>
+                  <Button variant="ghost" className="text-purple-600 text-sm font-medium hover:text-purple-700 hover:bg-purple-50">
+                    Показать все
+                  </Button>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {user.enrollments.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <BookOpen className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                      <p>Нет активных курсов</p>
+                    </div>
+                  ) : (
+                    user.enrollments.map((enrollment) => (
+                      <div key={enrollment.id} className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center">
+                              <BookOpen className="h-5 w-5 text-blue-600" />
+                            </div>
+                            <span className="font-semibold text-gray-900">{enrollment.course.title}</span>
+                          </div>
+                          <span className="text-sm font-bold text-gray-900">
+                            {enrollment.progress || 0}%
+                          </span>
+                        </div>
+                        <Progress value={enrollment.progress || 0} className="h-2 bg-gray-100" indicatorClassName="bg-green-500" />
+                      </div>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Recent Activity */}
+              <Card className="border-none shadow-sm bg-white">
+                <CardHeader>
+                  <CardTitle className="text-lg font-bold text-gray-900">Последняя активность</CardTitle>
+                </CardHeader>
+                <CardContent>
+                   {/* ... Keep activity content ... */}
+                  <div className="space-y-6">
+                    {user.activity && user.activity.length > 0 ? (
+                      user.activity.map((activity) => (
+                        <div key={activity.id} className="flex gap-4">
+                          <div className={`h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                            activity.type === 'homework' ? 'bg-green-100 text-green-600' :
+                            activity.type === 'comment' ? 'bg-blue-100 text-blue-600' :
+                            activity.type === 'lesson_completed' ? 'bg-green-100 text-green-600' :
+                            'bg-purple-100 text-purple-600'
+                          }`}>
+                            {activity.type === 'homework' ? <CheckCircle2 className="h-5 w-5" /> :
+                            activity.type === 'comment' ? <MessageSquare className="h-5 w-5" /> :
+                            activity.type === 'lesson_completed' ? <CheckCircle2 className="h-5 w-5" /> :
+                            <LogIn className="h-5 w-5" />}
+                          </div>
+                          <div>
+                            <h4 className="font-semibold text-gray-900">{activity.title}</h4>
+                            <p className="text-sm text-gray-500">
+                              {activity.courseName && <span className="text-gray-400">Курс: {activity.courseName} • </span>}
+                              {activity.description}
+                            </p>
+                            <p className="text-xs text-gray-400 mt-1">{formatDate(activity.date)}</p>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        Нет недавней активности
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+           </div>
+        </TabsContent>
+
+        <TabsContent value="access" className="space-y-6">
+           <Card className="border-none shadow-sm bg-white">
+             <CardHeader>
+               <CardTitle>Управление доступами</CardTitle>
+             </CardHeader>
+             <CardContent className="space-y-6">
+               {user.enrollments.length === 0 ? (
+                 <div className="text-center py-12 text-gray-500">
+                    <p>Нет активных курсов для настройки доступа</p>
+                 </div>
+               ) : (
+                 <div className="divide-y">
+                   {user.enrollments.map((enrollment) => (
+                     <div key={enrollment.id} className="py-4 flex items-center justify-between">
+                       <div>
+                         <h3 className="font-semibold text-lg">{enrollment.course.title}</h3>
+                         <div className="flex gap-2 text-sm text-gray-500 mt-1">
+                           <span>Статус: {enrollment.status === 'active' ? 'Активен' : 'Завершен'}</span>
+                           <span>•</span>
+                           <span>Срок: {enrollment.expiresAt ? formatDate(enrollment.expiresAt) : 'Бессрочно'}</span>
+                           <span>•</span>
+                           <span>Прогресс: {enrollment.progress}%</span>
+                         </div>
+                         {/* @ts-ignore */}
+                         {(enrollment.restrictedModules?.length > 0 || enrollment.restrictedLessons?.length > 0) && (
+                            <div className="mt-2 text-sm text-orange-600">
+                              Есть персональные ограничения (скрытые модули/уроки)
+                            </div>
+                         )}
+                       </div>
+                       <AccessManager 
+                         enrollment={enrollment} 
+                         onUpdate={() => queryClient.invalidateQueries({ queryKey: ["admin", "users", userId] })}
+                       />
+                     </div>
+                   ))}
+                 </div>
+               )}
+             </CardContent>
+           </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
-}
+

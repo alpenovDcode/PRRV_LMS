@@ -131,7 +131,12 @@ export async function GET(
               // Проверка prerequisites (стоп-уроки)
               const prerequisitesCheck = await checkPrerequisites(req.user!.userId, lesson.id);
 
-              const isAvailable = dripAvailability.isAvailable && prerequisitesCheck.isUnlocked;
+              // @ts-ignore
+              const isRestrictedModule = enrollment.restrictedModules.includes(module.id);
+              // @ts-ignore
+              const isRestrictedLesson = enrollment.restrictedLessons.includes(lesson.id);
+
+              const isAvailable = dripAvailability.isAvailable && prerequisitesCheck.isUnlocked && !isRestrictedModule && !isRestrictedLesson;
 
               return {
                 id: lesson.id,
