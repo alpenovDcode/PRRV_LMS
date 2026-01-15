@@ -49,6 +49,8 @@ export function CloudflarePlayer({
         src={videoId}
         poster={posterUrl}
         controls
+        width="100%"
+        height="100%"
         responsive={false} // We handle sizing with container
         className="w-full h-full absolute inset-0"
         autoplay={autoPlay}
