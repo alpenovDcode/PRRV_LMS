@@ -1,9 +1,9 @@
 -- AlterTable
--- ALTER TABLE "enrollments" ADD COLUMN     "restricted_lessons" TEXT[] DEFAULT ARRAY[]::TEXT[],
--- ADD COLUMN     "restricted_modules" TEXT[] DEFAULT ARRAY[]::TEXT[];
+ALTER TABLE "enrollments" ADD COLUMN     "restricted_lessons" TEXT[] DEFAULT ARRAY[]::TEXT[],
+ADD COLUMN     "restricted_modules" TEXT[] DEFAULT ARRAY[]::TEXT[];
 
 -- AlterTable
-ALTER TABLE "homework_submissions" ADD COLUMN     "curator_files" JSONB;
+-- ALTER TABLE "homework_submissions" ADD COLUMN     "curator_files" JSONB;
 
 -- AlterTable
 -- ALTER TABLE "users" ADD COLUMN     "frozen_until" TIMESTAMP(3),
