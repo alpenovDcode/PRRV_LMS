@@ -63,7 +63,13 @@ export default function AdminHomeworkReviewPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
 
-  // ... (existing query)
+  const { data: submission, isLoading } = useQuery<HomeworkSubmission>({
+    queryKey: ["admin", "homework", submissionId],
+    queryFn: async () => {
+      const response = await apiClient.get(`/curator/homework/${submissionId}`);
+      return response.data.data;
+    },
+  });
 
   const reviewMutation = useMutation({
     mutationFn: async ({ status, comment }: { status: "approved" | "rejected"; comment?: string }) => {
