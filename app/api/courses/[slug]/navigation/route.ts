@@ -100,13 +100,27 @@ export async function GET(
 
       const startDate = new Date(enrollment.startDate);
 
+      // Filter modules based on restriction (same logic as main course page)
+      const accessibleModules = course.modules.filter((module: any) => {
+        // @ts-ignore
+        const isRestricted = enrollment.restrictedModules && enrollment.restrictedModules.includes(module.id);
+        return !isRestricted;
+      });
+
       // Calculate availability for all lessons to build navigation
       const modulesWithLessons = await Promise.all(
-        course.modules.map(async (module: any) => ({
+        accessibleModules.map(async (module: any) => {
+           // Filter restricted lessons
+           const filteredLessons = module.lessons.filter((lesson: any) => {
+              // @ts-ignore
+              return !(enrollment.restrictedLessons && enrollment.restrictedLessons.includes(lesson.id));
+           });
+
+           return {
           id: module.id,
           title: module.title,
           lessons: await Promise.all(
-            module.lessons.map(async (lesson: any) => {
+            filteredLessons.map(async (lesson: any) => {
               const lessonProgress = progressMap.get(lesson.id);
               
               // Find previous lesson for drip check
@@ -131,12 +145,9 @@ export async function GET(
               // Проверка prerequisites (стоп-уроки)
               const prerequisitesCheck = await checkPrerequisites(req.user!.userId, lesson.id);
 
-              // @ts-ignore
-              const isRestrictedModule = enrollment.restrictedModules.includes(module.id);
-              // @ts-ignore
-              const isRestrictedLesson = enrollment.restrictedLessons.includes(lesson.id);
-
-              const isAvailable = dripAvailability.isAvailable && prerequisitesCheck.isUnlocked && !isRestrictedModule && !isRestrictedLesson;
+              // isRestricted checks are now redundant for visibility, but implicit for availability
+              // Since we filtered them out, we only check drip/prerequisites for remaining ones
+              const isAvailable = dripAvailability.isAvailable && prerequisitesCheck.isUnlocked;
 
               return {
                 id: lesson.id,
@@ -149,8 +160,8 @@ export async function GET(
             })
           ),
           parentId: module.parentId, // Ensure parentId is passed
-        }))
-      );
+        };
+      }));
 
       // Structure modules hierarchically
       const structuredModules = structureModules(modulesWithLessons);
