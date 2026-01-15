@@ -84,6 +84,7 @@ interface HomeworkSubmission {
   content: string | null;
   files: string[];
   curatorComment: string | null;
+  curatorAudioUrl: string | null;
   createdAt: string;
   reviewedAt: string | null;
 }
@@ -787,6 +788,13 @@ export default function LessonPlayerPage() {
                                 );
                               })}
                             </div>
+                          </div>
+                        )}
+
+                        {homework.curatorAudioUrl && (
+                          <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                            <h4 className="text-sm font-medium text-blue-900 mb-2">Голосовой ответ куратора:</h4>
+                            <audio controls src={homework.curatorAudioUrl} className="w-full" />
                           </div>
                         )}
 
