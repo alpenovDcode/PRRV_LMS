@@ -750,4 +750,5 @@ export default function AdminUserDetailPage() {
       </Tabs>
     </div>
   );
+}
 
