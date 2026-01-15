@@ -141,6 +141,12 @@ export async function GET(
 
       // Filter modules based on access rules
       const accessibleModules = course.modules.filter((module: any) => {
+        // 0. Manual restriction check (NEW)
+        // @ts-ignore
+        if (enrollment.restrictedModules && enrollment.restrictedModules.includes(module.id)) {
+          return false;
+        }
+
         // 1. Tariff check
         if (module.allowedTariffs && module.allowedTariffs.length > 0) {
           if (!user.tariff || !module.allowedTariffs.includes(user.tariff)) {
@@ -172,11 +178,18 @@ export async function GET(
       const startDate = new Date(enrollment.startDate);
 
       const modulesWithLessons = await Promise.all(
-        accessibleModules.map(async (module: any) => ({
-          ...module,
-          lessons: await Promise.all(
-            module.lessons.map(async (lesson: any) => {
-              const lessonProgress = progressMap.get(lesson.id);
+        accessibleModules.map(async (module: any) => {
+          // Filter restricted lessons (NEW)
+          const filteredLessons = module.lessons.filter((lesson: any) => {
+             // @ts-ignore
+             return !(enrollment.restrictedLessons && enrollment.restrictedLessons.includes(lesson.id));
+          });
+
+          return {
+            ...module,
+            lessons: await Promise.all(
+              filteredLessons.map(async (lesson: any) => {
+                const lessonProgress = progressMap.get(lesson.id);
               
               // Find previous lesson for drip check
               const lessonIndex = allLessons.findIndex((l: any) => l.id === lesson.id);
