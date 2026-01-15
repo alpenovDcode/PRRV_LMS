@@ -56,7 +56,84 @@ export async function GET(
                   },
                 },
               },
-            },
+            }, // NOTE: Needs explicit select if using select: {}, but here it uses include inside select? 
+               // Wait, line 37 starts `select: {`. Line 50 is `enrollments: { include: ... }`.
+               // Prisma allows `select` -> `enrollments` -> `select` OR `include` if referring to relation.
+               // Actually, if `enrollments` is a relation, `select: { enrollments: { select: { ... } } }` is standard.
+               // But here it uses `select: { enrollments: { include: ... } }`.
+               // If I want to include scalar fields of the relation, I implicitly get all if I don't use `select` inside?
+               // NO. `select` on the top level means ONLY selected fields are returned.
+               // `enrollments: { include: ... }` inside a `select` is INVALID in recent Prisma?
+               // Usually `select` -> `enrollments: { select: { ... } }`.
+               // If the current code works, it implies `enrollments` returns the object relation.
+               // But since `select` is used on `user`, `enrollments` must be selected.
+               // If I use `include` inside `select` for a relation, it might return all fields + included relations?
+               // Actually, `select` and `include` are mutually exclusive AT THE SAME LEVEL.
+               // But nested?
+               // `db.user.findUnique({ select: { enrollments: { include: { course: ... } } } })`
+               // This implies "Select everything from enrollments AND include course".
+               // So `restrictedModules` SHOULD be returned if it's a scalar on `Enrollment`.
+               // UNLESS `include` overrides scalar selection in some Prisma versions?
+               // Usually `include` adds to the default selection set (all scalars).
+               // So if `restrictedModules` is a scalar on `Enrollment`, it should be there.
+
+               // Wait. I manually ADDED these columns in a migration just now.
+               // `app/api/admin/users/[id]/route.ts` was deployed BEFORE the migration files were "seen" by the code generator?
+               // `npx prisma generate` was run locally.
+               // `make restart` runs `npm run build`. `npm run build` runs `prisma generate`.
+               // So the backend SHOULD have known about them. 
+               
+               // But look at line 50:
+               /*
+                enrollments: {
+                  include: {
+                    course: {
+                      select: {
+                        id: true,
+                        title: true,
+                      },
+                    },
+                  },
+                },
+               */
+               // If this is inside `select: { ... }` of `user`, then `enrollments` property is being projected.
+               // If `enrollments` uses `include`, it typically includes all scalars of `enrollment`.
+               // So `restrictedModules` *should* be there.
+
+               // UNLESS the local `node_modules/.prisma/client` used by VSCode (or me) or the server build is stale?
+               // The server build was restarted.
+
+               // Let's explicitly `select` the fields to be 100% sure.
+               // Replacing `include` with `select`.
+               /*
+                enrollments: {
+                  select: {
+                     id: true,
+                     status: true,
+                     startDate: true,
+                     expiresAt: true,
+                     progress: true, // Wait, progress is calculated manually later? No, there is `progress` field on Enrollment model?
+                     // Line 78 in `page.tsx` interface says `progress: number`.
+                     // Line 112 overrides it: `progress` calculated.
+                     // But strictly speaking, we need the fields.
+                     restrictedModules: true, // <--- ADD THIS
+                     restrictedLessons: true, // <--- ADD THIS
+                     course: {
+                        select: { id: true, title: true }
+                     }
+                  }
+                }
+               */
+               // I see `progress` column in `Enrollment`?
+               // `page.tsx`:
+               /*
+                 items:
+                 id, courseId, status, startDate, expiresAt, progress (from DB?), course...
+               */
+               // The route calculates progress in Step 1 (lines 85-115) and overrides it.
+               
+               // I will proceed to change `include` to `select` to be explicit and safe.
+
             _count: {
               select: {
                 progress: true,
