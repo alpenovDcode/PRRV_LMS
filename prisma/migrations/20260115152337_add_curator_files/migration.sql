@@ -6,8 +6,8 @@ ADD COLUMN     "restricted_modules" TEXT[] DEFAULT ARRAY[]::TEXT[];
 ALTER TABLE "homework_submissions" ADD COLUMN     "curator_files" JSONB;
 
 -- AlterTable
-ALTER TABLE "users" ADD COLUMN     "frozen_until" TIMESTAMP(3),
-ADD COLUMN     "is_blocked" BOOLEAN NOT NULL DEFAULT false;
+-- ALTER TABLE "users" ADD COLUMN     "frozen_until" TIMESTAMP(3),
+-- ADD COLUMN     "is_blocked" BOOLEAN NOT NULL DEFAULT false;
 
 -- CreateTable
 CREATE TABLE "login_tokens" (
