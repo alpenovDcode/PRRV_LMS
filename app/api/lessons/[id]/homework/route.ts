@@ -289,6 +289,7 @@ export async function GET(
             content: submission.content,
             files: (submission.files as string[]) || [],
             curatorComment: submission.curatorComment,
+            curatorAudioUrl: submission.curatorAudioUrl,
             createdAt: submission.createdAt.toISOString(),
             reviewedAt: submission.reviewedAt?.toISOString() || null,
           },
