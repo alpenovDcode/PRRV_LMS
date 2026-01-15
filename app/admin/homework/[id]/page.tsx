@@ -48,6 +48,10 @@ const quickTemplates = [
   { label: "Принято", comment: "Работа принята. Продолжайте в том же духе!" },
 ];
 
+import { AudioRecorder } from "@/components/ui/audio-recorder";
+
+// ... existing imports
+
 export default function AdminHomeworkReviewPage() {
   const params = useParams();
   const router = useRouter();
@@ -57,29 +61,49 @@ export default function AdminHomeworkReviewPage() {
   const [comment, setComment] = useState("");
   const [curatorFiles, setCuratorFiles] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
-  
-  // Removed unused selectedTemplate state
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
 
-  const { data: submission, isLoading } = useQuery<HomeworkSubmission>({
-    queryKey: ["admin", "homework", submissionId],
-    queryFn: async () => {
-      const response = await apiClient.get(`/curator/homework/${submissionId}`);
-      return response.data.data;
-    },
-  });
+  // ... (existing query)
 
   const reviewMutation = useMutation({
     mutationFn: async ({ status, comment }: { status: "approved" | "rejected"; comment?: string }) => {
+      let audioUrl = undefined;
+
+      // Upload audio if recorded
+      if (audioBlob) {
+        const formData = new FormData();
+        // Use mp3 extension if possible, or webm
+        const ext = audioBlob.type.includes("webm") ? "webm" : "mp3"; 
+        const file = new File([audioBlob], `voice-feedback-${Date.now()}.${ext}`, { type: audioBlob.type });
+        formData.append("file", file);
+        
+        try {
+          const uploadRes = await apiClient.post("/upload", formData, {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
+          audioUrl = uploadRes.data.data.url;
+        } catch (err) {
+          console.error("Audio upload failed", err);
+          toast.error("Не удалось загрузить голосовое сообщение");
+          // Proceed without audio or throw? Let's proceed but warn.
+        }
+      }
+
       await apiClient.patch(`/curator/homework/${submissionId}`, {
         status,
         curatorComment: comment || undefined,
         curatorFiles,
+        curatorAudioUrl: audioUrl,
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "homework"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "homework", submissionId] });
       queryClient.invalidateQueries({ queryKey: ["curator", "inbox"] });
+      
+      // Cleanup
+      setAudioBlob(null);
+
       toast.success("Решение принято");
       router.push("/admin/homework");
     },
@@ -93,12 +117,15 @@ export default function AdminHomeworkReviewPage() {
   };
 
   const handleReject = () => {
-    if (!comment.trim()) {
-      toast.error("Необходимо указать причину отклонения");
-      return;
+    if (!comment.trim() && !audioBlob) {
+        // Allow rejection if there is at least a voice message OR a text comment
+         toast.error("Необходимо оставить комментарий или голосовое сообщение");
+         return;
     }
     reviewMutation.mutate({ status: "rejected", comment });
   };
+  
+// ...
 
   if (isLoading || !submission) {
     return (
@@ -244,6 +271,15 @@ export default function AdminHomeworkReviewPage() {
               <CardDescription>Примите решение по работе студента</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Голосовой ответ</label>
+                <AudioRecorder 
+                   onRecordingComplete={setAudioBlob} 
+                   onClear={() => setAudioBlob(null)} 
+                />
+              </div>
+
               <div className="space-y-2">
                 <label className="text-sm font-medium">Комментарий (необязательно)</label>
                 <Textarea

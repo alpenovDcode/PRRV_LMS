@@ -33,10 +33,29 @@ const adminNavigation = [
   { name: "Настройки", href: "/admin/settings", icon: Settings },
 ];
 
+import { useQuery } from "@tanstack/react-query";
+import axios from "axios";
+
+// ... existing imports
+
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Fetch pending homework count
+  const { data: pendingCount = 0 } = useQuery({
+    queryKey: ["admin-pending-homeworks"],
+    queryFn: async () => {
+      try {
+        const { data } = await axios.get("/api/admin/homework?status=pending&limit=1");
+        return data.data.total || 0;
+      } catch (error) {
+        return 0;
+      }
+    },
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -64,6 +83,8 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           <nav className="flex-1 space-y-2 px-3 py-4">
             {adminNavigation.map((item) => {
               const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+              const isHomeworkItem = item.href === "/admin/homework";
+              
               return (
                 <Link
                   key={item.name}
@@ -77,7 +98,15 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                   onClick={() => setSidebarOpen(false)}
                 >
                   <item.icon className={cn("h-5 w-5", isActive ? "text-white" : "text-primary")} />
-                  {item.name}
+                  <span className="flex-1">{item.name}</span>
+                  {isHomeworkItem && pendingCount > 0 && (
+                    <span className={cn(
+                      "flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold",
+                      isActive ? "bg-white text-primary" : "bg-red-500 text-white"
+                    )}>
+                      {pendingCount > 99 ? "99+" : pendingCount}
+                    </span>
+                  )}
                 </Link>
               );
             })}

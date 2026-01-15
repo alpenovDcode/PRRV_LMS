@@ -56,6 +56,8 @@ export async function GET(
           // @ts-ignore
           curatorFiles: (submission.curatorFiles as string[]) || [],
           curatorComment: submission.curatorComment,
+          // @ts-ignore
+          curatorAudioUrl: submission.curatorAudioUrl || null,
           createdAt: submission.createdAt.toISOString(),
           reviewedAt: submission.reviewedAt?.toISOString() || null,
           user: {
@@ -103,7 +105,7 @@ export async function PATCH(
       try {
         const { id } = await params;
         const body = await request.json();
-        const { status, curatorComment, curatorFiles } = body;
+        const { status, curatorComment, curatorFiles, curatorAudioUrl } = body;
         // Ideally use Zod schema, but for speed adding here
         
         // ... (existing code)
@@ -121,6 +123,7 @@ export async function PATCH(
               content: true,
               files: true,
               curatorComment: true,
+              curatorAudioUrl: true, // Add selection
               curatorId: true,
               // @ts-ignore
               curatorFiles: true, // Add selection
@@ -139,6 +142,7 @@ export async function PATCH(
               files: submission.files || [],
               status: submission.status,
               curatorComment: submission.curatorComment || null,
+              curatorAudioUrl: submission.curatorAudioUrl || null,
               curatorId: submission.curatorId || null,
             },
           });
@@ -149,6 +153,7 @@ export async function PATCH(
             data: {
               status,
               curatorComment: sanitizedComment,
+              curatorAudioUrl: curatorAudioUrl || null,
               curatorId: req.user!.userId,
               reviewedAt: new Date(),
               ...({ curatorFiles: curatorFiles || [] } as any),

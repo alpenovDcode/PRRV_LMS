@@ -1,6 +1,7 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { v4 as uuidv4 } from "uuid";
 import path from "path";
+import fs from "fs";
 
 const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
 const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
@@ -19,27 +20,52 @@ const s3Client = new S3Client({
   },
 });
 
+// Fallback to local storage if R2 is not configured
 export async function saveFile(file: File, customFilename?: string): Promise<string> {
+  // Check if R2 is configured
+  if (R2_BUCKET_NAME && R2_ACCESS_KEY_ID && R2_SECRET_ACCESS_KEY) {
+    try {
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const fileName = customFilename || `${uuidv4()}${path.extname(file.name)}`;
+      
+      // Determine content type
+      const contentType = file.type || "application/octet-stream";
+
+      await s3Client.send(
+        new PutObjectCommand({
+          Bucket: R2_BUCKET_NAME,
+          Key: fileName,
+          Body: buffer,
+          ContentType: contentType,
+        })
+      );
+
+      return `${R2_PUBLIC_URL}/${fileName}`;
+    } catch (error) {
+      console.error("R2 Upload failed, trying local storage fallback", error);
+      // If R2 fails, fall through to local storage
+    }
+  }
+
+  // Local Storage Implementation
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
     const fileName = customFilename || `${uuidv4()}${path.extname(file.name)}`;
+    const uploadDir = path.join(process.cwd(), "public", "uploads");
+
+    // Ensure directory exists
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    const filePath = path.join(uploadDir, fileName);
+    fs.writeFileSync(filePath, buffer);
     
-    // Determine content type
-    const contentType = file.type || "application/octet-stream";
+    console.log(`[STORAGE] Saved file locally: ${filePath}`);
 
-    await s3Client.send(
-      new PutObjectCommand({
-        Bucket: R2_BUCKET_NAME,
-        Key: fileName,
-        Body: buffer,
-        ContentType: contentType,
-        // ACL: "public-read", // R2 doesn't support ACLs the same way, usually controlled by bucket settings
-      })
-    );
-
-    return `${R2_PUBLIC_URL}/${fileName}`;
+    return `/uploads/${fileName}`;
   } catch (error) {
-
+    console.error("Local storage failed:", error);
     throw new Error("Failed to save file");
   }
 }

@@ -219,8 +219,9 @@ model HomeworkSubmission {
   files          Json?
   curatorFiles   Json?             @map("curator_files")
   status         HomeworkStatus    @default(pending)
-  curatorComment String?           @map("curator_comment")
-  curatorId      String?           @map("curator_id")
+  curatorComment String?            @map("curator_comment")
+  curatorAudioUrl String?           @map("curator_audio_url")
+  curatorId      String?            @map("curator_id")
   reviewedAt     DateTime?         @map("reviewed_at")
   createdAt      DateTime          @default(now()) @map("created_at")
   updatedAt      DateTime          @updatedAt @map("updated_at")
@@ -242,6 +243,7 @@ model HomeworkHistory {
   files          Json?
   status         HomeworkStatus
   curatorComment String?            @map("curator_comment")
+  curatorAudioUrl String?           @map("curator_audio_url")
   curatorId      String?            @map("curator_id")
   createdAt      DateTime           @default(now()) @map("created_at")
   curator        User?              @relation("HomeworkHistoryReviewer", fields: [curatorId], references: [id])
