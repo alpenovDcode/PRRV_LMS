@@ -5,8 +5,8 @@ ALTER TABLE "homework_history" ADD COLUMN     "curator_audio_url" TEXT;
 ALTER TABLE "homework_submissions" ADD COLUMN     "curator_audio_url" TEXT;
 
 -- AlterTable
-ALTER TABLE "users" ADD COLUMN     "frozen_until" TIMESTAMP(3),
-ADD COLUMN     "is_blocked" BOOLEAN NOT NULL DEFAULT false;
+-- ALTER TABLE "users" ADD COLUMN     "frozen_until" TIMESTAMP(3),
+-- ADD COLUMN     "is_blocked" BOOLEAN NOT NULL DEFAULT false;
 
 -- CreateTable
 CREATE TABLE "login_tokens" (
