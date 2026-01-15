@@ -128,7 +128,7 @@ const nextConfig = {
           },
           {
             key: "Permissions-Policy",
-            value: "camera=(), microphone=(), geolocation=(), browsing-topics=(), encrypted-media=*, autoplay=*",
+            value: "camera=(), microphone=(self), geolocation=(), browsing-topics=(), encrypted-media=*, autoplay=*",
           },
         ],
       },
