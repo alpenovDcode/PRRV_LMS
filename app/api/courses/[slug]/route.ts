@@ -139,8 +139,17 @@ export async function GET(
 
       const userGroupIds = user.groupMembers.map(gm => gm.groupId);
 
+      console.log(`[DEBUG] Course Filter: User ${user.email}, Course ${course.title}`);
+      console.log(`[DEBUG] Enrollment Restricted Modules:`, JSON.stringify(enrollment.restrictedModules));
+      console.log(`[DEBUG] User Tariff: ${user.tariff}, Track: ${user.track}`);
+
       // Filter modules based on access rules
       const accessibleModules = course.modules.filter((module: any) => {
+        const isRestricted = enrollment.restrictedModules && enrollment.restrictedModules.includes(module.id);
+        if (isRestricted) {
+           console.log(`[DEBUG] Module ${module.title} HIDDEN by restrictedModules`);
+           return false;
+        }
         // 0. Manual restriction check (NEW)
         // @ts-ignore
         if (enrollment.restrictedModules && enrollment.restrictedModules.includes(module.id)) {
