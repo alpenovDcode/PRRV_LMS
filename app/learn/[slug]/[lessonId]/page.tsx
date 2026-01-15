@@ -39,6 +39,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { QuizPlayer } from "@/components/learn/quiz-player";
+import { CloudflarePlayer } from "@/components/learn/cloudflare-player";
 
 interface Lesson {
   id: string;
@@ -104,7 +105,7 @@ export default function LessonPlayerPage() {
   const slug = params.slug as string;
   const lessonId = params.lessonId as string;
   const queryClient = useQueryClient();
-  const videoRef = useRef<HTMLVideoElement>(null);
+  // const videoRef = useRef<HTMLVideoElement>(null); // Removed: using CloudflarePlayer events
   const [watchedTime, setWatchedTime] = useState(0);
   const [isAutoNextScheduled, setIsAutoNextScheduled] = useState(false);
   const [homeworkContent, setHomeworkContent] = useState("");
@@ -191,89 +192,75 @@ export default function LessonPlayerPage() {
     },
   });
 
-  // Восстановление позиции видео
+  // Восстановление позиции видео - handled by CloudflarePlayer initialTime prop
   useEffect(() => {
-    if (lesson?.progress?.watchedTime && videoRef.current && lesson.type === "video") {
-      videoRef.current.currentTime = lesson.progress.watchedTime;
+    if (lesson?.progress?.watchedTime && lesson.type === "video") {
       setWatchedTime(lesson.progress.watchedTime);
     }
   }, [lesson]);
 
-  // Авто-сохранение прогресса и авто-переход
-  useEffect(() => {
+  // Progress handlers
+  const handleTimeUpdate = (currentTime: number, duration: number) => {
+    const floorTime = Math.floor(currentTime);
+    setWatchedTime(floorTime);
+
+    // Auto-save progress every 10 seconds
+    if (floorTime % 10 === 0) {
+      updateProgressMutation.mutate({
+        watchedTime: floorTime,
+        status: duration && floorTime / duration > 0.9 ? "completed" : "in_progress",
+      });
+    }
+
+    // Mark as completed at 90%
+    if (
+      duration &&
+      floorTime / duration >= 0.9 &&
+      lesson?.progress?.status !== "completed"
+    ) {
+      updateProgressMutation.mutate({
+        watchedTime: floorTime,
+        status: "completed",
+      });
+      queryClient.invalidateQueries({ queryKey: ["lesson", lessonId] });
+    }
+
+    // Auto-next logic
     const videos = lesson?.content?.videos || (lesson?.videoId ? [{ videoId: lesson.videoId, duration: lesson.videoDuration || 0 }] : []);
     const activeVideo = videos[activeVideoIndex];
+    const isLastVideo = activeVideoIndex === videos.length - 1;
 
-    if (lesson?.type === "video" && videoRef.current && activeVideo) {
-      const video = videoRef.current;
-
-      const handleTimeUpdate = () => {
-        const currentTime = Math.floor(video.currentTime);
-        setWatchedTime(currentTime);
-
-        // Auto-save progress every 10 seconds
-        if (currentTime % 10 === 0) {
-          updateProgressMutation.mutate({
-            watchedTime: currentTime,
-            status: activeVideo.duration && currentTime / activeVideo.duration > 0.9 ? "completed" : "in_progress",
-          });
+    if (
+      duration &&
+      floorTime >= duration - 1 &&
+      !isAutoNextScheduled &&
+      courseNav?.nextLessonId &&
+      (isLastVideo || lesson?.progress?.status === "completed")
+    ) {
+      setIsAutoNextScheduled(true);
+      setTimeout(() => {
+        if (courseNav.nextLessonId) {
+          router.push(`/learn/${slug}/${courseNav.nextLessonId}`);
         }
-
-        // Mark as completed at 90%
-        if (
-          activeVideo.duration &&
-          currentTime / activeVideo.duration >= 0.9 &&
-          lesson.progress?.status !== "completed"
-        ) {
-          updateProgressMutation.mutate({
-            watchedTime: currentTime,
-            status: "completed",
-          });
-          queryClient.invalidateQueries({ queryKey: ["lesson", lessonId] });
-        }
-
-        // Авто-переход на следующий урок через 5 секунд после окончания
-        // Только если это последнее видео в плейлисте или если урок уже помечен как завершенный
-        const isLastVideo = activeVideoIndex === videos.length - 1;
-        
-        if (
-          activeVideo.duration &&
-          currentTime >= activeVideo.duration - 1 &&
-          !isAutoNextScheduled &&
-          courseNav?.nextLessonId &&
-          (isLastVideo || lesson.progress?.status === "completed")
-        ) {
-          setIsAutoNextScheduled(true);
-          setTimeout(() => {
-            if (courseNav.nextLessonId) {
-              router.push(`/learn/${slug}/${courseNav.nextLessonId}`);
-            }
-          }, 5000);
-        }
-      };
-
-      const handleEnded = () => {
-        updateProgressMutation.mutate({
-          watchedTime: activeVideo.duration || 0,
-          status: "completed",
-        });
-        queryClient.invalidateQueries({ queryKey: ["lesson", lessonId] });
-        
-        // Auto-advance to next video in playlist if available
-        if (activeVideoIndex < videos.length - 1) {
-           setActiveVideoIndex(prev => prev + 1);
-        }
-      };
-
-      video.addEventListener("timeupdate", handleTimeUpdate);
-      video.addEventListener("ended", handleEnded);
-
-      return () => {
-        video.removeEventListener("timeupdate", handleTimeUpdate);
-        video.removeEventListener("ended", handleEnded);
-      };
+      }, 5000);
     }
-  }, [lesson, lessonId, courseNav, router, slug, isAutoNextScheduled, queryClient, updateProgressMutation, activeVideoIndex]);
+  };
+
+  const handleEnded = () => {
+    const videos = lesson?.content?.videos || (lesson?.videoId ? [{ videoId: lesson.videoId, duration: lesson.videoDuration || 0 }] : []);
+    const activeVideo = videos[activeVideoIndex];
+    
+    updateProgressMutation.mutate({
+      watchedTime: activeVideo.duration || 0,
+      status: "completed",
+    });
+    queryClient.invalidateQueries({ queryKey: ["lesson", lessonId] });
+    
+    // Auto-advance to next video in playlist if available
+    if (activeVideoIndex < videos.length - 1) {
+        setActiveVideoIndex(prev => prev + 1);
+    }
+  };
 
   // Загрузка файлов
   const uploadFileMutation = useMutation({
@@ -462,17 +449,12 @@ export default function LessonPlayerPage() {
                         <CardContent className="p-0">
                           <div className="relative aspect-video bg-black">
                             {/* Cloudflare Stream Player */}
-                            <iframe
-                              src={`https://${process.env.NEXT_PUBLIC_CLOUDFLARE_STREAM_CUSTOMER_CODE}.cloudflarestream.com/${activeVideo.videoId}/iframe?preload=true&poster=https%3A%2F%2F${process.env.NEXT_PUBLIC_CLOUDFLARE_STREAM_CUSTOMER_CODE}.cloudflarestream.com%2F${activeVideo.videoId}%2Fthumbnails%2Fthumbnail.jpg`}
-                              className="w-full aspect-video"
-                              allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
-                              allowFullScreen
-                            ></iframe>
-                            <video
-                              ref={videoRef}
-                              className="hidden"
-                              controls
-                              src={`https://${process.env.NEXT_PUBLIC_CLOUDFLARE_STREAM_CUSTOMER_CODE}.cloudflarestream.com/${activeVideo.videoId}/manifest/video.m3u8`}
+                            <CloudflarePlayer
+                              videoId={activeVideo.videoId}
+                              posterUrl={`https://${process.env.NEXT_PUBLIC_CLOUDFLARE_STREAM_CUSTOMER_CODE}.cloudflarestream.com/${activeVideo.videoId}/thumbnails/thumbnail.jpg`}
+                              initialTime={lesson.progress?.watchedTime || 0}
+                              onTimeUpdate={handleTimeUpdate}
+                              onEnded={handleEnded}
                             />
                           </div>
                           {activeVideo.duration > 0 && (
@@ -1076,7 +1058,7 @@ function ModuleList({
   if (!isClient) {
      // Render default state (all open) to match SSR
      return (
-       <Accordion type="multiple" className="w-full" defaultValue={modules.map(m => m.id)}>
+       <Accordion key="server-accordion" type="multiple" className="w-full" defaultValue={modules.map(m => m.id)}>
          {modules.map((module) => (
              <ModuleItem 
                key={module.id} 
@@ -1091,7 +1073,7 @@ function ModuleList({
   }
 
   return (
-    <Accordion type="multiple" className="w-full" value={expandedItems} onValueChange={handleValueChange}>
+    <Accordion key="client-accordion" type="multiple" className="w-full" value={expandedItems} onValueChange={handleValueChange}>
       {modules.map((module) => (
         <ModuleItem 
            key={module.id} 

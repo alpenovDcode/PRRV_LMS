@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
     const refreshToken = generateRefreshToken(payload);
 
     // Determine cookie expiration based on rememberMe
-    const maxAge = rememberMe ? 60 * 60 * 24 * 30 : 60 * 60 * 24; // 30 days vs 24 hours
+    const maxAge = rememberMe ? 60 * 60 * 24 * 90 : 60 * 60 * 24; // 90 days vs 24 hours
 
     // НЕ возвращаем токены в body для безопасности
     const response = NextResponse.json<ApiResponse>(
