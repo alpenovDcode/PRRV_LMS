@@ -227,8 +227,8 @@ export async function GET(
             })
           ),
           children: [], // Initialize children array
-        }))
-      );
+        }
+      }));
 
       const structuredModules = structureModules(modulesWithLessons);
 
