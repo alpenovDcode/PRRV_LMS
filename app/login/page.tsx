@@ -141,6 +141,27 @@ export default function LoginPage() {
                 </Button>
               </form>
 
+              <div className="text-xs text-center text-gray-500 space-y-2 pt-4 border-t">
+                <p>
+                  Нажимая «Войти», вы соглашаетесь с{" "}
+                  <Link href="/legal/offer" className="underline hover:text-gray-900" target="_blank">
+                    Офертой
+                  </Link>
+                  {" "}и{" "}
+                  <Link href="/legal/privacy" className="underline hover:text-gray-900" target="_blank">
+                    Политикой конфиденциальности
+                  </Link>
+                </p>
+                <div className="flex flex-wrap justify-center gap-x-4 gap-y-1">
+                 <Link href="/legal/consent/processing" className="underline hover:text-gray-900" target="_blank">
+                    Согласие на обработку данных
+                  </Link>
+                  <Link href="/legal/consent/mailing" className="underline hover:text-gray-900" target="_blank">
+                    Согласие на рассылку
+                  </Link>
+                </div>
+              </div>
+
 
             </CardContent>
           </Card>
