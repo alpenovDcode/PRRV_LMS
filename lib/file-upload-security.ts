@@ -41,6 +41,13 @@ export const ALLOWED_MIME_TYPES = {
     "application/x-rar-compressed",
     "application/x-7z-compressed",
   ] as const,
+  audio: [
+    "audio/mpeg",
+    "audio/wav",
+    "audio/ogg",
+    "audio/webm",
+    "audio/mp4",
+  ] as const,
 };
 
 // File size limits (in bytes)
@@ -49,6 +56,7 @@ export const FILE_SIZE_LIMITS = {
   documents: 25 * 1024 * 1024, // 25MB
   videos: 500 * 1024 * 1024, // 500MB
   archives: 50 * 1024 * 1024, // 50MB
+  audio: 50 * 1024 * 1024, // 50MB
   default: 10 * 1024 * 1024, // 10MB
 } as const;
 
@@ -78,6 +86,25 @@ const MAGIC_BYTES: Record<string, number[][]> = {
   "video/mp4": [
     [0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70], // ....ftyp
     [0x00, 0x00, 0x00, 0x1c, 0x66, 0x74, 0x79, 0x70], // ....ftyp
+  ],
+  "audio/mpeg": [
+    [0x49, 0x44, 0x33], // ID3
+    [0xff, 0xfb], // MPEG-1 Layer 3
+    [0xff, 0xf3], // MPEG-2 Layer 3
+    [0xff, 0xf2], // MPEG-2 Layer 3
+  ],
+  "audio/wav": [
+    [0x52, 0x49, 0x46, 0x46], // RIFF
+  ],
+  "audio/ogg": [
+    [0x4f, 0x67, 0x67, 0x53], // OggS
+  ],
+  "audio/webm": [
+    [0x1a, 0x45, 0xdf, 0xa3], // EBML
+  ],
+  "audio/mp4": [
+    [0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70], // ....ftyp M4A
+    [0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70], // ....ftyp M4A
   ],
 };
 

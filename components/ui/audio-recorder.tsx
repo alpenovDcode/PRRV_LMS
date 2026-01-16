@@ -45,7 +45,9 @@ export function AudioRecorder({ onRecordingComplete, onClear, className }: Audio
       };
 
       mediaRecorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: "audio/mp3" }); // or audio/webm
+        // Use the mimeType from the recorder, or let Blob infer/default (browser defaults to webm/ogg)
+        const mimeType = mediaRecorder.mimeType || "audio/webm";
+        const blob = new Blob(chunksRef.current, { type: mimeType });
         const url = URL.createObjectURL(blob);
         setAudioBlob(blob);
         setAudioUrl(url);

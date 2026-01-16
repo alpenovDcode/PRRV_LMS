@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
     });
 
     const validationResult = await validateFile(file, {
-      category: category as "images" | "documents" | "videos" | "archives",
+      category: category as "images" | "documents" | "videos" | "archives" | "audio",
       checkMagicBytes: true,
     });
 

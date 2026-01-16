@@ -78,10 +78,17 @@ export default function AdminHomeworkReviewPage() {
       // Upload audio if recorded
       if (audioBlob) {
         const formData = new FormData();
-        // Use mp3 extension if possible, or webm
-        const ext = audioBlob.type.includes("webm") ? "webm" : "mp3"; 
+        // audioBlob.type usually "audio/webm; codecs=opus" or similar
+        const mimeType = audioBlob.type.split(';')[0];
+        let ext = "webm";
+        if (mimeType.includes("mp4") || mimeType.includes("m4a")) ext = "m4a";
+        if (mimeType.includes("mp3")) ext = "mp3";
+        if (mimeType.includes("wav")) ext = "wav";
+        if (mimeType.includes("ogg")) ext = "ogg";
+        
         const file = new File([audioBlob], `voice-feedback-${Date.now()}.${ext}`, { type: audioBlob.type });
         formData.append("file", file);
+        formData.append("category", "audio");
         
         try {
           const uploadRes = await apiClient.post("/upload", formData, {
