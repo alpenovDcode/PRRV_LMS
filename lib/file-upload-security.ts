@@ -116,7 +116,9 @@ export function validateMimeType(
   category: keyof typeof ALLOWED_MIME_TYPES
 ): boolean {
   const allowedTypes = ALLOWED_MIME_TYPES[category];
-  return (allowedTypes as readonly string[]).includes(mimeType);
+  // Strip parameters (e.g. "audio/webm;codecs=opus" -> "audio/webm")
+  const baseMimeType = mimeType.split(';')[0].trim();
+  return (allowedTypes as readonly string[]).includes(baseMimeType);
 }
 
 /**
@@ -137,7 +139,8 @@ export async function validateMagicBytes(
   file: File | Blob,
   expectedMimeType: string
 ): Promise<boolean> {
-  const magicSignatures = MAGIC_BYTES[expectedMimeType];
+  const baseMimeType = expectedMimeType.split(';')[0].trim();
+  const magicSignatures = MAGIC_BYTES[baseMimeType];
   if (!magicSignatures) {
     // If we don't have magic bytes for this type, skip validation
     return true;
