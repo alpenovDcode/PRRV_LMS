@@ -4,6 +4,9 @@ export const loginSchema = z.object({
   email: z.string().email("Некорректный email"),
   password: z.string().min(6, "Пароль должен содержать минимум 6 символов"),
   rememberMe: z.boolean().optional(),
+  consent: z.boolean().refine(val => val === true, {
+    message: "Необходимо согласиться с политикой конфиденциальности",
+  }),
 });
 
 export const registerSchema = z.object({

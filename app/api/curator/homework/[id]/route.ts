@@ -130,8 +130,8 @@ export async function PATCH(
             },
           });
 
-          if (!submission || submission.status !== "pending") {
-            throw new Error("SUBMISSION_ALREADY_REVIEWED");
+          if (!submission) {
+            throw new Error("SUBMISSION_NOT_FOUND");
           }
 
           // Создаем версию в истории перед обновлением
@@ -221,19 +221,8 @@ export async function PATCH(
           { status: 200 }
         );
       } catch (error) {
-        if (error instanceof Error && error.message === "SUBMISSION_ALREADY_REVIEWED") {
-          return NextResponse.json<ApiResponse>(
-            {
-              success: false,
-              error: {
-                code: "ALREADY_REVIEWED",
-                message: "Задание уже проверено другим куратором",
-              },
-            },
-            { status: 409 }
-          );
-        }
-
+        /* Removed SUBMISSION_ALREADY_REVIEWED check */
+        
         console.error("Update homework submission error:", error);
         return NextResponse.json<ApiResponse>(
           {

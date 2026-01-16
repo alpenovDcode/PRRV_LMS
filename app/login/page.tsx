@@ -30,6 +30,7 @@ export default function LoginPage() {
       email: "",
       password: "",
       rememberMe: false,
+      consent: false,
     },
   });
 
@@ -128,6 +129,32 @@ export default function LoginPage() {
                   >
                     Запомнить меня
                   </Label>
+                </div>
+
+                <div className="flex items-top space-x-2">
+                  <Checkbox 
+                    id="consent" 
+                    onCheckedChange={(checked) => {
+                      form.setValue("consent", checked as boolean);
+                    }}
+                    {...form.register("consent")}
+                  />
+                  <div className="grid gap-1.5 leading-none">
+                    <Label 
+                      htmlFor="consent" 
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      Я соглашаюсь с{" "}
+                      <Link href="/legal/privacy" className="underline hover:text-gray-900" target="_blank">
+                        политикой конфиденциальности
+                      </Link>
+                    </Label>
+                    {form.formState.errors.consent && (
+                      <p className="text-sm text-destructive">
+                        {form.formState.errors.consent.message?.toString()}
+                      </p>
+                    )}
+                  </div>
                 </div>
 
 

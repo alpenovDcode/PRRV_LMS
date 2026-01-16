@@ -97,8 +97,9 @@ export default function AdminHomeworkReviewPage() {
           audioUrl = uploadRes.data.data.url;
         } catch (err) {
           console.error("Audio upload failed", err);
-          toast.error("Не удалось загрузить голосовое сообщение");
-          // Proceed without audio or throw? Let's proceed but warn.
+          toast.error("Не удалось загрузить голосовое сообщение. Попробуйте еще раз.");
+          // Do not proceed with the review update if audio was intended but failed
+          throw new Error("Audio upload failed"); 
         }
       }
 
