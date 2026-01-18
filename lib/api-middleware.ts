@@ -20,6 +20,25 @@ export async function withAuth(
   }
 ) {
   try {
+    // Check for API Key bypass
+    const url = new URL(request.url);
+    const apiKey = url.searchParams.get("apiKey");
+    const serverSecret = process.env.API_SECRET_KEY;
+
+    if (serverSecret && apiKey === serverSecret) {
+      // Bypass session validation for valid API key
+      const authenticatedRequest = request as AuthenticatedRequest;
+      authenticatedRequest.user = {
+        userId: "system-api",
+        email: "system@api.local",
+        role: "admin", // Grant admin role
+        sessionId: "system-session",
+      };
+      
+      // Allow request to proceed
+      return handler(authenticatedRequest);
+    }
+
     // Сначала пытаемся получить токен из cookie (приоритет для httpOnly cookies)
     let token = request.cookies.get("accessToken")?.value;
 
