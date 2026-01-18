@@ -290,6 +290,7 @@ export async function GET(
             files: (submission.files as string[]) || [],
             curatorComment: submission.curatorComment,
             curatorAudioUrl: submission.curatorAudioUrl,
+            curatorFiles: (submission.curatorFiles as string[]) || [], // Added curatorFiles
             createdAt: submission.createdAt.toISOString(),
             reviewedAt: submission.reviewedAt?.toISOString() || null,
           },
