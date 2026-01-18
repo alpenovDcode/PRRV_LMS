@@ -20,7 +20,40 @@ export async function withAuth(
   }
 ) {
   try {
-    // Check for API Key bypass
+    // 1. Попытка аутентификации через сессию (cookie/header)
+    let token = request.cookies.get("accessToken")?.value;
+    if (!token) {
+      const authHeader = request.headers.get("authorization");
+      token = authHeader?.replace("Bearer ", "");
+    }
+
+    if (token) {
+      const payload = verifyAccessToken(token);
+      if (payload) {
+        const isValidSession = await validateSession(payload.userId, payload.sessionId);
+        if (isValidSession) {
+          // Check roles if required
+          if (options?.roles && !options.roles.includes(payload.role)) {
+             return NextResponse.json<ApiResponse>(
+              {
+                success: false,
+                error: {
+                  code: "FORBIDDEN",
+                  message: "Недостаточно прав доступа",
+                },
+              },
+              { status: 403 }
+            );
+          }
+           
+          const authenticatedRequest = request as AuthenticatedRequest;
+          authenticatedRequest.user = payload;
+          return handler(authenticatedRequest);
+        }
+      }
+    }
+
+    // 2. Если сессия не найдена или невалидна, проверяем API Key bypass
     const url = new URL(request.url);
     const apiKey = url.searchParams.get("apiKey");
     const serverSecret = process.env.API_SECRET_KEY;
@@ -39,76 +72,19 @@ export async function withAuth(
       return handler(authenticatedRequest);
     }
 
-    // Сначала пытаемся получить токен из cookie (приоритет для httpOnly cookies)
-    let token = request.cookies.get("accessToken")?.value;
-
-    // Если нет в cookie, проверяем Authorization header (для обратной совместимости)
-    if (!token) {
-      const authHeader = request.headers.get("authorization");
-      token = authHeader?.replace("Bearer ", "");
-    }
-
-    if (!token) {
-      return NextResponse.json<ApiResponse>(
-        {
-          success: false,
-          error: {
-            code: "UNAUTHORIZED",
-            message: "Токен не предоставлен",
-          },
+    // 3. Если ни то, ни другое не сработало
+    return NextResponse.json<ApiResponse>(
+      {
+        success: false,
+        error: {
+          code: "UNAUTHORIZED",
+          message: "Токен не предоставлен или недействителен",
         },
-        { status: 401 }
-      );
-    }
+      },
+      { status: 401 }
+    );
 
-    const payload = verifyAccessToken(token);
 
-    if (!payload) {
-      return NextResponse.json<ApiResponse>(
-        {
-          success: false,
-          error: {
-            code: "INVALID_TOKEN",
-            message: "Недействительный токен",
-          },
-        },
-        { status: 401 }
-      );
-    }
-
-    const isValidSession = await validateSession(payload.userId, payload.sessionId);
-
-    if (!isValidSession) {
-      return NextResponse.json<ApiResponse>(
-        {
-          success: false,
-          error: {
-            code: "INVALID_SESSION",
-            message: "Сессия истекла или недействительна",
-          },
-        },
-        { status: 401 }
-      );
-    }
-
-    // Проверка роли
-    if (options?.roles && !options.roles.includes(payload.role)) {
-      return NextResponse.json<ApiResponse>(
-        {
-          success: false,
-          error: {
-            code: "FORBIDDEN",
-            message: "Недостаточно прав доступа",
-          },
-        },
-        { status: 403 }
-      );
-    }
-
-    const authenticatedRequest = request as AuthenticatedRequest;
-    authenticatedRequest.user = payload;
-
-    return handler(authenticatedRequest);
   } catch (error) {
 
     return NextResponse.json<ApiResponse>(

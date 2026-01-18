@@ -35,16 +35,31 @@ export async function POST(request: NextRequest) {
       return response;
     } catch (error) {
       console.error("Logout error:", error);
-      return NextResponse.json<ApiResponse>(
+      // Even if DB fails, we should clear cookies to allow user to "logout" locally
+      const response = NextResponse.json<ApiResponse>(
         {
-          success: false,
-          error: {
-            code: "INTERNAL_ERROR",
-            message: "Произошла ошибка при выходе",
-          },
+          success: true, // We pretend success to client so they redirect
+          data: { message: "Выход выполнен (локально)" },
         },
-        { status: 500 }
+        { status: 200 }
       );
+      
+      response.cookies.set("refreshToken", "", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        maxAge: 0,
+        path: "/",
+      });
+      response.cookies.set("accessToken", "", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        maxAge: 0,
+        path: "/",
+      });
+
+      return response;
     }
   });
 }
