@@ -24,6 +24,11 @@ RUN ./node_modules/.bin/prisma generate || \
 
 # Отключаем статическую генерацию для проблемных роутов
 ENV NEXT_PRIVATE_STANDALONE=true
+
+# Accept build arguments for public env vars
+ARG NEXT_PUBLIC_API_SECRET_KEY
+ENV NEXT_PUBLIC_API_SECRET_KEY=$NEXT_PUBLIC_API_SECRET_KEY
+
 RUN npm run build
 
 # Production image, copy all the files and run next
