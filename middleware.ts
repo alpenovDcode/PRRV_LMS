@@ -21,7 +21,8 @@ export async function middleware(request: NextRequest) {
   // --- API SECURITY CHECK START ---
   // Проверка ключа API для всех /api роутов
   // Исключаем webhook роуты (если будут) или public callback, но требование пользователя "строго ко всем"
-  if (path.startsWith("/api")) {
+  // Пропускаем /api/health для Docker Healthcheck
+  if (path.startsWith("/api") && path !== "/api/health") {
     const apiKey = request.nextUrl.searchParams.get("apiKey");
     const validKey = process.env.API_SECRET_KEY;
     
