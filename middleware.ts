@@ -18,6 +18,25 @@ export async function middleware(request: NextRequest) {
   ];
   const isPublicRoute = publicRoutes.some((route) => path.startsWith(route));
 
+  // --- API SECURITY CHECK START ---
+  // Проверка ключа API для всех /api роутов
+  // Исключаем webhook роуты (если будут) или public callback, но требование пользователя "строго ко всем"
+  if (path.startsWith("/api")) {
+    const apiKey = request.nextUrl.searchParams.get("apiKey");
+    const validKey = process.env.API_SECRET_KEY;
+    
+    // Если ключ не задан в .env, пропускаем (режим разработки/отладки без ключа)
+    // Но если задан - проверяем строго
+    if (validKey && apiKey !== validKey) {
+      // Для API возвращаем JSON
+      return NextResponse.json(
+        { success: false, error: { code: "FORBIDDEN", message: "Invalid API Key" } },
+        { status: 403 }
+      );
+    }
+  }
+  // --- API SECURITY CHECK END ---
+
   // Если пользователь не авторизован и пытается зайти на защищенный роут
   if (!token && !isPublicRoute) {
     const refreshToken = request.cookies.get("refreshToken")?.value;
@@ -26,6 +45,10 @@ export async function middleware(request: NextRequest) {
     if (refreshToken) {
       const url = new URL("/api/auth/refresh", request.url);
       url.searchParams.set("redirect", path);
+      // Append API Key for internal redirect to API
+      if (process.env.API_SECRET_KEY) {
+        url.searchParams.set("apiKey", process.env.API_SECRET_KEY);
+      }
       return NextResponse.redirect(url);
     }
 
@@ -100,6 +123,9 @@ export async function middleware(request: NextRequest) {
           if (refreshToken) {
             const url = new URL("/api/auth/refresh", request.url);
             url.searchParams.set("redirect", path);
+            if (process.env.API_SECRET_KEY) {
+              url.searchParams.set("apiKey", process.env.API_SECRET_KEY);
+            }
             return NextResponse.redirect(url);
           }
           const url = new URL("/login", request.url);
@@ -114,6 +140,9 @@ export async function middleware(request: NextRequest) {
         if (refreshToken) {
           const url = new URL("/api/auth/refresh", request.url);
           url.searchParams.set("redirect", path);
+          if (process.env.API_SECRET_KEY) {
+            url.searchParams.set("apiKey", process.env.API_SECRET_KEY);
+          }
           return NextResponse.redirect(url);
         }
         const url = new URL("/login", request.url);
@@ -142,7 +171,7 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      */
-    "/((?!api|_next/static|_next/image|favicon.ico).*)",
+    "/((?!_next/static|_next/image|favicon.ico).*)",
   ],
 };
 

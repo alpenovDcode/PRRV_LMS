@@ -21,7 +21,12 @@ export default function LoginWithTokenPage() {
     }
 
     // Authenticate with token
-    fetch("/api/auth/login-with-token", {
+    const apiKey = process.env.NEXT_PUBLIC_API_SECRET_KEY;
+    const url = apiKey 
+      ? `/api/auth/login-with-token?apiKey=${apiKey}`
+      : "/api/auth/login-with-token";
+
+    fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token }),

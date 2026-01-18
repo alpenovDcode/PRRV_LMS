@@ -22,8 +22,13 @@ class ApiClient {
     // Не нужно добавлять Authorization header вручную, так как токены в cookies
     this.client.interceptors.request.use(
       (config: InternalAxiosRequestConfig) => {
-        // Токены теперь автоматически отправляются через cookies благодаря withCredentials: true
-        // Не нужно читать из localStorage
+        // Appending URL-based API Key security check
+        if (process.env.NEXT_PUBLIC_API_SECRET_KEY) {
+          config.params = {
+            ...config.params,
+            apiKey: process.env.NEXT_PUBLIC_API_SECRET_KEY,
+          };
+        }
         return config;
       },
       (error) => Promise.reject(error)

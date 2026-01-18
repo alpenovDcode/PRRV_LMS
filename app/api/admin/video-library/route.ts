@@ -11,7 +11,9 @@ const createVideoSchema = z.object({
 });
 
 export async function GET(request: NextRequest) {
-  return withAuth(request, async (req) => {
+  return withAuth(
+    request,
+    async (req) => {
     try {
       const { searchParams } = new URL(request.url);
       const query = searchParams.get("query") || "";
@@ -38,11 +40,13 @@ export async function GET(request: NextRequest) {
         { status: 500 }
       );
     }
-  });
+  }, { roles: ["admin"] });
 }
 
 export async function POST(request: NextRequest) {
-  return withAuth(request, async (req) => {
+  return withAuth(
+    request,
+    async (req) => {
     try {
       const body = await request.json();
       const { title, cloudflareId, duration } = createVideoSchema.parse(body);
@@ -95,5 +99,5 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
-  });
+  }, { roles: ["admin"] });
 }
