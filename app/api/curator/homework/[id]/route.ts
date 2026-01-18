@@ -65,6 +65,11 @@ export async function GET(
             fullName: submission.user.fullName,
             email: submission.user.email,
           },
+          curator: submission.curator ? {
+            id: submission.curator.id,
+            fullName: submission.curator.fullName,
+            avatarUrl: submission.curator.avatarUrl,
+          } : null,
           lesson: {
             id: submission.lesson.id,
             title: submission.lesson.title,

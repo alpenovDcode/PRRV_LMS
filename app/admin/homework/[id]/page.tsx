@@ -11,6 +11,9 @@ import { ArrowLeft, CheckCircle2, X, FileText, User, Clock, Upload, Trash2, Pape
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface HomeworkSubmission {
   id: string;
@@ -20,6 +23,13 @@ interface HomeworkSubmission {
   createdAt: string;
   reviewedAt: string | null;
   curatorComment: string | null;
+  curator?: {
+    id: string;
+    fullName: string | null;
+    avatarUrl: string | null;
+  } | null;
+  curatorFiles?: string[];
+  curatorAudioUrl?: string | null;
   user: {
     id: string;
     fullName: string | null;
@@ -131,12 +141,42 @@ export default function AdminHomeworkReviewPage() {
   };
 
   const handleReject = () => {
-    if (!comment.trim() && !audioBlob) {
-        // Allow rejection if there is at least a voice message OR a text comment
-         toast.error("Необходимо оставить комментарий или голосовое сообщение");
-         return;
-    }
     reviewMutation.mutate({ status: "rejected", comment });
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files?.length) return;
+
+    setIsUploading(true);
+    const files = Array.from(e.target.files);
+
+    try {
+      const uploadPromises = files.map(async (file) => {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("category", "documents");
+
+        const response = await apiClient.post("/upload", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        return response.data.data.url;
+      });
+
+      const uploadedUrls = await Promise.all(uploadPromises);
+      setCuratorFiles((prev) => [...prev, ...uploadedUrls]);
+      toast.success("Файлы успешно загружены");
+    } catch (error) {
+      console.error("Upload error:", error);
+      toast.error("Не удалось загрузить файлы");
+    } finally {
+      setIsUploading(false);
+      // Clear input value to allow selecting same file again
+      e.target.value = "";
+    }
+  };
+
+  const handleRemoveFile = (fileUrl: string) => {
+    setCuratorFiles((prev) => prev.filter((url) => url !== fileUrl));
   };
   
 // ...
@@ -273,6 +313,68 @@ export default function AdminHomeworkReviewPage() {
                   </div>
                 </div>
               )}
+
+              {/* Curator Response Section */}
+              {submission.status !== "pending" && (
+                <div className="space-y-4 pt-4 border-t">
+                  <h3 className="font-semibold text-lg">Ответ куратора</h3>
+                  
+                  {submission.curator && (
+                    <div className="flex items-center gap-3">
+                      <Avatar>
+                        <AvatarImage src={submission.curator.avatarUrl || undefined} />
+                        <AvatarFallback>{submission.curator.fullName?.[0] || "C"}</AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-medium">{submission.curator.fullName || "Куратор"}</p>
+                        {submission.reviewedAt && (
+                           <p className="text-xs text-muted-foreground">{new Date(submission.reviewedAt).toLocaleString("ru-RU")}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Curator Audio */}
+                  {submission.curatorAudioUrl && (
+                     <div className="p-3 bg-muted rounded-lg">
+                        <h4 className="text-sm font-medium mb-2">Голосовой ответ:</h4>
+                        <audio controls src={submission.curatorAudioUrl} className="w-full" />
+                     </div>
+                  )}
+
+                  {/* Curator Comment */}
+                  {submission.curatorComment && (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium">Комментарий:</h4>
+                      <div className="p-4 bg-muted/50 rounded-lg whitespace-pre-wrap">{submission.curatorComment}</div>
+                    </div>
+                  )}
+
+                  {/* Curator Files */}
+                  {submission.curatorFiles && submission.curatorFiles.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium">Прикрепленные файлы:</h4>
+                      <div className="space-y-2">
+                        {submission.curatorFiles.map((file, idx) => {
+                          const fileName = file.split('/').pop() || file;
+                          return (
+                            <a
+                              key={idx}
+                              href={file}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 p-2 border rounded-lg hover:bg-accent transition-colors"
+                            >
+                              <Paperclip className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-sm truncate flex-1">{fileName}</span>
+                            </a>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -292,6 +394,41 @@ export default function AdminHomeworkReviewPage() {
                    onRecordingComplete={setAudioBlob} 
                    onClear={() => setAudioBlob(null)} 
                 />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Прикрепить файлы</label>
+                <div className="grid w-full max-w-sm items-center gap-1.5">
+                  <Input
+                    type="file" 
+                    multiple
+                    onChange={handleFileUpload}
+                    disabled={isUploading}
+                    className="cursor-pointer"
+                  />
+                </div>
+                {/* Uploaded Files List */}
+                {curatorFiles.length > 0 && (
+                  <div className="space-y-2 mt-2">
+                    {curatorFiles.map((file, idx) => {
+                      const fileName = file.split('/').pop() || file;
+                      return (
+                         <div key={idx} className="flex items-center gap-2 p-2 bg-muted rounded-md text-sm">
+                            <Paperclip className="h-4 w-4 text-muted-foreground" />
+                            <span className="truncate flex-1">{fileName}</span>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-6 w-6 text-destructive hover:text-destructive"
+                              onClick={() => handleRemoveFile(file)}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                         </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">

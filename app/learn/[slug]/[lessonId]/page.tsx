@@ -85,6 +85,7 @@ interface HomeworkSubmission {
   files: string[];
   curatorComment: string | null;
   curatorAudioUrl: string | null;
+  curatorFiles: string[];
   createdAt: string;
   reviewedAt: string | null;
 }
@@ -795,6 +796,29 @@ export default function LessonPlayerPage() {
                           <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
                             <h4 className="text-sm font-medium text-blue-900 mb-2">Голосовой ответ куратора:</h4>
                             <audio controls src={homework.curatorAudioUrl} className="w-full" />
+                          </div>
+                        )}
+
+                        {homework.curatorFiles && homework.curatorFiles.length > 0 && (
+                          <div>
+                            <h4 className="text-sm font-medium text-gray-900 mb-2">Файлы от куратора:</h4>
+                            <div className="space-y-2">
+                              {homework.curatorFiles.map((file, idx) => {
+                                const fileName = file.split('/').pop() || file;
+                                return (
+                                  <a
+                                    key={idx}
+                                    href={file}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-2 p-2 border border-blue-200 bg-blue-50/50 rounded-lg hover:bg-blue-50 transition-colors"
+                                  >
+                                    <FileText className="h-4 w-4 text-blue-500" />
+                                    <span className="text-sm text-blue-900 truncate flex-1">{fileName}</span>
+                                  </a>
+                                );
+                              })}
+                            </div>
                           </div>
                         )}
 
