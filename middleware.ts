@@ -80,6 +80,11 @@ export async function middleware(request: NextRequest) {
 
         // СТРОГАЯ ПРОВЕРКА: /dashboard - только для админов и студентов
         if (path.startsWith("/dashboard") || path === "/dashboard") {
+          // Куратор на /dashboard -> редирект на /curator/inbox (ПЕРЕД проверкой прав)
+          if (payload.role === "curator") {
+            return NextResponse.redirect(new URL("/curator/inbox", request.url));
+          }
+
           if (payload.role !== "admin" && payload.role !== "student") {
             return NextResponse.redirect(new URL("/no-access", request.url));
           }
@@ -113,10 +118,7 @@ export async function middleware(request: NextRequest) {
           }
         }
         
-        // Редирект куратора с /dashboard на его панель
-        if (payload.role === "curator" && path === "/dashboard") {
-          return NextResponse.redirect(new URL("/curator/inbox", request.url));
-        }
+
       } else {
         // Если токен невалидный, редирект на логин
         if (!isPublicRoute) {

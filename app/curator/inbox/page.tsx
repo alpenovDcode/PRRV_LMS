@@ -157,7 +157,7 @@ export default function CuratorInboxPage() {
             ) : (
               <div className="space-y-2">
                 {filtered.map((item) => (
-                  <Link key={item.id} href={`/curator/homework/${item.id}`}>
+                  <Link key={item.id} href={`/curator/review/${item.id}`}>
                     <div className="flex items-center gap-4 rounded-lg border px-4 py-3 hover:bg-accent cursor-pointer transition-colors">
                       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
                         <User className="h-5 w-5 text-primary" />
