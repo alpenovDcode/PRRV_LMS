@@ -23,6 +23,7 @@ import { AlertTriangle, Bug, Info, AlertCircle, Eye, Trash2 } from "lucide-react
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
+import { apiClient } from "@/lib/api-client";
 
 interface ErrorGroup {
   id: string;
@@ -78,8 +79,8 @@ export default function ErrorsPage() {
       if (severity !== "all") params.set("severity", severity);
       if (status !== "all") params.set("status", status);
 
-      const response = await fetch(`/api/admin/errors?${params}`);
-      const data = await response.json();
+      const response = await apiClient.get(`/admin/errors?${params}`);
+      const data = response.data;
 
       if (data.success) {
         setErrors(data.groups || []);
@@ -96,13 +97,8 @@ export default function ErrorsPage() {
     if (!confirm("Вы уверены, что хотите удалить эту ошибку?")) return;
 
     try {
-      const response = await fetch(`/api/admin/errors/${id}`, {
-        method: "DELETE",
-      });
-
-      if (response.ok) {
-        fetchErrors();
-      }
+      await apiClient.delete(`/admin/errors/${id}`);
+      fetchErrors();
     } catch (error) {
       console.error("Failed to delete error:", error);
     }

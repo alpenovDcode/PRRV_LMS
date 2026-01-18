@@ -26,7 +26,7 @@ export default function AuditLogsPage() {
   const { data: logs = [], isLoading } = useQuery<AuditLog[]>({
     queryKey: ["admin", "audit-logs"],
     queryFn: async () => {
-      const response = await apiClient.get("/api/admin/audit-logs");
+      const response = await apiClient.get("/admin/audit-logs");
       return response.data.data;
     },
     refetchInterval: 10000, // Live updates every 10s

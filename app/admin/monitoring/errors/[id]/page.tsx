@@ -17,6 +17,7 @@ import { AlertTriangle, Bug, Info, AlertCircle, ArrowLeft, User } from "lucide-r
 import Link from "next/link";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
+import { apiClient } from "@/lib/api-client";
 
 interface ErrorDetails {
   id: string;
@@ -75,8 +76,8 @@ export default function ErrorDetailsPage() {
   async function fetchError() {
     setLoading(true);
     try {
-      const response = await fetch(`/api/admin/errors/${params.id}`);
-      const data = await response.json();
+      const response = await apiClient.get(`/admin/errors/${params.id}`);
+      const data = response.data;
 
       if (data.success) {
         const errorData = data.type === "group" ? data.error : data.error;
@@ -94,15 +95,8 @@ export default function ErrorDetailsPage() {
   async function updateStatus() {
     setUpdating(true);
     try {
-      const response = await fetch(`/api/admin/errors/${params.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status, notes }),
-      });
-
-      if (response.ok) {
-        await fetchError();
-      }
+      await apiClient.patch(`/admin/errors/${params.id}`, { status, notes });
+      await fetchError();
     } catch (error) {
       console.error("Failed to update status:", error);
     } finally {
@@ -114,13 +108,8 @@ export default function ErrorDetailsPage() {
     if (!confirm("Вы уверены, что хотите удалить эту ошибку?")) return;
 
     try {
-      const response = await fetch(`/api/admin/errors/${params.id}`, {
-        method: "DELETE",
-      });
-
-      if (response.ok) {
-        router.push("/admin/monitoring/errors");
-      }
+      await apiClient.delete(`/admin/errors/${params.id}`);
+      router.push("/admin/monitoring/errors");
     } catch (error) {
       console.error("Failed to delete error:", error);
     }

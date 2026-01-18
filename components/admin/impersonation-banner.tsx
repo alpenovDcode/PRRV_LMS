@@ -4,14 +4,14 @@ import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
 // import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import axios from "axios";
+import { apiClient } from "@/lib/api-client";
 
 export function ImpersonationBanner() {
   // const router = useRouter();
 
   const handleStopImpersonation = async () => {
     try {
-      await axios.post("/api/auth/stop-impersonation");
+      await apiClient.post("/auth/stop-impersonation");
       toast.success("Сессия администратора восстановлена");
       
       // Жесткая перезагрузка для обновления состояния и редиректа

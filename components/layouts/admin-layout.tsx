@@ -34,7 +34,7 @@ const adminNavigation = [
 ];
 
 import { useQuery } from "@tanstack/react-query";
-import axios from "axios";
+import { apiClient } from "@/lib/api-client";
 
 // ... existing imports
 
@@ -48,8 +48,8 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     queryKey: ["admin-pending-homeworks"],
     queryFn: async () => {
       try {
-        const { data } = await axios.get("/api/admin/homework?status=pending&limit=1");
-        return data.data.total || 0;
+        const { data } = await apiClient.get("/admin/homework?status=pending&limit=1");
+        return data.data.total || data.data.length || 0;
       } catch (error) {
         return 0;
       }
