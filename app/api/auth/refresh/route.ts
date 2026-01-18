@@ -7,6 +7,50 @@ const refreshSchema = z.object({
   refreshToken: z.string().min(1),
 });
 
+// GET обработчик для middleware (редиректы)
+export async function GET(request: NextRequest) {
+  const redirectUrl = request.nextUrl.searchParams.get("redirect") || "/";
+  const token = request.cookies.get("refreshToken")?.value;
+
+  if (!token) {
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("redirect", redirectUrl);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  const payload = verifyRefreshToken(token);
+
+  if (!payload) {
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("redirect", redirectUrl);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  const isValidSession = await validateSession(payload.userId, payload.sessionId);
+
+  if (!isValidSession) {
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("redirect", redirectUrl);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  const accessToken = generateAccessToken(payload);
+
+  // Редиректим обратно на исходную страницу
+  // Но сначала устанавливаем новый accessToken
+  const response = NextResponse.redirect(new URL(redirectUrl, request.url));
+
+  response.cookies.set("accessToken", accessToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    maxAge: 60 * 60 * 24 * 30, // 30 days default assumption, creates new session window
+    path: "/",
+  });
+
+  return response;
+}
+
 export async function POST(request: NextRequest) {
   try {
     let token: string | undefined;
@@ -107,5 +151,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
-

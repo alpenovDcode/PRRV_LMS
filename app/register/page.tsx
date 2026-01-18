@@ -129,8 +129,8 @@ export default function RegisterPage() {
                       политикой конфиденциальности
                     </Link>{" "}
                     и{" "}
-                    <Link href="/legal/terms" className="text-primary hover:underline">
-                      условиями использования
+                    <Link href="/legal/offer" className="text-primary hover:underline">
+                      условиями использования (Офертой)
                     </Link>
                   </Label>
                 </div>

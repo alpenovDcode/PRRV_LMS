@@ -20,6 +20,15 @@ export async function middleware(request: NextRequest) {
 
   // Если пользователь не авторизован и пытается зайти на защищенный роут
   if (!token && !isPublicRoute) {
+    const refreshToken = request.cookies.get("refreshToken")?.value;
+    
+    // Если есть refreshToken, пробуем обновить сессию
+    if (refreshToken) {
+      const url = new URL("/api/auth/refresh", request.url);
+      url.searchParams.set("redirect", path);
+      return NextResponse.redirect(url);
+    }
+
     const url = new URL("/login", request.url);
     url.searchParams.set("redirect", path);
     return NextResponse.redirect(url);
@@ -87,6 +96,12 @@ export async function middleware(request: NextRequest) {
       } else {
         // Если токен невалидный, редирект на логин
         if (!isPublicRoute) {
+          const refreshToken = request.cookies.get("refreshToken")?.value;
+          if (refreshToken) {
+            const url = new URL("/api/auth/refresh", request.url);
+            url.searchParams.set("redirect", path);
+            return NextResponse.redirect(url);
+          }
           const url = new URL("/login", request.url);
           url.searchParams.set("redirect", path);
           return NextResponse.redirect(url);
@@ -95,6 +110,12 @@ export async function middleware(request: NextRequest) {
     } catch {
       // Если токен невалидный, редирект на логин
       if (!isPublicRoute) {
+        const refreshToken = request.cookies.get("refreshToken")?.value;
+        if (refreshToken) {
+          const url = new URL("/api/auth/refresh", request.url);
+          url.searchParams.set("redirect", path);
+          return NextResponse.redirect(url);
+        }
         const url = new URL("/login", request.url);
         url.searchParams.set("redirect", path);
         return NextResponse.redirect(url);

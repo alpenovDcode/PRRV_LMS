@@ -48,9 +48,9 @@ export function generateAccessToken(payload: JWTPayload): string {
   } as jwt.SignOptions);
 }
 
-export function generateRefreshToken(payload: JWTPayload): string {
+export function generateRefreshToken(payload: JWTPayload, expiresIn?: string | number): string {
   return jwt.sign(payload, getJwtRefreshSecret(), {
-    expiresIn: JWT_REFRESH_EXPIRES_IN as string,
+    expiresIn: expiresIn || (JWT_REFRESH_EXPIRES_IN as string),
   } as jwt.SignOptions);
 }
 
