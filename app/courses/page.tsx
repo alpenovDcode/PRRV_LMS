@@ -58,14 +58,14 @@ export default function CoursesPage() {
             className="pl-10 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
           />
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" className="border-gray-300">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" className="border-gray-300 flex-1 sm:flex-none">
             Все ({courses?.length || 0})
           </Button>
-          <Button variant="outline" className="border-gray-300">
+          <Button variant="outline" className="border-gray-300 flex-1 sm:flex-none">
             В процессе (0)
           </Button>
-          <Button variant="outline" className="border-gray-300">
+          <Button variant="outline" className="border-gray-300 flex-1 sm:flex-none">
             Завершенные (0)
           </Button>
         </div>

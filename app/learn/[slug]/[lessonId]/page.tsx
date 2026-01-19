@@ -40,6 +40,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { QuizPlayer } from "@/components/learn/quiz-player";
 import { CloudflarePlayer } from "@/components/learn/cloudflare-player";
+import { TrackDefinitionViewer } from "@/components/learn/track-definition-viewer";
 
 interface Lesson {
   id: string;
@@ -444,7 +445,7 @@ export default function LessonPlayerPage() {
       <div className="flex-1 flex flex-col overflow-hidden w-full">
         {/* Video/Content area */}
         <div className="flex-1 overflow-y-auto bg-white">
-          <div className="container mx-auto px-4 py-6 max-w-5xl">
+          <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6 max-w-5xl">
             {/* Breadcrumbs & Mobile Menu Trigger */}
             <div className="mb-4 flex items-center gap-2 text-sm text-gray-600">
               <Button
@@ -462,7 +463,7 @@ export default function LessonPlayerPage() {
               <span className="text-gray-900 font-medium truncate flex-1">{lesson.title}</span>
             </div>
 
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-6">{lesson.title}</h1>
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-4 sm:mb-6">{lesson.title}</h1>
 
             {/* Video Player */}
             {lesson.type === "video" && (
@@ -593,7 +594,11 @@ export default function LessonPlayerPage() {
               <QuizPlayer lessonId={lessonId} content={lesson.content} />
             )}
 
-            {lesson.type !== "video" && lesson.type !== "text" && lesson.type !== "quiz" && (
+            {lesson.type === "track_definition" && (
+              <TrackDefinitionViewer lessonId={lessonId} isCompleted={lesson.progress?.status === "completed"} />
+            )}
+
+            {lesson.type !== "video" && lesson.type !== "text" && lesson.type !== "quiz" && lesson.type !== "track_definition" && (
               <Card className="mb-6 border-gray-200">
                 <CardContent className="p-6">
                   <p className="text-gray-500">Тип урока не поддерживается: {lesson.type}</p>

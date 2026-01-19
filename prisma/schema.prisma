@@ -493,6 +493,7 @@ enum LessonType {
   video
   text
   quiz
+  track_definition
 }
 
 enum EnrollmentStatus {

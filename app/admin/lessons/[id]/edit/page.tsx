@@ -39,7 +39,7 @@ import { getCloudflareImageUrl } from "@/lib/cloudflare-images";
 interface LessonDetail {
   id: string;
   title: string;
-  type: "video" | "text" | "quiz";
+  type: "video" | "text" | "quiz" | "track_definition";
   content: any;
   videoId: string | null;
   videoDuration: number | null;
@@ -68,7 +68,7 @@ export default function LessonEditorPage() {
 
   // Форма
   const [title, setTitle] = useState("");
-  const [type, setType] = useState<"video" | "text" | "quiz">("video");
+  const [type, setType] = useState<"video" | "text" | "quiz" | "track_definition">("video");
   const [content, setContent] = useState<any>(null);
   // Video state
   const [videos, setVideos] = useState<Array<{ videoId: string; title?: string; duration: number }>>([]);
@@ -349,6 +349,12 @@ export default function LessonEditorPage() {
                       <div className="flex items-center gap-2">
                         <HelpCircle className="h-4 w-4" />
                         Тест
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="track_definition">
+                      <div className="flex items-center gap-2">
+                        <Check className="h-4 w-4" />
+                        Определение трека
                       </div>
                     </SelectItem>
                   </SelectContent>
@@ -915,6 +921,31 @@ export default function LessonEditorPage() {
                     ))}
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          )}
+
+          {type === "track_definition" && (
+            <Card className="border-gray-200">
+              <CardHeader>
+                <CardTitle className="text-gray-900">Определение трека</CardTitle>
+                <CardDescription className="text-gray-600">
+                  Этот тип урока использует стандартный опросник для определения трека студента.
+                  Вопросы зашиты в системе и не требуют настройки здесь.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="p-4 bg-blue-50 text-blue-800 rounded-lg border border-blue-200">
+                  <p className="font-medium">Как это работает?</p>
+                  <p className="text-sm mt-1">
+                    Студенту будет предложено 5 вопросов о его опыте и целях. 
+                    На основе ответов система автоматически определит рекомендованный трек (1-5) 
+                    и установит его в профиле студента.
+                  </p>
+                  <p className="text-sm mt-2">
+                    В случае спорного результата (равенство баллов), студенту будет предложено связаться с куратором.
+                  </p>
+                </div>
               </CardContent>
             </Card>
           )}
