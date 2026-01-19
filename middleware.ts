@@ -21,8 +21,8 @@ export async function middleware(request: NextRequest) {
   // --- API SECURITY CHECK START ---
   // Проверка ключа API для всех /api роутов
   // Исключаем webhook роуты (если будут) или public callback, но требование пользователя "строго ко всем"
-  // Пропускаем /api/health для Docker Healthcheck
-  if (path.startsWith("/api") && path !== "/api/health") {
+  // Пропускаем /api/health для Docker Healthcheck и /api/auth для аутентификации браузера
+  if (path.startsWith("/api") && path !== "/api/health" && !path.startsWith("/api/auth")) {
     const apiKey = request.nextUrl.searchParams.get("apiKey");
     const validKey = process.env.API_SECRET_KEY;
     
@@ -46,10 +46,7 @@ export async function middleware(request: NextRequest) {
     if (refreshToken) {
       const url = new URL("/api/auth/refresh", request.url);
       url.searchParams.set("redirect", path);
-      // Append API Key for internal redirect to API
-      if (process.env.API_SECRET_KEY) {
-        url.searchParams.set("apiKey", process.env.API_SECRET_KEY);
-      }
+      // Removed appending apiKey to prevent exposure in URL
       return NextResponse.redirect(url);
     }
 
@@ -126,9 +123,7 @@ export async function middleware(request: NextRequest) {
           if (refreshToken) {
             const url = new URL("/api/auth/refresh", request.url);
             url.searchParams.set("redirect", path);
-            if (process.env.API_SECRET_KEY) {
-              url.searchParams.set("apiKey", process.env.API_SECRET_KEY);
-            }
+            // Removed appending apiKey to prevent exposure in URL
             return NextResponse.redirect(url);
           }
           const url = new URL("/login", request.url);
@@ -143,9 +138,7 @@ export async function middleware(request: NextRequest) {
         if (refreshToken) {
           const url = new URL("/api/auth/refresh", request.url);
           url.searchParams.set("redirect", path);
-          if (process.env.API_SECRET_KEY) {
-            url.searchParams.set("apiKey", process.env.API_SECRET_KEY);
-          }
+          // Removed appending apiKey to prevent exposure in URL
           return NextResponse.redirect(url);
         }
         const url = new URL("/login", request.url);
@@ -177,4 +170,3 @@ export const config = {
     "/((?!_next/static|_next/image|favicon.ico).*)",
   ],
 };
-
