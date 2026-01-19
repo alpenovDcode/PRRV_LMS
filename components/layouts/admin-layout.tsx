@@ -18,6 +18,7 @@ import {
   Inbox,
   BarChart,
   AlertTriangle,
+  TrendingUp,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -29,6 +30,7 @@ const adminNavigation = [
   { name: "Входящие ДЗ", href: "/admin/homework", icon: Inbox },
   { name: "Уведомления", href: "/admin/notifications", icon: Bell },
   { name: "Аналитика", href: "/admin/analytics", icon: BarChart },
+  { name: "Детальная аналитика", href: "/admin/analytics/detailed", icon: TrendingUp },
   { name: "Мониторинг", href: "/admin/monitoring/errors", icon: AlertTriangle },
   { name: "Настройки", href: "/admin/settings", icon: Settings },
 ];

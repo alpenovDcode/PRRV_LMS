@@ -29,7 +29,7 @@ interface CalendarEvent {
   id: string;
   title: string;
   date: string;
-  type: "lesson_open";
+  type: "lesson_open" | "deadline_homework" | "deadline_soft" | "deadline_hard";
   courseTitle: string;
   lessonId: string;
   slug: string;
@@ -69,6 +69,36 @@ export default function CalendarPage() {
   };
 
   const selectedDayEvents = getEventsForDay(selectedDate);
+
+  const getEventColor = (type: CalendarEvent["type"]) => {
+    switch (type) {
+      case "lesson_open": return "bg-blue-500";
+      case "deadline_homework": return "bg-purple-500";
+      case "deadline_soft": return "bg-orange-500";
+      case "deadline_hard": return "bg-red-500";
+      default: return "bg-gray-500";
+    }
+  };
+
+  const getEventLabel = (type: CalendarEvent["type"]) => {
+    switch (type) {
+      case "lesson_open": return "Открытие урока";
+      case "deadline_homework": return "Дедлайн ДЗ";
+      case "deadline_soft": return "Мягкий дедлайн";
+      case "deadline_hard": return "Жесткий дедлайн";
+      default: return "Событие";
+    }
+  };
+  
+  const getBadgeVariant = (type: CalendarEvent["type"]) => {
+      switch (type) {
+      case "lesson_open": return "bg-blue-100 text-blue-700 hover:bg-blue-200";
+      case "deadline_homework": return "bg-purple-100 text-purple-700 hover:bg-purple-200";
+      case "deadline_soft": return "bg-orange-100 text-orange-700 hover:bg-orange-200";
+      case "deadline_hard": return "bg-red-100 text-red-700 hover:bg-red-200";
+      default: return "bg-gray-100 text-gray-700 hover:bg-gray-200";
+    }
+  };
 
   return (
     <div className="container mx-auto max-w-6xl px-4 py-8 space-y-6">
@@ -136,7 +166,7 @@ export default function CalendarPage() {
                       {dayEvents.slice(0, 3).map((event) => (
                         <div 
                           key={event.id} 
-                          className="w-full h-1.5 rounded-full bg-blue-500"
+                          className={`w-full h-1.5 rounded-full ${getEventColor(event.type)}`}
                           title={event.title}
                         />
                       ))}
@@ -177,8 +207,8 @@ export default function CalendarPage() {
                   >
                     <div className="rounded-lg border border-gray-200 p-3 hover:bg-gray-50 transition-colors hover:border-blue-300">
                       <div className="flex items-start justify-between mb-1">
-                        <Badge variant="secondary" className="bg-blue-100 text-blue-700 hover:bg-blue-200">
-                          Открытие урока
+                        <Badge variant="secondary" className={getBadgeVariant(event.type)}>
+                          {getEventLabel(event.type)}
                         </Badge>
                         <span className="text-xs text-gray-500">
                           {format(parseISO(event.date), "HH:mm")}
