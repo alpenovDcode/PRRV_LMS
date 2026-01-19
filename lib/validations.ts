@@ -26,7 +26,7 @@ export const courseSchema = z.object({
 
 export const lessonSchema = z.object({
   title: z.string().min(1, "Название урока обязательно"),
-  type: z.enum(["video", "text", "quiz"]),
+  type: z.enum(["video", "text", "quiz", "track_definition"]),
   content: z.any().optional(),
   videoId: z.string().optional(),
   isFree: z.boolean().default(false),
@@ -83,7 +83,7 @@ export const adminModuleUpdateSchema = z.object({
 export const adminLessonCreateSchema = z.object({
   moduleId: z.string().min(1, "moduleId обязателен"),
   title: z.string().min(1, "Название урока обязательно"),
-  type: z.enum(["video", "text", "quiz"]).optional(),
+  type: z.enum(["video", "text", "quiz", "track_definition"]).optional(),
 });
 
 export const curatorHomeworkReviewSchema = z.object({

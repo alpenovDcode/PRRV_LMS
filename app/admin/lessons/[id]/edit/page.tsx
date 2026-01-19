@@ -35,6 +35,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import { getCloudflareImageUrl } from "@/lib/cloudflare-images";
+import { LessonContentPlayer } from "@/components/learn/lesson-content-player";
 
 interface LessonDetail {
   id: string;

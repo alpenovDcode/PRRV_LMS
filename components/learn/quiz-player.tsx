@@ -32,6 +32,7 @@ interface QuizContent {
 interface QuizPlayerProps {
   lessonId: string;
   content: any;
+  isPreview?: boolean;
 }
 
 interface QuizAttempt {
@@ -53,7 +54,7 @@ interface QuizStatus {
   activeAttempt?: QuizAttempt;
 }
 
-export function QuizPlayer({ lessonId, content }: QuizPlayerProps) {
+export function QuizPlayer({ lessonId, content, isPreview = false }: QuizPlayerProps) {
   const queryClient = useQueryClient();
   const [activeAttempt, setActiveAttempt] = useState<QuizAttempt | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -63,9 +64,17 @@ export function QuizPlayer({ lessonId, content }: QuizPlayerProps) {
   const quizContent = content as QuizContent;
   const questions = quizContent?.questions || [];
 
-  // Start quiz mutation
   const startQuizMutation = useMutation({
     mutationFn: async () => {
+      if (isPreview) {
+        // Mock start for preview
+        return {
+          id: "preview-attempt",
+          attemptNumber: 1,
+          startedAt: new Date().toISOString(),
+          answers: {},
+        };
+      }
       const response = await apiClient.post(`/lessons/${lessonId}/quiz`);
       return response.data.data;
     },
@@ -84,6 +93,7 @@ export function QuizPlayer({ lessonId, content }: QuizPlayerProps) {
   const { data: status, isLoading: statusLoading } = useQuery<QuizStatus>({
     queryKey: ["quiz-status", lessonId],
     queryFn: async () => {
+      if (isPreview) return { canStart: true };
       const response = await apiClient.get(`/lessons/${lessonId}/quiz`);
       return response.data.data;
     },
@@ -107,6 +117,15 @@ export function QuizPlayer({ lessonId, content }: QuizPlayerProps) {
   const submitQuizMutation = useMutation({
     mutationFn: async () => {
       if (!activeAttempt) return;
+      if (isPreview) {
+        // Mock submit for preview
+        return {
+           submittedAt: new Date().toISOString(),
+           score: 100,
+           isPassed: true,
+           requiresReview: false
+        }
+      }
       const response = await apiClient.patch(`/lessons/${lessonId}/quiz`, {
         attemptId: activeAttempt.id,
         answers,

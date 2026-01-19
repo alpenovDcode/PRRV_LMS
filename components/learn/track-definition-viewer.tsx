@@ -81,9 +81,10 @@ const QUESTIONS: Question[] = [
 interface TrackDefinitionViewerProps {
   lessonId: string;
   isCompleted?: boolean;
+  isPreview?: boolean;
 }
 
-export function TrackDefinitionViewer({ lessonId, isCompleted }: TrackDefinitionViewerProps) {
+export function TrackDefinitionViewer({ lessonId, isCompleted, isPreview = false }: TrackDefinitionViewerProps) {
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [result, setResult] = useState<{ track: string | number | null; message: string } | null>(null);
   const queryClient = useQueryClient();
@@ -94,6 +95,11 @@ export function TrackDefinitionViewer({ lessonId, isCompleted }: TrackDefinition
 
   const submitMutation = useMutation({
     mutationFn: async (payload: { answers: number[] }) => {
+      if (isPreview) {
+        // Mock result
+        await new Promise(r => setTimeout(r, 1000));
+        return { track: "PRO", message: "Ваш рекомендованный трек: PRO (Preview Mode)" };
+      }
       const response = await apiClient.post(`/lessons/${lessonId}/track-submit`, payload);
       return response.data;
     },
