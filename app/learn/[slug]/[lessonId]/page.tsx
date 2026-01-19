@@ -462,7 +462,7 @@ export default function LessonPlayerPage() {
               <span className="text-gray-900 font-medium truncate flex-1">{lesson.title}</span>
             </div>
 
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-4 sm:mb-6">{lesson.title}</h1>
+
 
             {/* Content Player */}
             <LessonContentPlayer 
