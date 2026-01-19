@@ -42,24 +42,25 @@ export async function middleware(request: NextRequest) {
   if (!token && !isPublicRoute) {
     const refreshToken = request.cookies.get("refreshToken")?.value;
     
-    // Если есть refreshToken, пробуем обновить сессию
+    // Base URL determination
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://prrv.tech";
+
     // Если есть refreshToken, пробуем обновить сессию
     if (refreshToken) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/api/auth/refresh";
+      const url = new URL("/api/auth/refresh", appUrl);
       url.searchParams.set("redirect", path);
       // Removed appending apiKey to prevent exposure in URL
       return NextResponse.redirect(url);
     }
 
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
+    const url = new URL("/login", appUrl);
     url.searchParams.set("redirect", path);
     return NextResponse.redirect(url);
   }
 
   // Если есть токен, проверяем роль и строго контролируем доступ
   if (token) {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://prrv.tech";
     try {
       const payload = await verifyAccessTokenEdge(token);
       if (payload) {
@@ -70,15 +71,9 @@ export async function middleware(request: NextRequest) {
             // Проверяем, есть ли активная сессия impersonation
             const originalAdminToken = request.cookies.get("originalAdminToken")?.value;
             if (originalAdminToken) {
-              // Если есть originalAdminToken, редиректим на страницу восстановления
-              // которая автоматически восстановит аккаунт и перенаправит на /admin
-              const url = request.nextUrl.clone();
-              url.pathname = "/admin/restore";
-              return NextResponse.redirect(url);
+              return NextResponse.redirect(new URL("/admin/restore", appUrl));
             }
-            const url = request.nextUrl.clone();
-            url.pathname = "/no-access";
-            return NextResponse.redirect(url);
+            return NextResponse.redirect(new URL("/no-access", appUrl));
           }
         }
 
@@ -86,55 +81,39 @@ export async function middleware(request: NextRequest) {
         if (path.startsWith("/dashboard") || path === "/dashboard") {
           // Куратор на /dashboard -> редирект на /curator/inbox (ПЕРЕД проверкой прав)
           if (payload.role === "curator") {
-            const url = request.nextUrl.clone();
-            url.pathname = "/curator/inbox";
-            return NextResponse.redirect(url);
+            return NextResponse.redirect(new URL("/curator/inbox", appUrl));
           }
 
           if (payload.role !== "admin" && payload.role !== "student") {
-            const url = request.nextUrl.clone();
-            url.pathname = "/no-access";
-            return NextResponse.redirect(url);
+            return NextResponse.redirect(new URL("/no-access", appUrl));
           }
           // Администратор на /dashboard -> редирект на /admin
           // НО только если нет активной impersonation сессии
           const originalAdminToken = request.cookies.get("originalAdminToken")?.value;
           if (payload.role === "admin" && !originalAdminToken) {
-            const url = request.nextUrl.clone();
-            url.pathname = "/admin";
-            return NextResponse.redirect(url);
+            return NextResponse.redirect(new URL("/admin", appUrl));
           }
         }
 
         // СТРОГАЯ ПРОВЕРКА: /curator - только для админов и кураторов
         if (path.startsWith("/curator")) {
           if (payload.role !== "curator" && payload.role !== "admin") {
-            const url = request.nextUrl.clone();
-            url.pathname = "/no-access";
-            return NextResponse.redirect(url);
+            return NextResponse.redirect(new URL("/no-access", appUrl));
           }
           // Куратор на /dashboard -> редирект на /curator/inbox
           if (payload.role === "curator" && path === "/dashboard") {
-            const url = request.nextUrl.clone();
-            url.pathname = "/curator/inbox";
-            return NextResponse.redirect(url);
+            return NextResponse.redirect(new URL("/curator/inbox", appUrl));
           }
         }
 
         // Редиректы для удобства навигации с главной страницы
         if (path === "/") {
           if (payload.role === "admin") {
-            const url = request.nextUrl.clone();
-            url.pathname = "/admin";
-            return NextResponse.redirect(url);
+            return NextResponse.redirect(new URL("/admin", appUrl));
           } else if (payload.role === "curator") {
-            const url = request.nextUrl.clone();
-            url.pathname = "/curator/inbox";
-            return NextResponse.redirect(url);
+            return NextResponse.redirect(new URL("/curator/inbox", appUrl));
           } else if (payload.role === "student") {
-            const url = request.nextUrl.clone();
-            url.pathname = "/dashboard";
-            return NextResponse.redirect(url);
+            return NextResponse.redirect(new URL("/dashboard", appUrl));
           }
         }
         
@@ -144,14 +123,11 @@ export async function middleware(request: NextRequest) {
         if (!isPublicRoute) {
           const refreshToken = request.cookies.get("refreshToken")?.value;
           if (refreshToken) {
-            const url = request.nextUrl.clone();
-            url.pathname = "/api/auth/refresh";
+            const url = new URL("/api/auth/refresh", appUrl);
             url.searchParams.set("redirect", path);
-            // Removed appending apiKey to prevent exposure in URL
             return NextResponse.redirect(url);
           }
-          const url = request.nextUrl.clone();
-          url.pathname = "/login";
+          const url = new URL("/login", appUrl);
           url.searchParams.set("redirect", path);
           return NextResponse.redirect(url);
         }
@@ -159,16 +135,14 @@ export async function middleware(request: NextRequest) {
     } catch {
       // Если токен невалидный, редирект на логин
       if (!isPublicRoute) {
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://prrv.tech";
         const refreshToken = request.cookies.get("refreshToken")?.value;
         if (refreshToken) {
-          const url = request.nextUrl.clone();
-          url.pathname = "/api/auth/refresh";
+          const url = new URL("/api/auth/refresh", appUrl);
           url.searchParams.set("redirect", path);
-          // Removed appending apiKey to prevent exposure in URL
           return NextResponse.redirect(url);
         }
-        const url = request.nextUrl.clone();
-        url.pathname = "/login";
+        const url = new URL("/login", appUrl);
         url.searchParams.set("redirect", path);
         return NextResponse.redirect(url);
       }
