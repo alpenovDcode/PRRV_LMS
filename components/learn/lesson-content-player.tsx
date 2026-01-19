@@ -22,6 +22,11 @@ interface LessonContentPlayerProps {
     content: any;
     videoId?: string | null;
     videoDuration?: number | null;
+    thumbnailUrl?: string | null;
+    isFree?: boolean;
+    isStopLesson?: boolean;
+    dripRule?: any;
+    settings?: any;
     progress?: {
       status: string;
       watchedTime: number;

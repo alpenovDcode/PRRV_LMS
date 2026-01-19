@@ -1258,156 +1258,28 @@ export default function LessonEditorPage() {
                 Как урок будет выглядеть для студентов
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <h3 className="text-lg font-semibold text-gray-900">{title || "Название урока"}</h3>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <span>Тип: {type === "video" ? "Видео" : type === "text" ? "Текст" : "Тест"}</span>
-                  {isFree && (
-                    <>
-                      <span>•</span>
-                      <span className="text-green-600">Бесплатный</span>
-                    </>
-                  )}
-                  {isStopLesson && (
-                    <>
-                      <span>•</span>
-                      <span className="text-orange-600">Стоп-урок</span>
-                    </>
-                  )}
-                </div>
+            <CardContent className="p-0 sm:p-6">
+              <div className="border rounded-lg overflow-hidden bg-white">
+                <LessonContentPlayer
+                  lesson={{
+                    id: lessonId,
+                    title: title,
+                    type: type,
+                    content: type === "video" ? { ...content, videos } : content,
+                    videoId: videos[0]?.videoId || null,
+                    videoDuration: videos[0]?.duration || 0,
+                    thumbnailUrl: thumbnailUrl,
+                    isFree: isFree,
+                    isStopLesson: isStopLesson,
+                    dripRule: dripRule,
+                    settings: {
+                        ...settings,
+                        homeworkDeadline: homeworkDeadline ? new Date(homeworkDeadline).toISOString() : undefined,
+                    }
+                  }}
+                  isPreview={true}
+                />
               </div>
-
-              {type === "video" && videos.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-sm text-gray-600">Видео ({videos.length}):</p>
-                  {videos.map((video, idx) => (
-                    <div key={idx} className="bg-gray-100 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-2">
-                         <span className="font-medium text-sm">Видео {idx + 1}</span>
-                         {video.title && <span className="text-xs text-gray-500">{video.title}</span>}
-                      </div>
-                      <p className="font-mono text-sm mb-1">ID: {video.videoId || "Не указан"}</p>
-                      {video.duration > 0 && (
-                        <p className="text-sm text-gray-600">
-                          Длительность: {Math.floor(video.duration / 60)}:{(video.duration % 60).toString().padStart(2, "0")}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {type === "text" && content?.markdown && (
-                <div className="prose prose-sm max-w-none border border-gray-200 rounded-lg p-4">
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm, remarkBreaks]}
-                    components={{
-                      img: ({ node, src, alt, ...props }) => {
-                        // Check if image uses Cloudflare Images syntax
-                        if (src?.startsWith('cloudflare:')) {
-                          const imageId = src.replace('cloudflare:', '');
-                          const imageUrl = getCloudflareImageUrl(imageId);
-                          return (
-                            <img
-                              src={imageUrl}
-                              alt={alt || 'Изображение урока'}
-                              className="rounded-lg my-4 max-w-full h-auto"
-                              loading="lazy"
-                              {...props}
-                            />
-                          );
-                        }
-                        // Regular image
-                        return <img src={src} alt={alt} className="rounded-lg my-4 max-w-full h-auto" loading="lazy" {...props} />;
-                      },
-                    }}
-                  >
-                    {content.markdown}
-                  </ReactMarkdown>
-                </div>
-              )}
-
-              {content?.description && (
-                <div className="border border-gray-200 rounded-lg p-4">
-                  <p className="text-sm font-medium text-gray-700 mb-2">Описание:</p>
-                  <p className="text-sm text-gray-600">{content.description}</p>
-                </div>
-              )}
-
-              {content?.whatYoullLearn && Array.isArray(content.whatYoullLearn) && (
-                <div className="border border-gray-200 rounded-lg p-4">
-                  <p className="text-sm font-medium text-gray-700 mb-2">Что вы узнаете:</p>
-                  <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
-                    {content.whatYoullLearn.map((item: string, idx: number) => (
-                      <li key={idx}>{item}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {content?.homework && (
-                <div className="border border-gray-200 rounded-lg p-4 bg-blue-50">
-                  <p className="text-sm font-medium text-blue-900 mb-2">Домашнее задание:</p>
-                  <p className="text-sm text-blue-800 whitespace-pre-wrap">{content.homework}</p>
-                </div>
-              )}
-
-              {dripRule && (
-                <div className="border border-gray-200 rounded-lg p-4 bg-yellow-50">
-                  <p className="text-sm font-medium text-yellow-900 mb-2">Расписание:</p>
-                  <p className="text-sm text-yellow-800">
-                    {dripRule.type === "after_start"
-                      ? `Откроется через ${dripRule.days} дней после старта курса`
-                      : dripRule.type === "on_date"
-                        ? `Откроется ${new Date(dripRule.date).toLocaleDateString("ru-RU")}`
-                        : "Сразу после старта"}
-                  </p>
-                </div>
-              )}
-
-              {homeworkDeadline && (
-                <div className="border border-gray-200 rounded-lg p-4 bg-red-50">
-                  <p className="text-sm font-medium text-red-900 mb-2">Дедлайн ДЗ:</p>
-                  <p className="text-sm text-red-800">
-                    {new Date(homeworkDeadline).toLocaleString("ru-RU")}
-                  </p>
-                </div>
-              )}
-
-              {type === "quiz" && content?.questions && content.questions.length > 0 && (
-                <div className="border border-gray-200 rounded-lg p-4 bg-purple-50">
-                  <p className="text-sm font-medium text-purple-900 mb-4">
-                    Тест ({content.questions.length} вопросов):
-                  </p>
-                  <div className="space-y-4">
-                    {content.questions.map((question: any, idx: number) => (
-                      <div key={idx} className="bg-white rounded-lg p-4 border border-purple-200">
-                        <p className="text-sm font-medium text-gray-900 mb-2">
-                          {idx + 1}. {question.text || "Без текста"}
-                        </p>
-                        <div className="space-y-2">
-                          {question.options?.map((option: string, optIdx: number) => (
-                            <div
-                              key={optIdx}
-                              className={`text-sm p-2 rounded ${
-                                question.correct === optIdx
-                                  ? "bg-green-100 text-green-800 border border-green-300"
-                                  : "bg-gray-50 text-gray-700"
-                              }`}
-                            >
-                              {optIdx + 1}. {option}
-                              {question.correct === optIdx && (
-                                <span className="ml-2 text-xs font-medium">✓ Правильный ответ</span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </CardContent>
           </Card>
         </TabsContent>

@@ -150,7 +150,7 @@ export async function PATCH(
             success: false,
             error: {
               code: "INTERNAL_ERROR",
-              message: "Не удалось обновить урок",
+              message: error instanceof Error ? error.message : "Не удалось обновить урок",
             },
           },
           { status: 500 }
