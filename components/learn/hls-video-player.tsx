@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Hls from "hls.js";
 import { Loader2 } from "lucide-react";
+import { apiClient } from "@/lib/api-client";
 
 interface HLSVideoPlayerProps {
   videoId: string;
@@ -37,19 +38,13 @@ export function HLSVideoPlayer({
   useEffect(() => {
     async function generateToken() {
       try {
-        const response = await fetch("/api/video/token", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ videoId, lessonId }),
+        const response = await apiClient.post("/video/token", {
+          videoId,
+          lessonId,
         });
 
-        if (!response.ok) {
-          throw new Error("Failed to generate video token");
-        }
-
-        const data = await response.json();
-        setToken(data.data.token);
-      } catch (err) {
+        setToken(response.data.data.token);
+      } catch (err: any) {
         console.error("Token generation error:", err);
         setError("Не удалось получить доступ к видео");
         setIsLoading(false);
