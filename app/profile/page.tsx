@@ -325,6 +325,30 @@ export default function ProfilePage() {
                         )}
                       />
 
+                      {/* Track Information */}
+                      {user?.track && (
+                        <div className="space-y-2">
+                          <Label className="text-gray-700">Ваш трек обучения</Label>
+                          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border-2 border-blue-200">
+                            <div className="flex items-center gap-3">
+                              <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-lg font-semibold text-blue-700">
+                                  {user.track}
+                                </p>
+                                <p className="text-xs text-gray-600 mt-0.5">
+                                  Определен на основе ваших ответов
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       <div className="flex items-center justify-between pt-4">
                          <div className="text-sm text-gray-500 flex items-center gap-2">
                             <Calendar className="h-4 w-4" />
