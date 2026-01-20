@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Save, FileText, Video, HelpCircle, Plus, Trash2, GripVertical, Image, Check, ChevronsUpDown, Search } from "lucide-react";
+import { ArrowLeft, Save, FileText, Video, CircleHelp, Plus, Trash, GripVertical, Image, Check, ChevronsUpDown, Search } from "lucide-react";
 import {
   Command,
   CommandEmpty,
@@ -151,9 +151,16 @@ export default function LessonEditorPage() {
       setDripRule(lesson.dripRule);
       setSettings(lesson.settings || {});
       setHomeworkDeadline(
-        lesson.settings?.homeworkDeadline
-          ? new Date(lesson.settings.homeworkDeadline).toISOString().slice(0, 16)
-          : ""
+        (function() {
+          try {
+            return lesson.settings?.homeworkDeadline
+              ? new Date(lesson.settings.homeworkDeadline).toISOString().slice(0, 16)
+              : "";
+          } catch (e) {
+            console.error("Invalid homework deadline date:", lesson.settings?.homeworkDeadline);
+            return "";
+          }
+        })()
       );
     }
   }, [lesson]);
@@ -348,7 +355,7 @@ export default function LessonEditorPage() {
                     </SelectItem>
                     <SelectItem value="quiz">
                       <div className="flex items-center gap-2">
-                        <HelpCircle className="h-4 w-4" />
+                        <CircleHelp className="h-4 w-4" />
                         Тест
                       </div>
                     </SelectItem>
@@ -441,7 +448,7 @@ export default function LessonEditorPage() {
                                 }}
                                 className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0"
                               >
-                                <Trash2 className="h-4 w-4" />
+                                <Trash className="h-4 w-4" />
                               </Button>
                             </div>
 
@@ -758,7 +765,7 @@ export default function LessonEditorPage() {
               <CardContent className="space-y-6">
                 {(!content?.questions || content.questions.length === 0) ? (
                   <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-lg">
-                    <HelpCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <CircleHelp className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                     <p className="text-gray-600 mb-4">Тест пока не содержит вопросов</p>
                     <Button
                       type="button"
@@ -802,7 +809,7 @@ export default function LessonEditorPage() {
                               }}
                               className="text-red-600 hover:text-red-700 hover:bg-red-50"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash className="h-4 w-4" />
                             </Button>
                           </div>
 
@@ -904,7 +911,7 @@ export default function LessonEditorPage() {
                                     }}
                                     className="text-red-600 hover:text-red-700 hover:bg-red-50"
                                   >
-                                    <Trash2 className="h-4 w-4" />
+                                    <Trash className="h-4 w-4" />
                                   </Button>
                                 )}
                               </div>
@@ -1001,7 +1008,7 @@ export default function LessonEditorPage() {
                               }}
                               className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash className="h-4 w-4" />
                             </Button>
                           </div>
 

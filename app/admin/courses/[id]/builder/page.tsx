@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Trash2, Edit2, ChevronUp, ChevronDown, GripVertical, Save, X, Play, FileText, HelpCircle, CornerDownRight, Lock } from "lucide-react";
+import { Plus, Trash, Pencil, ChevronUp, ChevronDown, GripVertical, Save, X, Play, FileText, CircleHelp, CornerDownRight, Lock } from "lucide-react";
 import { useState, useMemo } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -520,7 +520,7 @@ export default function CourseBuilderPage() {
                       onClick={() => startEditModule(module)}
                       className="text-gray-600 hover:text-gray-900"
                     >
-                      <Edit2 className="h-4 w-4" />
+                      <Pencil className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="ghost"
@@ -555,7 +555,7 @@ export default function CourseBuilderPage() {
                       }}
                       className="text-red-600 hover:text-red-700"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash className="h-4 w-4" />
                     </Button>
                   </div>
                 </>
@@ -583,7 +583,7 @@ export default function CourseBuilderPage() {
                 const typeIcons = {
                   video: Play,
                   text: FileText,
-                  quiz: HelpCircle,
+                  quiz: CircleHelp,
                 };
                 const TypeIcon = typeIcons[lesson.type];
 
@@ -668,7 +668,7 @@ export default function CourseBuilderPage() {
                             className="text-gray-600 hover:text-gray-900"
                             title="Редактировать название и тип"
                           >
-                            <Edit2 className="h-4 w-4" />
+                            <Pencil className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="ghost"
@@ -710,7 +710,7 @@ export default function CourseBuilderPage() {
                             }}
                             className="text-red-600 hover:text-red-700"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash className="h-4 w-4" />
                           </Button>
                         </div>
                       </>

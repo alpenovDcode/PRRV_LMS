@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { CheckCircle2, AlertCircle } from "lucide-react";
+import { CircleCheck, CircleAlert } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
@@ -130,7 +130,7 @@ export function TrackDefinitionViewer({ lessonId, isCompleted, isPreview = false
       <Card className="max-w-3xl mx-auto border-blue-100 shadow-lg">
         <CardHeader className="text-center pb-2">
           <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
-            <CheckCircle2 className="w-8 h-8 text-blue-600" />
+            <CircleCheck className="w-8 h-8 text-blue-600" />
           </div>
           <CardTitle className="text-2xl">Тест завершен!</CardTitle>
         </CardHeader>
