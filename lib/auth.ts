@@ -43,13 +43,15 @@ export function generateSessionId(): string {
 }
 
 export function generateAccessToken(payload: JWTPayload): string {
-  return jwt.sign(payload, getJwtSecret(), {
+  const { exp, iat, ...cleanPayload } = payload as any;
+  return jwt.sign(cleanPayload, getJwtSecret(), {
     expiresIn: JWT_EXPIRES_IN as string,
   } as jwt.SignOptions);
 }
 
 export function generateRefreshToken(payload: JWTPayload, expiresIn?: string | number): string {
-  return jwt.sign(payload, getJwtRefreshSecret(), {
+  const { exp, iat, ...cleanPayload } = payload as any;
+  return jwt.sign(cleanPayload, getJwtRefreshSecret(), {
     expiresIn: expiresIn || (JWT_REFRESH_EXPIRES_IN as string),
   } as jwt.SignOptions);
 }
