@@ -20,7 +20,7 @@ function validateToken(token: string | null): TokenPayload | null {
     const payload = jwt.verify(token, JWT_SECRET) as TokenPayload;
     return payload;
   } catch (error) {
-    console.error("Token validation error:", error);
+    console.error("Token validation error. Token:", token, "Error:", error);
     return null;
   }
 }
@@ -32,16 +32,21 @@ function rewriteManifestUrls(manifest: string, videoId: string, token: string): 
     'g'
   );
   
-  return manifest.replace(
+  let content = manifest.replace(
     cloudflarePattern,
     `/api/video-proxy/${videoId}/`
-  ).replace(
-    /\.m3u8/g,
-    `.m3u8?token=${token}`
-  ).replace(
-    /\.ts/g,
-    `.ts?token=${token}`
   );
+
+  // Добавляем токен ко всем типам сегментов и плейлистов
+  const extensions = ['.m3u8', '.ts', '.m4s', '.mp4', '.vtt'];
+  
+  extensions.forEach(ext => {
+    // Escaping dot for regex
+    const regex = new RegExp(`\\${ext}`, 'g');
+    content = content.replace(regex, `${ext}?token=${token}`);
+  });
+
+  return content;
 }
 
 export async function GET(
