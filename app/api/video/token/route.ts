@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/api-middleware";
 import { db } from "@/lib/db";
 import { ApiResponse } from "@/types";
+import { UserRole } from "@prisma/client";
 import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.JWT_SECRET!;
@@ -33,38 +34,62 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Проверяем доступ к уроку
-      const lesson = await db.lesson.findUnique({
-        where: { id: lessonId },
-        include: {
-          module: {
-            include: {
-              course: {
-                include: {
-                  enrollments: {
-                    where: {
-                      userId: req.user!.userId,
-                      status: "active",
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-      });
+      // Проверяем роль пользователя
+      const isAdminOrCurator = req.user!.role === UserRole.admin || req.user!.role === UserRole.curator;
 
-      if (!lesson || lesson.module.course.enrollments.length === 0) {
-        return NextResponse.json<ApiResponse>(
-          {
-            success: false,
-            error: {
-              code: "NO_ACCESS",
-              message: "У вас нет доступа к этому уроку",
+      if (isAdminOrCurator) {
+        // Для админов и кураторов просто проверяем существование урока
+        const lessonExists = await db.lesson.findUnique({
+          where: { id: lessonId },
+          select: { id: true },
+        });
+
+        if (!lessonExists) {
+            return NextResponse.json<ApiResponse>(
+            {
+                success: false,
+                error: {
+                code: "NOT_FOUND",
+                message: "Урок не найден",
+                },
             },
-          },
-          { status: 403 }
-        );
+            { status: 404 }
+            );
+        }
+      } else {
+        // Для студентов проверяем наличие активной подписки
+        const lesson = await db.lesson.findUnique({
+            where: { id: lessonId },
+            include: {
+            module: {
+                include: {
+                course: {
+                    include: {
+                    enrollments: {
+                        where: {
+                        userId: req.user!.userId,
+                        status: "active",
+                        },
+                    },
+                    },
+                },
+                },
+            },
+            },
+        });
+
+        if (!lesson || lesson.module.course.enrollments.length === 0) {
+            return NextResponse.json<ApiResponse>(
+            {
+                success: false,
+                error: {
+                code: "NO_ACCESS",
+                message: "У вас нет доступа к этому уроку",
+                },
+            },
+            { status: 403 }
+            );
+        }
       }
 
       // Генерируем JWT токен (живет 2 часа)
