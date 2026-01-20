@@ -100,12 +100,19 @@ export async function GET(
     }
 
     // Формируем URL к Cloudflare
-    const cloudflareUrl = `https://customer-${CUSTOMER_CODE}.cloudflarestream.com/${resourcePath}`;
+    const cloudflareUrl = new URL(`https://customer-${CUSTOMER_CODE}.cloudflarestream.com/${resourcePath}`);
+    
+    // Передаем оригинальные параметры запроса (кроме нашего токена)
+    searchParams.forEach((value, key) => {
+      if (key !== 'token' && key !== 'apiKey') {
+        cloudflareUrl.searchParams.append(key, value);
+      }
+    });
 
-    console.log(`[Video Proxy] Fetching: ${cloudflareUrl}`);
+    console.log(`[Video Proxy] Fetching: ${cloudflareUrl.toString()}`);
 
     // Запрашиваем ресурс у Cloudflare
-    const response = await fetch(cloudflareUrl, {
+    const response = await fetch(cloudflareUrl.toString(), {
       headers: {
         "User-Agent": "Mozilla/5.0",
       },
