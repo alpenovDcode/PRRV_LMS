@@ -36,6 +36,10 @@ export function HLSVideoPlayer({
 
   // Генерация токена
   useEffect(() => {
+    setToken(null); // Сбрасываем старый токен при смене видео
+    setError(null); // Сбрасываем ошибки
+    setIsLoading(true); // Показываем лоадер
+
     async function generateToken() {
       try {
         const response = await apiClient.post("/video/token", {
