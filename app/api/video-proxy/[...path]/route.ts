@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.JWT_SECRET!;
-const CUSTOMER_CODE = process.env.NEXT_PUBLIC_CLOUDFLARE_STREAM_CUSTOMER_CODE!;
+const ENV_CUSTOMER_CODE = process.env.NEXT_PUBLIC_CLOUDFLARE_STREAM_CUSTOMER_CODE!;
+// Remove "customer-" prefix if present to avoid duplication in URL construction
+const CUSTOMER_CODE = ENV_CUSTOMER_CODE.replace(/^customer-/, '');
 
 interface TokenPayload {
   videoId: string;
