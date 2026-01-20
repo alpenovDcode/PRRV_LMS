@@ -15,7 +15,7 @@ import {
 import {
   ChevronLeft,
   ChevronRight,
-  CheckCircle2,
+  CircleCheck,
   Lock,
   Play,
   FileText,
@@ -595,7 +595,7 @@ export default function LessonPlayerPage() {
                         <ul className="space-y-2">
                           {(lesson.content.whatYoullLearn as string[]).map((item, idx) => (
                             <li key={idx} className="flex items-start gap-2 text-sm text-gray-700">
-                              <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                              <CircleCheck className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
                               <span>{item}</span>
                             </li>
                           ))}
@@ -865,7 +865,7 @@ export default function LessonPlayerPage() {
 
             {lesson.progress?.status === "completed" ? (
               <div className="flex items-center gap-2 text-sm text-green-600">
-                <CheckCircle2 className="h-4 w-4" />
+                <CircleCheck className="h-4 w-4" />
                 Урок завершен
               </div>
             ) : (
@@ -884,7 +884,7 @@ export default function LessonPlayerPage() {
                 }}
                 disabled={updateProgressMutation.isPending}
               >
-                <CheckCircle2 className="mr-2 h-4 w-4" />
+                <CircleCheck className="mr-2 h-4 w-4" />
                 Просмотрел
               </Button>
             )}
@@ -1055,7 +1055,7 @@ function ModuleItem({ module, slug, lessonId, setMobileMenuOpen }: any) {
                     }}
                   >
                     {isCompleted ? (
-                      <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
+                      <CircleCheck className="h-4 w-4 text-green-500 flex-shrink-0" />
                     ) : (
                       <Play className="h-4 w-4 flex-shrink-0" />
                     )}

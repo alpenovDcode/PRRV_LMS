@@ -19,7 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { AlertTriangle, Bug, Info, AlertCircle, Eye, Trash2 } from "lucide-react";
+import { TriangleAlert, Bug, Info, CircleAlert, Eye, Trash } from "lucide-react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -37,8 +37,8 @@ interface ErrorGroup {
 }
 
 const severityIcons = {
-  critical: <AlertCircle className="h-4 w-4" />,
-  error: <AlertTriangle className="h-4 w-4" />,
+  critical: <CircleAlert className="h-4 w-4" />,
+  error: <TriangleAlert className="h-4 w-4" />,
   warning: <Bug className="h-4 w-4" />,
   info: <Info className="h-4 w-4" />,
 };
@@ -266,7 +266,7 @@ export default function ErrorsPage() {
                         variant="outline"
                         onClick={() => deleteError(error.id)}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash className="h-4 w-4" />
                       </Button>
                     </div>
                   </TableCell>

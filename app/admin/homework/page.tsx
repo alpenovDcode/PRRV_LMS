@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CheckCircle2, Clock, Filter, Search, User } from "lucide-react";
+import { CircleCheck, Clock, Filter, Search, User } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -146,7 +146,7 @@ export default function AdminHomeworkPage() {
               </div>
             ) : filtered.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
-                <CheckCircle2 className="h-10 w-10 mb-3" />
+                <CircleCheck className="h-10 w-10 mb-3" />
                 <p className="font-medium">Нет заданий по текущим фильтрам</p>
                 <p className="text-sm">
                   Попробуйте изменить статус или убрать фильтр поиска.

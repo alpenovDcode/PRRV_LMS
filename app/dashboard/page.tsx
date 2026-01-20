@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { BookOpen, Play, TrendingUp, Award, Clock, ArrowRight, AlertCircle, Calendar } from "lucide-react";
+import { BookOpen, Play, TrendingUp, Award, Clock, ArrowRight, CircleAlert, Calendar } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { Progress } from "@/components/ui/progress";
@@ -442,7 +442,7 @@ export default function DashboardPage() {
                         )}
                       </div>
                       <div className="flex items-center gap-2 text-xs text-gray-600">
-                        <AlertCircle className="h-3 w-3" />
+                        <CircleAlert className="h-3 w-3" />
                         {deadline.status === "overdue" ? (
                           <span className="text-red-600 font-medium">
                             Просрочено на {Math.abs(deadline.daysLeft)} дн.

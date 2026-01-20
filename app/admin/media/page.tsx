@@ -7,7 +7,7 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { FileIcon, Trash2, Copy, Upload, Image as ImageIcon, FileText, Film } from "lucide-react";
+import { FileIcon, Trash, Copy, Upload, Image as ImageIcon, FileText, Film } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
 
@@ -172,7 +172,7 @@ export default function MediaLibraryPage() {
                       }
                     }}
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash className="h-4 w-4" />
                   </Button>
                 </div>
               </CardFooter>

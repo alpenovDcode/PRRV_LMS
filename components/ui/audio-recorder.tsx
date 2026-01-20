@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Mic, Square, Trash2, Play, Pause, Loader2 } from "lucide-react";
+import { Mic, Square, Trash, Play, Pause, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface AudioRecorderProps {
@@ -165,7 +165,7 @@ export function AudioRecorder({ onRecordingComplete, onClear, className }: Audio
             onClick={clearRecording}
             type="button"
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash className="h-4 w-4" />
           </Button>
         </>
       )}

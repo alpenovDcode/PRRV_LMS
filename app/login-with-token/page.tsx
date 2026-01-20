@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, CircleCheck, CircleX } from "lucide-react";
 
 export default function LoginWithTokenPage() {
   const router = useRouter();
@@ -76,14 +76,14 @@ export default function LoginWithTokenPage() {
           
           {status === "success" && (
             <>
-              <CheckCircle2 className="h-12 w-12 text-green-600" />
+              <CircleCheck className="h-12 w-12 text-green-600" />
               <p className="text-sm text-gray-600">{message}</p>
             </>
           )}
           
           {status === "error" && (
             <>
-              <XCircle className="h-12 w-12 text-red-600" />
+              <CircleX className="h-12 w-12 text-red-600" />
               <p className="text-sm text-gray-600">{message}</p>
               <p className="text-xs text-gray-500 mt-2">
                 Возможные причины:

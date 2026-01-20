@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, AlertCircle, CheckCircle2, XCircle, Clock, RotateCcw } from "lucide-react";
+import { Loader2, CircleAlert, CircleCheck, CircleX, Clock, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface QuizQuestion {
@@ -192,11 +192,11 @@ export function QuizPlayer({ lessonId, content, isPreview = false }: QuizPlayerP
         <CardHeader className="text-center pb-2">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
             {activeAttempt.isPassed ? (
-              <CheckCircle2 className="h-10 w-10 text-green-600" />
+              <CircleCheck className="h-10 w-10 text-green-600" />
             ) : activeAttempt.requiresReview ? (
               <Clock className="h-10 w-10 text-blue-600" />
             ) : (
-              <XCircle className="h-10 w-10 text-red-600" />
+              <CircleX className="h-10 w-10 text-red-600" />
             )}
           </div>
           <CardTitle className="text-2xl">

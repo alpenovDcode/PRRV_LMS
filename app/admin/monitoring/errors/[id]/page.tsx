@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { AlertTriangle, Bug, Info, AlertCircle, ArrowLeft, User } from "lucide-react";
+import { TriangleAlert, Bug, Info, CircleAlert, ArrowLeft, User } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -47,8 +47,8 @@ interface ErrorDetails {
 }
 
 const severityIcons = {
-  critical: <AlertCircle className="h-5 w-5" />,
-  error: <AlertTriangle className="h-5 w-5" />,
+  critical: <CircleAlert className="h-5 w-5" />,
+  error: <TriangleAlert className="h-5 w-5" />,
   warning: <Bug className="h-5 w-5" />,
   info: <Info className="h-5 w-5" />,
 };

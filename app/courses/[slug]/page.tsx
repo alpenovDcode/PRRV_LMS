@@ -8,11 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { 
   BookOpen, 
   Play, 
-  CheckCircle2, 
+  CircleCheck, 
   Lock, 
   Clock, 
   ChevronRight,
-  AlertCircle,
+  CircleAlert,
   BarChart,
   CornerDownRight
 } from "lucide-react";
@@ -100,7 +100,7 @@ export default function CourseDetailPage() {
     return (
       <div className="container mx-auto px-4 py-16 flex flex-col items-center justify-center text-center">
         <div className="bg-red-50 p-4 rounded-full mb-4">
-          <AlertCircle className="h-10 w-10 text-red-500" />
+          <CircleAlert className="h-10 w-10 text-red-500" />
         </div>
         <h3 className="text-2xl font-bold text-gray-900 mb-2">Курс не найден</h3>
         <p className="text-gray-600 mb-6 max-w-md">
@@ -142,7 +142,7 @@ export default function CourseDetailPage() {
       <div className="shrink-0">
         {lesson.progress?.status === "completed" ? (
           <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
-            <CheckCircle2 className="h-5 w-5 text-green-600" />
+            <CircleCheck className="h-5 w-5 text-green-600" />
           </div>
         ) : lesson.isAvailable ? (
           <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center group-hover:bg-blue-200 transition-colors">
@@ -326,7 +326,7 @@ export default function CourseDetailPage() {
                 <Card className="border-blue-100 shadow-lg overflow-hidden">
                   <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4">
                     <h3 className="text-white font-semibold flex items-center gap-2">
-                      <CheckCircle2 className="h-5 w-5" />
+                      <CircleCheck className="h-5 w-5" />
                       Вы зачислены
                     </h3>
                   </div>
@@ -361,7 +361,7 @@ export default function CourseDetailPage() {
                       </div>
                     ) : (
                       <div className="text-center py-4">
-                        <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-2" />
+                        <CircleCheck className="h-12 w-12 text-green-500 mx-auto mb-2" />
                         <p className="font-medium text-gray-900">Курс пройден!</p>
                       </div>
                     )}

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, CheckCircle2, X, FileText, User, Clock, Upload, Trash2, Paperclip } from "lucide-react";
+import { ArrowLeft, CircleCheck, X, FileText, User, Clock, Upload, Trash, Paperclip } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -254,7 +254,7 @@ export default function AdminHomeworkReviewPage() {
                 </div>
                 {submission.reviewedAt && (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <CheckCircle2 className="h-4 w-4" />
+                    <CircleCheck className="h-4 w-4" />
                     <span>Проверено: {new Date(submission.reviewedAt).toLocaleString("ru-RU")}</span>
                   </div>
                 )}
@@ -467,7 +467,7 @@ export default function AdminHomeworkReviewPage() {
                   onClick={handleApprove}
                   disabled={reviewMutation.isPending}
                 >
-                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                  <CircleCheck className="mr-2 h-4 w-4" />
                   Принять
                 </Button>
                 <Button

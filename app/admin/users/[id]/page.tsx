@@ -18,7 +18,7 @@ import {
   MessageSquare, 
   ArrowLeft,
   BookOpen,
-  CheckCircle2,
+  CircleCheck,
   LogIn,
   Pencil
 } from "lucide-react";
@@ -679,9 +679,9 @@ export default function AdminUserDetailPage() {
                             activity.type === 'lesson_completed' ? 'bg-green-100 text-green-600' :
                             'bg-purple-100 text-purple-600'
                           }`}>
-                            {activity.type === 'homework' ? <CheckCircle2 className="h-5 w-5" /> :
+                            {activity.type === 'homework' ? <CircleCheck className="h-5 w-5" /> :
                             activity.type === 'comment' ? <MessageSquare className="h-5 w-5" /> :
-                            activity.type === 'lesson_completed' ? <CheckCircle2 className="h-5 w-5" /> :
+                            activity.type === 'lesson_completed' ? <CircleCheck className="h-5 w-5" /> :
                             <LogIn className="h-5 w-5" />}
                           </div>
                           <div>

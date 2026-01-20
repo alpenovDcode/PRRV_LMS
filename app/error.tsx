@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { AlertCircle, Home, RefreshCw } from "lucide-react";
+import { CircleAlert, Home, RefreshCw } from "lucide-react";
 
 export default function Error({
   error,
@@ -22,7 +22,7 @@ export default function Error({
       <Card className="max-w-md w-full text-center">
         <CardContent className="pt-6">
           <div className="space-y-4">
-            <AlertCircle className="h-12 w-12 text-destructive mx-auto" />
+            <CircleAlert className="h-12 w-12 text-destructive mx-auto" />
             <h1 className="text-2xl font-bold">Произошла ошибка</h1>
             <p className="text-muted-foreground">
               Что-то пошло не так. Попробуйте обновить страницу или вернуться на главную.

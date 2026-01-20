@@ -5,7 +5,7 @@ import { apiClient } from "@/lib/api-client";
 import { useState } from "react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek } from "date-fns";
 import { ru } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Clock, AlertCircle, CheckCircle2, Video } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, CircleAlert, CircleCheck, Video } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
@@ -93,9 +93,9 @@ export default function CalendarPage() {
   };
 
   const getEventIcon = (event: CalendarEvent) => {
-    if (event.isCompleted) return <CheckCircle2 className="h-4 w-4" />;
+    if (event.isCompleted) return <CircleCheck className="h-4 w-4" />;
     if (event.type === "homework_deadline" || event.type === "homework_soft_deadline") {
-      return <AlertCircle className="h-4 w-4" />;
+      return <CircleAlert className="h-4 w-4" />;
     }
     if (event.type === "live_webinar" || event.type === "qa_session") {
       return <Video className="h-4 w-4" />;
@@ -266,7 +266,7 @@ export default function CalendarPage() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-3">
-                <AlertCircle className="h-6 w-6" />
+                <CircleAlert className="h-6 w-6" />
                 <div>
                   <p className="text-sm opacity-90">Активных заданий</p>
                   <p className="text-3xl font-bold">{todayEvents.filter(e => !e.isCompleted).length}</p>

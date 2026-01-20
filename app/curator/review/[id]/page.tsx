@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CheckCircle2, XCircle, ArrowLeft, FileDown, MessageSquare } from "lucide-react";
+import { CircleCheck, CircleX, ArrowLeft, FileDown, MessageSquare } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Link from "next/link";
 import { useState } from "react";
@@ -243,7 +243,7 @@ export default function CuratorReviewPage() {
                       onClick={() => handleDecision("approved")}
                       disabled={mutation.isPending || data.status === "approved"}
                     >
-                      <CheckCircle2 className="mr-2 h-4 w-4" />
+                      <CircleCheck className="mr-2 h-4 w-4" />
                       Принять
                     </Button>
                     <Button
@@ -252,7 +252,7 @@ export default function CuratorReviewPage() {
                       onClick={() => handleDecision("rejected")}
                       disabled={mutation.isPending || data.status === "rejected"}
                     >
-                      <XCircle className="mr-2 h-4 w-4" />
+                      <CircleX className="mr-2 h-4 w-4" />
                       Вернуть на доработку
                     </Button>
                   </div>
