@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Очистка кеша для prrv.tech</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2563eb;
+            margin-top: 0;
+        }
+        .step {
+            background: #f0f9ff;
+            border-left: 4px solid #2563eb;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .success {
+            background: #f0fdf4;
+            border-left-color: #059669;
+            color: #059669;
+        }
+        .warning {
+            background: #fffbeb;
+            border-left-color: #f59e0b;
+            color: #92400e;
+        }
+        button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #1d4ed8;
+        }
+        .log {
+            background: #1f2937;
+            color: #10b981;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            margin-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .log div {
+            margin: 5px 0;
+        }
+        code {
+            background: #e5e7eb;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Очистка кеша для prrv.tech</h1>
+        
+        <div class="warning step">
+            <strong>⚠️ Внимание!</strong><br>
+            Эта страница поможет решить проблему с подключением к старому IP адресу (0.0.0.0:3000).
+        </div>
+
+        <div class="step">
+            <h3>Что будет сделано:</h3>
+            <ul>
+                <li>Очистка LocalStorage и SessionStorage</li>
+                <li>Удаление всех cookies для prrv.tech</li>
+                <li>Отмена регистрации Service Workers</li>
+                <li>Очистка IndexedDB</li>
+                <li>Очистка кеша приложения</li>
+            </ul>
+        </div>
+
+        <button onclick="cleanupAll()">🚀 Запустить полную очистку</button>
+        <button onclick="clearCookies()">🍪 Только cookies</button>
+        <button onclick="clearStorage()">💾 Только storage</button>
+        <button onclick="unregisterSW()">⚙️ Только service workers</button>
+
+        <div id="log" class="log" style="display: none;"></div>
+
+        <div class="step" style="margin-top: 30px;">
+            <h3>Ручная очистка (если скрипт не помог):</h3>
+            <ol>
+                <li>
+                    <strong>Chrome/Edge:</strong><br>
+                    Откройте <code>chrome://net-internals/#hsts</code><br>
+                    В разделе "Delete domain security policies" введите <code>prrv.tech</code> и нажмите Delete
+                </li>
+                <li>
+                    <strong>Firefox:</strong><br>
+                    Откройте <code>about:preferences#privacy</code><br>
+                    Cookies and Site Data → Manage Data → Найдите prrv.tech → Remove Selected
+                </li>
+                <li>
+                    <strong>Очистка DNS кеша:</strong><br>
+                    <strong>Windows:</strong> <code>ipconfig /flushdns</code><br>
+                    <strong>Mac:</strong> <code>sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder</code><br>
+                    <strong>Linux:</strong> <code>sudo systemd-resolve --flush-caches</code>
+                </li>
+            </ol>
+        </div>
+
+        <div class="success step" id="finalStep" style="display: none;">
+            <strong>✅ Готово!</strong><br>
+            Теперь закройте ВСЕ вкладки с prrv.tech и откройте сайт заново:<br>
+            <a href="https://prrv.tech" target="_blank" style="color: #059669; font-weight: bold;">https://prrv.tech</a>
+        </div>
+    </div>
+
+    <script>
+        const log = document.getElementById('log');
+        const finalStep = document.getElementById('finalStep');
+
+        function addLog(message, type = 'info') {
+            log.style.display = 'block';
+            const div = document.createElement('div');
+            const timestamp = new Date().toLocaleTimeString();
+            const icon = type === 'success' ? '✓' : type === 'error' ? '✗' : '→';
+            div.innerHTML = `[${timestamp}] ${icon} ${message}`;
+            div.style.color = type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#60a5fa';
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        async function clearStorage() {
+            addLog('Очистка LocalStorage...');
+            try {
+                localStorage.clear();
+                addLog('LocalStorage очищен', 'success');
+            } catch (e) {
+                addLog('Ошибка очистки LocalStorage: ' + e.message, 'error');
+            }
+
+            addLog('Очистка SessionStorage...');
+            try {
+                sessionStorage.clear();
+                addLog('SessionStorage очищен', 'success');
+            } catch (e) {
+                addLog('Ошибка очистки SessionStorage: ' + e.message, 'error');
+            }
+
+            // Clear IndexedDB
+            addLog('Очистка IndexedDB...');
+            try {
+                const databases = await indexedDB.databases();
+                for (const db of databases) {
+                    indexedDB.deleteDatabase(db.name);
+                    addLog(`IndexedDB "${db.name}" удалена`, 'success');
+                }
+            } catch (e) {
+                addLog('Ошибка очистки IndexedDB: ' + e.message, 'error');
+            }
+        }
+
+        function clearCookies() {
+            addLog('Очистка cookies...');
+            const cookies = document.cookie.split(';');
+            let count = 0;
+            
+            for (let cookie of cookies) {
+                const eqPos = cookie.indexOf('=');
+                const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
+                
+                // Delete for current domain
+                document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
+                document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=' + location.hostname;
+                document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=.prrv.tech';
+                document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=prrv.tech';
+                count++;
+            }
+            
+            addLog(`Удалено ${count} cookies`, 'success');
+        }
+
+        async function unregisterSW() {
+            addLog('Отмена регистрации Service Workers...');
+            
+            if ('serviceWorker' in navigator) {
+                try {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    
+                    if (registrations.length === 0) {
+                        addLog('Service Workers не найдены', 'success');
+                        return;
+                    }
+                    
+                    for (let registration of registrations) {
+                        await registration.unregister();
+                        addLog(`Service Worker отменен: ${registration.scope}`, 'success');
+                    }
+                } catch (e) {
+                    addLog('Ошибка отмены Service Workers: ' + e.message, 'error');
+                }
+            } else {
+                addLog('Service Workers не поддерживаются', 'success');
+            }
+        }
+
+        async function clearCache() {
+            addLog('Очистка кеша приложения...');
+            
+            if ('caches' in window) {
+                try {
+                    const cacheNames = await caches.keys();
+                    
+                    if (cacheNames.length === 0) {
+                        addLog('Кеш не найден', 'success');
+                        return;
+                    }
+                    
+                    for (let cacheName of cacheNames) {
+                        await caches.delete(cacheName);
+                        addLog(`Кеш удален: ${cacheName}`, 'success');
+                    }
+                } catch (e) {
+                    addLog('Ошибка очистки кеша: ' + e.message, 'error');
+                }
+            } else {
+                addLog('Cache API не поддерживается', 'success');
+            }
+        }
+
+        async function cleanupAll() {
+            addLog('=== Начало полной очистки ===');
+            
+            await clearStorage();
+            clearCookies();
+            await unregisterSW();
+            await clearCache();
+            
+            addLog('=== Очистка завершена ===', 'success');
+            finalStep.style.display = 'block';
+            
+            addLog('ВАЖНО: Закройте ВСЕ вкладки с prrv.tech и откройте сайт заново!', 'success');
+        }
+
+        // Auto-run on load if query parameter is present
+        if (window.location.search.includes('auto')) {
+            window.addEventListener('load', () => {
+                setTimeout(cleanupAll, 500);
+            });
+        }
+    </script>
+</body>
+</html>

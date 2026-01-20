@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Play, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { QuizPlayer } from "@/components/learn/quiz-player";
-import { CloudflarePlayer } from "@/components/learn/cloudflare-player";
+import { HLSVideoPlayer } from "@/components/learn/hls-video-player";
 import { TrackDefinitionViewer } from "@/components/learn/track-definition-viewer";
 
 interface LessonContentPlayerProps {
@@ -93,8 +93,9 @@ export function LessonContentPlayer({ lesson, onTimeUpdate, onEnded, isPreview =
               <Card className="border-gray-200 shadow-sm overflow-hidden">
                 <CardContent className="p-0">
                   <div className="relative aspect-video bg-black">
-                    <CloudflarePlayer
+                    <HLSVideoPlayer
                       videoId={activeVideo.videoId}
+                      lessonId={lesson.id}
                       posterUrl={`https://${process.env.NEXT_PUBLIC_CLOUDFLARE_STREAM_CUSTOMER_CODE}.cloudflarestream.com/${activeVideo.videoId}/thumbnails/thumbnail.jpg`}
                       initialTime={isPreview ? 0 : (lesson.progress?.watchedTime || 0)}
                       onTimeUpdate={handleTimeUpdate}

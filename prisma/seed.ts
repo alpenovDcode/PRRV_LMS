@@ -17,7 +17,7 @@ async function main() {
     update: {},
     create: {
       email: "prrv_admin@proryv.ru",
-      passwordHash: adminPassword,
+      passwordHash: "adminPassword",
       fullName: "Администратор",
       role: UserRole.admin,
       emailVerified: true,
