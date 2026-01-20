@@ -16,11 +16,14 @@ interface TokenPayload {
 function validateToken(token: string | null): TokenPayload | null {
   if (!token) return null;
 
+  // Если токен содержит лишние параметры (например из-за двойного ?), отрезаем их
+  const cleanToken = token.split('?')[0];
+
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as TokenPayload;
+    const payload = jwt.verify(cleanToken, JWT_SECRET) as TokenPayload;
     return payload;
   } catch (error) {
-    console.error("Token validation error. Token:", token, "Error:", error);
+    console.error("Token validation error. Token:", cleanToken, "Original:", token, "Error:", error);
     return null;
   }
 }
@@ -42,8 +45,25 @@ function rewriteManifestUrls(manifest: string, videoId: string, token: string): 
   
   extensions.forEach(ext => {
     // Escaping dot for regex
-    const regex = new RegExp(`\\${ext}`, 'g');
-    content = content.replace(regex, `${ext}?token=${token}`);
+    // Ищем расширение, за которым следует либо конец строки, либо ? (параметры), либо перевод строки
+    const regex = new RegExp(`\\${ext}(?=[\\?\\n\\r])`, 'g');
+    
+    // Если дальше идет ?, значит параметры уже есть - добавляем токен через &
+    // Если дальше нет ?, значит параметров нет - добавляем через ?
+    
+    // Но так как regex lookahead не захватывает символ, нам нужно хитрее.
+    // Проще сделать две замены:
+    
+    // 1. Если есть параметры (знак вопроса сразу после расширения)
+    // Заменяем .ext? на .ext?token=XXX&
+    const regexWithParams = new RegExp(`\\${ext}\\?`, 'g');
+    content = content.replace(regexWithParams, `${ext}?token=${token}&`);
+    
+    // 2. Если параметров нет (конец строки или white space)
+    // Заменяем .ext(конец) на .ext?token=XXX
+    // Используем негативный lookahead: если за расширением НЕ следует ?token (чтобы не заменить то, что только что заменили)
+    const regexNoParams = new RegExp(`\\${ext}(?!\\?token)`, 'g');
+    content = content.replace(regexNoParams, `${ext}?token=${token}`);
   });
 
   return content;
