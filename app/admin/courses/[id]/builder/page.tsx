@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Trash, Pencil, ChevronUp, ChevronDown, GripVertical, Save, X, Play, FileText, CircleHelp, CornerDownRight, Lock } from "lucide-react";
+import { Plus, Trash, Pencil, ChevronUp, ChevronDown, GripVertical, Save, X, Play, FileText, CircleHelp, CornerDownRight, Lock, Settings } from "lucide-react";
 import { useState, useMemo } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -20,7 +20,7 @@ import Link from "next/link";
 interface AdminLesson {
   id: string;
   title: string;
-  type: "video" | "text" | "quiz";
+  type: "video" | "text" | "quiz" | "track_definition";
   orderIndex: number;
 }
 
@@ -239,7 +239,7 @@ export default function CourseBuilderPage() {
   const [editingLessonId, setEditingLessonId] = useState<string | null>(null);
   const [editingModuleTitle, setEditingModuleTitle] = useState("");
   const [editingLessonTitle, setEditingLessonTitle] = useState("");
-  const [editingLessonType, setEditingLessonType] = useState<"video" | "text" | "quiz">("video");
+  const [editingLessonType, setEditingLessonType] = useState<"video" | "text" | "quiz" | "track_definition">("video");
   
   // Access Settings State
   const [accessSettingsModuleId, setAccessSettingsModuleId] = useState<string | null>(null);
@@ -327,7 +327,7 @@ export default function CourseBuilderPage() {
   });
 
   const createLessonMutation = useMutation({
-    mutationFn: async (payload: { moduleId: string; title: string; type: "video" | "text" | "quiz" }) => {
+    mutationFn: async (payload: { moduleId: string; title: string; type: "video" | "text" | "quiz" | "track_definition" }) => {
       await apiClient.post("/admin/lessons", payload);
     },
     onSuccess: (_, variables) => {
@@ -345,7 +345,7 @@ export default function CourseBuilderPage() {
     }: {
       lessonId: string;
       title?: string;
-      type?: "video" | "text" | "quiz";
+      type?: "video" | "text" | "quiz" | "track_definition";
     }) => {
       await apiClient.patch(`/admin/lessons/${lessonId}`, { title, type });
     },
@@ -584,6 +584,7 @@ export default function CourseBuilderPage() {
                   video: Play,
                   text: FileText,
                   quiz: CircleHelp,
+                  track_definition: Settings,
                 };
                 const TypeIcon = typeIcons[lesson.type];
 
@@ -605,7 +606,7 @@ export default function CourseBuilderPage() {
                         <Select
                           value={editingLessonType}
                           onValueChange={(v) =>
-                            setEditingLessonType(v as "video" | "text" | "quiz")
+                            setEditingLessonType(v as "video" | "text" | "quiz" | "track_definition")
                           }
                         >
                           <SelectTrigger className="w-32 border-gray-300">
@@ -615,6 +616,7 @@ export default function CourseBuilderPage() {
                             <SelectItem value="video">Видео</SelectItem>
                             <SelectItem value="text">Текст</SelectItem>
                             <SelectItem value="quiz">Тест</SelectItem>
+                            <SelectItem value="track_definition">Настройка треков</SelectItem>
                           </SelectContent>
                         </Select>
                         <Button
@@ -646,7 +648,7 @@ export default function CourseBuilderPage() {
                             Урок {lesson.orderIndex + 1}: {lesson.title}
                           </div>
                           <div className="text-xs text-gray-500 mt-0.5">
-                            Тип: {lesson.type === "video" ? "Видео" : lesson.type === "text" ? "Текст" : "Тест"}
+                            Тип: {lesson.type === "video" ? "Видео" : lesson.type === "text" ? "Текст" : lesson.type === "quiz" ? "Тест" : "Настройка треков"}
                           </div>
                         </div>
                         <div className="flex items-center gap-1">
