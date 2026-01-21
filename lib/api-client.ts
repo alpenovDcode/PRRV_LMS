@@ -1,6 +1,9 @@
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from "axios";
 
-const API_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+const isClient = typeof window !== "undefined";
+const API_URL = isClient 
+  ? "" 
+  : (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000");
 
 class ApiClient {
   private client: AxiosInstance;
