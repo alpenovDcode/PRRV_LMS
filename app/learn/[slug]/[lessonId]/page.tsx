@@ -478,24 +478,7 @@ export default function LessonPlayerPage() {
               onEnded={handleEnded}
             />
 
-            {/* Links/Buttons */}
-            {lesson.content?.links && Array.isArray(lesson.content.links) && lesson.content.links.length > 0 && (
-              <div className="flex flex-wrap gap-3 mb-6">
-                {lesson.content.links.map((link: any, idx: number) => (
-                  <Button
-                    key={idx}
-                    asChild
-                    variant="outline"
-                    className="border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800"
-                  >
-                    <a href={link.url} target="_blank" rel="noopener noreferrer">
-                      {link.label}
-                      <ExternalLink className="ml-2 h-4 w-4" />
-                    </a>
-                  </Button>
-                ))}
-              </div>
-            )}
+
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
