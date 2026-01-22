@@ -103,6 +103,10 @@ model Module {
   allowedTariffs UserTariff[] @map("allowed_tariffs")
   allowedTracks  String[]     @map("allowed_tracks")
   allowedGroups  String[]     @map("allowed_groups")
+  openAt         DateTime?    @map("open_at")
+  openAfterAmount Int?        @map("open_after_amount")
+  openAfterUnit  String?      @map("open_after_unit") // 'days', 'weeks'
+  openAfterEvent String?      @map("open_after_event") // 'track_definition'
   createdAt      DateTime     @default(now()) @map("created_at")
   updatedAt      DateTime     @updatedAt @map("updated_at")
   lessons        Lesson[]

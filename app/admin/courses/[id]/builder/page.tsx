@@ -48,16 +48,36 @@ interface AdminModuleWithChildren extends AdminModule {
 }
 
 interface AccessSettingsDialogProps {
-  module: AdminModule;
+  module: AdminModule & {
+    openAt?: string | null;
+    openAfterAmount?: number | null;
+    openAfterUnit?: string | null;
+    openAfterEvent?: string | null;
+  };
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (data: { allowedTariffs: string[]; allowedTracks: string[]; allowedGroups: string[] }) => void;
+  onSave: (data: { 
+    allowedTariffs: string[]; 
+    allowedTracks: string[]; 
+    allowedGroups: string[];
+    openAt: string | null;
+    openAfterAmount: number | null;
+    openAfterUnit: string | null;
+    openAfterEvent: string | null;
+  }) => void;
 }
 
 function AccessSettingsDialog({ module, open, onOpenChange, onSave }: AccessSettingsDialogProps) {
   const [tariffs, setTariffs] = useState<string[]>(module.allowedTariffs || []);
   const [tracks, setTracks] = useState<string[]>(module.allowedTracks || []);
   const [groups, setGroups] = useState<string[]>(module.allowedGroups || []);
+  
+  // New State
+  const [openAt, setOpenAt] = useState<string>(module.openAt ? new Date(module.openAt).toISOString().split('T')[0] : "");
+  const [useRelativeAccess, setUseRelativeAccess] = useState<boolean>(!!module.openAfterEvent);
+  const [openAfterAmount, setOpenAfterAmount] = useState<string>(module.openAfterAmount?.toString() || "");
+  const [openAfterUnit, setOpenAfterUnit] = useState<string>(module.openAfterUnit || "weeks");
+
 
   // Updated track list as per user request
   const availableTracks = [
@@ -85,7 +105,11 @@ function AccessSettingsDialog({ module, open, onOpenChange, onSave }: AccessSett
     onSave({ 
       allowedTariffs: tariffs || [], 
       allowedTracks: tracks || [], 
-      allowedGroups: groups || [] 
+      allowedGroups: groups || [],
+      openAt: openAt ? new Date(openAt).toISOString() : null,
+      openAfterAmount: useRelativeAccess && openAfterAmount ? parseInt(openAfterAmount, 10) : null,
+      openAfterUnit: useRelativeAccess ? openAfterUnit : null,
+      openAfterEvent: useRelativeAccess ? "track_definition_completed" : null,
     });
     onOpenChange(false);
   };
@@ -116,7 +140,7 @@ function AccessSettingsDialog({ module, open, onOpenChange, onSave }: AccessSett
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Настройки доступа: {module.title}</DialogTitle>
           <DialogDescription>
@@ -125,6 +149,88 @@ function AccessSettingsDialog({ module, open, onOpenChange, onSave }: AccessSett
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-6 py-4">
+          
+          {/* Time-based Access */}
+          <div className="space-y-4 border-b border-gray-100 pb-6">
+            <h4 className="font-medium text-gray-900">Время открытия</h4>
+            
+            <div className="grid gap-4">
+              <div className="space-y-2">
+                <Label>Открыть в конкретную дату</Label>
+                <Input 
+                  type="date" 
+                  value={openAt} 
+                  onChange={(e) => {
+                    setOpenAt(e.target.value);
+                    if (e.target.value) setUseRelativeAccess(false);
+                  }}
+                  disabled={useRelativeAccess}
+                />
+                <p className="text-xs text-gray-500">
+                   Все ученики получат доступ одновременно в эту дату.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="h-px flex-1 bg-gray-200"></div>
+                <span className="text-xs text-gray-400 font-medium">ИЛИ</span>
+                <div className="h-px flex-1 bg-gray-200"></div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="relative-access" 
+                    checked={useRelativeAccess}
+                    onCheckedChange={(checked) => {
+                        setUseRelativeAccess(checked === true);
+                        if (checked) setOpenAt("");
+                    }}
+                  />
+                  <label
+                    htmlFor="relative-access"
+                    className="text-sm font-medium leading-none cursor-pointer"
+                  >
+                    Автоматически после определения трека
+                  </label>
+                </div>
+
+                {useRelativeAccess && (
+                  <div className="pl-6 space-y-3 animate-in slide-in-from-top-2">
+                    <div className="flex items-end gap-3">
+                         <div className="space-y-1 w-24">
+                            <Label className="text-xs">Через</Label>
+                            <Input 
+                                type="number" 
+                                min="0"
+                                value={openAfterAmount}
+                                onChange={(e) => setOpenAfterAmount(e.target.value)}
+                                placeholder="1"
+                            />
+                         </div>
+                         <div className="space-y-1 w-32">
+                            <Label className="text-xs">Единица</Label>
+                            <Select value={openAfterUnit} onValueChange={setOpenAfterUnit}>
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="days">Дней</SelectItem>
+                                    <SelectItem value="weeks">Недель</SelectItem>
+                                    <SelectItem value="months">Месяцев</SelectItem>
+                                </SelectContent>
+                            </Select>
+                         </div>
+                    </div>
+                    <p className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
+                        Модуль откроется индивидуально для каждого ученика через указанное время после прохождения урока "Определение трека".
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* Tariffs */}
           <div className="space-y-2">
             <Label>Тарифы</Label>
@@ -265,13 +371,27 @@ export default function CourseBuilderPage() {
   });
 
   const updateModuleMutation = useMutation({
-    mutationFn: async ({ moduleId, title, allowedTariffs, allowedTracks, allowedGroups }: { moduleId: string; title?: string; allowedTariffs?: string[]; allowedTracks?: string[]; allowedGroups?: string[] }) => {
+    mutationFn: async ({ moduleId, title, allowedTariffs, allowedTracks, allowedGroups, openAt, openAfterAmount, openAfterUnit, openAfterEvent }: { 
+      moduleId: string; 
+      title?: string; 
+      allowedTariffs?: string[]; 
+      allowedTracks?: string[]; 
+      allowedGroups?: string[];
+      openAt?: string | null;
+      openAfterAmount?: number | null;
+      openAfterUnit?: string | null;
+      openAfterEvent?: string | null;
+    }) => {
       // Ensure we send arrays, never undefined/null
       const payload = {
         title,
         allowedTariffs: allowedTariffs || [],
         allowedTracks: allowedTracks || [],
-        allowedGroups: allowedGroups || []
+        allowedGroups: allowedGroups || [],
+        openAt,
+        openAfterAmount,
+        openAfterUnit,
+        openAfterEvent,
       };
       await apiClient.patch(`/admin/modules/${moduleId}`, payload);
     },

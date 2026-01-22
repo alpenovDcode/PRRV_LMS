@@ -139,9 +139,31 @@ export async function GET(
 
       const userGroupIds = user.groupMembers.map(gm => gm.groupId);
 
+      // Find user's track definition lesson completion date
+      let trackDefinitionCompletedAt: Date | null = null;
+      // We look for ANY completed lesson of type track_definition in this course or globally?
+      // Assuming track definition is per-user and likely unique effectively.
+      // Better: check for completion of ANY lesson with type 'track_definition'
+      const trackDefProgress = await db.lessonProgress.findFirst({
+        where: {
+          userId: user.id,
+          status: "completed",
+          lesson: {
+             type: "track_definition",
+             // Optional: restrict to current course if needed, but track might be global
+          } 
+        },
+        orderBy: { completedAt: 'desc' }
+      });
+      
+      if (trackDefProgress && trackDefProgress.completedAt) {
+          trackDefinitionCompletedAt = new Date(trackDefProgress.completedAt);
+      }
+
       console.log(`[DEBUG] Course Filter: User ${user.email}, Course ${course.title}`);
       console.log(`[DEBUG] Enrollment Restricted Modules:`, JSON.stringify(enrollment.restrictedModules));
       console.log(`[DEBUG] User Tariff: ${user.tariff}, Track: ${user.track}`);
+      console.log(`[DEBUG] Track Definition Completed At:`, trackDefinitionCompletedAt);
 
       // Filter modules based on access rules
       const accessibleModules = course.modules.filter((module: any) => {
@@ -174,6 +196,42 @@ export async function GET(
           if (!hasGroupAccess) {
             return false;
           }
+        }
+        
+        // 4. Time-based check
+        const now = new Date();
+
+        // 4.1 Absolute date
+        if (module.openAt) {
+            if (now < new Date(module.openAt)) {
+                return false;
+            }
+        }
+
+        // 4.2 Relative date (Event-based)
+        if (module.openAfterEvent === 'track_definition_completed') {
+            if (!trackDefinitionCompletedAt) {
+                // If event hasn't happened yet, module is closed
+                return false;
+            }
+            
+            if (module.openAfterAmount && module.openAfterUnit) {
+                const openDate = new Date(trackDefinitionCompletedAt);
+                let multiplier = 1;
+                
+                // Add time based on unit
+                if (module.openAfterUnit === 'days') {
+                    openDate.setDate(openDate.getDate() + module.openAfterAmount);
+                } else if (module.openAfterUnit === 'weeks') {
+                    openDate.setDate(openDate.getDate() + (module.openAfterAmount * 7));
+                } else if (module.openAfterUnit === 'months') {
+                    openDate.setMonth(openDate.getMonth() + module.openAfterAmount);
+                }
+
+                if (now < openDate) {
+                    return false;
+                }
+            }
         }
 
         return true;

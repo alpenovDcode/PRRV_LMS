@@ -5,6 +5,7 @@ import { apiClient } from "@/lib/api-client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Loader2, TriangleAlert, CircleCheck, Clock, CircleX, TrendingDown, Users } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
@@ -33,7 +34,7 @@ interface AnalyticsData {
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
 export default function DetailedAnalyticsPage() {
-  const { data, isLoading } = useQuery<AnalyticsData>({
+  const { data, isLoading, isError, error } = useQuery<AnalyticsData>({
     queryKey: ["admin", "analytics", "detailed"],
     queryFn: async () => {
       const response = await apiClient.get("/api/admin/analytics/detailed");
@@ -45,6 +46,28 @@ export default function DetailedAnalyticsPage() {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-8">
+        <CircleX className="h-12 w-12 text-red-500 mb-4" />
+        <h3 className="text-lg font-semibold text-gray-900">Ошибка загрузки аналитики</h3>
+        <p className="text-gray-500 mt-2 max-w-md">
+          Не удалось загрузить данные. Возможно, произошла ошибка на сервере или у вас нет доступа.
+        </p>
+        <p className="text-sm text-gray-400 mt-4 font-mono bg-gray-100 p-2 rounded">
+          {(error as any)?.response?.data?.error?.message || (error as Error).message}
+        </p>
+        <Button 
+          variant="outline" 
+          className="mt-6"
+          onClick={() => window.location.reload()}
+        >
+            Попробовать снова
+        </Button>
       </div>
     );
   }

@@ -16,13 +16,26 @@ export async function PATCH(
       try {
         const { id } = await params;
         const body = await request.json();
-        const { title, allowedTariffs, allowedTracks, allowedGroups } = adminModuleUpdateSchema.parse(body);
+        const { 
+          title, 
+          allowedTariffs, 
+          allowedTracks, 
+          allowedGroups, 
+          openAt, 
+          openAfterAmount, 
+          openAfterUnit, 
+          openAfterEvent 
+        } = adminModuleUpdateSchema.parse(body);
 
         const updateData: any = {};
         if (title !== undefined) updateData.title = title;
         if (allowedTariffs !== undefined) updateData.allowedTariffs = allowedTariffs;
         if (allowedTracks !== undefined) updateData.allowedTracks = allowedTracks;
         if (allowedGroups !== undefined) updateData.allowedGroups = allowedGroups;
+        if (openAt !== undefined) updateData.openAt = openAt;
+        if (openAfterAmount !== undefined) updateData.openAfterAmount = openAfterAmount;
+        if (openAfterUnit !== undefined) updateData.openAfterUnit = openAfterUnit;
+        if (openAfterEvent !== undefined) updateData.openAfterEvent = openAfterEvent;
 
         const moduleData = await db.module.update({
           where: { id },

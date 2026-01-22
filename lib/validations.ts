@@ -78,6 +78,10 @@ export const adminModuleUpdateSchema = z.object({
   allowedTariffs: z.array(z.enum(["VR", "LR", "SR"])).optional(),
   allowedTracks: z.array(z.string()).optional(),
   allowedGroups: z.array(z.string()).optional(),
+  openAt: z.string().nullable().optional(),
+  openAfterAmount: z.number().nullable().optional(),
+  openAfterUnit: z.string().nullable().optional(),
+  openAfterEvent: z.string().nullable().optional(),
 });
 
 export const adminLessonCreateSchema = z.object({

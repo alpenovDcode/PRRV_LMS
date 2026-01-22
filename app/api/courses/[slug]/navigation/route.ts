@@ -100,11 +100,80 @@ export async function GET(
 
       const startDate = new Date(enrollment.startDate);
 
+
+      
+      const user = await db.user.findUnique({
+        where: { id: req.user!.userId },
+        include: { groupMembers: { select: { groupId: true } } }
+      });
+      const userGroupIds = user?.groupMembers.map(gm => gm.groupId) || [];
+      const userTariff = user?.tariff;
+      const userTrack = user?.track;
+
+      // Find user's track definition lesson completion date
+      let trackDefinitionCompletedAt: Date | null = null;
+      const trackDefProgress = await db.lessonProgress.findFirst({
+        where: {
+          userId: req.user!.userId,
+          status: "completed",
+          lesson: { type: "track_definition" } 
+        },
+        orderBy: { completedAt: 'desc' }
+      });
+      if (trackDefProgress && trackDefProgress.completedAt) {
+          trackDefinitionCompletedAt = new Date(trackDefProgress.completedAt);
+      }
+
       // Filter modules based on restriction (same logic as main course page)
       const accessibleModules = course.modules.filter((module: any) => {
         // @ts-ignore
         const isRestricted = enrollment.restrictedModules && enrollment.restrictedModules.includes(module.id);
-        return !isRestricted;
+        if (isRestricted) return false;
+
+         // 1. Tariff check
+         if (module.allowedTariffs && module.allowedTariffs.length > 0) {
+            if (!userTariff || !module.allowedTariffs.includes(userTariff)) return false;
+         }
+ 
+         // 2. Track check
+         if (module.allowedTracks && module.allowedTracks.length > 0) {
+            if (!userTrack || !module.allowedTracks.includes(userTrack)) return false;
+         }
+ 
+         // 3. Group check
+         if (module.allowedGroups && module.allowedGroups.length > 0) {
+           const hasGroupAccess = module.allowedGroups.some((allowedGroupId: string) => 
+             userGroupIds.includes(allowedGroupId)
+           );
+           if (!hasGroupAccess) return false;
+         }
+         
+         // 4. Time-based check
+         const now = new Date();
+ 
+         // 4.1 Absolute date
+         if (module.openAt) {
+             if (now < new Date(module.openAt)) return false;
+         }
+ 
+         // 4.2 Relative date (Event-based)
+         if (module.openAfterEvent === 'track_definition_completed') {
+             if (!trackDefinitionCompletedAt) return false;
+             
+             if (module.openAfterAmount && module.openAfterUnit) {
+                 const openDate = new Date(trackDefinitionCompletedAt);
+                 if (module.openAfterUnit === 'days') {
+                     openDate.setDate(openDate.getDate() + module.openAfterAmount);
+                 } else if (module.openAfterUnit === 'weeks') {
+                     openDate.setDate(openDate.getDate() + (module.openAfterAmount * 7));
+                 } else if (module.openAfterUnit === 'months') {
+                     openDate.setMonth(openDate.getMonth() + module.openAfterAmount);
+                 }
+                 if (now < openDate) return false;
+             }
+         }
+
+        return true;
       });
 
       // Calculate availability for all lessons to build navigation
