@@ -3,14 +3,15 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
-import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Upload, Film, Trash, Copy, Clock, Search, Loader2 } from "lucide-react";
+import { Upload, Film, Copy, Clock, Search, Play } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
 import axios from "axios";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface VideoFile {
   id: string;
@@ -25,6 +26,7 @@ export default function VideoLibraryPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
+  const [playingVideo, setPlayingVideo] = useState<VideoFile | null>(null);
 
   const { data: videos = [], isLoading } = useQuery<VideoFile[]>({
     queryKey: ["admin", "video-library", searchTerm],
@@ -79,10 +81,6 @@ export default function VideoLibraryPage() {
       setUploadProgress(0);
     },
   });
-
-  // Since DELETE endpoint is not implemented in video-library route (GET/POST only), 
-  // we will strictly stick to GET/POST for now or add DELETE support if needed.
-  // The user prompt only asked for ADDING videos. Clean up can be separate task.
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -166,8 +164,16 @@ export default function VideoLibraryPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {videos.map((video) => (
             <Card key={video.id} className="overflow-hidden group hover:shadow-md transition-shadow">
-              <div className="aspect-video bg-gray-900 relative flex items-center justify-center">
-                 <Film className="h-12 w-12 text-gray-700" />
+              <div 
+                className="aspect-video bg-gray-900 relative flex items-center justify-center cursor-pointer group-hover:bg-gray-800 transition-colors"
+                onClick={() => setPlayingVideo(video)}
+              >
+                 <Film className="h-12 w-12 text-gray-700 group-hover:text-gray-600 transition-colors" />
+                 <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="bg-white/20 backdrop-blur-sm p-3 rounded-full hover:scale-110 transition-transform">
+                        <Play className="h-8 w-8 text-white fill-white" />
+                    </div>
+                 </div>
                  <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded">
                      {formatDuration(video.duration)}
                  </div>
@@ -189,12 +195,40 @@ export default function VideoLibraryPage() {
                      <Copy className="h-3 w-3 mr-2" />
                      ID
                    </Button>
+                   <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-gray-400 hover:text-blue-600"
+                      onClick={() => setPlayingVideo(video)}
+                   >
+                      <Play className="h-4 w-4" />
+                   </Button>
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
       )}
+      
+      <Dialog open={!!playingVideo} onOpenChange={(open) => !open && setPlayingVideo(null)}>
+        <DialogContent className="sm:max-w-4xl p-0 bg-black border-gray-800 overflow-hidden">
+            <DialogHeader className="p-4 absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
+              <DialogTitle className="text-white text-lg font-medium truncate px-8 opacity-0">
+                  {playingVideo?.title}
+              </DialogTitle>
+            </DialogHeader>
+            {playingVideo && (
+                <div className="aspect-video w-full bg-black">
+                    <iframe
+                        src={`https://customer-${process.env.NEXT_PUBLIC_CLOUDFLARE_STREAM_CUSTOMER_CODE}.cloudflarestream.com/${playingVideo.cloudflareId}/iframe?poster=https%3A%2F%2Fcustomer-${process.env.NEXT_PUBLIC_CLOUDFLARE_STREAM_CUSTOMER_CODE}.cloudflarestream.com%2F${playingVideo.cloudflareId}%2Fthumbnails%2Fthumbnail.jpg%3Ftime%3D%26height%3D600`}
+                        className="w-full h-full"
+                        allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                        allowFullScreen={true}
+                    ></iframe>
+                </div>
+            )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
