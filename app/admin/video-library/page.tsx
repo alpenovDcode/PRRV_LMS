@@ -12,6 +12,9 @@ import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
 import axios from "axios";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Label } from "@/components/ui/label";
+import { Loader2 } from "lucide-react";
 import { HLSVideoPlayer } from "@/components/learn/hls-video-player";
 
 interface VideoFile {
@@ -29,6 +32,10 @@ export default function VideoLibraryPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [playingVideo, setPlayingVideo] = useState<VideoFile | null>(null);
 
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
+  const [manualId, setManualId] = useState("");
+  const [manualTitle, setManualTitle] = useState("");
+
   const { data: videos = [], isLoading } = useQuery<VideoFile[]>({
     queryKey: ["admin", "video-library", searchTerm],
     queryFn: async () => {
@@ -37,6 +44,31 @@ export default function VideoLibraryPage() {
       });
       return response.data.data;
     },
+  });
+
+  const createManualMutation = useMutation({
+    mutationFn: async () => {
+        await apiClient.post("/admin/video-library", {
+            title: manualTitle,
+            cloudflareId: manualId,
+            duration: 0
+        });
+    },
+    onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["admin", "video-library"] });
+        toast.success("Видео успешно добавлено");
+        setIsUploadDialogOpen(false);
+        setManualId("");
+        setManualTitle("");
+    },
+    onError: (error: any) => {
+        console.error(error);
+        if (error.response?.data?.error?.message) {
+            toast.error(error.response.data.error.message);
+        } else {
+            toast.error("Ошибка при добавлении видео");
+        }
+    }
   });
 
   const uploadMutation = useMutation({
@@ -74,6 +106,7 @@ export default function VideoLibraryPage() {
       toast.success("Видео успешно загружено и обрабатывается");
       setIsUploading(false);
       setUploadProgress(0);
+      setIsUploadDialogOpen(false); // Close dialog on success
     },
     onError: (error: any) => {
       console.error(error);
@@ -87,6 +120,7 @@ export default function VideoLibraryPage() {
     if (e.target.files && e.target.files[0]) {
       setIsUploading(true);
       setUploadProgress(0);
+      setIsUploadDialogOpen(false); // Close dialog immediately
       uploadMutation.mutate(e.target.files[0]);
     }
   };
@@ -111,7 +145,7 @@ export default function VideoLibraryPage() {
           <p className="text-gray-600 mt-1">Управление видеоконтентом (Cloudflare Stream)</p>
         </div>
         <div>
-           {isUploading ? (
+            {isUploading ? (
                <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-lg border shadow-sm">
                    <div className="w-32 h-2 bg-gray-100 rounded-full overflow-hidden">
                        <div className="h-full bg-blue-600 transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
@@ -120,20 +154,80 @@ export default function VideoLibraryPage() {
                </div>
            ) : (
              <>
-                <Input
-                    type="file"
-                    id="video-upload"
-                    accept="video/*"
-                    className="hidden"
-                    onChange={handleFileUpload}
-                    disabled={isUploading}
-                />
-                <Button asChild disabled={isUploading}>
-                    <label htmlFor="video-upload" className="cursor-pointer">
+                <Button onClick={() => setIsUploadDialogOpen(true)}>
                     <Upload className="mr-2 h-4 w-4" />
                     Загрузить видео
-                    </label>
                 </Button>
+
+                <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
+                    <DialogContent className="sm:max-w-md bg-white border-gray-200">
+                        <DialogHeader>
+                            <DialogTitle className="text-gray-900">Добавить видео</DialogTitle>
+                        </DialogHeader>
+                        
+                        <Tabs defaultValue="upload" className="w-full">
+                            <TabsList className="grid w-full grid-cols-2">
+                                <TabsTrigger value="upload">Загрузить файл</TabsTrigger>
+                                <TabsTrigger value="manual">Добавить по ID</TabsTrigger>
+                            </TabsList>
+                            
+                            <TabsContent value="upload" className="space-y-4 py-4">
+                                <div className="border-2 border-dashed border-gray-200 rounded-lg p-8 text-center hover:bg-gray-50 transition-colors">
+                                    <Input
+                                        type="file"
+                                        id="video-upload"
+                                        accept="video/*"
+                                        className="hidden"
+                                        onChange={handleFileUpload}
+                                        disabled={isUploading}
+                                    />
+                                    <label htmlFor="video-upload" className="cursor-pointer flex flex-col items-center gap-2">
+                                        <div className="h-10 w-10 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center">
+                                            <Upload className="h-5 w-5" />
+                                        </div>
+                                        <div className="text-sm font-medium text-gray-900">Нажмите для выбора файла</div>
+                                        <div className="text-xs text-gray-500">MP4, MOV до 2GB</div>
+                                    </label>
+                                </div>
+                            </TabsContent>
+                            
+                            <TabsContent value="manual" className="space-y-4 py-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="manual-title">Название видео</Label>
+                                    <Input 
+                                        id="manual-title" 
+                                        placeholder="Введите название..." 
+                                        value={manualTitle}
+                                        onChange={(e) => setManualTitle(e.target.value)}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="manual-id">Cloudflare Stream ID</Label>
+                                    <Input 
+                                        id="manual-id" 
+                                        placeholder="Например: 5d5bc37..." 
+                                        value={manualId}
+                                        onChange={(e) => setManualId(e.target.value)}
+                                    />
+                                </div>
+                                <Button 
+                                    className="w-full" 
+                                    onClick={() => createManualMutation.mutate()}
+                                    disabled={!manualId || !manualTitle || createManualMutation.isPending}
+                                >
+                                    {createManualMutation.isPending ? (
+                                        <>
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            Сохранение...
+                                        </>
+                                    ) : (
+                                        "Сохранить"
+                                    )}
+                                </Button>
+                            </TabsContent>
+                        </Tabs>
+                    </DialogContent>
+                </Dialog>
              </>
            )}
         </div>
@@ -220,12 +314,10 @@ export default function VideoLibraryPage() {
             </DialogHeader>
             {playingVideo && (
                 <div className="aspect-video w-full bg-black">
-                <div className="aspect-video w-full bg-black">
                      <HLSVideoPlayer
                         videoId={playingVideo.cloudflareId}
                         autoPlay={true}
                      />
-                </div>
                 </div>
             )}
         </DialogContent>
