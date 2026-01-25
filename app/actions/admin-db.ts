@@ -12,12 +12,10 @@ const MODELS = {
   course: db.course,
   module: db.module,
   lesson: db.lesson,
-  homework: db.homework,
-  purchase: db.purchase,
-  payment: db.payment,
-  video: db.video,
+  homework: db.homeworkSubmission,
+  video: db.videoLibrary,
   notification: db.notification,
-  comment: db.comment,
+  comment: db.lessonComment,
 };
 
 type ModelName = keyof typeof MODELS;
@@ -68,15 +66,14 @@ export async function getTableData(modelName: string, page = 1, pageSize = 20, s
   }
 
   try {
-    // @ts-ignore - dynamic prisma access
     const [data, total] = await Promise.all([
-      model.findMany({
+      (model as any).findMany({
         skip,
         take: pageSize,
         where: search ? where : undefined,
         orderBy: { createdAt: 'desc' } 
       }),
-      model.count({ where: search ? where : undefined })
+      (model as any).count({ where: search ? where : undefined })
     ]);
 
     return { data, total, page, pageSize };
@@ -95,8 +92,7 @@ export async function updateRecord(modelName: string, id: string, data: any) {
   const { id: _, createdAt: __, updatedAt: ___, ...updateData } = data;
 
   try {
-    // @ts-ignore
-    const result = await model.update({
+    const result = await (model as any).update({
       where: { id },
       data: updateData,
     });
@@ -115,8 +111,7 @@ export async function deleteRecord(modelName: string, id: string) {
     if (!model) throw new Error("Invalid model");
 
     try {
-        // @ts-ignore
-        await model.delete({ where: { id } });
+        await (model as any).delete({ where: { id } });
         revalidatePath("/admin/analytics/detailed");
         return { success: true };
     } catch (e: any) {

@@ -228,9 +228,9 @@ export default function DatabaseManagerPage() {
                                   </div>
                                </TableCell>
                                {Object.entries(row).map(([key, value]) => (
-                                   <TableCell key={key} className="max-w-[300px] truncate text-xs" title={String(value)}>
+                                   <TableCell key={key} className="max-w-[300px] truncate text-xs" title={typeof value === 'object' ? JSON.stringify(value) : String(value)}>
                                        {typeof value === 'object' && value !== null 
-                                          ? (key === 'createdAt' || key === 'updatedAt' ? new Date(value as string).toLocaleString('ru-RU') : JSON.stringify(value))
+                                          ? (key === 'createdAt' || key === 'updatedAt' ? new Date(value as any).toLocaleString('ru-RU') : JSON.stringify(value))
                                           : String(value)
                                        }
                                    </TableCell>
