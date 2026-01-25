@@ -16,6 +16,7 @@ import {
   LogOut,
   Shield,
   Inbox,
+  BarChart,
   AlertTriangle,
   TrendingUp,
   Film,
