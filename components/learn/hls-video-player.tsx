@@ -7,7 +7,7 @@ import { apiClient } from "@/lib/api-client";
 
 interface HLSVideoPlayerProps {
   videoId: string;
-  lessonId: string;
+  lessonId?: string;
   posterUrl?: string;
   initialTime?: number;
   onTimeUpdate?: (currentTime: number, duration: number) => void;

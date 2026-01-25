@@ -12,6 +12,7 @@ import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
 import axios from "axios";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { HLSVideoPlayer } from "@/components/learn/hls-video-player";
 
 interface VideoFile {
   id: string;
@@ -219,12 +220,12 @@ export default function VideoLibraryPage() {
             </DialogHeader>
             {playingVideo && (
                 <div className="aspect-video w-full bg-black">
-                    <iframe
-                        src={`https://customer-${process.env.NEXT_PUBLIC_CLOUDFLARE_STREAM_CUSTOMER_CODE}.cloudflarestream.com/${playingVideo.cloudflareId}/iframe?poster=https%3A%2F%2Fcustomer-${process.env.NEXT_PUBLIC_CLOUDFLARE_STREAM_CUSTOMER_CODE}.cloudflarestream.com%2F${playingVideo.cloudflareId}%2Fthumbnails%2Fthumbnail.jpg%3Ftime%3D%26height%3D600`}
-                        className="w-full h-full"
-                        allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
-                        allowFullScreen={true}
-                    ></iframe>
+                <div className="aspect-video w-full bg-black">
+                     <HLSVideoPlayer
+                        videoId={playingVideo.cloudflareId}
+                        autoPlay={true}
+                     />
+                </div>
                 </div>
             )}
         </DialogContent>
