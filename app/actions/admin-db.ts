@@ -80,13 +80,21 @@ export async function getTableData(modelName: string, page = 1, pageSize = 20, s
       }
   }
 
+  const SORT_KEYS: Record<string, string> = {
+    quizAttempt: 'startedAt',
+    lessonProgress: 'lastUpdated',
+    userSession: 'lastActivityAt',
+  };
+
+  const sortField = SORT_KEYS[modelName] || 'createdAt';
+
   try {
     const [data, total] = await Promise.all([
       (model as any).findMany({
         skip,
         take: pageSize,
         where: search ? where : undefined,
-        orderBy: { createdAt: 'desc' } 
+        orderBy: { [sortField]: 'desc' } 
       }),
       (model as any).count({ where: search ? where : undefined })
     ]);
