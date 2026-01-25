@@ -4,6 +4,7 @@
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 import { getCloudflareImageUrl } from "@/lib/cloudflare-images";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -175,7 +176,7 @@ export function LessonContentPlayer({ lesson, onTimeUpdate, onEnded, isPreview =
           <CardContent className="prose prose-sm max-w-none dark:prose-invert p-6">
             {lesson.content?.markdown ? (
               <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
+                remarkPlugins={[remarkGfm, remarkBreaks]}
                 components={{
                   img: ({ node, src, alt, ...props }) => {
                     if (src?.startsWith('cloudflare:')) {
