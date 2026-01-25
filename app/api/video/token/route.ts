@@ -21,13 +21,15 @@ export async function POST(request: NextRequest) {
       const body = await request.json();
       const { videoId, lessonId } = body;
 
-      if (!videoId || !lessonId) {
+      console.log("[VideoToken] Request:", { videoId, lessonId, userId: req.user!.userId, role: req.user!.role });
+
+      if (!videoId) {
         return NextResponse.json<ApiResponse>(
           {
             success: false,
             error: {
               code: "VALIDATION_ERROR",
-              message: "videoId и lessonId обязательны",
+              message: "videoId обязателен",
             },
           },
           { status: 400 }
@@ -37,24 +39,39 @@ export async function POST(request: NextRequest) {
       // Проверяем роль пользователя
       const isAdminOrCurator = req.user!.role === UserRole.admin || req.user!.role === UserRole.curator;
 
-      if (isAdminOrCurator) {
-        // Для админов и кураторов просто проверяем существование урока
-        const lessonExists = await db.lesson.findUnique({
-          where: { id: lessonId },
-          select: { id: true },
-        });
-
-        if (!lessonExists) {
-            return NextResponse.json<ApiResponse>(
-            {
-                success: false,
-                error: {
-                code: "NOT_FOUND",
-                message: "Урок не найден",
-                },
+      if (!isAdminOrCurator && !lessonId) {
+         return NextResponse.json<ApiResponse>(
+          {
+            success: false,
+            error: {
+              code: "VALIDATION_ERROR",
+              message: "lessonId обязателен для студентов",
             },
-            { status: 404 }
-            );
+          },
+          { status: 400 }
+        );
+      }
+
+      if (isAdminOrCurator) {
+        // Для админов и кураторов проверяем урок только если он передан
+        if (lessonId) {
+            const lessonExists = await db.lesson.findUnique({
+              where: { id: lessonId },
+              select: { id: true },
+            });
+
+            if (!lessonExists) {
+                return NextResponse.json<ApiResponse>(
+                {
+                    success: false,
+                    error: {
+                        code: "NOT_FOUND",
+                        message: "Урок не найден",
+                    },
+                },
+                { status: 404 }
+                );
+            }
         }
       } else {
         // Для студентов проверяем наличие активной подписки
