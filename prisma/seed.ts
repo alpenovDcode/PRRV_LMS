@@ -10,23 +10,46 @@ async function hashPassword(password: string): Promise<string> {
 async function main() {
   console.log("🌱 Seeding database...");
 
-  // Создание админа
-  const adminPassword = await hashPassword("Evgeni2323_admin");
-  const admin = await prisma.user.upsert({
-    where: { email: "prrv_admin@proryv.ru" },
-    update: {},
-    create: {
-      email: "prrv_admin@proryv.ru",
-      passwordHash: "adminPassword",
-      fullName: "Администратор",
-      role: UserRole.admin,
-      emailVerified: true,
-    },
-  });
 
-  console.log("✅ Admin user created:", admin.email);
+  // Seeding videos
+  const videosPath = "cloudflare_videos.json";
+  try {
+    const fs = await import("fs/promises");
+    const path = await import("path");
+    
+    // Resolve path relative to the project root (where package.json and seed.ts are running context usually)
+    // Assuming seed command runs from project root
+    const resolvedPath = path.resolve(process.cwd(), videosPath);
+    
+    const data = await fs.readFile(resolvedPath, "utf-8");
+    const videos = JSON.parse(data);
 
+    console.log(`📹 Found ${videos.length} videos in ${videosPath}. Seeding...`);
 
+    let seededCount = 0;
+    for (const video of videos) {
+      await prisma.videoLibrary.upsert({
+        where: { cloudflareId: video.id },
+        update: {
+          title: video.title,
+          duration: Math.round(video.duration),
+          // Don't update timestamps if not needed, or let @updatedAt handle it
+        },
+        create: {
+          title: video.title,
+          cloudflareId: video.id,
+          duration: Math.round(video.duration),
+        },
+      });
+      seededCount++;
+    }
+    console.log(`✅ Seeded ${seededCount} videos.`);
+
+  } catch (error) {
+    console.warn(`⚠️ Could not seed videos from ${videosPath}:`, error);
+    // Determine if we should fail or just warn. Usually for seed it's better to know.
+    // But if file is missing, maybe just warn.
+  }
 
   console.log("🎉 Seeding completed!");
 }
