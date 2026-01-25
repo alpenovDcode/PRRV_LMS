@@ -43,8 +43,10 @@ export class CloudflareStreamClient {
    */
   async createVideoUpload(fileName: string): Promise<{ uploadURL: string; videoId: string }> {
     const response = await axios.post<UploadResponse>(
-      `${CLOUDFLARE_STREAM_BASE_URL}`,
+      `${CLOUDFLARE_STREAM_BASE_URL}/direct_upload`,
       {
+        maxDurationSeconds: 21600,
+        requireSignedURLs: false,
         meta: {
           name: fileName,
         },

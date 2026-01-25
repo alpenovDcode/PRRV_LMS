@@ -136,7 +136,10 @@ export async function POST(request: NextRequest) {
     };
 
     // Determine cookie expiration based on rememberMe
-    const maxAge = rememberMe ? 60 * 60 * 24 * 90 : 60 * 60 * 24; // 90 days vs 24 hours
+    // Determine cookie expiration based on rememberMe
+    // Default: 30 days (was 24h), RememberMe: 90 days
+    // User requested "never logout", so even default is long.
+    const maxAge = rememberMe ? 60 * 60 * 24 * 90 : 60 * 60 * 24 * 30;
 
     const accessToken = generateAccessToken(payload);
     const refreshToken = generateRefreshToken(payload, maxAge + "s");

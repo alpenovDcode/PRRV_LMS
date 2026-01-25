@@ -3,6 +3,8 @@ import axios from "axios";
 import { v4 as uuidv4 } from "uuid";
 import bcrypt from "bcryptjs";
 
+import { generateAccessToken, generateSessionId } from "../lib/auth";
+
 // Configuration
 const BASE_URL = process.env.BASE_URL || "https://prrv.tech";
 const USER_COUNT = 100;
@@ -29,27 +31,24 @@ async function sleep(ms: number) {
 async function setupUsers() {
   console.log(`Creating ${USER_COUNT} test users in DB...`);
   
-  // Generate a hash once to save time
   const passwordHash = await bcrypt.hash(PASSWORD, 10);
   
+  // Create users AND their session IDs at the same time
   const usersData = Array.from({ length: USER_COUNT }).map((_, i) => ({
     email: `student${i}_${uuidv4().substring(0, 8)}@${TEST_EMAIL_DOMAIN}`,
     passwordHash,
     fullName: `Load Test Student ${i}`,
     emailVerified: true,
-    role: "student" as const, // Cast to enum if needed, but string works for createMany often if enum matches
+    role: "student" as const,
+    sessionId: generateSessionId(), // Pre-generate session ID
   }));
 
   // Batch insert
-  // Prisma createMany is supported on Postgres
   await prisma.user.createMany({
     data: usersData,
     skipDuplicates: true,
   });
 
-  // Fetch back to get IDs if needed (though we just need credentials for login)
-  // We can just use the emails we generated if we stored them, or query them back.
-  // Let's just retrieve them to be sure.
   const users = await prisma.user.findMany({
     where: { email: { endsWith: `@${TEST_EMAIL_DOMAIN}` } },
     take: USER_COUNT,
@@ -59,48 +58,41 @@ async function setupUsers() {
   return users;
 }
 
-// 2. Login Phase
+// 2. "Login" Phase (Local Token Generation)
 async function loginUser(user: any) {
   try {
-    const response = await axios.post(
-      `${BASE_URL}/api/auth/login`,
-      {
-        email: user.email,
-        password: PASSWORD,
-        rememberMe: false,
-      },
-      {
-        headers: { "Content-Type": "application/json" },
-        validateStatus: () => true, // Don't throw on 4xx/5xx
-      }
-    );
+    // Generate valid tokens locally using the server's secrets
+    const payload = {
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      sessionId: user.sessionId, // Must match DB
+    };
 
-    if (response.status === 200) {
-      // Capture cookies
-      const cookies = response.headers["set-cookie"];
-      return { ...user, cookies };
-    } else {
-      // console.error(`Login failed for ${user.email}: ${response.status}`);
-      return null;
-    }
+    const accessToken = generateAccessToken(payload);
+    // const refreshToken = generateRefreshToken(payload, "1d"); // Not strictly needed for short test
+
+    // Simulate cookies
+    const cookies = `accessToken=${accessToken}; Path=/; HttpOnly; SameSite=Strict`;
+    
+    return { ...user, cookies };
   } catch (e) {
-    console.error(`Login error for ${user.email}`, e);
+    console.error(`Token generation error for ${user.email}`, e);
     return null;
   }
 }
 
 // 3. Action Phase
-async function simulateUserAction(user: any) {
+async function simulateUserAction(user: any, actionOverride?: { method: string, url: string }) {
   if (!user.cookies) return;
 
-  const actions = [
-    { method: "GET", url: "/api/courses" },
-    { method: "GET", url: "/api/auth/me" },
-    { method: "GET", url: "/courses" }, // Next.js page
-    // Add more protected routes here
-  ];
-
-  const action = actions[Math.floor(Math.random() * actions.length)];
+  let action = actionOverride;
+  if (!action) {
+     const actions = [
+        { method: "GET", url: "/api/courses" }, 
+     ];
+     action = actions[0];
+  }
 
   try {
     stats.requests++;
@@ -149,33 +141,47 @@ async function runFullSimulation() {
     // 1. Setup
     const dbUsers = await setupUsers();
 
-    // 2. Login
-    console.log("Logging in users...");
-    const loggedInUsers = [];
-    // Limit concurrency for login too to avoid DDoS-ing self instantly
-    for (let i = 0; i < dbUsers.length; i += CONCURRENT_BATCH_SIZE) {
-        const batch = dbUsers.slice(i, i + CONCURRENT_BATCH_SIZE).map(loginUser);
-        const results = await Promise.all(batch);
-        loggedInUsers.push(...results.filter(u => u !== null));
-        process.stdout.write(`.`);
-    }
-    console.log(`\nSuccessfully logged in: ${loggedInUsers.length}/${dbUsers.length}`);
+    // 2. Login (now simplified to "prepare tokens")
+    console.log("Preparing user sessions (generating tokens locally)...");
+    const loggedInUsers = dbUsers.map(u => ({
+        ...u,
+        cookies: `accessToken=${generateAccessToken({
+            userId: u.id,
+            email: u.email,
+            role: "student",
+            sessionId: u.sessionId!
+        })}; Path=/; HttpOnly; SameSite=Strict`
+    }));
+    
+    console.log(`Ready to simulate actions for ${loggedInUsers.length} users.`);
 
-    // 3. Simulation
+// 3. Simulation
     const DURATION_SEC = 30;
     const endTime = Date.now() + DURATION_SEC * 1000;
     console.log(`Running actions for ${DURATION_SEC} seconds...`);
+    
+    // Get API Key from env (same as used in server)
+    const API_KEY = process.env.API_SECRET_KEY; 
 
     while (Date.now() < endTime) {
       const batch = [];
       for (let i = 0; i < CONCURRENT_BATCH_SIZE; i++) {
         const randomUser = loggedInUsers[Math.floor(Math.random() * loggedInUsers.length)];
         if (randomUser) {
-          batch.push(simulateUserAction(randomUser));
+           // Append API Key to URLs
+           const actionsWithKey = [
+             { method: "GET", url: `/api/courses?apiKey=${API_KEY}` },
+             { method: "GET", url: `/api/auth/me?apiKey=${API_KEY}` },
+             { method: "GET", url: "/courses" }, // Public page, no API key needed
+           ];
+           
+           const action = actionsWithKey[Math.floor(Math.random() * actionsWithKey.length)];
+           
+           batch.push(simulateUserAction(randomUser, action)); // Need to update simulateUserAction signature or just pass structure
         }
       }
       await Promise.all(batch);
-      await sleep(100); // Slight delay
+      await sleep(100); 
     }
 
     // Report

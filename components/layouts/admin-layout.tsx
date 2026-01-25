@@ -16,9 +16,9 @@ import {
   LogOut,
   Shield,
   Inbox,
-  BarChart,
   AlertTriangle,
   TrendingUp,
+  Film,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -27,6 +27,7 @@ const adminNavigation = [
   { name: "Курсы", href: "/admin/courses", icon: BookOpen },
   { name: "Пользователи", href: "/admin/users", icon: Users },
   { name: "Группы", href: "/admin/groups", icon: Layers },
+  { name: "Видео-библиотека", href: "/admin/video-library", icon: Film },
   { name: "Входящие ДЗ", href: "/admin/homework", icon: Inbox },
   { name: "Уведомления", href: "/admin/notifications", icon: Bell },
   { name: "Аналитика", href: "/admin/analytics", icon: BarChart },
