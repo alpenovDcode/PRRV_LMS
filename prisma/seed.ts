@@ -27,23 +27,26 @@ async function main() {
     console.log(`📹 Found ${videos.length} videos in ${videosPath}. Seeding...`);
 
     let seededCount = 0;
+    let skippedCount = 0;
     for (const video of videos) {
-      await prisma.videoLibrary.upsert({
+      const existingVideo = await prisma.videoLibrary.findUnique({
         where: { cloudflareId: video.id },
-        update: {
-          title: video.title,
-          duration: Math.round(video.duration),
-          // Don't update timestamps if not needed, or let @updatedAt handle it
-        },
-        create: {
-          title: video.title,
-          cloudflareId: video.id,
-          duration: Math.round(video.duration),
-        },
       });
-      seededCount++;
+
+      if (!existingVideo) {
+        await prisma.videoLibrary.create({
+          data: {
+            title: video.title,
+            cloudflareId: video.id,
+            duration: Math.round(video.duration),
+          },
+        });
+        seededCount++;
+      } else {
+        skippedCount++;
+      }
     }
-    console.log(`✅ Seeded ${seededCount} videos.`);
+    console.log(`✅ Seeded ${seededCount} new videos. Skipped ${skippedCount} existing videos.`);
 
   } catch (error) {
     console.warn(`⚠️ Could not seed videos from ${videosPath}:`, error);
