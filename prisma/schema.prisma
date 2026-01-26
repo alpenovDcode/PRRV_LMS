@@ -107,6 +107,7 @@ model Module {
   openAfterAmount Int?        @map("open_after_amount")
   openAfterUnit  String?      @map("open_after_unit") // 'days', 'weeks'
   openAfterEvent String?      @map("open_after_event") // 'track_definition'
+  trackSettings  Json?        @map("track_settings")
   createdAt      DateTime     @default(now()) @map("created_at")
   updatedAt      DateTime     @updatedAt @map("updated_at")
   lessons        Lesson[]

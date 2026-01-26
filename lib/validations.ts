@@ -82,6 +82,7 @@ export const adminModuleUpdateSchema = z.object({
   openAfterAmount: z.number().nullable().optional(),
   openAfterUnit: z.string().nullable().optional(),
   openAfterEvent: z.string().nullable().optional(),
+  trackSettings: z.record(z.any()).optional(),
 });
 
 export const adminLessonCreateSchema = z.object({

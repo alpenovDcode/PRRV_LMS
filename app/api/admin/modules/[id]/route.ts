@@ -36,6 +36,7 @@ export async function PATCH(
         if (openAfterAmount !== undefined) updateData.openAfterAmount = openAfterAmount;
         if (openAfterUnit !== undefined) updateData.openAfterUnit = openAfterUnit;
         if (openAfterEvent !== undefined) updateData.openAfterEvent = openAfterEvent;
+        if (body.trackSettings !== undefined) updateData.trackSettings = body.trackSettings;
 
         const moduleData = await db.module.update({
           where: { id },

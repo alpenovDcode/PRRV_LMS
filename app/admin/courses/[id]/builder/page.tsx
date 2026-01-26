@@ -33,6 +33,11 @@ interface AdminModule {
   allowedTariffs: string[];
   allowedTracks: string[];
   allowedGroups: string[];
+  openAt?: string | null;
+  openAfterAmount?: number | null;
+  openAfterUnit?: string | null;
+  openAfterEvent?: string | null;
+  trackSettings?: Record<string, TrackSetting> | null;
 }
 
 interface AdminCourseDetail {
@@ -47,12 +52,20 @@ interface AdminModuleWithChildren extends AdminModule {
   children: AdminModuleWithChildren[];
 }
 
+interface TrackSetting {
+  openAt: string | null;
+  openAfterAmount: number | null;
+  openAfterUnit: string | null;
+  openAfterEvent: string | null;
+}
+
 interface AccessSettingsDialogProps {
   module: AdminModule & {
     openAt?: string | null;
     openAfterAmount?: number | null;
     openAfterUnit?: string | null;
     openAfterEvent?: string | null;
+    trackSettings?: Record<string, TrackSetting> | null;
   };
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -64,6 +77,7 @@ interface AccessSettingsDialogProps {
     openAfterAmount: number | null;
     openAfterUnit: string | null;
     openAfterEvent: string | null;
+    trackSettings: Record<string, TrackSetting>;
   }) => void;
 }
 
@@ -72,18 +86,20 @@ function AccessSettingsDialog({ module, open, onOpenChange, onSave }: AccessSett
   const [tracks, setTracks] = useState<string[]>(module.allowedTracks || []);
   const [groups, setGroups] = useState<string[]>(module.allowedGroups || []);
   
-  // New State
+  // Base Access State
   const [openAt, setOpenAt] = useState<string>(module.openAt ? new Date(module.openAt).toISOString().split('T')[0] : "");
   const [useRelativeAccess, setUseRelativeAccess] = useState<boolean>(!!module.openAfterEvent);
   const [openAfterAmount, setOpenAfterAmount] = useState<string>(module.openAfterAmount?.toString() || "");
   const [openAfterUnit, setOpenAfterUnit] = useState<string>(module.openAfterUnit || "weeks");
 
+  // Track Specific Settings
+  const [trackSettings, setTrackSettings] = useState<Record<string, TrackSetting>>(module.trackSettings || {});
+  const [selectedTrackForConfig, setSelectedTrackForConfig] = useState<string | null>(null);
 
-  // Updated track list as per user request
   const availableTracks = [
     "Заполнить расписание",
     "Повысить чек",
-    "Перейти на онлайн",
+    "Перейти в онлайн",
     "Стать репетитором",
     "Перейти на группы"
   ];
@@ -93,15 +109,14 @@ function AccessSettingsDialog({ module, open, onOpenChange, onSave }: AccessSett
     queryKey: ["admin", "groups"],
     queryFn: async () => {
       const response = await apiClient.get("/admin/groups");
-      return response.data.data; // Assuming API returns { data: Group[] }
+      return response.data.data;
     },
-    enabled: open, // Only fetch when dialog is open
+    enabled: open,
   });
 
   const availableGroups = groupsData || [];
 
   const handleSave = () => {
-    // Ensure we send arrays, never undefined/null
     onSave({ 
       allowedTariffs: tariffs || [], 
       allowedTracks: tracks || [], 
@@ -110,6 +125,7 @@ function AccessSettingsDialog({ module, open, onOpenChange, onSave }: AccessSett
       openAfterAmount: useRelativeAccess && openAfterAmount ? parseInt(openAfterAmount, 10) : null,
       openAfterUnit: useRelativeAccess ? openAfterUnit : null,
       openAfterEvent: useRelativeAccess ? "track_definition_completed" : null,
+      trackSettings: trackSettings,
     });
     onOpenChange(false);
   };
@@ -132,6 +148,32 @@ function AccessSettingsDialog({ module, open, onOpenChange, onSave }: AccessSett
     );
   };
 
+  // Helper to update track specific setting
+  const updateTrackSetting = (track: string, updates: Partial<TrackSetting>) => {
+    setTrackSettings(prev => {
+      const current = prev[track] || {
+        openAt: null,
+        openAfterAmount: null,
+        openAfterUnit: "weeks",
+        openAfterEvent: null
+      };
+      
+      // If we are setting openAt, we clear relative settings and vice versa logic is preserved
+      if (updates.openAt !== undefined && updates.openAt) {
+          updates.openAfterEvent = null;
+          updates.openAfterAmount = null;
+          updates.openAfterUnit = null;
+      } else if (updates.openAfterEvent !== undefined && updates.openAfterEvent) {
+          updates.openAt = null;
+      }
+
+      return {
+        ...prev,
+        [track]: { ...current, ...updates }
+      };
+    });
+  };
+
   const tariffLabels: Record<string, string> = {
     "VR": "ВР (Востребованный)",
     "LR": "ЛР (Лидер Рынка)",
@@ -140,22 +182,22 @@ function AccessSettingsDialog({ module, open, onOpenChange, onSave }: AccessSett
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Настройки доступа: {module.title}</DialogTitle>
           <DialogDescription>
-            Настройте ограничения доступа. Если поле пустое, модуль доступен всем.
-            Пользователь должен соответствовать ВСЕМ заданным критериям.
+            Настройте ограничения доступа. Пользователь должен соответствовать ВСЕМ заданным критериям (тариф + трек + группа).
+            Вы также можете задать индивидуальное время открытия для каждого трека.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-6 py-4">
+        <div className="space-y-8 py-4">
           
-          {/* Time-based Access */}
+          {/* Base Access Settings */}
           <div className="space-y-4 border-b border-gray-100 pb-6">
-            <h4 className="font-medium text-gray-900">Время открытия</h4>
-            
-            <div className="grid gap-4">
-              <div className="space-y-2">
+            <h4 className="font-medium text-gray-900 mb-2">Общее время открытия (по умолчанию)</h4>
+            <div className="grid gap-4 pl-4 border-l-2 border-gray-100">
+               {/* Same Time UI as before, applying to module root fields */}
+               <div className="space-y-2">
                 <Label>Открыть в конкретную дату</Label>
                 <Input 
                   type="date" 
@@ -166,16 +208,11 @@ function AccessSettingsDialog({ module, open, onOpenChange, onSave }: AccessSett
                   }}
                   disabled={useRelativeAccess}
                 />
-                <p className="text-xs text-gray-500">
-                   Все ученики получат доступ одновременно в эту дату.
-                </p>
               </div>
 
-              <div className="flex items-center gap-2">
-                <div className="h-px flex-1 bg-gray-200"></div>
-                <span className="text-xs text-gray-400 font-medium">ИЛИ</span>
-                <div className="h-px flex-1 bg-gray-200"></div>
-              </div>
+               <div className="flex items-center gap-2">
+                 <span className="text-xs text-gray-400 font-medium">ИЛИ</span>
+               </div>
 
               <div className="space-y-3">
                 <div className="flex items-center space-x-2">
@@ -187,33 +224,24 @@ function AccessSettingsDialog({ module, open, onOpenChange, onSave }: AccessSett
                         if (checked) setOpenAt("");
                     }}
                   />
-                  <label
-                    htmlFor="relative-access"
-                    className="text-sm font-medium leading-none cursor-pointer"
-                  >
+                  <label htmlFor="relative-access" className="text-sm font-medium leading-none cursor-pointer">
                     Автоматически после определения трека
                   </label>
                 </div>
-
                 {useRelativeAccess && (
-                  <div className="pl-6 space-y-3 animate-in slide-in-from-top-2">
+                  <div className="pl-6 space-y-3">
                     <div className="flex items-end gap-3">
                          <div className="space-y-1 w-24">
                             <Label className="text-xs">Через</Label>
                             <Input 
-                                type="number" 
-                                min="0"
-                                value={openAfterAmount}
+                                type="number" min="0" value={openAfterAmount}
                                 onChange={(e) => setOpenAfterAmount(e.target.value)}
-                                placeholder="1"
                             />
                          </div>
                          <div className="space-y-1 w-32">
                             <Label className="text-xs">Единица</Label>
                             <Select value={openAfterUnit} onValueChange={setOpenAfterUnit}>
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="days">Дней</SelectItem>
                                     <SelectItem value="weeks">Недель</SelectItem>
@@ -222,108 +250,193 @@ function AccessSettingsDialog({ module, open, onOpenChange, onSave }: AccessSett
                             </Select>
                          </div>
                     </div>
-                    <p className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
-                        Модуль откроется индивидуально для каждого ученика через указанное время после прохождения урока "Определение трека".
-                    </p>
                   </div>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Tariffs */}
-          <div className="space-y-2">
-            <Label>Тарифы</Label>
-            <div className="flex flex-col gap-2">
-              {["VR", "LR", "SR"].map((tariff) => (
-                <div key={tariff} className="flex items-center space-x-2">
-                  <Checkbox 
-                    id={`tariff-${tariff}`} 
-                    checked={tariffs.includes(tariff)}
-                    onCheckedChange={() => toggleTariff(tariff)}
-                  />
-                  <label
-                    htmlFor={`tariff-${tariff}`}
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                  >
-                    {tariffLabels[tariff]}
-                  </label>
+          {/* Tariffs & Groups */}
+          <div className="grid md:grid-cols-2 gap-6 pb-6 border-b border-gray-100">
+             <div className="space-y-3">
+                <Label className="text-base">Тарифы</Label>
+                <div className="flex flex-col gap-2 p-3 bg-gray-50 rounded-lg">
+                  {["VR", "LR", "SR"].map((tariff) => (
+                    <div key={tariff} className="flex items-center space-x-2">
+                      <Checkbox 
+                        id={`tariff-${tariff}`} 
+                        checked={tariffs.includes(tariff)}
+                        onCheckedChange={() => toggleTariff(tariff)}
+                      />
+                      <label htmlFor={`tariff-${tariff}`} className="text-sm cursor-pointer">
+                        {tariffLabels[tariff]}
+                      </label>
+                    </div>
+                  ))}
+                  {tariffs.length === 0 && <p className="text-xs text-gray-500 mt-1">Доступно для всех тарифов</p>}
                 </div>
-              ))}
-            </div>
-            <p className="text-xs text-gray-500">
-              {tariffs.length === 0 ? "Доступно для всех тарифов" : `Выбрано: ${tariffs.map(t => tariffLabels[t].split(" ")[0]).join(", ")}`}
-            </p>
+             </div>
+
+             <div className="space-y-3">
+                <Label className="text-base">Группы</Label>
+                <div className="p-3 bg-gray-50 rounded-lg space-y-2">
+                    <Select onValueChange={(value) => toggleGroup(value)} value={groups.length > 0 ? groups[groups.length - 1] : undefined}>
+                      <SelectTrigger className="bg-white"><SelectValue placeholder="Выберите группы" /></SelectTrigger>
+                      <SelectContent>
+                        {/* @ts-ignore */}
+                        {availableGroups.map((group: any) => (
+                          <SelectItem key={group.id} value={group.id}>
+                            <div className="flex items-center gap-2">
+                              <Checkbox checked={groups.includes(group.id)} />
+                              <span>{group.name}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="flex flex-wrap gap-2">
+                      {groups.map(groupId => {
+                        // @ts-ignore
+                        const groupName = availableGroups.find((g: any) => g.id === groupId)?.name || groupId;
+                        return (
+                          <Badge key={groupId} variant="secondary" className="gap-1 bg-white border">
+                            {groupName} <X className="h-3 w-3 cursor-pointer" onClick={() => toggleGroup(groupId)} />
+                          </Badge>
+                        );
+                      })}
+                    </div>
+                    {groups.length === 0 && <p className="text-xs text-gray-500">Доступно для всех групп</p>}
+                </div>
+             </div>
           </div>
 
-          {/* Tracks */}
-          <div className="space-y-2">
-            <Label>Треки</Label>
-            <Select 
-              onValueChange={(value) => toggleTrack(value)} 
-              value={tracks.length > 0 ? tracks[tracks.length - 1] : undefined} // Dummy value to reset
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Выберите треки" />
-              </SelectTrigger>
-              <SelectContent>
-                {availableTracks.map((track) => (
-                  <SelectItem key={track} value={track}>
-                    <div className="flex items-center gap-2">
-                      <Checkbox checked={tracks.includes(track)} />
-                      <span>{track}</span>
+          {/* Tracks Configuration */}
+          <div className="space-y-4">
+             <div className="flex items-center justify-between">
+                <Label className="text-base">Треки и Индивидуальное расписание</Label>
+             </div>
+             
+             <div className="space-y-2">
+                <Select onValueChange={(value) => toggleTrack(value)} value={tracks.length > 0 ? tracks[tracks.length - 1] : undefined}>
+                  <SelectTrigger><SelectValue placeholder="Выберите треки, для которых доступен модуль" /></SelectTrigger>
+                  <SelectContent>
+                    {availableTracks.map((track) => (
+                      <SelectItem key={track} value={track}>
+                        <div className="flex items-center gap-2">
+                          <Checkbox checked={tracks.includes(track)} />
+                          <span>{track}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex flex-wrap gap-2">
+                  {tracks.map(track => (
+                    <Badge 
+                        key={track} 
+                        variant={selectedTrackForConfig === track ? "default" : "secondary"}
+                        className={`gap-1 cursor-pointer hover:bg-blue-200 ${selectedTrackForConfig === track ? "ring-2 ring-primary ring-offset-1" : ""}`}
+                        onClick={() => setSelectedTrackForConfig(selectedTrackForConfig === track ? null : track)}
+                    >
+                      {track} 
+                      <Settings className="h-3 w-3 ml-1" />
+                      <X className="h-3 w-3 ml-1 hover:text-red-500" onClick={(e) => { e.stopPropagation(); toggleTrack(track); }} />
+                    </Badge>
+                  ))}
+                </div>
+                {tracks.length === 0 && <p className="text-xs text-gray-500">Доступно для всех треков (используются общие настройки времени)</p>}
+             </div>
+             
+             {/* Selected Track Configuration Panel */}
+             {selectedTrackForConfig && tracks.includes(selectedTrackForConfig) && (
+                 <div className="mt-4 p-4 border border-blue-200 rounded-lg bg-blue-50/50 animate-in fade-in zoom-in-95 duration-200">
+                    <div className="flex items-center justify-between mb-4">
+                        <h5 className="font-semibold text-sm flex items-center gap-2">
+                            <Settings className="h-4 w-4 text-blue-600" />
+                            Настройки для трека: <span className="text-blue-700">{selectedTrackForConfig}</span>
+                        </h5>
+                        <Button variant="ghost" size="sm" className="h-6 text-xs text-gray-500 hover:text-red-600" onClick={() => {
+                            const newSettings = { ...trackSettings };
+                            delete newSettings[selectedTrackForConfig];
+                            setTrackSettings(newSettings);
+                        }}>
+                           Сбросить настройки трека
+                        </Button>
                     </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <div className="flex flex-wrap gap-2 mt-2">
-              {tracks.map(track => (
-                <Badge key={track} variant="secondary" className="gap-1">
-                  {track}
-                  <X className="h-3 w-3 cursor-pointer" onClick={() => toggleTrack(track)} />
-                </Badge>
-              ))}
-            </div>
-            {tracks.length === 0 && <p className="text-xs text-gray-500">Доступно для всех треков</p>}
+
+                    <div className="bg-white p-4 rounded border border-gray-100 space-y-4">
+                        <div className="space-y-2">
+                           <Label className="text-xs text-gray-700">Индивидуальная дата открытия</Label>
+                           <Input 
+                              type="date" 
+                              value={trackSettings[selectedTrackForConfig]?.openAt ? new Date(trackSettings[selectedTrackForConfig]!.openAt!).toISOString().split('T')[0] : ""}
+                              onChange={(e) => updateTrackSetting(selectedTrackForConfig, { openAt: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                           />
+                        </div>
+
+                        <div className="relative">
+                            <div className="absolute inset-0 flex items-center">
+                                <span className="w-full border-t border-gray-100" />
+                            </div>
+                            <div className="relative flex justify-center text-xs uppercase">
+                                <span className="bg-white px-2 text-gray-400">ИЛИ</span>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                           <div className="flex items-center gap-2">
+                               <Checkbox 
+                                  id={`track-relative-${selectedTrackForConfig}`}
+                                  checked={!!trackSettings[selectedTrackForConfig]?.openAfterEvent}
+                                  onCheckedChange={(checked) => {
+                                      if (checked) {
+                                          updateTrackSetting(selectedTrackForConfig!, { 
+                                              openAfterEvent: "track_definition_completed",
+                                              openAfterAmount: 1, 
+                                              openAfterUnit: "weeks"
+                                            });
+                                      } else {
+                                          updateTrackSetting(selectedTrackForConfig!, { openAfterEvent: null });
+                                      }
+                                  }}
+                               />
+                               <label htmlFor={`track-relative-${selectedTrackForConfig}`} className="text-xs cursor-pointer">
+                                  Автоматически после определения трека
+                               </label>
+                           </div>
+
+                           {!!trackSettings[selectedTrackForConfig]?.openAfterEvent && (
+                                <div className="flex items-end gap-3 pl-6">
+                                    <div className="space-y-1 w-24">
+                                        <Label className="text-[10px]">Через</Label>
+                                        <Input 
+                                            type="number" min="0" className="h-8 text-sm"
+                                            value={trackSettings[selectedTrackForConfig]?.openAfterAmount || ""}
+                                            onChange={(e) => updateTrackSetting(selectedTrackForConfig!, { openAfterAmount: parseInt(e.target.value) || 0 })}
+                                        />
+                                    </div>
+                                    <div className="space-y-1 w-32">
+                                        <Label className="text-[10px]">Единица</Label>
+                                        <Select 
+                                            value={trackSettings[selectedTrackForConfig]?.openAfterUnit || "weeks"} 
+                                            onValueChange={(v) => updateTrackSetting(selectedTrackForConfig!, { openAfterUnit: v })}
+                                        >
+                                            <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="days">Дней</SelectItem>
+                                                <SelectItem value="weeks">Недель</SelectItem>
+                                                <SelectItem value="months">Месяцев</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+                           )}
+                        </div>
+                    </div>
+                 </div>
+             )}
           </div>
 
-          {/* Groups */}
-          <div className="space-y-2">
-            <Label>Группы</Label>
-            <Select 
-              onValueChange={(value) => toggleGroup(value)}
-              value={groups.length > 0 ? groups[groups.length - 1] : undefined}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Выберите группы" />
-              </SelectTrigger>
-              <SelectContent>
-                {/* @ts-ignore - groupsData might be any */}
-                {availableGroups.map((group: any) => (
-                  <SelectItem key={group.id} value={group.id}>
-                    <div className="flex items-center gap-2">
-                      <Checkbox checked={groups.includes(group.id)} />
-                      <span>{group.name}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <div className="flex flex-wrap gap-2 mt-2">
-              {groups.map(groupId => {
-                // @ts-ignore
-                const groupName = availableGroups.find((g: any) => g.id === groupId)?.name || groupId;
-                return (
-                  <Badge key={groupId} variant="secondary" className="gap-1">
-                    {groupName}
-                    <X className="h-3 w-3 cursor-pointer" onClick={() => toggleGroup(groupId)} />
-                  </Badge>
-                );
-              })}
-            </div>
-            {groups.length === 0 && <p className="text-xs text-gray-500">Доступно для всех групп</p>}
-          </div>
         </div>
         <DialogFooter>
           <Button onClick={handleSave}>Сохранить настройки</Button>
@@ -371,7 +484,7 @@ export default function CourseBuilderPage() {
   });
 
   const updateModuleMutation = useMutation({
-    mutationFn: async ({ moduleId, title, allowedTariffs, allowedTracks, allowedGroups, openAt, openAfterAmount, openAfterUnit, openAfterEvent }: { 
+    mutationFn: async ({ moduleId, title, allowedTariffs, allowedTracks, allowedGroups, openAt, openAfterAmount, openAfterUnit, openAfterEvent, trackSettings }: { 
       moduleId: string; 
       title?: string; 
       allowedTariffs?: string[]; 
@@ -381,6 +494,7 @@ export default function CourseBuilderPage() {
       openAfterAmount?: number | null;
       openAfterUnit?: string | null;
       openAfterEvent?: string | null;
+      trackSettings?: Record<string, TrackSetting>;
     }) => {
       // Ensure we send arrays, never undefined/null
       const payload = {
@@ -392,6 +506,7 @@ export default function CourseBuilderPage() {
         openAfterAmount,
         openAfterUnit,
         openAfterEvent,
+        trackSettings,
       };
       await apiClient.patch(`/admin/modules/${moduleId}`, payload);
     },
