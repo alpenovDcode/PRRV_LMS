@@ -334,8 +334,8 @@ export default function LessonPlayerPage() {
   };
 
   const handleSubmitHomework = () => {
-    if (!homeworkContent.trim()) {
-      toast.error("Введите ответ на задание");
+    if (!homeworkContent.trim() && uploadedFiles.length === 0) {
+      toast.error("Введите ответ на задание или прикрепите файл");
       return;
     }
     submitHomeworkMutation.mutate({
@@ -780,7 +780,7 @@ export default function LessonPlayerPage() {
 
                         <Button
                           onClick={handleSubmitHomework}
-                          disabled={submitHomeworkMutation.isPending || !homeworkContent.trim()}
+                          disabled={submitHomeworkMutation.isPending || (!homeworkContent.trim() && uploadedFiles.length === 0)}
                           className="bg-blue-600 hover:bg-blue-700 text-white"
                         >
                           {submitHomeworkMutation.isPending ? "Отправка..." : "Отправить на проверку"}
