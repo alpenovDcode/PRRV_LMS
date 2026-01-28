@@ -40,6 +40,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { CloudflarePlayer } from "@/components/learn/cloudflare-player";
 import { LessonContentPlayer } from "@/components/learn/lesson-content-player";
+import { LessonDiscussion } from "@/components/learn/lesson-discussion";
 
 interface Lesson {
   id: string;
@@ -799,26 +800,7 @@ export default function LessonPlayerPage() {
               </TabsContent>
 
               <TabsContent value="discussion" className="mt-6">
-                <Card className="border-gray-200">
-                  <CardContent className="p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Обсуждение и вопросы</h3>
-                    <div className="space-y-4">
-                      <Textarea
-                        placeholder="Задайте вопрос или поделитесь мыслями..."
-                        rows={4}
-                        className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                      />
-                      <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-                        Отправить комментарий
-                      </Button>
-                    </div>
-                    <div className="mt-6 space-y-4">
-                      <p className="text-sm text-gray-500 text-center py-8">
-                        Пока нет комментариев. Будьте первым!
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
+                <LessonDiscussion lessonId={lessonId} />
               </TabsContent>
             </Tabs>
           </div>
