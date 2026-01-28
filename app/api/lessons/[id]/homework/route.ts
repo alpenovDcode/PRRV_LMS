@@ -7,7 +7,7 @@ import { sanitizeText } from "@/lib/sanitize";
 import { z } from "zod";
 
 const homeworkSubmitSchema = z.object({
-  content: z.string().min(1, "Содержание задания обязательно"),
+  content: z.string().optional(),
   files: z.array(z.string()).optional(),
 });
 
@@ -20,6 +20,19 @@ export async function POST(
       const { id } = await params;
         const body = await request.json();
       const { content, files } = homeworkSubmitSchema.parse(body);
+
+      if (!content && (!files || files.length === 0)) {
+         return NextResponse.json<ApiResponse>(
+          {
+            success: false,
+            error: {
+              code: "VALIDATION_ERROR",
+              message: "Содержание задания обязательно или прикрепите файлы",
+            },
+          },
+          { status: 400 }
+        );
+      }
 
       // Проверяем, что урок существует
       const lesson = await db.lesson.findUnique({
@@ -102,7 +115,8 @@ export async function POST(
       }
 
       // Санитизируем контент перед сохранением
-      const sanitizedContent = await sanitizeText(content);
+      // Санитизируем контент перед сохранением
+      const sanitizedContent = content ? await sanitizeText(content) : "";
 
       // Проверяем существующую отправку
       const existingSubmission = await db.homeworkSubmission.findFirst({

@@ -173,7 +173,7 @@ export function LessonContentPlayer({ lesson, onTimeUpdate, onEnded, isPreview =
       {/* Text Type */}
       {lesson.type === "text" && (
         <Card className="mb-6 border-gray-200">
-          <CardContent className="prose prose-sm max-w-none dark:prose-invert p-6">
+          <CardContent className="prose prose-sm max-w-none dark:prose-invert p-6 text-black prose-p:text-black prose-headings:text-black prose-li:text-black prose-ul:text-black prose-ol:text-black prose-strong:text-black">
             {lesson.content?.markdown ? (
               <ReactMarkdown
                 remarkPlugins={[remarkGfm, remarkBreaks]}
