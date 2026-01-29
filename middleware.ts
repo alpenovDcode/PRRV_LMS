@@ -95,14 +95,7 @@ export async function middleware(request: NextRequest) {
             url.pathname = "/no-access";
             return NextResponse.redirect(url);
           }
-          // Администратор на /dashboard -> редирект на /admin
-          // НО только если нет активной impersonation сессии
-          const originalAdminToken = request.cookies.get("originalAdminToken")?.value;
-          if (payload.role === "admin" && !originalAdminToken) {
-            const url = request.nextUrl.clone();
-            url.pathname = "/admin";
-            return NextResponse.redirect(url);
-          }
+           // Allow admins to access /dashboard
         }
 
         // СТРОГАЯ ПРОВЕРКА: /curator - только для админов и кураторов
