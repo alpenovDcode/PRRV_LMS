@@ -43,6 +43,7 @@ export async function GET(
             emailVerified: true,
             createdAt: true,
             updatedAt: true,
+            lastActiveAt: true,
             phone: true,
             telegram: true,
             about: true,

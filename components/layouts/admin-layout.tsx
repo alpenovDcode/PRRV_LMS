@@ -20,6 +20,7 @@ import {
   AlertTriangle,
   TrendingUp,
   Film,
+  GraduationCap,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -34,6 +35,7 @@ const adminNavigation = [
   { name: "Аналитика", href: "/admin/analytics", icon: BarChart },
   { name: "Детальная аналитика", href: "/admin/analytics/detailed", icon: TrendingUp },
   { name: "Мониторинг", href: "/admin/monitoring/errors", icon: AlertTriangle },
+  { name: "Тренинги", href: "/dashboard", icon: GraduationCap },
   { name: "Настройки", href: "/admin/settings", icon: Settings },
 ];
 

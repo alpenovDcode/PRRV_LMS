@@ -58,6 +58,7 @@ export async function GET(request: NextRequest) {
             tariff: true,
             track: true,
             createdAt: true,
+            lastActiveAt: true,
           },
           orderBy: { createdAt: "desc" },
           take: 200,

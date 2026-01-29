@@ -198,22 +198,25 @@ export function StudentLayout({ children }: { children: React.ReactNode }) {
         {/* Page content */}
         <main className="flex-1 bg-gradient-to-br from-primary-50/20 via-white to-white">{children}</main>
       </div>
-      {/* Floating Stop Impersonation Button */}
-      {hasImpersonation && (
+      {/* Floating Stop Impersonation / Return to Admin Button */}
+      {(hasImpersonation || user?.role === "admin") && (
         <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
           <Button
             onClick={async () => {
-              try {
-                await apiClient.post("/auth/impersonate/restore", {}, {
-                  withCredentials: true,
-                });
-                window.location.href = "/admin";
-              } catch (error) {
-
+              if (hasImpersonation) {
+                try {
+                  await apiClient.post("/auth/impersonate/restore", {}, {
+                    withCredentials: true,
+                  });
+                  window.location.href = "/admin";
+                } catch (error) {
+                  window.location.href = "/admin";
+                }
+              } else {
                 window.location.href = "/admin";
               }
             }}
-            className="shadow-lg hover:shadow-xl bg-red-600 hover:bg-red-700 text-white gap-2 rounded-full px-6 py-6 h-auto transition-all hover:scale-105"
+            className="shadow-lg hover:shadow-xl bg-blue-500 hover:bg-blue-600 text-white gap-2 rounded-full px-6 py-6 h-auto transition-all hover:scale-105"
           >
             <Shield className="h-5 w-5" />
             <span className="font-medium">Вернуться в админку</span>

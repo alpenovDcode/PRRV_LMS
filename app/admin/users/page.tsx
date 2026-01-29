@@ -37,7 +37,16 @@ interface AdminUser {
   tariff?: "VR" | "LR" | "SR" | null;
   track?: string | null;
   createdAt: string;
+  lastActiveAt?: string | null;
 }
+
+const isOnline = (lastActiveAt?: string | null) => {
+  if (!lastActiveAt) return false;
+  const now = new Date();
+  const lastActive = new Date(lastActiveAt);
+  const diffMinutes = (now.getTime() - lastActive.getTime()) / (1000 * 60);
+  return diffMinutes < 15; // 15 minutes threshold
+};
 
 export default function AdminUsersPage() {
   const queryClient = useQueryClient();
@@ -377,6 +386,7 @@ export default function AdminUsersPage() {
               <thead>
                 <tr className="border-b text-xs text-muted-foreground">
                   <th className="py-2 text-left font-medium">Имя</th>
+                  <th className="py-2 text-left font-medium w-6"></th>
                   <th className="py-2 text-left font-medium">Email</th>
                   <th className="py-2 text-left font-medium">Роль</th>
                   <th className="py-2 text-left font-medium">Тариф</th>
@@ -420,6 +430,12 @@ export default function AdminUsersPage() {
                           >
                             {user.fullName || "Без имени"}
                           </Link>
+                        </td>
+                        <td className="py-3 px-1">
+                          <div 
+                            className={`w-2.5 h-2.5 rounded-full ${isOnline(user.lastActiveAt) ? 'bg-green-500' : 'bg-red-400'}`} 
+                            title={isOnline(user.lastActiveAt) ? "В сети" : "Не в сети"}
+                          />
                         </td>
                         <td className="py-3 text-muted-foreground">{user.email}</td>
                         <td className="py-3">

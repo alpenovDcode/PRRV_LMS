@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Hls from "hls.js";
-import { Loader2 } from "lucide-react";
+import { Loader2, Settings, Check } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 
 interface HLSVideoPlayerProps {
@@ -30,6 +30,11 @@ export function HLSVideoPlayer({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  
+  // Quality control state
+  const [levels, setLevels] = useState<{ height: number; index: number }[]>([]);
+  const [currentLevel, setCurrentLevel] = useState<number>(-1); // -1 = Auto
+  const [showQualityMenu, setShowQualityMenu] = useState(false);
 
   // Определяем устройство для выбора качества
   const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
@@ -88,6 +93,13 @@ export function HLSVideoPlayer({
         setIsLoading(false);
         setIsReady(true);
 
+        // Save available levels
+        const videoLevels = hls.levels.map((l, idx) => ({
+          height: l.height,
+          index: idx,
+        })).sort((a, b) => b.height - a.height); // Sort high to low
+        setLevels(videoLevels);
+
         // Настройка качества: 720p для мобильных, 1080p для десктопа
         const targetHeight = isMobile ? 720 : 1080;
         const targetLevel = hls.levels.findIndex(
@@ -96,6 +108,7 @@ export function HLSVideoPlayer({
 
         if (targetLevel !== -1) {
           hls.currentLevel = targetLevel;
+          setCurrentLevel(targetLevel);
           console.log(`Set quality to ${targetHeight}p`);
         } else {
           // Fallback: минимум 720p
@@ -104,7 +117,11 @@ export function HLSVideoPlayer({
           );
           if (fallbackLevel !== -1) {
             hls.currentLevel = fallbackLevel;
+            setCurrentLevel(fallbackLevel);
             console.log(`Fallback quality: ${hls.levels[fallbackLevel].height}p`);
+          } else {
+             // If no suitable level found, stay on Auto (-1)
+             setCurrentLevel(-1);
           }
         }
 
@@ -193,6 +210,14 @@ export function HLSVideoPlayer({
     };
   }, [onTimeUpdate, onEnded]);
 
+  const handleQualityChange = (levelIndex: number) => {
+    if (hlsRef.current) {
+        hlsRef.current.currentLevel = levelIndex;
+        setCurrentLevel(levelIndex);
+        setShowQualityMenu(false);
+    }
+  };
+
   if (error) {
     return (
       <div className="relative w-full aspect-video bg-black rounded-lg flex items-center justify-center">
@@ -214,6 +239,53 @@ export function HLSVideoPlayer({
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center z-10">
           <Loader2 className="w-12 h-12 text-white animate-spin" />
+        </div>
+      )}
+
+      {/* Quality Controls */}
+      {isReady && levels.length > 0 && (
+        <div className="absolute top-4 right-4 z-20">
+          <button
+            onClick={(e) => {
+                e.stopPropagation();
+                setShowQualityMenu(!showQualityMenu);
+            }}
+            className="p-2 bg-black/60 text-white rounded-full hover:bg-black/80 transition backdrop-blur-sm"
+            title="Качество видео"
+            aria-label="Quality settings"
+          >
+            <Settings size={20} />
+          </button>
+
+          {showQualityMenu && (
+            <div className="absolute right-0 mt-2 w-32 bg-gray-900/95 border border-gray-700/50 rounded-lg shadow-xl overflow-hidden backdrop-blur-md">
+              <div className="py-1">
+                <button
+                  className={`w-full text-left px-3 py-2 hover:bg-white/10 flex items-center justify-between text-xs transition-colors ${
+                    currentLevel === -1 ? "text-blue-400 font-medium bg-white/5" : "text-gray-200"
+                  }`}
+                  onClick={() => handleQualityChange(-1)}
+                >
+                  <span>Авто</span>
+                  {currentLevel === -1 && <Check size={12} />}
+                </button>
+                {levels.map((level) => (
+                  <button
+                    key={level.index}
+                    className={`w-full text-left px-3 py-2 hover:bg-white/10 flex items-center justify-between text-xs transition-colors ${
+                      currentLevel === level.index
+                        ? "text-blue-400 font-medium bg-white/5"
+                        : "text-gray-200"
+                    }`}
+                    onClick={() => handleQualityChange(level.index)}
+                  >
+                    <span>{level.height}p</span>
+                    {currentLevel === level.index && <Check size={12} />}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
       <video

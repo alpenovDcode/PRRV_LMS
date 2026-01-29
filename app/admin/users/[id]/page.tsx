@@ -63,6 +63,7 @@ interface AdminUserDetail {
   about: string | null;
   track: string | null;
   tariff: "VR" | "LR" | "SR" | null;
+  lastActiveAt?: string | null;
   groupMembers: {
     group: {
       id: string;
@@ -618,6 +619,21 @@ export default function AdminUserDetailPage() {
                       <div>
                         <p className="text-sm font-medium text-gray-900">{formatDate(user.createdAt)}</p>
                         <p className="text-xs text-gray-500">Дата регистрации</p>
+                      </div>
+                      </div>
+
+
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-5 items-center justify-center w-5 mt-0.5">
+                        <div className={`w-2.5 h-2.5 rounded-full ${user.lastActiveAt && (new Date().getTime() - new Date(user.lastActiveAt).getTime() < 15 * 60 * 1000) ? 'bg-green-500' : 'bg-red-400'}`} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">
+                          {user.lastActiveAt 
+                            ? new Date(user.lastActiveAt).toLocaleString("ru-RU", { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+                            : "Нет данных"}
+                        </p>
+                        <p className="text-xs text-gray-500">Последняя активность</p>
                       </div>
                     </div>
                   </div>
