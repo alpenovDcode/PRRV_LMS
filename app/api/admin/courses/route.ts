@@ -20,6 +20,12 @@ export async function GET(request: NextRequest) {
             slug: true,
             isPublished: true,
             createdAt: true,
+            _count: {
+              select: {
+                modules: true,
+                enrollments: true,
+              },
+            },
           },
           orderBy: { createdAt: "desc" },
         });
