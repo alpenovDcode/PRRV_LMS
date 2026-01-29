@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/api-middleware";
 import { db } from "@/lib/db";
 import { ApiResponse } from "@/types";
+import { logAction } from "@/lib/audit";
 import { z } from "zod";
 
 const progressSchema = z.object({
@@ -96,6 +97,13 @@ export async function POST(
           completedAt: status === "completed" ? new Date() : undefined,
         },
       });
+
+      // Если урок завершен, записываем в аудит
+      if (status === "completed" && progress.status === "completed") {
+        await logAction(req.user!.userId, "LESSON_COMPLETED", "lesson", id, {
+          rating: ratingToSave
+        });
+      }
 
       return NextResponse.json<ApiResponse>(
         {

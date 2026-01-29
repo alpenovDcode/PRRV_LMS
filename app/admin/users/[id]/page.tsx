@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { formatDate } from "@/lib/utils";
+import { formatActivityDetails } from "@/lib/activity-formatter";
 import { 
   Phone, 
   MapPin, 
@@ -704,7 +705,7 @@ export default function AdminUserDetailPage() {
                             <h4 className="font-semibold text-gray-900">{activity.title}</h4>
                             <p className="text-sm text-gray-500">
                               {activity.courseName && <span className="text-gray-400">Курс: {activity.courseName} • </span>}
-                              {activity.description}
+                              {formatActivityDetails(activity.type, activity.description)}
                             </p>
                             <p className="text-xs text-gray-400 mt-1">{formatDate(activity.date)}</p>
                           </div>

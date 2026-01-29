@@ -17,7 +17,9 @@ import {
   HelpCircle,
   Layout,
   Eye,
+  Copy as CopyIcon,
 } from "lucide-react";
+import { toast } from "sonner";
 import Link from "next/link";
 import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
@@ -172,11 +174,26 @@ export default function AdminTrainingDetailPage() {
       </div>
 
       {/* Admin Action */}
-      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild title="Просмотреть урок">
-          <Link href={`/admin/trainings/${id}/lessons/${lesson.id}`}>
-             <Eye className="h-4 w-4 text-gray-500 hover:text-blue-600" />
-          </Link>
-      </Button> 
+      <div className="flex items-center gap-1">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="h-8 w-8 p-0" 
+            title="Скопировать ссылку"
+            onClick={() => {
+                const link = `${window.location.origin}/learn/${course.slug}/${lesson.id}`;
+                navigator.clipboard.writeText(link);
+                toast.success("Ссылка скопирована");
+            }}
+          >
+              <CopyIcon className="h-4 w-4 text-gray-500 hover:text-blue-600" />
+          </Button>
+          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild title="Просмотреть урок">
+              <Link href={`/admin/trainings/${id}/lessons/${lesson.id}`}>
+                 <Eye className="h-4 w-4 text-gray-500 hover:text-blue-600" />
+              </Link>
+          </Button> 
+      </div>
     </div>
   );
 

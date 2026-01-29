@@ -3,7 +3,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, Link as LinkIcon } from "lucide-react";
+import { toast } from "sonner";
 import { useRouter, useParams } from "next/navigation";
 import { LessonContentPlayer } from "@/components/learn/lesson-content-player";
 
@@ -65,11 +66,25 @@ export default function AdminLessonViewerPage() {
             </span>
           </div>
 
-          <Button variant="outline" size="sm" asChild>
-              <a href={`/admin/lessons/${lessonId}/edit`}>
-                  Редактировать
-              </a>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => {
+                    const link = `${window.location.origin}/learn/${lesson.module.course.slug}/${lesson.id}`;
+                    navigator.clipboard.writeText(link);
+                    toast.success("Ссылка скопирована");
+                }}
+            >
+                <LinkIcon className="mr-2 h-4 w-4" />
+                Скопировать ссылку
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+                <a href={`/admin/lessons/${lessonId}/edit`}>
+                    Редактировать
+                </a>
+            </Button>
+          </div>
        </div>
 
        {/* Content Area */}

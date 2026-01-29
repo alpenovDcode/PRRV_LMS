@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { ApiResponse } from "@/types";
 import { notifyHomeworkSubmitted } from "@/lib/notifications";
 import { sanitizeText } from "@/lib/sanitize";
+import { logAction } from "@/lib/audit";
 import { z } from "zod";
 
 const homeworkSubmitSchema = z.object({
@@ -218,6 +219,11 @@ export async function POST(
         console.error("Failed to notify curators about homework submission:", notifyError);
         // Don't fail the request if notification fails
       }
+
+      // Log action
+      await logAction(req.user!.userId, "SUBMIT_HOMEWORK", "homework", submission.id, {
+         title: submission.lesson.title
+      });
 
       return NextResponse.json<ApiResponse>(
         {

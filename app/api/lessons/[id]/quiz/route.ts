@@ -6,6 +6,7 @@ import {
   createQuizAttempt,
   submitQuizAttempt,
 } from "@/lib/quiz-logic";
+import { logAction } from "@/lib/audit";
 import { z } from "zod";
 
 const submitQuizSchema = z.object({
@@ -123,6 +124,13 @@ export async function PATCH(
         .parse(body);
 
       const result = await submitQuizAttempt(attemptId, answers);
+
+      // Log action
+      await logAction((_req as any).user!.userId, "SUBMIT_QUIZ", "quiz_attempt", attemptId, {
+        score: result.score,
+        isPassed: result.isPassed,
+        lessonId: params.id
+      });
 
       return NextResponse.json<ApiResponse>(
         {
