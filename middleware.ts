@@ -2,6 +2,18 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { verifyAccessTokenEdge } from "./lib/auth-edge";
 
+// Helper to safely construct absolute URLs
+function getSafeUrl(path: string, request: NextRequest): URL {
+  const publicUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (publicUrl && !publicUrl.includes("localhost") && !publicUrl.includes("0.0.0.0")) {
+    // If public URL is configured and looks valid, use it as base
+    const url = new URL(path, publicUrl);
+    // Copy search params if path doesn't contain them
+    return url;
+  }
+  return new URL(path, request.url);
+}
+
 export async function middleware(request: NextRequest) {
   const token = request.cookies.get("accessToken")?.value;
   const path = request.nextUrl.pathname;
@@ -46,15 +58,13 @@ export async function middleware(request: NextRequest) {
     
     // Если есть refreshToken, пробуем обновить сессию
     if (refreshToken) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/api/auth/refresh";
+      const url = getSafeUrl("/api/auth/refresh", request);
       url.searchParams.set("redirect", path);
       // Removed appending apiKey to prevent exposure in URL
       return NextResponse.redirect(url);
     }
 
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
+    const url = getSafeUrl("/login", request);
     url.searchParams.set("redirect", path);
     return NextResponse.redirect(url);
   }
@@ -71,12 +81,10 @@ export async function middleware(request: NextRequest) {
             // Проверяем, есть ли активная сессия impersonation
             const originalAdminToken = request.cookies.get("originalAdminToken")?.value;
             if (originalAdminToken) {
-              const url = request.nextUrl.clone();
-              url.pathname = "/admin/restore";
+              const url = getSafeUrl("/admin/restore", request);
               return NextResponse.redirect(url);
             }
-            const url = request.nextUrl.clone();
-            url.pathname = "/no-access";
+            const url = getSafeUrl("/no-access", request);
             return NextResponse.redirect(url);
           }
         }
@@ -85,14 +93,12 @@ export async function middleware(request: NextRequest) {
         if (path.startsWith("/dashboard") || path === "/dashboard") {
           // Куратор на /dashboard -> редирект на /curator/inbox (ПЕРЕД проверкой прав)
           if (payload.role === "curator") {
-            const url = request.nextUrl.clone();
-            url.pathname = "/curator/inbox";
+            const url = getSafeUrl("/curator/inbox", request);
             return NextResponse.redirect(url);
           }
 
           if (payload.role !== "admin" && payload.role !== "student") {
-            const url = request.nextUrl.clone();
-            url.pathname = "/no-access";
+            const url = getSafeUrl("/no-access", request);
             return NextResponse.redirect(url);
           }
            // Allow admins to access /dashboard
@@ -101,14 +107,12 @@ export async function middleware(request: NextRequest) {
         // СТРОГАЯ ПРОВЕРКА: /curator - только для админов и кураторов
         if (path.startsWith("/curator")) {
           if (payload.role !== "curator" && payload.role !== "admin") {
-            const url = request.nextUrl.clone();
-            url.pathname = "/no-access";
+            const url = getSafeUrl("/no-access", request);
             return NextResponse.redirect(url);
           }
           // Куратор на /dashboard -> редирект на /curator/inbox
           if (payload.role === "curator" && path === "/dashboard") {
-            const url = request.nextUrl.clone();
-            url.pathname = "/curator/inbox";
+            const url = getSafeUrl("/curator/inbox", request);
             return NextResponse.redirect(url);
           }
         }
@@ -116,16 +120,13 @@ export async function middleware(request: NextRequest) {
         // Редиректы для удобства навигации с главной страницы
         if (path === "/") {
           if (payload.role === "admin") {
-            const url = request.nextUrl.clone();
-            url.pathname = "/admin";
+            const url = getSafeUrl("/admin", request);
             return NextResponse.redirect(url);
           } else if (payload.role === "curator") {
-            const url = request.nextUrl.clone();
-            url.pathname = "/curator/inbox";
+            const url = getSafeUrl("/curator/inbox", request);
             return NextResponse.redirect(url);
           } else if (payload.role === "student") {
-            const url = request.nextUrl.clone();
-            url.pathname = "/dashboard";
+            const url = getSafeUrl("/dashboard", request);
             return NextResponse.redirect(url);
           }
         }
@@ -136,13 +137,11 @@ export async function middleware(request: NextRequest) {
         if (!isPublicRoute) {
           const refreshToken = request.cookies.get("refreshToken")?.value;
           if (refreshToken) {
-            const url = request.nextUrl.clone();
-            url.pathname = "/api/auth/refresh";
+            const url = getSafeUrl("/api/auth/refresh", request);
             url.searchParams.set("redirect", path);
             return NextResponse.redirect(url);
           }
-          const url = request.nextUrl.clone();
-          url.pathname = "/login";
+          const url = getSafeUrl("/login", request);
           url.searchParams.set("redirect", path);
           return NextResponse.redirect(url);
         }
@@ -152,13 +151,11 @@ export async function middleware(request: NextRequest) {
       if (!isPublicRoute) {
         const refreshToken = request.cookies.get("refreshToken")?.value;
         if (refreshToken) {
-          const url = request.nextUrl.clone();
-          url.pathname = "/api/auth/refresh";
+          const url = getSafeUrl("/api/auth/refresh", request);
           url.searchParams.set("redirect", path);
           return NextResponse.redirect(url);
         }
-        const url = request.nextUrl.clone();
-        url.pathname = "/login";
+        const url = getSafeUrl("/login", request);
         url.searchParams.set("redirect", path);
         return NextResponse.redirect(url);
       }

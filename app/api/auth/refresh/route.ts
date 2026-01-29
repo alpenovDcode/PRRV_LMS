@@ -7,6 +7,16 @@ const refreshSchema = z.object({
   refreshToken: z.string().min(1),
 });
 
+// Helper to safely construct absolute URLs
+function getSafeUrl(path: string, request: NextRequest): URL {
+  const publicUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (publicUrl && !publicUrl.includes("localhost") && !publicUrl.includes("0.0.0.0")) {
+    const url = new URL(path, publicUrl);
+    return url;
+  }
+  return new URL(path, request.url);
+}
+
 // GET обработчик для middleware (редиректы)
 export async function GET(request: NextRequest) {
   try {
@@ -14,7 +24,7 @@ export async function GET(request: NextRequest) {
     const token = request.cookies.get("refreshToken")?.value;
 
     if (!token) {
-      const loginUrl = new URL("/login", request.url);
+      const loginUrl = getSafeUrl("/login", request);
       loginUrl.searchParams.set("redirect", redirectUrl);
       return NextResponse.redirect(loginUrl);
     }
@@ -22,7 +32,7 @@ export async function GET(request: NextRequest) {
     const payload = verifyRefreshToken(token);
 
     if (!payload) {
-      const loginUrl = new URL("/login", request.url);
+      const loginUrl = getSafeUrl("/login", request);
       loginUrl.searchParams.set("redirect", redirectUrl);
       return NextResponse.redirect(loginUrl);
     }
@@ -30,7 +40,7 @@ export async function GET(request: NextRequest) {
     const isValidSession = await validateSession(payload.userId, payload.sessionId);
 
     if (!isValidSession) {
-      const loginUrl = new URL("/login", request.url);
+      const loginUrl = getSafeUrl("/login", request);
       loginUrl.searchParams.set("redirect", redirectUrl);
       return NextResponse.redirect(loginUrl);
     }
@@ -39,7 +49,7 @@ export async function GET(request: NextRequest) {
 
     // Редиректим обратно на исходную страницу
     // Но сначала устанавливаем новый accessToken
-    const response = NextResponse.redirect(new URL(redirectUrl, request.url));
+    const response = NextResponse.redirect(getSafeUrl(redirectUrl, request));
 
     response.cookies.set("accessToken", accessToken, {
       httpOnly: true,
@@ -54,7 +64,7 @@ export async function GET(request: NextRequest) {
     console.error("Refresh token error:", error);
     // In case of error (e.g. DB down), redirect to login
     const redirectUrl = request.nextUrl.searchParams.get("redirect") || "/";
-    const loginUrl = new URL("/login", request.url);
+    const loginUrl = getSafeUrl("/login", request);
     loginUrl.searchParams.set("redirect", redirectUrl);
     return NextResponse.redirect(loginUrl);
   }
