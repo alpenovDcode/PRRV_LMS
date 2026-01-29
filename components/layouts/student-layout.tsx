@@ -90,7 +90,17 @@ export function StudentLayout({ children }: { children: React.ReactNode }) {
 
           {/* Navigation */}
           <nav className="flex-1 space-y-2 px-3 py-4 overflow-y-auto">
-            {navigation.map((item) => {
+            {navigation
+              .filter(item => {
+                // Если пользователь админ и НЕ в режиме impersonation
+                if (user?.role === "admin" && !hasImpersonation) {
+                   // Показываем только "Мои курсы"
+                   return item.href === "/courses";
+                }
+                // Иначе показываем всё (для студентов и режима impersonation)
+                return true;
+              })
+              .map((item) => {
               const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
               return (
                 <Link
