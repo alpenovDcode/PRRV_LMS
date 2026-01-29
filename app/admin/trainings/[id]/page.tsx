@@ -15,7 +15,8 @@ import {
   FileText,
   PlayCircle,
   HelpCircle,
-  Layout
+  Layout,
+  Eye,
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -170,14 +171,12 @@ export default function AdminTrainingDetailPage() {
         </div>
       </div>
 
-      {/* Admin Action Placeholder - maybe adding a "Preview" button later? */}
-      {/* 
-      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
-          <Link href={`/admin/trainings/${course.id}/lessons/${lesson.id}`}>
-             <Eye className="h-4 w-4" />
+      {/* Admin Action */}
+      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild title="Просмотреть урок">
+          <Link href={`/admin/trainings/${id}/lessons/${lesson.id}`}>
+             <Eye className="h-4 w-4 text-gray-500 hover:text-blue-600" />
           </Link>
       </Button> 
-      */}
     </div>
   );
 
