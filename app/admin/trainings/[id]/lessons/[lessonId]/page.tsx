@@ -66,7 +66,7 @@ export default function AdminLessonViewerPage() {
           </div>
 
           <Button variant="outline" size="sm" asChild>
-              <a href={`/admin/courses/${courseId}/lessons/${lessonId}/edit`}>
+              <a href={`/admin/lessons/${lessonId}/edit`}>
                   Редактировать
               </a>
           </Button>
