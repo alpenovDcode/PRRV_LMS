@@ -104,11 +104,27 @@ export async function GET(
       
       const user = await db.user.findUnique({
         where: { id: req.user!.userId },
-        include: { groupMembers: { select: { groupId: true } } }
+        include: { 
+            groupMembers: { 
+                include: {
+                    group: {
+                        select: {
+                            id: true,
+                            startDate: true,
+                        }
+                    }
+                } 
+            } 
+        }
       });
       const userGroupIds = user?.groupMembers.map(gm => gm.groupId) || [];
       const userTariff = user?.tariff;
       const userTrack = user?.track;
+      // Map of group start dates for quick lookup
+      const userGroupsMap = new Map<string, Date | null>();
+      user?.groupMembers.forEach(gm => {
+          userGroupsMap.set(gm.groupId, gm.group.startDate ? new Date(gm.group.startDate) : null);
+      });
 
       // Find user's track definition lesson completion date
       let trackDefinitionCompletedAt: Date | null = null;
@@ -171,6 +187,43 @@ export async function GET(
                  }
                  if (now < openDate) return false;
              }
+         } else if (module.openAfterEvent === 'group_start_date') {
+             // Logic: Check if ANY of the user's groups (that are allowed for this module) have started long enough ago
+             // If module.allowedGroups is set, we only consider those.
+             // If not set, we consider ALL user's groups.
+             
+             let eligibleGroups: string[] = [];
+             if (module.allowedGroups && module.allowedGroups.length > 0) {
+                 eligibleGroups = module.allowedGroups.filter((gId: string) => userGroupIds.includes(gId));
+             } else {
+                 eligibleGroups = userGroupIds;
+             }
+
+             if (eligibleGroups.length === 0) {
+                 // User is not in any eligible group (should be caught by step 3, but safety check)
+                 return false;
+             }
+
+             // We need to find AT LEAST ONE group that satisfies the time condition
+             const hasTimeAccess = eligibleGroups.some(groupId => {
+                 const startDate = userGroupsMap.get(groupId);
+                 if (!startDate) return false; // Group has no start date
+
+                 if (module.openAfterAmount && module.openAfterUnit) {
+                    const openDate = new Date(startDate);
+                    if (module.openAfterUnit === 'days') {
+                        openDate.setDate(openDate.getDate() + module.openAfterAmount);
+                    } else if (module.openAfterUnit === 'weeks') {
+                        openDate.setDate(openDate.getDate() + (module.openAfterAmount * 7));
+                    } else if (module.openAfterUnit === 'months') {
+                        openDate.setMonth(openDate.getMonth() + module.openAfterAmount);
+                    }
+                    return now >= openDate;
+                 }
+                 return true; // No delay specified
+             });
+
+             if (!hasTimeAccess) return false;
          }
 
         return true;

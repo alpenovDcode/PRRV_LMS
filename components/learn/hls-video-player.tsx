@@ -54,7 +54,6 @@ export function HLSVideoPlayer({
 
         setToken(response.data.data.token);
       } catch (err: any) {
-        console.error("Token generation error:", err);
         setError("Не удалось получить доступ к видео");
         setIsLoading(false);
       }
@@ -89,7 +88,6 @@ export function HLSVideoPlayer({
       hls.attachMedia(video);
 
       hls.on(Hls.Events.MANIFEST_PARSED, function () {
-        console.log("Video manifest loaded");
         setIsLoading(false);
         setIsReady(true);
 
@@ -109,7 +107,6 @@ export function HLSVideoPlayer({
         if (targetLevel !== -1) {
           hls.currentLevel = targetLevel;
           setCurrentLevel(targetLevel);
-          console.log(`Set quality to ${targetHeight}p`);
         } else {
           // Fallback: минимум 720p
           const fallbackLevel = hls.levels.findIndex(
@@ -118,7 +115,6 @@ export function HLSVideoPlayer({
           if (fallbackLevel !== -1) {
             hls.currentLevel = fallbackLevel;
             setCurrentLevel(fallbackLevel);
-            console.log(`Fallback quality: ${hls.levels[fallbackLevel].height}p`);
           } else {
              // If no suitable level found, stay on Auto (-1)
              setCurrentLevel(-1);
@@ -126,12 +122,11 @@ export function HLSVideoPlayer({
         }
 
         if (autoPlay) {
-          video.play().catch(console.error);
+          video.play().catch(() => {});
         }
       });
 
       hls.on(Hls.Events.ERROR, function (event, data) {
-        console.error("HLS error:", data);
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:

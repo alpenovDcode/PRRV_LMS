@@ -91,6 +91,7 @@ function AccessSettingsDialog({ module, open, onOpenChange, onSave }: AccessSett
   const [useRelativeAccess, setUseRelativeAccess] = useState<boolean>(!!module.openAfterEvent);
   const [openAfterAmount, setOpenAfterAmount] = useState<string>(module.openAfterAmount?.toString() || "");
   const [openAfterUnit, setOpenAfterUnit] = useState<string>(module.openAfterUnit || "weeks");
+  const [openAfterEvent, setOpenAfterEvent] = useState<string>(module.openAfterEvent || "track_definition_completed");
 
   // Track Specific Settings
   const [trackSettings, setTrackSettings] = useState<Record<string, TrackSetting>>(module.trackSettings || {});
@@ -124,7 +125,7 @@ function AccessSettingsDialog({ module, open, onOpenChange, onSave }: AccessSett
       openAt: openAt ? new Date(openAt).toISOString() : null,
       openAfterAmount: useRelativeAccess && openAfterAmount ? parseInt(openAfterAmount, 10) : null,
       openAfterUnit: useRelativeAccess ? openAfterUnit : null,
-      openAfterEvent: useRelativeAccess ? "track_definition_completed" : null,
+      openAfterEvent: useRelativeAccess ? openAfterEvent : null,
       trackSettings: trackSettings,
     });
     onOpenChange(false);
@@ -225,11 +226,24 @@ function AccessSettingsDialog({ module, open, onOpenChange, onSave }: AccessSett
                     }}
                   />
                   <label htmlFor="relative-access" className="text-sm font-medium leading-none cursor-pointer">
-                    Автоматически после определения трека
+                    Автоматически
                   </label>
                 </div>
                 {useRelativeAccess && (
-                  <div className="pl-6 space-y-3">
+                  <div className="pl-6 space-y-4">
+                    <div className="space-y-2">
+                        <Label className="text-xs text-gray-500">Событие</Label>
+                        <Select value={openAfterEvent} onValueChange={setOpenAfterEvent}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Выберите событие" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="track_definition_completed">После определения трека</SelectItem>
+                                <SelectItem value="group_start_date">С даты старта Группы</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
                     <div className="flex items-end gap-3">
                          <div className="space-y-1 w-24">
                             <Label className="text-xs">Через</Label>
@@ -383,7 +397,7 @@ function AccessSettingsDialog({ module, open, onOpenChange, onSave }: AccessSett
                             </div>
                         </div>
 
-                        <div className="space-y-2">
+                        <div className="space-y-4">
                            <div className="flex items-center gap-2">
                                <Checkbox 
                                   id={`track-relative-${selectedTrackForConfig}`}
@@ -401,33 +415,51 @@ function AccessSettingsDialog({ module, open, onOpenChange, onSave }: AccessSett
                                   }}
                                />
                                <label htmlFor={`track-relative-${selectedTrackForConfig}`} className="text-xs cursor-pointer">
-                                  Автоматически после определения трека
+                                  Автоматически
                                </label>
                            </div>
 
                            {!!trackSettings[selectedTrackForConfig]?.openAfterEvent && (
-                                <div className="flex items-end gap-3 pl-6">
-                                    <div className="space-y-1 w-24">
-                                        <Label className="text-[10px]">Через</Label>
-                                        <Input 
-                                            type="number" min="0" className="h-8 text-sm"
-                                            value={trackSettings[selectedTrackForConfig]?.openAfterAmount || ""}
-                                            onChange={(e) => updateTrackSetting(selectedTrackForConfig!, { openAfterAmount: parseInt(e.target.value) || 0 })}
-                                        />
-                                    </div>
-                                    <div className="space-y-1 w-32">
-                                        <Label className="text-[10px]">Единица</Label>
+                                <div className="space-y-3 pl-6">
+                                    <div className="space-y-1">
+                                        <Label className="text-[10px] text-gray-500">Событие</Label>
                                         <Select 
-                                            value={trackSettings[selectedTrackForConfig]?.openAfterUnit || "weeks"} 
-                                            onValueChange={(v) => updateTrackSetting(selectedTrackForConfig!, { openAfterUnit: v })}
+                                            value={trackSettings[selectedTrackForConfig]?.openAfterEvent || "track_definition_completed"} 
+                                            onValueChange={(val) => updateTrackSetting(selectedTrackForConfig!, { openAfterEvent: val })}
                                         >
-                                            <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                                            <SelectTrigger className="h-8 text-xs">
+                                                <SelectValue placeholder="Выберите событие" />
+                                            </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="days">Дней</SelectItem>
-                                                <SelectItem value="weeks">Недель</SelectItem>
-                                                <SelectItem value="months">Месяцев</SelectItem>
+                                                <SelectItem value="track_definition_completed">После определения трека</SelectItem>
+                                                <SelectItem value="group_start_date">С даты старта Группы</SelectItem>
                                             </SelectContent>
                                         </Select>
+                                    </div>
+
+                                    <div className="flex items-end gap-3">
+                                        <div className="space-y-1 w-24">
+                                            <Label className="text-[10px]">Через</Label>
+                                            <Input 
+                                                type="number" min="0" className="h-8 text-sm"
+                                                value={trackSettings[selectedTrackForConfig]?.openAfterAmount || ""}
+                                                onChange={(e) => updateTrackSetting(selectedTrackForConfig!, { openAfterAmount: parseInt(e.target.value) || 0 })}
+                                            />
+                                        </div>
+                                        <div className="space-y-1 w-32">
+                                            <Label className="text-[10px]">Единица</Label>
+                                            <Select 
+                                                value={trackSettings[selectedTrackForConfig]?.openAfterUnit || "weeks"} 
+                                                onValueChange={(v) => updateTrackSetting(selectedTrackForConfig!, { openAfterUnit: v })}
+                                            >
+                                                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="days">Дней</SelectItem>
+                                                    <SelectItem value="weeks">Недель</SelectItem>
+                                                    <SelectItem value="months">Месяцев</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
                                     </div>
                                 </div>
                            )}

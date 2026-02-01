@@ -119,7 +119,15 @@ export async function GET(
         where: { id: req.user!.userId },
         include: {
           groupMembers: {
-            select: { groupId: true },
+            include: {
+                 group: {
+                     select: {
+                         id: true,
+                         startDate: true,
+
+                     }
+                 }
+            }
           },
         },
       });
@@ -138,6 +146,11 @@ export async function GET(
       }
 
       const userGroupIds = user.groupMembers.map(gm => gm.groupId);
+      // Map of group start dates for quick lookup
+      const userGroupsMap = new Map<string, Date | null>();
+      user.groupMembers.forEach(gm => {
+          userGroupsMap.set(gm.groupId, gm.group.startDate ? new Date(gm.group.startDate) : null);
+      });
 
       // Find user's track definition lesson completion date
       let trackDefinitionCompletedAt: Date | null = null;
@@ -232,6 +245,41 @@ export async function GET(
                     return false;
                 }
             }
+        } else if (module.openAfterEvent === 'group_start_date') {
+             // Logic: Check if ANY of the user's groups (that are allowed for this module) have started long enough ago
+             // If module.allowedGroups is set, we only consider those.
+             // If not set, we consider ALL user's groups.
+             
+             let eligibleGroups: string[] = [];
+             if (module.allowedGroups && module.allowedGroups.length > 0) {
+                 eligibleGroups = module.allowedGroups.filter((gId: string) => userGroupIds.includes(gId));
+             } else {
+                 eligibleGroups = userGroupIds;
+             }
+
+             if (eligibleGroups.length === 0) {
+                 return false;
+             }
+
+             const hasTimeAccess = eligibleGroups.some(groupId => {
+                 const startDate = userGroupsMap.get(groupId);
+                 if (!startDate) return false;
+
+                 if (module.openAfterAmount && module.openAfterUnit) {
+                    const openDate = new Date(startDate);
+                    if (module.openAfterUnit === 'days') {
+                        openDate.setDate(openDate.getDate() + module.openAfterAmount);
+                    } else if (module.openAfterUnit === 'weeks') {
+                        openDate.setDate(openDate.getDate() + (module.openAfterAmount * 7));
+                    } else if (module.openAfterUnit === 'months') {
+                        openDate.setMonth(openDate.getMonth() + module.openAfterAmount);
+                    }
+                    return now >= openDate;
+                 }
+                 return true;
+             });
+
+             if (!hasTimeAccess) return false;
         }
 
         return true;
