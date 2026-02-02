@@ -146,7 +146,7 @@ export async function GET(
                   avatarUrl: user.avatarUrl,
                   track: user.track,
                   tariff: user.tariff,
-                  groups: user.groupMembers.map(gm => gm.group.id), // For debugging/filtering
+                  groups: user.groupMembers.map((gm: any) => gm.group.id), // For debugging/filtering
               },
               access: result
           };
