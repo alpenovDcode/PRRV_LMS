@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/accordion";
 import { cn } from "@/lib/utils";
 import { getCloudflareImageUrl } from "@/lib/cloudflare-images";
+import { ModuleAccessDialog } from "./_components/module-access-dialog";
 
 // Helper to structure flat modules into hierarchy
 function structureModules(modules: any[]) {
@@ -247,11 +248,14 @@ export default function AdminTrainingDetailPage() {
                  </div>
               </div>
 
-              <Button variant="outline" asChild>
-                <Link href={`/admin/courses/${id}`}>
-                  Редактировать курс
-                </Link>
-              </Button>
+              <div className="flex flex-col gap-2">
+                  <Button variant="outline" asChild>
+                    <Link href={`/admin/courses/${id}`}>
+                      Редактировать курс
+                    </Link>
+                  </Button>
+                  <ModuleAccessDialog courseId={id} modules={course.modules || []} />
+              </div>
            </div>
         </div>
       </div>

@@ -232,3 +232,160 @@ export function calculateDripAvailability(
     availableDate: result.availableDate ? new Date(result.availableDate) : undefined,
   };
 }
+
+// --- Module Access Logic ---
+
+export interface ModuleAccessContext {
+  userTariff: string | null;
+  userTrack: string | null;
+  userGroupIds: string[];
+  userGroupsMap: Map<string, Date | null>;
+  trackDefinitionCompletedAt: Date | null;
+  now?: Date;
+}
+
+export interface ModuleAccessResult {
+  isAccessible: boolean;
+  reason: "ok" | "tariff_mismatch" | "track_mismatch" | "group_mismatch" | "time_locked" | "restricted_manually";
+  unlockDate: Date | null;
+  details?: string;
+}
+
+export function checkModuleAccess(
+  module: {
+    id: string;
+    title?: string;
+    allowedTariffs: string[];
+    allowedTracks: string[];
+    allowedGroups: string[];
+    openAt: Date | string | null;
+    openAfterAmount: number | null;
+    openAfterUnit: string | null;
+    openAfterEvent: string | null;
+  },
+  context: ModuleAccessContext,
+  restrictedModules: string[] = []
+): ModuleAccessResult {
+  const { userTariff, userTrack, userGroupIds, userGroupsMap, trackDefinitionCompletedAt } = context;
+  const now = context.now || new Date();
+
+  // 0. Restricted Manually
+  if (restrictedModules && restrictedModules.includes(module.id)) {
+      return { isAccessible: false, reason: "restricted_manually", unlockDate: null };
+  }
+
+  // 1. Tariff check
+  if (module.allowedTariffs && module.allowedTariffs.length > 0) {
+    if (!userTariff || !module.allowedTariffs.includes(userTariff)) {
+      return { isAccessible: false, reason: "tariff_mismatch", unlockDate: null };
+    }
+  }
+
+  // 2. Track check
+  if (module.allowedTracks && module.allowedTracks.length > 0) {
+    if (!userTrack || !module.allowedTracks.includes(userTrack)) {
+      return { isAccessible: false, reason: "track_mismatch", unlockDate: null };
+    }
+  }
+
+  // 3. Group check
+  if (module.allowedGroups && module.allowedGroups.length > 0) {
+    const hasGroupAccess = module.allowedGroups.some((allowedGroupId) =>
+      userGroupIds.includes(allowedGroupId)
+    );
+    if (!hasGroupAccess) {
+      return { isAccessible: false, reason: "group_mismatch", unlockDate: null };
+    }
+  }
+
+  // 4. Time-based check
+  
+  // 4.1 Absolute date
+  if (module.openAt) {
+    const openAtDate = new Date(module.openAt);
+    if (now < openAtDate) {
+      return { isAccessible: false, reason: "time_locked", unlockDate: openAtDate };
+    }
+  }
+
+  // 4.2 Relative date (Event-based)
+  if (module.openAfterEvent === "track_definition_completed") {
+    if (!trackDefinitionCompletedAt) {
+      // Event hasn't happened yet
+      return { isAccessible: false, reason: "time_locked", unlockDate: null, details: "Waiting for track definition" };
+    }
+
+    if (module.openAfterAmount && module.openAfterUnit) {
+      const openDate = new Date(trackDefinitionCompletedAt);
+      addTime(openDate, module.openAfterAmount, module.openAfterUnit);
+
+      if (now < openDate) {
+        return { isAccessible: false, reason: "time_locked", unlockDate: openDate };
+      }
+    }
+  } else if (module.openAfterEvent === "group_start_date") {
+    // Logic: Check all allowed groups user is in
+    let eligibleGroups: string[] = [];
+    if (module.allowedGroups && module.allowedGroups.length > 0) {
+      eligibleGroups = module.allowedGroups.filter((gId) => userGroupIds.includes(gId));
+    } else {
+      eligibleGroups = userGroupIds;
+    }
+
+    if (eligibleGroups.length === 0) {
+         // Should have been caught by group check, but redundancy is fine
+         return { isAccessible: false, reason: "group_mismatch", unlockDate: null };
+    }
+
+    // We calculate the earliest possible unlock date that is MET
+    // Or if none are met, the earliest possible unlock date in the FUTURE?
+    // Actually, if ANY group grants access (start date + valid time), it's open.
+    // If multiple groups, we probably take the "best" one (earliest access).
+    
+    let bestUnlockDate: Date | null = null;
+    let hasAccess = false;
+
+    // Use a loop to check all groups
+    for (const groupId of eligibleGroups) {
+        const startDate = userGroupsMap.get(groupId);
+        if (!startDate) continue;
+
+        if (module.openAfterAmount && module.openAfterUnit) {
+            const openDate = new Date(startDate);
+            addTime(openDate, module.openAfterAmount, module.openAfterUnit);
+
+            if (now >= openDate) {
+                hasAccess = true;
+                bestUnlockDate = openDate;
+                break; // Found one that is already open!
+            } else {
+                // It's in the future. Keep track of the *earliest* future unlock date.
+                if (!bestUnlockDate || openDate < bestUnlockDate) {
+                    bestUnlockDate = openDate;
+                }
+            }
+        } else {
+            // No delay, opens immediately with group start
+             hasAccess = true;
+             bestUnlockDate = startDate;
+             if (now >= startDate) break;
+        }
+    }
+
+    if (!hasAccess) {
+        return { isAccessible: false, reason: "time_locked", unlockDate: bestUnlockDate };
+    }
+  }
+
+  return { isAccessible: true, reason: "ok", unlockDate: null };
+}
+
+function addTime(date: Date, amount: number, unit: string) {
+    if (unit === 'days') {
+        date.setDate(date.getDate() + amount);
+    } else if (unit === 'weeks') {
+        date.setDate(date.getDate() + (amount * 7));
+    } else if (unit === 'months') {
+        date.setMonth(date.getMonth() + amount);
+    }
+}
