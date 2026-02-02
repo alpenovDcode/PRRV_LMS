@@ -13,6 +13,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { 
   Lock, 
   Unlock, 
@@ -20,7 +25,8 @@ import {
   Calendar,
   Filter,
   User,
-  Users
+  Users,
+  Info
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -156,13 +162,88 @@ export function ModuleAccessDialog({ courseId, modules }: ModuleAccessDialogProp
                         <div className="p-4 border-b border-gray-100 flex items-center justify-between gap-4">
                             <div className="relative flex-1">
                                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-                                <Input 
-                                    placeholder="Поиск по имени или email..." 
+                                <Input
+                                    placeholder="Поиск по имени или email..."
                                     className="pl-9 h-9"
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                 />
                             </div>
+
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button variant="outline" size="icon" className="h-9 w-9 shrink-0 text-gray-500">
+                                  <Info className="h-4 w-4" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-80 p-0" align="end">
+                                <div className="p-4 border-b border-gray-100 bg-gray-50/50">
+                                  <h4 className="font-medium text-sm text-gray-900">Правила доступа к модулю</h4>
+                                </div>
+                                <div className="p-4 space-y-4 text-sm">
+                                  <div className="space-y-1">
+                                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">Тарифы</div>
+                                    {selectedModule.allowedTariffs && selectedModule.allowedTariffs.length > 0 ? (
+                                      <div className="flex flex-wrap gap-1">
+                                        {selectedModule.allowedTariffs.map((t: string) => (
+                                          <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <span className="text-gray-500 italic">Доступно всем тарифам</span>
+                                    )}
+                                  </div>
+
+                                  <div className="space-y-1">
+                                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">Треки</div>
+                                    {selectedModule.allowedTracks && selectedModule.allowedTracks.length > 0 ? (
+                                      <div className="flex flex-wrap gap-1">
+                                        {selectedModule.allowedTracks.map((t: string) => (
+                                          <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <span className="text-gray-500 italic">Доступно всем трекам</span>
+                                    )}
+                                  </div>
+
+                                  <div className="space-y-1">
+                                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">Группы</div>
+                                    {selectedModule.allowedGroups && selectedModule.allowedGroups.length > 0 ? (
+                                      <div className="text-gray-600">
+                                        {selectedModule.allowedGroups.length} групп(ы)
+                                      </div>
+                                    ) : (
+                                      <span className="text-gray-500 italic">Все группы</span>
+                                    )}
+                                  </div>
+
+                                  {selectedModule.openAt && (
+                                     <div className="space-y-1">
+                                       <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">Дата открытия</div>
+                                       <div className="flex items-center gap-2 text-gray-700">
+                                         <Calendar className="h-3 w-3" />
+                                         {formatDate(selectedModule.openAt)}
+                                       </div>
+                                     </div>
+                                  )}
+
+                                  {selectedModule.openAfterEvent && (
+                                     <div className="space-y-1">
+                                       <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">Отложенный старт</div>
+                                       <div className="text-gray-700">
+                                         {selectedModule.openAfterAmount || 0} {selectedModule.openAfterUnit} после: <br/>
+                                         <span className="font-medium">
+                                            {selectedModule.openAfterEvent === 'track_definition_completed' ? 'Определения трека' :
+                                             selectedModule.openAfterEvent === 'group_start_date' ? 'Старта группы' : selectedModule.openAfterEvent}
+                                         </span>
+                                       </div>
+                                     </div>
+                                  )}
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+
                             <Tabs value={filterType} onValueChange={(v: any) => setFilterType(v)} className="w-[300px]">
                                 <TabsList className="grid w-full grid-cols-3">
                                     <TabsTrigger value="all">Все</TabsTrigger>
