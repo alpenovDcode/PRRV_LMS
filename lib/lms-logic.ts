@@ -271,20 +271,30 @@ export function checkModuleAccess(
 
   // 0. Restricted Manually
   if (restrictedModules && restrictedModules.includes(module.id)) {
-      return { isAccessible: false, reason: "restricted_manually", unlockDate: null };
+      return { isAccessible: false, reason: "restricted_manually", unlockDate: null, details: "Доступ закрыт вручную администратором" };
   }
 
   // 1. Tariff check
   if (module.allowedTariffs && module.allowedTariffs.length > 0) {
     if (!userTariff || !module.allowedTariffs.includes(userTariff)) {
-      return { isAccessible: false, reason: "tariff_mismatch", unlockDate: null };
+      return { 
+          isAccessible: false, 
+          reason: "tariff_mismatch", 
+          unlockDate: null,
+          details: `Необходим тариф: ${module.allowedTariffs.join(", ")}. У пользователя: ${userTariff || "Нет тарифа"}`
+      };
     }
   }
 
   // 2. Track check
   if (module.allowedTracks && module.allowedTracks.length > 0) {
     if (!userTrack || !module.allowedTracks.includes(userTrack)) {
-      return { isAccessible: false, reason: "track_mismatch", unlockDate: null };
+      return { 
+          isAccessible: false, 
+          reason: "track_mismatch", 
+          unlockDate: null,
+          details: `Необходим трек: ${module.allowedTracks.join(", ")}. У пользователя: ${userTrack || "Нет трека"}`
+      };
     }
   }
 
@@ -294,7 +304,12 @@ export function checkModuleAccess(
       userGroupIds.includes(allowedGroupId)
     );
     if (!hasGroupAccess) {
-      return { isAccessible: false, reason: "group_mismatch", unlockDate: null };
+      return { 
+          isAccessible: false, 
+          reason: "group_mismatch", 
+          unlockDate: null,
+          details: "Пользователь не состоит ни в одной из разрешенных групп"
+      };
     }
   }
 

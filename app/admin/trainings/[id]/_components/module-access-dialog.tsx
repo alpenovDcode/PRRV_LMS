@@ -14,6 +14,12 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -87,30 +93,49 @@ export function ModuleAccessDialog({ courseId, modules }: ModuleAccessDialogProp
     return true;
   });
 
-  const getStatusBadge = (reason: string, unlockDate: string | null) => {
-    switch (reason) {
-      case "ok":
-        return <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-none"><Unlock className="w-3 h-3 mr-1" /> Доступ открыт</Badge>;
-      case "time_locked":
-        return (
-          <div className="flex flex-col items-end">
-            <Badge variant="outline" className="text-orange-600 border-orange-200 bg-orange-50 mb-1">
-              <Calendar className="w-3 h-3 mr-1" /> 
-              {unlockDate ? formatDate(unlockDate) : "Ожидание события"}
-            </Badge>
-          </div>
-        );
-      case "tariff_mismatch":
-        return <Badge variant="outline" className="text-gray-500 border-gray-200">Тариф не подходит</Badge>;
-      case "track_mismatch":
-        return <Badge variant="outline" className="text-gray-500 border-gray-200">Трек не подходит</Badge>;
-      case "group_mismatch":
-        return <Badge variant="outline" className="text-gray-500 border-gray-200">Группа не подходит</Badge>;
-      case "restricted_manually":
-        return <Badge variant="destructive" className="bg-red-100 text-red-700 hover:bg-red-100 border-none">Закрыто вручную</Badge>;
-      default:
-        return <Badge variant="outline">Locked</Badge>;
+  const getStatusBadge = (reason: string, unlockDate: string | null, details?: string) => {
+    const badge = (() => {
+      switch (reason) {
+        case "ok":
+          return <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-none"><Unlock className="w-3 h-3 mr-1" /> Доступ открыт</Badge>;
+        case "time_locked":
+          return (
+            <div className="flex flex-col items-end">
+              <Badge variant="outline" className="text-orange-600 border-orange-200 bg-orange-50 mb-1">
+                <Calendar className="w-3 h-3 mr-1" /> 
+                {unlockDate ? formatDate(unlockDate) : "Ожидание события"}
+              </Badge>
+            </div>
+          );
+        case "tariff_mismatch":
+          return <Badge variant="outline" className="text-gray-500 border-gray-200 cursor-help">Тариф не подходит</Badge>;
+        case "track_mismatch":
+          return <Badge variant="outline" className="text-gray-500 border-gray-200 cursor-help">Трек не подходит</Badge>;
+        case "group_mismatch":
+          return <Badge variant="outline" className="text-gray-500 border-gray-200 cursor-help">Группа не подходит</Badge>;
+        case "restricted_manually":
+          return <Badge variant="destructive" className="bg-red-100 text-red-700 hover:bg-red-100 border-none cursor-help">Закрыто вручную</Badge>;
+        default:
+          return <Badge variant="outline">Locked</Badge>;
+      }
+    })();
+
+    if (details) {
+      return (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="inline-block">{badge}</div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p className="max-w-xs text-xs">{details}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      );
     }
+
+    return badge;
   };
 
   return (
@@ -311,7 +336,7 @@ export function ModuleAccessDialog({ courseId, modules }: ModuleAccessDialogProp
                                                 </div>
 
                                                 <div className="w-40 text-right shrink-0">
-                                                    {getStatusBadge(record.access.reason, record.access.unlockDate)}
+                                                    {getStatusBadge(record.access.reason, record.access.unlockDate, record.access.details)}
                                                 </div>
                                             </div>
                                         ))
