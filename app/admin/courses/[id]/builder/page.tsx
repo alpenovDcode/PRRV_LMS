@@ -100,7 +100,7 @@ function AccessSettingsDialog({ module, open, onOpenChange, onSave }: AccessSett
   const availableTracks = [
     "Заполнить расписание",
     "Повысить чек",
-    "Перейти в онлайн",
+    "Перейти на онлайн",
     "Стать репетитором",
     "Перейти на группы"
   ];
