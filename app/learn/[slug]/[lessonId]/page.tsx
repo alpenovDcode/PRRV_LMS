@@ -110,7 +110,7 @@ export default function LessonPlayerPage() {
   const queryClient = useQueryClient();
   // const videoRef = useRef<HTMLVideoElement>(null); // Removed: using CloudflarePlayer events
   const [watchedTime, setWatchedTime] = useState(0);
-  const [isAutoNextScheduled, setIsAutoNextScheduled] = useState(false);
+
   const [homeworkContent, setHomeworkContent] = useState("");
   const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState("details");
@@ -254,26 +254,6 @@ export default function LessonPlayerPage() {
         status: "completed",
       });
       queryClient.invalidateQueries({ queryKey: ["lesson", lessonId] });
-    }
-
-    // Auto-next logic
-    const videos = lesson?.content?.videos || (lesson?.videoId ? [{ videoId: lesson.videoId, duration: lesson.videoDuration || 0 }] : []);
-    const activeVideo = videos[activeVideoIndex];
-    const isLastVideo = activeVideoIndex === videos.length - 1;
-
-    if (
-      duration &&
-      floorTime >= duration - 1 &&
-      !isAutoNextScheduled &&
-      courseNav?.nextLessonId &&
-      (isLastVideo || lesson?.progress?.status === "completed")
-    ) {
-      setIsAutoNextScheduled(true);
-      setTimeout(() => {
-        if (courseNav.nextLessonId) {
-          router.push(`/learn/${slug}/${courseNav.nextLessonId}`);
-        }
-      }, 5000);
     }
   };
 
