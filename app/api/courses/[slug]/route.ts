@@ -178,7 +178,9 @@ export async function GET(
           userTrack: user.track,
           userGroupIds,
           userGroupsMap,
-          trackDefinitionCompletedAt
+          trackDefinitionCompletedAt,
+          // @ts-ignore
+          forcedModules: enrollment.forcedModules as string[] || []
       };
 
       // Filter modules based on access rules

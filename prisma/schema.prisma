@@ -160,6 +160,7 @@ model Enrollment {
   startDate         DateTime         @map("start_date")
   expiresAt         DateTime?        @map("expires_at")
   restrictedModules String[]         @default([]) @map("restricted_modules")
+  forcedModules     String[]         @default([]) @map("forced_modules")
   restrictedLessons String[]         @default([]) @map("restricted_lessons")
   createdAt         DateTime         @default(now()) @map("created_at")
   updatedAt         DateTime         @updatedAt @map("updated_at")

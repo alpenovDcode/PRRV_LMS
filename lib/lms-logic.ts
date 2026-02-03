@@ -20,17 +20,44 @@ export async function checkLessonAvailability(userId: string, lessonId: string):
   const user = await db.user.findUnique({
     where: { id: userId },
     select: {
+      id: true,
       tariff: true,
       track: true,
       groupMembers: {
-        select: { groupId: true },
+        select: { 
+            groupId: true,
+            group: {
+                select: {
+                    startDate: true
+                }
+            }
+        },
       },
     },
   });
 
+  // Fetch track definition progress separate or via user?
+  // User model likely relates to LessonProgress.
+  // Let's do a separate efficient query for track definition if needed, 
+  // or just reusing the pattern from route.ts is fine.
+  // Check if we can include it in user query.
+  // user.lessonProgress...
+  
   if (!user) {
     throw new Error("User not found");
   }
+
+  // Fetch track definition status
+  const trackDefProgress = await db.lessonProgress.findFirst({
+      where: {
+          userId: userId,
+          status: "completed",
+          lesson: { type: "track_definition" }
+      },
+      orderBy: { completedAt: 'desc' },
+      select: { completedAt: true }
+  });
+
 
   // 2. Fetch lesson with module access settings
   const lesson = await db.lesson.findUnique({
@@ -42,8 +69,13 @@ export async function checkLessonAvailability(userId: string, lessonId: string):
           allowedTariffs: true,
           allowedTracks: true,
           allowedGroups: true,
+          trackSettings: true,
+          openAt: true,
+          openAfterAmount: true,
+          openAfterUnit: true,
+          openAfterEvent: true,
           course: {
-            include: {
+            select: {
               enrollments: {
                 where: { userId },
               },
@@ -64,33 +96,58 @@ export async function checkLessonAvailability(userId: string, lessonId: string):
     throw new Error("Lesson not found");
   }
 
-  // 3. Check Module Access Control (Tariff, Track, Group)
+  // 3. Check Module Access Control (Centralized)
   const module = lesson.module;
+  
   const userGroupIds = user.groupMembers.map((gm) => gm.groupId);
+  const userGroupsMap = new Map<string, Date | null>();
+  user.groupMembers.forEach(gm => {
+      userGroupsMap.set(gm.groupId, gm.group.startDate ? new Date(gm.group.startDate) : null);
+  });
 
-  // Check Tariff
-  if (module.allowedTariffs && module.allowedTariffs.length > 0) {
-    if (!user.tariff || !module.allowedTariffs.includes(user.tariff)) {
-      return { isAvailable: false, reason: "access_denied" };
-    }
+  // @ts-ignore
+  const restrictedModules: string[] = module.course.enrollments[0]?.restrictedModules as string[] || [];
+  // @ts-ignore
+  const forcedModules: string[] = module.course.enrollments[0]?.forcedModules as string[] || [];
+
+  const context: ModuleAccessContext = {
+      userTariff: user.tariff,
+      userTrack: user.track,
+      userGroupIds,
+      userGroupsMap,
+      trackDefinitionCompletedAt: trackDefProgress?.completedAt ? new Date(trackDefProgress.completedAt) : null,
+      forcedModules
+  };
+  // Apply track specific logic if exists
+  let effectiveModule = { ...module };
+  if (user.track && module.trackSettings) {
+        const settings = (module.trackSettings as Record<string, any>)[user.track];
+        if (settings) {
+            if (settings.openAt) effectiveModule.openAt = settings.openAt;
+            if (settings.openAfterEvent) {
+                effectiveModule.openAfterEvent = settings.openAfterEvent;
+                effectiveModule.openAfterAmount = settings.openAfterAmount;
+                effectiveModule.openAfterUnit = settings.openAfterUnit;
+            }
+        }
   }
 
-  // Check Track
-  if (module.allowedTracks && module.allowedTracks.length > 0) {
-    if (!user.track || !module.allowedTracks.includes(user.track)) {
+  const accessResult = checkModuleAccess(effectiveModule, context, restrictedModules);
+
+  if (!accessResult.isAccessible) {
+      // If time locked, checkLessonAvailability usually returns specific format or we rely on checkModuleAccess to return reason "time_locked"
+      if (accessResult.reason === 'time_locked') {
+           // We map 'time_locked' to 'drip_locked' or similar if we want to show date?
+           // The interface allows 'drip_locked'.
+           return {
+               isAvailable: false,
+               reason: "drip_locked",
+               availableDate: accessResult.unlockDate ? accessResult.unlockDate.toISOString() : undefined
+           };
+      }
       return { isAvailable: false, reason: "access_denied" };
-    }
   }
 
-  // Check Group
-  if (module.allowedGroups && module.allowedGroups.length > 0) {
-    const hasGroupAccess = module.allowedGroups.some((allowedGroupId) =>
-      userGroupIds.includes(allowedGroupId)
-    );
-    if (!hasGroupAccess) {
-      return { isAvailable: false, reason: "access_denied" };
-    }
-  }
 
   // 4. Check Enrollment
   const enrollment = lesson.module.course.enrollments[0];
@@ -242,6 +299,7 @@ export interface ModuleAccessContext {
   userGroupsMap: Map<string, Date | null>;
   trackDefinitionCompletedAt: Date | null;
   now?: Date;
+  forcedModules?: string[];
 }
 
 export interface ModuleAccessResult {
@@ -266,8 +324,13 @@ export function checkModuleAccess(
   context: ModuleAccessContext,
   restrictedModules: string[] = []
 ): ModuleAccessResult {
-  const { userTariff, userTrack, userGroupIds, userGroupsMap, trackDefinitionCompletedAt } = context;
+  const { userTariff, userTrack, userGroupIds, userGroupsMap, trackDefinitionCompletedAt, forcedModules } = context;
   const now = context.now || new Date();
+
+  // -1. Check Forced Access
+  if (forcedModules && forcedModules.includes(module.id)) {
+      return { isAccessible: true, reason: "ok", unlockDate: null, details: "Доступ открыт принудительно администратором" };
+  }
 
   // 0. Restricted Manually
   if (restrictedModules && restrictedModules.includes(module.id)) {

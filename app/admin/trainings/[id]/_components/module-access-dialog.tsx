@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import {
   Dialog,
@@ -32,13 +32,18 @@ import {
   Filter,
   User,
   Users,
-  Info
+  Info,
+  ShieldCheck,
+  ShieldAlert,
+  Loader2,
+  Ban
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "sonner";
 
 interface ModuleAccessDialogProps {
   courseId: string;
@@ -60,12 +65,16 @@ interface AccessRecord {
     unlockDate: string | null;
     details?: string;
   };
+  isForced?: boolean;
+  isRestricted?: boolean;
 }
 
 export function ModuleAccessDialog({ courseId, modules }: ModuleAccessDialogProps) {
   const [selectedModuleId, setSelectedModuleId] = useState<string | null>(modules[0]?.id || null);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState<"all" | "open" | "locked">("all");
+  
+  const queryClient = useQueryClient();
 
   const { data: accessData, isLoading } = useQuery<AccessRecord[]>({
     queryKey: ["admin", "course", courseId, "access", selectedModuleId],
@@ -77,6 +86,24 @@ export function ModuleAccessDialog({ courseId, modules }: ModuleAccessDialogProp
       return response.data.data;
     },
     enabled: !!selectedModuleId,
+  });
+
+  const updateAccessMutation = useMutation({
+      mutationFn: async ({ userId, action }: { userId: string, action: 'toggleForced' | 'toggleRestricted' }) => {
+          if (!selectedModuleId) return;
+          await apiClient.patch(`/admin/courses/${courseId}/access`, {
+              moduleId: selectedModuleId,
+              userId,
+              action
+          });
+      },
+      onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: ["admin", "course", courseId, "access", selectedModuleId] });
+          toast.success("Доступ обновлен");
+      },
+      onError: () => {
+          toast.error("Ошибка обновления доступа");
+      }
   });
 
   const selectedModule = modules.find(m => m.id === selectedModuleId);
@@ -93,11 +120,30 @@ export function ModuleAccessDialog({ courseId, modules }: ModuleAccessDialogProp
     return true;
   });
 
-  const getStatusBadge = (reason: string, unlockDate: string | null, details?: string) => {
+  const getStatusBadge = (record: AccessRecord) => {
+    const { reason, unlockDate, details } = record.access;
+
+    if (record.isForced) {
+        return (
+             <TooltipProvider>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-100 border-none cursor-help flex items-center gap-1">
+                            <ShieldCheck className="w-3 h-3" /> Принудительно
+                        </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                        <p className="text-xs">Доступ открыт принудительно, игнорируя трек и время</p>
+                    </TooltipContent>
+                </Tooltip>
+             </TooltipProvider>
+        );
+    }
+    
     const badge = (() => {
       switch (reason) {
         case "ok":
-          return <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-none"><Unlock className="w-3 h-3 mr-1" /> Доступ открыт</Badge>;
+          return <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-none"><Unlock className="w-3 h-3 mr-1" /> Открыто</Badge>;
         case "time_locked":
           return (
             <div className="flex flex-col items-end">
@@ -108,11 +154,11 @@ export function ModuleAccessDialog({ courseId, modules }: ModuleAccessDialogProp
             </div>
           );
         case "tariff_mismatch":
-          return <Badge variant="outline" className="text-gray-500 border-gray-200 cursor-help">Тариф не подходит</Badge>;
+          return <Badge variant="outline" className="text-gray-500 border-gray-200 cursor-help">Нет тарифа</Badge>;
         case "track_mismatch":
-          return <Badge variant="outline" className="text-gray-500 border-gray-200 cursor-help">Трек не подходит</Badge>;
+          return <Badge variant="outline" className="text-gray-500 border-gray-200 cursor-help">Нет трека</Badge>;
         case "group_mismatch":
-          return <Badge variant="outline" className="text-gray-500 border-gray-200 cursor-help">Группа не подходит</Badge>;
+          return <Badge variant="outline" className="text-gray-500 border-gray-200 cursor-help">Нет группы</Badge>;
         case "restricted_manually":
           return <Badge variant="destructive" className="bg-red-100 text-red-700 hover:bg-red-100 border-none cursor-help">Закрыто вручную</Badge>;
         default:
@@ -305,7 +351,7 @@ export function ModuleAccessDialog({ courseId, modules }: ModuleAccessDialogProp
                                         </div>
                                     ) : (
                                         filteredData?.map((record) => (
-                                            <div key={record.user.id} className="px-4 py-3 flex items-center gap-4 hover:bg-gray-50 transition-colors">
+                                            <div key={record.user.id} className="px-4 py-3 flex items-center gap-4 hover:bg-gray-50 transition-colors group">
                                                 <Avatar className="h-9 w-9 border border-gray-200">
                                                     <AvatarImage src={record.user.avatarUrl || undefined} />
                                                     <AvatarFallback className="bg-blue-50 text-blue-600">
@@ -335,8 +381,50 @@ export function ModuleAccessDialog({ courseId, modules }: ModuleAccessDialogProp
                                                     )}
                                                 </div>
 
-                                                <div className="w-40 text-right shrink-0">
-                                                    {getStatusBadge(record.access.reason, record.access.unlockDate, record.access.details)}
+                                                <div className="w-40 text-right shrink-0 flex flex-col items-end gap-1">
+                                                    {getStatusBadge(record)}
+                                                    
+                                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        {/* Force Button */}
+                                                        <TooltipProvider>
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <Button 
+                                                                        variant={record.isForced ? "default" : "ghost"} 
+                                                                        size="icon" 
+                                                                        className={`h-6 w-6 ${record.isForced ? 'bg-purple-600 hover:bg-purple-700' : 'text-gray-400 hover:text-purple-600 hover:bg-purple-50'}`}
+                                                                        onClick={() => updateAccessMutation.mutate({ userId: record.user.id, action: 'toggleForced' })}
+                                                                        disabled={updateAccessMutation.isPending}
+                                                                    >
+                                                                        {updateAccessMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <ShieldCheck className="w-3 h-3" />}
+                                                                    </Button>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p className="text-xs">{record.isForced ? "Отменить принудительный доступ" : "Открыть принудительно"}</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                        </TooltipProvider>
+
+                                                        {/* Restrict Button */}
+                                                        <TooltipProvider>
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <Button 
+                                                                        variant={record.isRestricted ? "destructive" : "ghost"} 
+                                                                         size="icon" 
+                                                                        className={`h-6 w-6 ${record.isRestricted ? 'bg-red-600 hover:bg-red-700' : 'text-gray-400 hover:text-red-600 hover:bg-red-50'}`}
+                                                                        onClick={() => updateAccessMutation.mutate({ userId: record.user.id, action: 'toggleRestricted' })}
+                                                                        disabled={updateAccessMutation.isPending}
+                                                                    >
+                                                                         {updateAccessMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Ban className="w-3 h-3" />}
+                                                                    </Button>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p className="text-xs">{record.isRestricted ? "Отменить блокировку" : "Заблокировать доступ"}</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                        </TooltipProvider>
+                                                    </div>
                                                 </div>
                                             </div>
                                         ))

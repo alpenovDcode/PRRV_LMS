@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/api-middleware";
 import { db } from "@/lib/db";
 import { ApiResponse } from "@/types";
-import { calculateDripAvailability, checkPrerequisites, type DripRule } from "@/lib/lms-logic";
+import { calculateDripAvailability, checkPrerequisites, checkModuleAccess, type DripRule, type ModuleAccessContext } from "@/lib/lms-logic";
 
 export async function GET(
   request: NextRequest,
@@ -140,93 +140,39 @@ export async function GET(
           trackDefinitionCompletedAt = new Date(trackDefProgress.completedAt);
       }
 
+      const context: ModuleAccessContext = {
+          userTariff: userTariff || null,
+          userTrack: userTrack || null,
+          userGroupIds,
+          userGroupsMap,
+          trackDefinitionCompletedAt,
+          // @ts-ignore
+          forcedModules: enrollment.forcedModules as string[] || []
+      };
+
       // Filter modules based on restriction (same logic as main course page)
       const accessibleModules = course.modules.filter((module: any) => {
         // @ts-ignore
-        const isRestricted = enrollment.restrictedModules && enrollment.restrictedModules.includes(module.id);
-        if (isRestricted) return false;
+        const restrictedModules = enrollment.restrictedModules as string[] || [];
 
-         // 1. Tariff check
-         if (module.allowedTariffs && module.allowedTariffs.length > 0) {
-            if (!userTariff || !module.allowedTariffs.includes(userTariff)) return false;
-         }
- 
-         // 2. Track check
-         if (module.allowedTracks && module.allowedTracks.length > 0) {
-            if (!userTrack || !module.allowedTracks.includes(userTrack)) return false;
-         }
- 
-         // 3. Group check
-         if (module.allowedGroups && module.allowedGroups.length > 0) {
-           const hasGroupAccess = module.allowedGroups.some((allowedGroupId: string) => 
-             userGroupIds.includes(allowedGroupId)
-           );
-           if (!hasGroupAccess) return false;
-         }
-         
-         // 4. Time-based check
-         const now = new Date();
- 
-         // 4.1 Absolute date
-         if (module.openAt) {
-             if (now < new Date(module.openAt)) return false;
-         }
- 
-         // 4.2 Relative date (Event-based)
-         if (module.openAfterEvent === 'track_definition_completed') {
-             if (!trackDefinitionCompletedAt) return false;
-             
-             if (module.openAfterAmount && module.openAfterUnit) {
-                 const openDate = new Date(trackDefinitionCompletedAt);
-                 if (module.openAfterUnit === 'days') {
-                     openDate.setDate(openDate.getDate() + module.openAfterAmount);
-                 } else if (module.openAfterUnit === 'weeks') {
-                     openDate.setDate(openDate.getDate() + (module.openAfterAmount * 7));
-                 } else if (module.openAfterUnit === 'months') {
-                     openDate.setMonth(openDate.getMonth() + module.openAfterAmount);
+        // Apply track specific logic if exists
+        let effectiveModule = { ...module };
+        if (userTrack && module.trackSettings) {
+             const settings = (module.trackSettings as Record<string, any>)[userTrack];
+             if (settings) {
+                 if (settings.openAt) effectiveModule.openAt = settings.openAt;
+                 if (settings.openAfterEvent) {
+                     effectiveModule.openAfterEvent = settings.openAfterEvent;
+                     effectiveModule.openAfterAmount = settings.openAfterAmount;
+                     effectiveModule.openAfterUnit = settings.openAfterUnit;
                  }
-                 if (now < openDate) return false;
              }
-         } else if (module.openAfterEvent === 'group_start_date') {
-             // Logic: Check if ANY of the user's groups (that are allowed for this module) have started long enough ago
-             // If module.allowedGroups is set, we only consider those.
-             // If not set, we consider ALL user's groups.
-             
-             let eligibleGroups: string[] = [];
-             if (module.allowedGroups && module.allowedGroups.length > 0) {
-                 eligibleGroups = module.allowedGroups.filter((gId: string) => userGroupIds.includes(gId));
-             } else {
-                 eligibleGroups = userGroupIds;
-             }
+        }
 
-             if (eligibleGroups.length === 0) {
-                 // User is not in any eligible group (should be caught by step 3, but safety check)
-                 return false;
-             }
+        const accessResult = checkModuleAccess(effectiveModule, context, restrictedModules);
 
-             // We need to find AT LEAST ONE group that satisfies the time condition
-             const hasTimeAccess = eligibleGroups.some(groupId => {
-                 const startDate = userGroupsMap.get(groupId);
-                 if (!startDate) return false; // Group has no start date
-
-                 if (module.openAfterAmount && module.openAfterUnit) {
-                    const openDate = new Date(startDate);
-                    if (module.openAfterUnit === 'days') {
-                        openDate.setDate(openDate.getDate() + module.openAfterAmount);
-                    } else if (module.openAfterUnit === 'weeks') {
-                        openDate.setDate(openDate.getDate() + (module.openAfterAmount * 7));
-                    } else if (module.openAfterUnit === 'months') {
-                        openDate.setMonth(openDate.getMonth() + module.openAfterAmount);
-                    }
-                    return now >= openDate;
-                 }
-                 return true; // No delay specified
-             });
-
-             if (!hasTimeAccess) return false;
-         }
-
-        return true;
+        // Hide module if NOT accessible.
+        return accessResult.isAccessible;
       });
 
       // Calculate availability for all lessons to build navigation

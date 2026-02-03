@@ -97,12 +97,18 @@ export async function GET(
           
           const trackDefinitionCompletedAt = user.progress?.[0]?.completedAt ? new Date(user.progress[0].completedAt) : null;
 
+          // @ts-ignore
+          const restrictedModules = enrollment.restrictedModules as string[] || [];
+          // @ts-ignore
+          const forcedModules = enrollment.forcedModules as string[] || [];
+
           const context: ModuleAccessContext = {
               userTariff: user.tariff,
               userTrack: user.track,
               userGroupIds,
               userGroupsMap,
-              trackDefinitionCompletedAt
+              trackDefinitionCompletedAt,
+              forcedModules
           };
 
           // Apply track specific logic if exists
@@ -110,31 +116,14 @@ export async function GET(
           if (user.track && module.trackSettings) {
              const settings = (module.trackSettings as Record<string, any>)[user.track];
              if (settings) {
-                 // Override defaults if track setting exists
                  if (settings.openAt) effectiveModule.openAt = settings.openAt;
                  if (settings.openAfterEvent) {
                      effectiveModule.openAfterEvent = settings.openAfterEvent;
                      effectiveModule.openAfterAmount = settings.openAfterAmount;
                      effectiveModule.openAfterUnit = settings.openAfterUnit;
-                 } else {
-                     // If explicit null, means "Default/Immediately"? Or fall back to module default?
-                     // In the UI we toggle it. If unchecked -> null.
-                     // A null track setting usually means "no override", but here if we checked the box it writes values.
-                     // If we uncheck, it writes null.
-                     // If track settings are PRESENT but fields are null, it might mean "override to nothing" or "no override".
-                     // Let's assume the UI writes COMPLETE overrides.
-                     // Based on my reading of `page.tsx`:
-                     // updateTrackSetting adds fields. DELETE removes key. 
-                     // So if key exists, we abide by it.
                  }
-                 
-                 // However, we also need to handle the case where trackSettings define access logic that overrides DEFAULT module logic.
-                 // The `checkModuleAccess` function uses `module` object. We should construct an effective module object.
              }
           }
-
-          // @ts-ignore
-          const restrictedModules = enrollment.restrictedModules as string[] || [];
 
           const result = checkModuleAccess(effectiveModule, context, restrictedModules);
 
@@ -148,7 +137,9 @@ export async function GET(
                   tariff: user.tariff,
                   groups: user.groupMembers.map((gm: any) => gm.group.id), // For debugging/filtering
               },
-              access: result
+              access: result,
+              isRestricted: restrictedModules.includes(module.id),
+              isForced: forcedModules.includes(module.id)
           };
       });
 
@@ -166,6 +157,92 @@ export async function GET(
         { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to fetch access data" } },
         { status: 500 }
       );
+    }
+  });
+}
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  return withAuth(request, async (req) => {
+    try {
+      const { id: courseId } = await params;
+      const { userId, moduleId, action } = await request.json();
+
+      if (!userId || !moduleId || !action) {
+        return NextResponse.json<ApiResponse>(
+            { success: false, error: { code: "MISSING_PARAM", message: "Missing required fields" } },
+            { status: 400 }
+        );
+      }
+
+      const enrollment = await db.enrollment.findUnique({
+        where: {
+            userId_courseId: {
+                userId,
+                courseId
+            }
+        }
+      });
+
+      if (!enrollment) {
+        return NextResponse.json<ApiResponse>(
+            { success: false, error: { code: "NOT_FOUND", message: "Enrollment not found" } },
+            { status: 404 }
+        );
+      }
+
+      // @ts-ignore
+      let restrictedModules = (enrollment.restrictedModules as string[]) || [];
+      // @ts-ignore
+      let forcedModules = (enrollment.forcedModules as string[]) || [];
+
+      if (action === "toggleRestricted") {
+          if (restrictedModules.includes(moduleId)) {
+              restrictedModules = restrictedModules.filter(id => id !== moduleId);
+          } else {
+              restrictedModules.push(moduleId);
+              // If restricting, remove from forced to avoid conflict? 
+              // Usually restriction blocks, forced forces. 
+              // Forced should win in checkModuleAccess (-1 check).
+              // But strictly speaking, if you force, you imply it's not restricted manually.
+              // So let's clear forced if we restrict manually? 
+              // Or keep them independent and let logic decide priority.
+              // Logic says forced wins.
+              // But if admin explicitly clicks "Restrict", they expect restriction.
+              // So if restricting, remove from forced.
+              forcedModules = forcedModules.filter(id => id !== moduleId);
+          }
+      } else if (action === "toggleForced") {
+          if (forcedModules.includes(moduleId)) {
+              forcedModules = forcedModules.filter(id => id !== moduleId);
+          } else {
+              forcedModules.push(moduleId);
+              // If forcing, remove from restricted
+              restrictedModules = restrictedModules.filter(id => id !== moduleId);
+          }
+      }
+
+      await db.enrollment.update({
+          where: { id: enrollment.id },
+          data: {
+              restrictedModules,
+              forcedModules
+          }
+      });
+
+      return NextResponse.json<ApiResponse>(
+        { success: true },
+        { status: 200 }
+      );
+
+    } catch (error) {
+        console.error("Access Update Error:", error);
+        return NextResponse.json<ApiResponse>(
+            { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to update access" } },
+            { status: 500 }
+        );
     }
   });
 }
