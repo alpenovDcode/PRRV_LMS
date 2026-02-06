@@ -185,7 +185,7 @@ export async function POST(
       }
 
       // Если это не стоп-урок, помечаем его как пройденный сразу после отправки ДЗ
-      if (!submission.lesson.isStopLesson) {
+      if (submission.lesson && !submission.lesson.isStopLesson) {
         await db.lessonProgress.upsert({
           where: {
             userId_lessonId: {
@@ -211,7 +211,7 @@ export async function POST(
       // Notify curators
       try {
         await notifyHomeworkSubmitted(
-          submission.lesson.title,
+          submission.lesson?.title || "Домашнее задание",
           submission.user.fullName || submission.user.email,
           submission.id
         );
@@ -222,7 +222,7 @@ export async function POST(
 
       // Log action
       await logAction(req.user!.userId, "SUBMIT_HOMEWORK", "homework", submission.id, {
-         title: submission.lesson.title
+         title: submission.lesson?.title
       });
 
       return NextResponse.json<ApiResponse>(
