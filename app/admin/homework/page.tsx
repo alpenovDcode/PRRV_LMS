@@ -166,7 +166,10 @@ export default function AdminHomeworkPage() {
                             {item.user.fullName || item.user.email}
                           </p>
                           <span className="text-xs text-muted-foreground truncate">
-                            {item.course.title} • {item.lesson.title}
+                            {item.lesson 
+                               ? `${item.course?.title || 'Курс'} • ${item.lesson.title}`
+                               : (item.landingBlock?.page?.title ? `Лендинг: ${item.landingBlock.page.title}` : "Неизвестный источник")
+                            }
                           </span>
                         </div>
                         <div className="flex flex-wrap items-center gap-3 mt-1 text-xs text-muted-foreground">

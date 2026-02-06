@@ -221,7 +221,8 @@ model LessonProgress {
 model HomeworkSubmission {
   id             String            @id @default(uuid())
   userId         String            @map("user_id")
-  lessonId       String            @map("lesson_id")
+  lessonId       String?           @map("lesson_id")
+  landingBlockId String?           @map("landing_block_id")
   content        String?
   files          Json?
   curatorFiles   Json?             @map("curator_files")
@@ -230,15 +231,22 @@ model HomeworkSubmission {
   curatorAudioUrl String?           @map("curator_audio_url")
   curatorId      String?            @map("curator_id")
   reviewedAt     DateTime?         @map("reviewed_at")
+  
+  // Auto-Review fields
+  autoResponseScheduledAt DateTime? @map("auto_response_scheduled_at")
+  responseTemplateIndex   Int?      @map("response_template_index")
+  
   createdAt      DateTime          @default(now()) @map("created_at")
   updatedAt      DateTime          @updatedAt @map("updated_at")
   history        HomeworkHistory[]
   curator        User?             @relation("HomeworkReviewer", fields: [curatorId], references: [id])
-  lesson         Lesson            @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lesson         Lesson?           @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  landingBlock   LandingBlock?     @relation(fields: [landingBlockId], references: [id], onDelete: Cascade)
   user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([lessonId])
+  @@index([landingBlockId])
   @@index([status])
   @@map("homework_submissions")
 }
@@ -531,4 +539,33 @@ model VideoLibrary {
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   @@map("video_library")
+}
+
+model LandingPage {
+  id          String         @id @default(uuid())
+  title       String
+  slug        String         @unique
+  isPublished Boolean        @default(false) @map("is_published")
+  blocks      LandingBlock[]
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  @@map("landing_pages")
+}
+
+model LandingBlock {
+  id                String               @id @default(uuid())
+  pageId            String               @map("page_id")
+  type              String               // 'text', 'form', 'video'
+  content           Json
+  settings          Json?                // UTM tags, openAt
+  responseTemplates String[]             @default([]) @map("response_templates")
+  orderIndex        Int                  @map("order_index")
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
+  page              LandingPage          @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  submissions       HomeworkSubmission[]
+
+  @@index([pageId])
+  @@map("landing_blocks")
 }
