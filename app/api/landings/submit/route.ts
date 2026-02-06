@@ -86,11 +86,15 @@ export async function POST(req: Request) {
     // 6. Integrate with Bitrix24 (Async, don't block response)
     (async () => {
        try {
+          console.log("Starting Bitrix integration...");
           const bitrixUrl = process.env.BITRIX24_WEBHOOK_URL;
           const funnelId = process.env.BITRIX_FUNNEL_ID || "14";
           const stageId = process.env.BITRIX_SOURCE_STAGE_ID || "C14:PREPAYMENT_INVOIC";
           
-          if (!bitrixUrl) return;
+          if (!bitrixUrl) {
+             console.error("Bitrix URL not found in env");
+             return;
+          }
 
           // 6.1. Get Landing Page Title and Prepare Q&A
           const landingBlock = await prisma.landingBlock.findUnique({
@@ -106,39 +110,29 @@ export async function POST(req: Request) {
 
           // Format Q&A
           let qaString = "";
-          const reqAnswers = (await req.clone().json()).answers || {}; // Need to re-parse because we already read stream? No, use payload from above.
-          // Actually, we destructured { blockId, data } at top. Let's add answers to destructuring.
-          // But I can't change top of file easily here.
-          // Let's assume 'answers' variable is available (I will modify top of file in next step or use 'data.answers' if I put it there).
-          // Wait, in previous step I put 'answers' as sibling to 'data' in payload.
-          // So I need to update the destructuring at the top of the file FIRST.
-          // Let's assume I will do that.
+          // Note: 'answers' is captured from the parent scope (destructured at top of POST)
           
-          // Re-reading logic:
-          // const { blockId, data, answers } = await req.json(); <- This should be done at top.
-          
-          // Construct Q&A string
-          // UF_CRM_1770370823754
-          
-          Object.entries(reqAnswers).forEach(([blkId, answer]) => {
+          Object.entries(answers || {}).forEach(([blkId, answer]) => {
               const questionBlock = allBlocks.find(b => b.id === blkId);
               if (questionBlock && (questionBlock.content as any).html) {
-                 // Try to strip HTML from question
                  const questionText = (questionBlock.content as any).html.replace(/<[^>]*>?/gm, ' ').trim();
                  qaString += `Вопрос: ${questionText}\nОтвет: ${answer}\n\n`;
               }
           });
 
           const landingTitle = landingBlock?.page.title || "Unknown Landing";
+          console.log(`Processing Bitrix for landing: ${landingTitle}`);
           
           // 6.2. Find or Create Contact
-          // Search by email
+          console.log(`Searching contact by email: ${email}`);
           const searchRes = await fetch(`${bitrixUrl}crm.contact.list?filter[EMAIL]=${email}&select[]=ID`);
           const searchData = await searchRes.json();
           
           let contactId = searchData.result?.[0]?.ID;
+          console.log(`Found contact ID: ${contactId}`);
           
           if (!contactId) {
+             console.log("Contact not found, creating new...");
              // Create new contact
              const phoneKey = Object.keys(data).find(k => k.toLowerCase().includes("phone") || k.toLowerCase().includes("телефон"));
              const phone = phoneKey ? data[phoneKey] : null;
@@ -157,25 +151,31 @@ export async function POST(req: Request) {
              });
              const createData = await createContactRes.json();
              contactId = createData.result;
+             console.log(`Created new contact ID: ${contactId}`);
           }
           
           if (contactId) {
              // 6.3. Create Deal
              const dealTitle = `Сдал ДЗ [${landingTitle}]`;
-             await fetch(`${bitrixUrl}crm.deal.add`, {
+             const dealFields = {
+                TITLE: dealTitle,
+                CATEGORY_ID: funnelId,
+                STAGE_ID: stageId,
+                CONTACT_ID: contactId,
+                OPENED: "Y",
+                UF_CRM_1770370823754: qaString
+             };
+             console.log("Creating deal with fields:", JSON.stringify(dealFields));
+
+             const dealRes = await fetch(`${bitrixUrl}crm.deal.add`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                   fields: {
-                      TITLE: dealTitle,
-                      CATEGORY_ID: funnelId,
-                      STAGE_ID: stageId,
-                      CONTACT_ID: contactId,
-                      OPENED: "Y",
-                      UF_CRM_1770370823754: qaString // Custom field for Q&A
-                   }
-                })
+                body: JSON.stringify({ fields: dealFields })
              });
+             const dealData = await dealRes.json();
+             console.log("Deal creation result:", dealData);
+          } else {
+             console.error("Failed to get Contact ID, skipping deal creation");
           }
 
        } catch (err) {
