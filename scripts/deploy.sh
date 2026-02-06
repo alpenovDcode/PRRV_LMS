@@ -12,8 +12,31 @@ UPSTREAM_CONF="./nginx/conf.d/upstream.conf"
 
 echo "🚀 Starting Zero Downtime Deployment..."
 
+# 0. Detect Docker Compose command
+if command -v docker-compose &> /dev/null; then
+    DOCKER_COMPOSE_CMD="docker-compose"
+elif docker compose version &> /dev/null; then
+    DOCKER_COMPOSE_CMD="docker compose"
+else
+    echo "❌ Error: Docker Compose not found. Please install it or check your PATH."
+    exit 1
+fi
+echo "🛠 Using command: $DOCKER_COMPOSE_CMD"
+
 # 1. Detect current active container
-if grep -q "app-blue" "$UPSTREAM_CONF"; then
+if [ ! -f "$UPSTREAM_CONF" ]; then
+    echo "⚠️  $UPSTREAM_CONF not found. Assuming first run."
+    # Default to assuming blue is "current" (so we deploy green) OR
+    # if nothing is running, we just pick one.
+    # Let's say we deploy BLUE first if nothing exists.
+    # So we pretend CURRENT is GREEN.
+    CURRENT_COLOR="green"
+    NEW_COLOR="blue"
+    NEW_CONTAINER="proryv_app_blue"
+    
+    # Create the directory if it doesn't exist
+    mkdir -p $(dirname "$UPSTREAM_CONF")
+elif grep -q "app-blue" "$UPSTREAM_CONF"; then
     CURRENT_COLOR="blue"
     NEW_COLOR="green"
     NEW_CONTAINER="proryv_app_green"
@@ -28,14 +51,14 @@ echo "🟢 Deploying to: $NEW_COLOR"
 
 # 2. Pull latest images (if using remote registry)
 # echo "📥 Pulling latest images..."
-# docker-compose -f $DOCKER_COMPOSE_FILE pull app-$NEW_COLOR
+# $DOCKER_COMPOSE_CMD -f $DOCKER_COMPOSE_FILE pull app-$NEW_COLOR
 
 # 3. Build and Start new container
 echo "🏗 Building and starting $NEW_COLOR container..."
-docker-compose -f $DOCKER_COMPOSE_FILE up -d --build app-$NEW_COLOR
+$DOCKER_COMPOSE_CMD -f $DOCKER_COMPOSE_FILE up -d --build app-$NEW_COLOR
 
 # 4. Wait for healthcheck
-echo "asd Waiting for $NEW_COLOR to be healthy..."
+echo "⏳ Waiting for $NEW_COLOR to be healthy..."
 attempt=0
 max_attempts=30
 while [ $attempt -le $max_attempts ]; do
@@ -50,7 +73,7 @@ while [ $attempt -le $max_attempts ]; do
     if [ $attempt -eq $max_attempts ]; then
         echo "❌ Timeout waiting for $NEW_COLOR to become healthy."
         echo "⚠️  Rolling back..."
-        docker-compose -f $DOCKER_COMPOSE_FILE stop app-$NEW_COLOR
+        $DOCKER_COMPOSE_CMD -f $DOCKER_COMPOSE_FILE stop app-$NEW_COLOR
         exit 1
     fi
     
@@ -63,11 +86,22 @@ echo "twisted_rightwards_arrows Switching Nginx traffic to $NEW_COLOR..."
 echo "upstream backend { server app-$NEW_COLOR:3000; }" > "$UPSTREAM_CONF"
 
 # 6. Reload Nginx
-echo "res Reloading Nginx..."
-docker exec $NGINX_CONTAINER nginx -s reload
+echo "🔄 Reloading Nginx..."
+# Check if nginx is running before reloading
+if [ "$(docker ps -q -f name=$NGINX_CONTAINER)" ]; then
+    docker exec $NGINX_CONTAINER nginx -s reload
+else
+    echo "⚠️  Nginx container not found or not running. Starting Nginx..."
+    $DOCKER_COMPOSE_CMD -f $DOCKER_COMPOSE_FILE up -d nginx
+fi
 
 # 7. Stop old container
-echo "octagonal_sign Stopping old $CURRENT_COLOR container..."
-docker-compose -f $DOCKER_COMPOSE_FILE stop app-$CURRENT_COLOR
+echo "🛑 Stopping old $CURRENT_COLOR container..."
+# Only stop if it's actually running to avoid errors on first run
+if [ "$(docker ps -q -f name=proryv_app_$CURRENT_COLOR)" ]; then
+    $DOCKER_COMPOSE_CMD -f $DOCKER_COMPOSE_FILE stop app-$CURRENT_COLOR
+else
+    echo "ℹ️  Old container proryv_app_$CURRENT_COLOR was not running."
+fi
 
-echo "tada Deployment Complete! Active: $NEW_COLOR"
+echo "🎉 Deployment Complete! Active: $NEW_COLOR"
