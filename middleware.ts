@@ -43,11 +43,30 @@ export async function middleware(request: NextRequest) {
     // Если ключ не задан в .env, пропускаем (режим разработки/отладки без ключа)
     // Но если задан - проверяем строго
     if (validKey && apiKey !== validKey) {
-      // Для API возвращаем JSON
-      return NextResponse.json(
-        { success: false, error: { code: "FORBIDDEN", message: "Invalid API Key" } },
-        { status: 403 }
-      );
+      // PROPYV_UPDATE: Allow authenticated sessions (Cookie) to bypass API Key check
+      // This fixes issues where client-side env vars might be missing
+      const token = request.cookies.get("accessToken")?.value;
+      let isAuthorized = false;
+
+      if (token) {
+        try {
+          const payload = await verifyAccessTokenEdge(token);
+          // Allow admins and curators to access API without key (since they are logged in)
+          if (payload && (payload.role === "admin" || payload.role === "curator")) {
+            isAuthorized = true;
+          }
+        } catch (e) {
+          // Token invalid, ignore
+        }
+      }
+
+      if (!isAuthorized) {
+        // Для API возвращаем JSON
+        return NextResponse.json(
+          { success: false, error: { code: "FORBIDDEN", message: "Invalid API Key or Session" } },
+          { status: 403 }
+        );
+      }
     }
   }
   // --- API SECURITY CHECK END ---

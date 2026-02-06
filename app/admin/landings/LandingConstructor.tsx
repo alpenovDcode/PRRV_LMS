@@ -42,7 +42,8 @@ export default function LandingConstructor({
     if (type === "form") return { 
       fields: [
         { type: "text", label: "Имя", required: true },
-        { type: "email", label: "Email", required: true }
+        { type: "email", label: "Email", required: true },
+        { type: "tel", label: "Телефон", required: true }
       ],
       buttonText: "Отправить" 
     };
