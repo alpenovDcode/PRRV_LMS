@@ -15,13 +15,16 @@ interface Block {
 export default function LandingConstructor({ 
   landingId, 
   initialBlocks,
+  initialIsPublished,
   onSave 
 }: { 
   landingId: string, 
   initialBlocks: Block[],
-  onSave: (blocks: Block[]) => void
+  initialIsPublished: boolean,
+  onSave: (blocks: Block[], isPublished: boolean) => void
 }) {
   const [blocks, setBlocks] = useState<Block[]>(initialBlocks);
+  const [isPublished, setIsPublished] = useState(initialIsPublished);
   const [activeTab, setActiveTab] = useState<number | null>(null);
 
   const addBlock = (type: "text" | "video" | "form") => {
@@ -61,7 +64,7 @@ export default function LandingConstructor({
   };
 
   const save = () => {
-    onSave(blocks);
+    onSave(blocks, isPublished);
   };
 
   return (
@@ -81,7 +84,17 @@ export default function LandingConstructor({
           </button>
         </div>
         
-        <div className="mt-8 pt-4 border-t">
+        <div className="mt-8 pt-4 border-t space-y-4">
+          <div className="flex items-center gap-2 px-1">
+             <input 
+               type="checkbox" 
+               id="publish" 
+               className="w-5 h-5"
+               checked={isPublished}
+               onChange={(e) => setIsPublished(e.target.checked)}
+             />
+             <label htmlFor="publish" className="font-medium">Опубликовать</label>
+          </div>
           <button onClick={save} className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700">
             Сохранить изменения
           </button>

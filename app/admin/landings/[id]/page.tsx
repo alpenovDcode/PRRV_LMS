@@ -1,29 +1,54 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, use } from "react";
 import LandingConstructor from "../LandingConstructor";
 import { apiClient } from "@/lib/api-client";
 
-export default function EditLandingPage({ params }: { params: { id: string } }) {
+export default function EditLandingPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const [initialBlocks, setInitialBlocks] = useState([]);
+  const [isPublished, setIsPublished] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    apiClient.get(`/landings/${params.id}/blocks`)
-      .then(({ data }) => {
-        // Ensure responseTemplates exists (migration fallback)
-        const formatted = data.map((b: any) => ({
+    // 1. Fetch metadata (published status)
+    apiClient.get(`/landings`) // Optimization: fetch specific, but list is cached/fast enough for now or assume passed. 
+    // actually we need specific. Let's create GET /api/landings/[id] later if needed.
+    // For now, let's assume we can add GET to [id] route I just created.
+    // Wait, I didn't add GET to [id] route yet. I only added PATCH.
+    // Let's rely on list or just add GET.
+    // Let's add GET to [id] route as well to be clean.
+    
+    Promise.all([
+       apiClient.get(`/landings/${id}/blocks`),
+       apiClient.get(`/landings/${id}`)
+    ]).then(([blocksRes, landingRes]) => {
+         // Blocks
+         const data = blocksRes.data;
+         const formatted = data.map((b: any) => ({
            ...b,
            responseTemplates: b.responseTemplates || ["", "", "", "", ""]
         }));
         setInitialBlocks(formatted);
-        setLoading(false);
-      });
-  }, [params.id]);
+        
+        // Metadata
+        if (landingRes.data) {
+           setIsPublished(landingRes.data.isPublished);
+        }
 
-  const handleSave = async (blocks: any[]) => {
+        setLoading(false);
+    });
+  }, [id]);
+
+  // FIXME: Need to fetch isPublished to show correct initial state. 
+  // I will add GET to /api/landings/[id] in next tool call and use it here.
+  
+  const handleSave = async (blocks: any[], published: boolean) => {
     try {
-      await apiClient.post(`/landings/${params.id}/blocks`, { blocks });
+      await Promise.all([
+         apiClient.post(`/landings/${id}/blocks`, { blocks }),
+         apiClient.patch(`/landings/${id}`, { isPublished: published })
+      ]);
       alert("Сохранено!");
     } catch (e) {
       alert("Ошибка сети");
@@ -38,8 +63,9 @@ export default function EditLandingPage({ params }: { params: { id: string } }) 
          <h1 className="text-2xl font-bold">Редактор лендинга</h1>
       </div>
       <LandingConstructor 
-        landingId={params.id} 
+        landingId={id} 
         initialBlocks={initialBlocks} 
+        initialIsPublished={isPublished}
         onSave={handleSave} 
       />
     </div>
