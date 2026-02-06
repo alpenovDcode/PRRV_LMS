@@ -59,7 +59,7 @@ $DOCKER_COMPOSE_CMD -f $DOCKER_COMPOSE_FILE up -d --build --remove-orphans app-$
 
 # 3.1 Run Database Migrations
 echo "📦 Running database migrations..."
-if ! docker exec app-$NEW_COLOR npx prisma migrate deploy; then
+if ! docker exec $NEW_CONTAINER npx prisma migrate deploy; then
     echo "❌ Migration failed!"
     $DOCKER_COMPOSE_CMD -f $DOCKER_COMPOSE_FILE stop app-$NEW_COLOR
     exit 1
