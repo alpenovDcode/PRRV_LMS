@@ -29,6 +29,11 @@ interface InboxItem {
     id: string;
     title: string;
   };
+  landingBlock?: {
+    page: {
+      title: string;
+    };
+  };
 }
 
 function getStatusLabel(status: InboxItem["status"]) {

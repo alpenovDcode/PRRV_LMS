@@ -87,7 +87,21 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           </div>
 
           <nav className="flex-1 space-y-2 px-3 py-4">
-            {adminNavigation.map((item) => {
+            {adminNavigation.filter(item => {
+               // If user is admin (or not curator), show all
+               if (user?.role !== "curator") return true;
+               
+               // If curator, allow only specific paths
+               const allowed = [
+                 "/admin",
+                 "/admin/courses",
+                 "/admin/users",
+                 "/admin/groups",
+                 "/admin/homework",
+                 "/admin/trainings"
+               ];
+               return allowed.includes(item.href);
+            }).map((item) => {
               const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
               const isHomeworkItem = item.href === "/admin/homework";
               
