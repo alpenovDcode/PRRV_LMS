@@ -57,6 +57,9 @@ export async function GET(request: NextRequest) {
                 },
               },
             },
+            landingBlock: {
+               include: { page: true }
+            },
             curator: {
               select: {
                 id: true,
