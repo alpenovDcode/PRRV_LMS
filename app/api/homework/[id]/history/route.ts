@@ -35,6 +35,9 @@ export async function GET(
               },
             },
           },
+          landingBlock: {
+             select: { id: true }
+          }
         },
       });
 
@@ -55,8 +58,10 @@ export async function GET(
       const isOwner = submission.userId === req.user!.userId;
       const isCuratorOrAdmin =
         req.user!.role === "curator" || req.user!.role === "admin";
-      const hasEnrollment =
-        submission.lesson.module.course.enrollments.length > 0;
+      
+      const hasEnrollment = submission.lesson 
+         ? submission.lesson.module.course.enrollments.length > 0
+         : true; // Landing submissions are accessible to their owners without enrollment check
 
       if (!isOwner && !isCuratorOrAdmin && !hasEnrollment) {
         return NextResponse.json<ApiResponse>(
