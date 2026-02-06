@@ -163,7 +163,7 @@ export async function POST(req: Request) {
                 STAGE_ID: stageId,
                 CONTACT_ID: contactId,
                 OPENED: "Y",
-                UF_CRM_1770370823754: qaString
+                UF_CRM_1770370876447: qaString
              };
              console.log("Creating deal with fields:", JSON.stringify(dealFields));
 
