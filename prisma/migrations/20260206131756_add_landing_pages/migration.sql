@@ -1,5 +1,5 @@
 -- AlterTable
-ALTER TABLE "enrollments" ADD COLUMN     "forced_modules" TEXT[] DEFAULT ARRAY[]::TEXT[];
+-- ALTER TABLE "enrollments" ADD COLUMN     "forced_modules" TEXT[] DEFAULT ARRAY[]::TEXT[];
 
 -- AlterTable
 ALTER TABLE "homework_submissions" ADD COLUMN     "auto_response_scheduled_at" TIMESTAMP(3),
