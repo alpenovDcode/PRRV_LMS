@@ -36,6 +36,9 @@ export async function GET(request: NextRequest) {
               },
             },
             curator: true,
+            landingBlock: {
+               include: { page: true }
+            }
           },
           orderBy: {
             createdAt: "desc",
@@ -53,14 +56,19 @@ export async function GET(request: NextRequest) {
             fullName: s.user.fullName,
             email: s.user.email,
           },
-          lesson: {
+          lesson: s.lesson ? {
             id: s.lesson.id,
             title: s.lesson.title,
-          },
-          course: {
+          } : null,
+          landing: s.landingBlock ? {
+             id: s.landingBlock.id,
+             title: s.landingBlock.page?.title || "Лендинг",
+             type: "landing"
+          } : null,
+          course: s.lesson ? {
             id: s.lesson.module.course.id,
             title: s.lesson.module.course.title,
-          },
+          } : null,
         }));
 
         return NextResponse.json<ApiResponse>({ success: true, data }, { status: 200 });
