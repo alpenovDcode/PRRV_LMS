@@ -55,7 +55,7 @@ echo "🟢 Deploying to: $NEW_COLOR"
 
 # 3. Build and Start new container
 echo "🏗 Building and starting $NEW_COLOR container..."
-$DOCKER_COMPOSE_CMD -f $DOCKER_COMPOSE_FILE up -d --build app-$NEW_COLOR
+$DOCKER_COMPOSE_CMD -f $DOCKER_COMPOSE_FILE up -d --build --remove-orphans app-$NEW_COLOR
 
 # 4. Wait for healthcheck
 echo "⏳ Waiting for $NEW_COLOR to be healthy..."
