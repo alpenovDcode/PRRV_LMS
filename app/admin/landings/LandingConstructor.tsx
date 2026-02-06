@@ -10,6 +10,9 @@ interface Block {
   settings: any;
   orderIndex: number;
   responseTemplates?: string[];
+  // Text block specific
+  hasInput?: boolean; 
+  inputLabel?: string;
 }
 
 export default function LandingConstructor({ 
@@ -40,7 +43,7 @@ export default function LandingConstructor({
   };
 
   const getInitialContent = (type: string) => {
-    if (type === "text") return { html: "<h2>Заголовок</h2><p>Текст...</p>" };
+    if (type === "text") return { html: "<h2>Заголовок</h2><p>Текст...</p>", hasInput: false, inputLabel: "Ваш ответ" };
     if (type === "video") return { videoId: "", title: "" };
     if (type === "form") return { 
       fields: [
@@ -117,11 +120,39 @@ export default function LandingConstructor({
               
               {/* Editors */}
               {block.type === "text" && (
-                <textarea 
-                  className="w-full p-3 border rounded-lg h-32 font-mono text-sm"
-                  value={block.content.html}
-                  onChange={(e) => updateBlock(index, { content: { html: e.target.value } })}
-                />
+                <div className="space-y-4">
+                  <textarea 
+                    className="w-full p-3 border rounded-lg h-32 font-mono text-sm"
+                    value={block.content.html}
+                    onChange={(e) => updateBlock(index, { content: { ...block.content, html: e.target.value } })}
+                  />
+                  
+                  <div className="flex items-start gap-4 p-3 bg-gray-50 rounded-lg border">
+                      <div className="flex items-center gap-2 mt-2">
+                        <input 
+                          type="checkbox"
+                          id={`input-${index}`}
+                          className="w-4 h-4"
+                          checked={block.content.hasInput || false}
+                          onChange={(e) => updateBlock(index, { content: { ...block.content, hasInput: e.target.checked } })}
+                        />
+                        <label htmlFor={`input-${index}`} className="text-sm font-medium">
+                           Добавить поле для ответа
+                        </label>
+                      </div>
+
+                      {block.content.hasInput && (
+                         <div className="flex-1">
+                            <label className="text-xs text-gray-500 block mb-1">Текст лейбла</label>
+                            <input 
+                               className="w-full p-2 border rounded text-sm bg-white"
+                               value={block.content.inputLabel || "Ваш ответ"}
+                               onChange={(e) => updateBlock(index, { content: { ...block.content, inputLabel: e.target.value } })}
+                            />
+                         </div>
+                      )}
+                  </div>
+                </div>
               )}
 
               {block.type === "video" && (

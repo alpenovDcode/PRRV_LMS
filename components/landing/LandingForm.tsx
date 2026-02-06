@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Loader2, AlertTriangle, CheckCircle } from "lucide-react";
 
-export default function LandingForm({ block }: { block: any }) {
+export default function LandingForm({ block, answers }: { block: any, answers?: Record<string, string> }) {
   const [formData, setFormData] = useState<any>({});
   const [status, setStatus] = useState<"idle" | "submitting" | "waiting" | "completed">("idle");
   const [submissionId, setSubmissionId] = useState<string | null>(null);
@@ -80,7 +80,8 @@ export default function LandingForm({ block }: { block: any }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
            blockId: block.id,
-           data: formData 
+           data: formData,
+           answers: answers || {} 
         }),
       });
       const data = await res.json();

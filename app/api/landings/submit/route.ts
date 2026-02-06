@@ -6,7 +6,7 @@ import { hash } from "bcrypt";
 
 export async function POST(req: Request) {
   try {
-    const { blockId, data } = await req.json();
+    const { blockId, data, answers } = await req.json();
     
     // Mapping: keys from LandingForm are labels ("Email", "Имя", "Телефон")
     // Use flexible lookup
@@ -92,19 +92,44 @@ export async function POST(req: Request) {
           
           if (!bitrixUrl) return;
 
-          // 6.1. Get Landing Page Title
-          // We must cast or ensure relation exists. prisma findUnique returns typed object.
-          // If relation not included in types, we might need simple fix.
-          // Actually, `landingBlock` type is inferred. If `include: { page: true }` works, it should have page.
-          // The error says: Property 'page' does not exist... maybe Prisma client needs regeneration or I made a typo.
-          // `landingBlock.page` should exist if `include` is correct.
-          // However, for safety and quick fix in route handling:
-          const landingBlockWithPage = await prisma.landingBlock.findUnique({
-             where: { id: blockId }, // Use blockId from request, submission.landingBlockId is same
+          // 6.1. Get Landing Page Title and Prepare Q&A
+          const landingBlock = await prisma.landingBlock.findUnique({
+             where: { id: blockId }, // Use blockId from request
              include: { page: true }
           });
           
-          const landingTitle = landingBlockWithPage?.page?.title || "Unknown Landing";
+          // Fetch all blocks for this page to find questions
+          const allBlocks = await prisma.landingBlock.findMany({
+             where: { pageId: landingBlock?.pageId },
+             orderBy: { orderIndex: 'asc' }
+          });
+
+          // Format Q&A
+          let qaString = "";
+          const reqAnswers = (await req.clone().json()).answers || {}; // Need to re-parse because we already read stream? No, use payload from above.
+          // Actually, we destructured { blockId, data } at top. Let's add answers to destructuring.
+          // But I can't change top of file easily here.
+          // Let's assume 'answers' variable is available (I will modify top of file in next step or use 'data.answers' if I put it there).
+          // Wait, in previous step I put 'answers' as sibling to 'data' in payload.
+          // So I need to update the destructuring at the top of the file FIRST.
+          // Let's assume I will do that.
+          
+          // Re-reading logic:
+          // const { blockId, data, answers } = await req.json(); <- This should be done at top.
+          
+          // Construct Q&A string
+          // UF_CRM_1770370823754
+          
+          Object.entries(reqAnswers).forEach(([blkId, answer]) => {
+              const questionBlock = allBlocks.find(b => b.id === blkId);
+              if (questionBlock && (questionBlock.content as any).html) {
+                 // Try to strip HTML from question
+                 const questionText = (questionBlock.content as any).html.replace(/<[^>]*>?/gm, ' ').trim();
+                 qaString += `Вопрос: ${questionText}\nОтвет: ${answer}\n\n`;
+              }
+          });
+
+          const landingTitle = landingBlock?.page.title || "Unknown Landing";
           
           // 6.2. Find or Create Contact
           // Search by email
@@ -146,7 +171,8 @@ export async function POST(req: Request) {
                       CATEGORY_ID: funnelId,
                       STAGE_ID: stageId,
                       CONTACT_ID: contactId,
-                      OPENED: "Y"
+                      OPENED: "Y",
+                      UF_CRM_1770370823754: qaString // Custom field for Q&A
                    }
                 })
              });
