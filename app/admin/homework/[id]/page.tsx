@@ -35,15 +35,20 @@ interface HomeworkSubmission {
     fullName: string | null;
     email: string;
   };
-  lesson: {
+  lesson?: {
     id: string;
     title: string;
     isStopLesson: boolean;
     content: any;
   };
-  course: {
+  course?: {
     id: string;
     title: string;
+  };
+  landingBlock?: {
+    page: {
+      title: string;
+    };
   };
   history: Array<{
     status: string;
@@ -59,8 +64,6 @@ const quickTemplates = [
 ];
 
 import { AudioRecorder } from "@/components/ui/audio-recorder";
-
-// ... existing imports
 
 export default function AdminHomeworkReviewPage() {
   const params = useParams();
@@ -179,8 +182,6 @@ export default function AdminHomeworkReviewPage() {
     setCuratorFiles((prev) => prev.filter((url) => url !== fileUrl));
   };
   
-// ...
-
   if (isLoading || !submission) {
     return (
       <div className="container mx-auto max-w-6xl px-4 py-8">
@@ -199,7 +200,10 @@ export default function AdminHomeworkReviewPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Проверка домашнего задания</h1>
           <p className="text-muted-foreground mt-1">
-            {submission.course.title} • {submission.lesson.title}
+            {submission.lesson 
+              ? `${submission.course?.title} • ${submission.lesson.title}`
+              : `Лендинг: ${submission.landingBlock?.page?.title || "Без названия"}`
+            }
           </p>
         </div>
       </div>
@@ -207,24 +211,41 @@ export default function AdminHomeworkReviewPage() {
       <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
         {/* Левая часть: Работа студента */}
         <div className="space-y-6">
-          {/* Условие задания */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Условие задания</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="prose prose-sm max-w-none dark:prose-invert">
-                {submission.lesson.content?.homework ? (
-                  <div className="whitespace-pre-wrap">{submission.lesson.content.homework}</div>
-                ) : (
-                  <p className="text-muted-foreground italic">Текст задания не указан в уроке.</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          {/* Условие задания (Only for lessons) */}
+          {submission.lesson && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Условие задания</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="prose prose-sm max-w-none dark:prose-invert">
+                  {submission.lesson.content?.homework ? (
+                    <div className="whitespace-pre-wrap">{submission.lesson.content.homework}</div>
+                  ) : (
+                    <p className="text-muted-foreground italic">Текст задания не указан в уроке.</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
+          {/* Landing Info (Only for landings) */}
+          {!submission.lesson && submission.landingBlock && (
+             <Card>
+              <CardHeader>
+                <CardTitle>Информация о заявке</CardTitle>
+              </CardHeader>
+              <CardContent>
+                 <p className="text-sm text-muted-foreground">
+                    Заявка с лендинга: <strong>{submission.landingBlock.page.title}</strong>
+                 </p>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
-            <CardHeader>
+             {/* ... existing CardContent ... (no changes needed inside) */}
+             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>Работа студента</CardTitle>
                 <Badge variant={submission.status === "pending" ? "outline" : submission.status === "approved" ? "default" : "destructive"}>
@@ -237,6 +258,7 @@ export default function AdminHomeworkReviewPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
+               {/* ... user info ... */}
               <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
                   <User className="h-5 w-5 text-primary" />
@@ -246,7 +268,7 @@ export default function AdminHomeworkReviewPage() {
                   <p className="text-sm text-muted-foreground">{submission.user.email}</p>
                 </div>
               </div>
-
+              
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Clock className="h-4 w-4" />
@@ -263,10 +285,25 @@ export default function AdminHomeworkReviewPage() {
               {submission.content && (
                 <div className="space-y-2">
                   <h3 className="font-medium">Ответ:</h3>
-                  <div className="p-4 bg-muted rounded-lg whitespace-pre-wrap">{submission.content}</div>
+                  {/* If landing, try to prettify JSON */}
+                  {!submission.lesson ? (
+                     <div className="p-4 bg-muted rounded-lg whitespace-pre-wrap font-mono text-sm">
+                        {(() => {
+                           try {
+                              const json = JSON.parse(submission.content);
+                              return Object.entries(json).map(([k, v]) => `${k}: ${v}`).join("\n");
+                           } catch(e) {
+                              return submission.content;
+                           }
+                        })()}
+                     </div>
+                  ) : (
+                     <div className="p-4 bg-muted rounded-lg whitespace-pre-wrap">{submission.content}</div>
+                  )}
                 </div>
               )}
-
+              
+              {/* ... files ... */}
               {submission.files && submission.files.length > 0 && (
                 <div className="space-y-2">
                   <h3 className="font-medium">Прикрепленные файлы:</h3>
@@ -290,12 +327,13 @@ export default function AdminHomeworkReviewPage() {
                   </div>
                 </div>
               )}
-
+              
+              {/* ... history ... */}
               {submission.history && submission.history.length > 0 && (
                 <div className="space-y-2">
                   <h3 className="font-medium">История проверок:</h3>
                   <div className="space-y-3">
-                    {submission.history.map((item, idx) => (
+                     {submission.history.map((item, idx) => (
                       <div key={idx} className="p-3 border rounded-lg">
                         <div className="flex items-center justify-between mb-2">
                           <Badge variant={item.status === "approved" ? "default" : "destructive"}>
@@ -313,8 +351,8 @@ export default function AdminHomeworkReviewPage() {
                   </div>
                 </div>
               )}
-
-              {/* Curator Response Section */}
+              
+              {/* ... curator response ... */}
               {submission.status !== "pending" && (
                 <div className="space-y-4 pt-4 border-t">
                   <h3 className="font-semibold text-lg">Ответ куратора</h3>
@@ -381,7 +419,7 @@ export default function AdminHomeworkReviewPage() {
 
         {/* Правая часть: Инструменты куратора */}
         <div className="space-y-6">
-          <Card>
+           <Card>
             <CardHeader>
               <CardTitle>Решение</CardTitle>
               <CardDescription>Примите решение по работе студента</CardDescription>
@@ -481,7 +519,7 @@ export default function AdminHomeworkReviewPage() {
                 </Button>
               </div>
 
-              {submission.lesson.isStopLesson && (
+              {submission.lesson?.isStopLesson && (
                 <div className="p-3 bg-warning/10 border border-warning/20 rounded-lg">
                   <p className="text-sm text-warning-foreground">
                     <strong>Стоп-урок:</strong> После принятия работы студенту откроется следующий урок.
