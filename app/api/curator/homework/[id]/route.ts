@@ -31,6 +31,9 @@ export async function GET(
                 },
               },
             },
+            landingBlock: {
+              include: { page: true }
+            },
             curator: true,
           },
         });
@@ -70,15 +73,20 @@ export async function GET(
             fullName: submission.curator.fullName,
             avatarUrl: submission.curator.avatarUrl,
           } : null,
-          lesson: {
+          lesson: submission.lesson ? {
             id: submission.lesson.id,
             title: submission.lesson.title,
             content: submission.lesson.content,
-          },
-          course: {
+          } : null,
+          landing: submission.landingBlock ? {
+             id: submission.landingBlock.id,
+             title: submission.landingBlock.page?.title || "Лендинг",
+             type: "landing"
+          } : null,
+          course: submission.lesson ? {
             id: submission.lesson.module.course.id,
             title: submission.lesson.module.course.title,
-          },
+          } : null,
         };
 
         return NextResponse.json<ApiResponse>({ success: true, data }, { status: 200 });
@@ -171,14 +179,17 @@ export async function PATCH(
                   isStopLesson: true 
                 },
               },
+              landingBlock: {
+                 include: { page: true }
+              },
               user: {
                 select: { id: true },
               },
             },
           });
 
-          // Если задание принято, обновляем прогресс урока до completed
-          if (status === "approved") {
+          // Если задание принято И это урок, обновляем прогресс урока
+          if (status === "approved" && updatedSubmission.lesson) {
             await tx.lessonProgress.upsert({
               where: {
                 userId_lessonId: {
@@ -206,7 +217,8 @@ export async function PATCH(
 
         // Notify student
         if (status === "approved" || status === "rejected") {
-          await notifyHomeworkReviewed(updated.userId, updated.lesson.title, status);
+          const title = updated.lesson?.title || updated.landingBlock?.page?.title || "Домашнее задание";
+          await notifyHomeworkReviewed(updated.userId, title, status);
         }
 
         // Audit log
