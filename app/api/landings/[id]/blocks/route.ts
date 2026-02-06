@@ -3,11 +3,12 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const blocks = await prisma.landingBlock.findMany({
-      where: { pageId: params.id },
+      where: { pageId: id },
       orderBy: { orderIndex: "asc" },
     });
     return NextResponse.json(blocks);
@@ -18,9 +19,10 @@ export async function GET(
 
 export async function POST(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const { blocks } = await req.json();
 
     // Transaction: delete old blocks, create new ones (simplest sync strategy)
@@ -46,7 +48,7 @@ export async function POST(
       } else {
          return prisma.landingBlock.create({
             data: {
-               pageId: params.id,
+               pageId: id,
                type: block.type,
                content: block.content,
                settings: block.settings,

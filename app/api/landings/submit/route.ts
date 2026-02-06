@@ -71,7 +71,8 @@ export async function POST(req: Request) {
 
     // 5. Set Cookie for Session Persistence
     // We use a simple httpOnly cookie with userId
-    cookies().set("landing_session_user", user.id, { 
+    const cookieStore = await cookies();
+    cookieStore.set("landing_session_user", user.id, { 
        httpOnly: true, 
        path: "/", 
        maxAge: 60 * 60 * 24 * 30 // 30 days 
