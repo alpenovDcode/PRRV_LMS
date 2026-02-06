@@ -12,7 +12,7 @@ export default function MailingConsentPage() {
       <CardHeader>
         <CardTitle className="text-3xl uppercase">Согласие на получение рассылки и рекламных материалов</CardTitle>
       </CardHeader>
-      <CardContent className="prose prose-sm max-w-none dark:prose-invert">
+      <CardContent className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-black prose-p:text-black prose-strong:text-black prose-li:text-black prose-a:text-blue-600 text-black">
         <p>
           Пользователь, действуя свободно, своей волей и в своем интересе, а также подтверждая свою дееспособность, дает согласие на обработку персональных данных (далее — Согласие) <span className="font-bold">Обществу с ограниченной ответственностью «МАСТЕРСКАЯ ЗНАНИЙ»</span> ИНН: 9714075294 КПП: 771401001 ОГРН: 1257700218071 Адрес: 125167, г. Москва, вн. тер.г. муниципальный округ Аэропорт, пр-кт Ленинградский, д. 36, стр. 39, помещ. 4 (далее — Оператор).
         </p>

@@ -61,7 +61,7 @@ services:
           cpus: '0.25'
           memory: 128M
 
-  app:
+  x-app-defaults: &app-defaults
     build:
       context: .
       dockerfile: Dockerfile
@@ -72,7 +72,6 @@ services:
         NEXT_PUBLIC_CLOUDFLARE_STREAM_CUSTOMER_CODE: ${NEXT_PUBLIC_CLOUDFLARE_STREAM_CUSTOMER_CODE}
         NEXT_PUBLIC_CLOUDFLARE_IMAGES_ACCOUNT_HASH: ${NEXT_PUBLIC_CLOUDFLARE_IMAGES_ACCOUNT_HASH}
     image: proryv-lms:latest
-    container_name: proryv_app
     restart: always
     environment:
       # Database
@@ -117,8 +116,6 @@ services:
       
       # Sentry (optional)
       NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
-    ports:
-      - "127.0.0.1:3000:3000"  # Only localhost access (nginx proxy)
     volumes:
       - ./public/uploads:/app/public/uploads
     depends_on:
@@ -142,12 +139,19 @@ services:
         reservations:
           cpus: '0.5'
           memory: 256M
-    # Logging
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
+
+  app-blue:
+    <<: *app-defaults
+    container_name: proryv_app_blue
+
+  app-green:
+    <<: *app-defaults
+    container_name: proryv_app_green
 
   nginx:
     image: nginx:alpine
@@ -164,8 +168,10 @@ services:
       - /var/www/certbot:/var/www/certbot:ro  # ACME challenge
       - nginx_cache:/var/cache/nginx
     depends_on:
-      app:
-        condition: service_healthy
+      app-blue:
+        condition: service_started
+      app-green:
+        condition: service_started
     networks:
       - proryv_network
     deploy:

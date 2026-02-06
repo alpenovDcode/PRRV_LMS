@@ -14,7 +14,7 @@ export default function TermsPage() {
           <CardTitle className="text-3xl">Условия использования</CardTitle>
           <p className="text-sm text-muted-foreground">Последнее обновление: {new Date().toLocaleDateString("ru-RU")}</p>
         </CardHeader>
-        <CardContent className="prose prose-sm max-w-none dark:prose-invert">
+        <CardContent className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-black prose-p:text-black prose-strong:text-black prose-li:text-black prose-a:text-blue-600 text-black">
           <section className="space-y-4">
             <h2 className="text-2xl font-semibold">1. Принятие условий</h2>
             <p>

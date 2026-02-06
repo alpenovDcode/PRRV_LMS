@@ -12,7 +12,7 @@ export default function ProcessingConsentPage() {
       <CardHeader>
         <CardTitle className="text-3xl">Согласие на обработку данных</CardTitle>
       </CardHeader>
-      <CardContent className="prose prose-sm max-w-none dark:prose-invert">
+      <CardContent className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-black prose-p:text-black prose-strong:text-black prose-li:text-black prose-a:text-blue-600 text-black">
         <p className="font-bold">Согласие на обработку персональных данных</p>
         <p>
           Настоящим в соответствии с Федеральным законом № 152-ФЗ «О персональных данных» от 27.07.2006, Я, субъект персональных данных, именуемый в дальнейшем «Лицензиат», во время использования мною веб-сайта: <a href="https://prrv.tech" target="_blank" rel="noopener noreferrer">https://prrv.tech</a> (далее – Сайт), свободно, своей волей и в своем интересе выражаю полное, безоговорочное и однозначное согласие на обработку моих персональных данных (далее – Согласие) на следующих условиях:

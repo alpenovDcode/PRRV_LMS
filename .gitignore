@@ -153,3 +153,6 @@ $RECYCLE.BIN/
 # Linux
 .directory
 .Trash-*
+
+# Dynamic Nginx Config
+nginx/conf.d/upstream.conf

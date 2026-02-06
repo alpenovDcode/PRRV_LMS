@@ -13,7 +13,7 @@ export default function PrivacyPage() {
         <CardTitle className="text-3xl">Политика в отношении обработки персональных данных</CardTitle>
         <p className="text-sm text-muted-foreground">Редакция от 01.09.2025 года</p>
       </CardHeader>
-      <CardContent className="prose prose-sm max-w-none dark:prose-invert">
+      <CardContent className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-black prose-p:text-black prose-strong:text-black prose-li:text-black prose-a:text-blue-600 text-black">
         <h3>Оглавление</h3>
         <ol className="list-decimal pl-5 space-y-1">
           <li>Общие положения

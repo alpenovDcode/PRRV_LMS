@@ -15,7 +15,7 @@ export default function OfferPage() {
           О предоставлении права использования программы для ЭВМ «Прорыв» (Лицензионное соглашение)
         </p>
       </CardHeader>
-      <CardContent className="prose prose-sm max-w-none dark:prose-invert">
+      <CardContent className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-black prose-p:text-black prose-strong:text-black prose-li:text-black prose-a:text-blue-600 text-black">
         <div className="bg-muted/50 p-4 rounded-md mb-6 text-sm">
           <p className="font-semibold mb-2">Внимание!</p>
           <p>
