@@ -64,10 +64,15 @@ export default function LandingForm({ block }: { block: any }) {
   }, [status, submissionId, block.id]);
 
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setStatus("submitting");
+    // Basic validation if needed, but 'required' attr handles most
     setShowWarning(true);
+  };
+
+  const handleConfirmSubmit = async () => {
+    setShowWarning(false);
+    setStatus("submitting");
 
     try {
       const res = await fetch("/api/landings/submit", {
@@ -128,6 +133,7 @@ export default function LandingForm({ block }: { block: any }) {
   const { fields, buttonText } = block.content;
 
   return (
+    <>
     <form onSubmit={handleSubmit} className="space-y-4 max-w-md mx-auto">
       {fields.map((field: any, i: number) => (
          <div key={i}>
@@ -139,7 +145,6 @@ export default function LandingForm({ block }: { block: any }) {
                required={field.required}
                className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                onChange={(e) => setFormData({ ...formData, [field.label]: e.target.value })} 
-               // Ideally use slugs for keys, but labels work for simple MVP
             />
          </div>
       ))}
@@ -151,25 +156,35 @@ export default function LandingForm({ block }: { block: any }) {
       >
          {status === "submitting" ? "Отправка..." : buttonText || "Отправить"}
       </button>
-
-      {/* Modal Warning (Visual only here, browser handles actual prevention) */}
-      {showWarning && status === "waiting" && (
-         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-xl max-w-sm text-center">
+    </form>
+    
+      {/* Modal Warning */}
+      {showWarning && (
+         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white p-6 rounded-xl max-w-sm text-center shadow-2xl">
                <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-3" />
                <h3 className="text-lg font-bold mb-2">Внимание!</h3>
-               <p className="text-gray-600 mb-4">
-                  Не закрывайте вкладку, пока не получите ответ. Процесс проверки идет в реальном времени.
+               <p className="text-gray-600 mb-6 text-sm">
+                  После отправки формы начнется проверка. <br/>
+                  <b>Не закрывайте вкладку</b>, пока не получите ответ от куратора (это займет время).
                </p>
-               <button 
-                  onClick={() => setShowWarning(false)}
-                  className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300"
-               >
-                  Хорошо, я понял
-               </button>
+               <div className="flex gap-2 justify-center">
+                  <button 
+                     onClick={() => setShowWarning(false)}
+                     className="px-4 py-2 border rounded-lg hover:bg-gray-50 text-sm"
+                  >
+                     Отмена
+                  </button>
+                  <button 
+                     onClick={handleConfirmSubmit}
+                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+                  >
+                     Хорошо, я понял
+                  </button>
+               </div>
             </div>
          </div>
       )}
-    </form>
+    </>
   );
 }

@@ -147,6 +147,9 @@ export async function GET(
                   },
                 },
               },
+              landingBlock: {
+                 include: { page: true }
+              }
             },
           }),
           // Comments
@@ -228,13 +231,13 @@ export async function GET(
               courseName: null,
             };
           }),
-          ...homeworks.map((hw) => ({
+          ...homeworks.map((hw: any) => ({
             id: hw.id,
             type: "homework",
             title: "Отправлено домашнее задание",
-            description: `К уроку "${hw.lesson.title}"`,
+            description: hw.lesson ? `К уроку "${hw.lesson.title}"` : (hw.landingBlock ? `Лендинг: ${hw.landingBlock.page?.title}` : "Источник неизвестен"),
             date: hw.createdAt,
-            courseName: hw.lesson.module.course.title,
+            courseName: hw.lesson ? hw.lesson.module.course.title : "—",
           })),
           ...comments.map((comment) => ({
             id: comment.id,
