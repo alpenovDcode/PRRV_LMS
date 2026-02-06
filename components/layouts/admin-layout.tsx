@@ -36,6 +36,7 @@ const adminNavigation = [
   { name: "Детальная аналитика", href: "/admin/analytics/detailed", icon: TrendingUp },
   { name: "Мониторинг", href: "/admin/monitoring/errors", icon: AlertTriangle },
   { name: "Тренинги", href: "/admin/trainings", icon: GraduationCap },
+  { name: "Лендинги", href: "/admin/landings", icon: LayoutDashboard }, // Using LayoutDashboard temporarily or until a better icon is imported
   { name: "Настройки", href: "/admin/settings", icon: Settings },
 ];
 
