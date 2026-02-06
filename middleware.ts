@@ -36,7 +36,14 @@ export async function middleware(request: NextRequest) {
   // Исключаем webhook роуты (если будут) или public callback, но требование пользователя "строго ко всем"
   // Пропускаем /api/health для Docker Healthcheck и /api/auth для аутентификации браузера
   // и /api/video-proxy, так как видео-сегменты запрашиваются плеером без API ключа, но имеют свой JWT токен
-  if (path.startsWith("/api") && path !== "/api/health" && !path.startsWith("/api/auth") && !path.startsWith("/api/video-proxy")) {
+  if (
+     path.startsWith("/api") && 
+     path !== "/api/health" && 
+     !path.startsWith("/api/auth") && 
+     !path.startsWith("/api/video-proxy") &&
+     !path.startsWith("/api/landings/submit") &&
+     !path.startsWith("/api/landings/check-status")
+  ) {
     const apiKey = request.nextUrl.searchParams.get("apiKey");
     const validKey = process.env.API_SECRET_KEY;
     

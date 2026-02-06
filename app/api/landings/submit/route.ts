@@ -7,8 +7,14 @@ import { hash } from "bcrypt";
 export async function POST(req: Request) {
   try {
     const { blockId, data } = await req.json();
-    const email = data.email?.toLowerCase().trim();
-    const fullName = data.name;
+    
+    // Mapping: keys from LandingForm are labels ("Email", "Имя", "Телефон")
+    // Use flexible lookup
+    const emailKey = Object.keys(data).find(k => k.toLowerCase() === "email");
+    const nameKey = Object.keys(data).find(k => k.toLowerCase() === "имя" || k.toLowerCase() === "name");
+
+    const email = (emailKey ? data[emailKey] : data.email)?.toLowerCase().trim();
+    const fullName = nameKey ? data[nameKey] : data.name;
 
     if (!email) {
       return NextResponse.json({ error: "Email required" }, { status: 400 });
