@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Plus, Globe, Eye, MoreHorizontal, Copy, Trash } from "lucide-react";
+import { apiClient } from "@/lib/api-client";
 
 interface LandingPage {
   id: string;
@@ -22,11 +23,8 @@ export default function LandingsPage() {
 
   const fetchLandings = async () => {
     try {
-      const res = await fetch("/api/landings");
-      if (res.ok) {
-        const data = await res.json();
-        setLandings(data);
-      }
+      const { data } = await apiClient.get("/landings");
+      setLandings(data);
     } catch (error) {
       console.error("Failed to fetch landings", error);
     } finally {
@@ -42,25 +40,17 @@ export default function LandingsPage() {
     if (!slug) return;
 
     try {
-      const res = await fetch("/api/landings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, slug }),
-      });
-      if (res.ok) {
-        fetchLandings();
-      } else {
-        alert("Ошибка при создании");
-      }
+      await apiClient.post("/landings", { title, slug });
+      fetchLandings();
     } catch (error) {
-      alert("Ошибка сети");
+      alert("Ошибка сети или сервера");
     }
   };
 
   const deleteLanding = async (id: string) => {
     if (!confirm("Вы уверены?")) return;
     try {
-      await fetch(`/api/landings/${id}`, { method: "DELETE" });
+      await apiClient.delete(`/landings/${id}`);
       setLandings(landings.filter((l) => l.id !== id));
     } catch (error) {
       alert("Ошибка удаления");

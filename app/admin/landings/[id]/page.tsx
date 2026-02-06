@@ -2,15 +2,15 @@
 
 import { useState, useEffect } from "react";
 import LandingConstructor from "../LandingConstructor";
+import { apiClient } from "@/lib/api-client";
 
 export default function EditLandingPage({ params }: { params: { id: string } }) {
   const [initialBlocks, setInitialBlocks] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/landings/${params.id}/blocks`)
-      .then(res => res.json())
-      .then(data => {
+    apiClient.get(`/landings/${params.id}/blocks`)
+      .then(({ data }) => {
         // Ensure responseTemplates exists (migration fallback)
         const formatted = data.map((b: any) => ({
            ...b,
@@ -23,16 +23,8 @@ export default function EditLandingPage({ params }: { params: { id: string } }) 
 
   const handleSave = async (blocks: any[]) => {
     try {
-      const res = await fetch(`/api/landings/${params.id}/blocks`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ blocks }),
-      });
-      if (res.ok) {
-        alert("Сохранено!");
-      } else {
-        alert("Ошибка сохранения");
-      }
+      await apiClient.post(`/landings/${params.id}/blocks`, { blocks });
+      alert("Сохранено!");
     } catch (e) {
       alert("Ошибка сети");
     }
