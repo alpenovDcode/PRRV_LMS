@@ -57,6 +57,14 @@ echo "🟢 Deploying to: $NEW_COLOR"
 echo "🏗 Building and starting $NEW_COLOR container..."
 $DOCKER_COMPOSE_CMD -f $DOCKER_COMPOSE_FILE up -d --build --remove-orphans app-$NEW_COLOR
 
+# 3.1 Run Database Migrations
+echo "📦 Running database migrations..."
+if ! docker exec app-$NEW_COLOR npx prisma migrate deploy; then
+    echo "❌ Migration failed!"
+    $DOCKER_COMPOSE_CMD -f $DOCKER_COMPOSE_FILE stop app-$NEW_COLOR
+    exit 1
+fi
+
 # 4. Wait for healthcheck
 echo "⏳ Waiting for $NEW_COLOR to be healthy..."
 attempt=0

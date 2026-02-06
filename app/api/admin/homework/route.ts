@@ -114,7 +114,8 @@ export async function GET(request: NextRequest) {
             success: false,
             error: {
               code: "INTERNAL_ERROR",
-              message: "Не удалось получить список домашних заданий",
+              message: `Не удалось получить список домашних заданий: ${error instanceof Error ? error.message : String(error)}`,
+              details: error instanceof Error ? error.stack : undefined,
             },
           },
           { status: 500 }
