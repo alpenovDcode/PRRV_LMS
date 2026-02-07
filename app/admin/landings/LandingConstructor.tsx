@@ -6,6 +6,7 @@ import {
   LayoutTemplate, CheckSquare, MousePointerClick, Image as ImageIcon,
   Settings, Palette, GripVertical, ChevronRight, X
 } from "lucide-react";
+import { v4 as uuidv4 } from 'uuid';
 import RichTextEditor from "@/components/landing/RichTextEditor";
 import HeroBlock from "@/components/landing/blocks/HeroBlock";
 import FeaturesBlock from "@/components/landing/blocks/FeaturesBlock";
@@ -61,7 +62,7 @@ export default function LandingConstructor({
   // Migration logic for old blocks
   const normalizedBlocks = initialBlocks.map(b => ({
     ...b,
-    id: b.id || Math.random().toString(36).substr(2, 9),
+    id: b.id || uuidv4(),
     design: b.design || { ...DEFAULT_DESIGN },
     settings: b.settings || { utm: "", openAt: null }
   }));
@@ -82,7 +83,7 @@ export default function LandingConstructor({
 
   const addBlock = (type: Block["type"]) => {
     const newBlock: Block = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: uuidv4(),
       type,
       content: getInitialContent(type),
       design: { ...DEFAULT_DESIGN },
@@ -474,7 +475,7 @@ function Input({ label, value, onChange, placeholder }: InputProps) {
       <div>
          <label className="text-xs text-gray-500 block mb-1 font-medium">{label}</label>
          <input 
-            className="w-full p-2 border rounded text-sm focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all"
+            className="w-full p-2 border rounded text-sm bg-white text-gray-900 focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all placeholder:text-gray-400"
             value={value || ""}
             onChange={e => onChange(e.target.value)}
             placeholder={placeholder}
@@ -495,7 +496,7 @@ function TextArea({ label, value, onChange, placeholder }: TextAreaProps) {
       <div>
          <label className="text-xs text-gray-500 block mb-1 font-medium">{label}</label>
          <textarea 
-            className="w-full p-2 border rounded text-sm focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all h-24"
+            className="w-full p-2 border rounded text-sm bg-white text-gray-900 focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all h-24 placeholder:text-gray-400"
             value={value || ""}
             onChange={e => onChange(e.target.value)}
             placeholder={placeholder}

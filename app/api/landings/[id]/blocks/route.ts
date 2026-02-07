@@ -58,31 +58,35 @@ export async function POST(
 
     // Upsert (Update or Create) remaining blocks
     blocks.forEach((block: any, index: number) => {
-      if (block.id) {
-         ops.push(prisma.landingBlock.update({
-            where: { id: block.id },
-            data: {
-               lessonId: block.lessonId || null,
-               type: block.type,
-               content: block.content,
-               settings: block.settings,
-               responseTemplates: block.responseTemplates || [],
-               orderIndex: index
-            }
-         }));
-      } else {
-         ops.push(prisma.landingBlock.create({
-            data: {
-               pageId: id,
-               lessonId: block.lessonId || null,
-               type: block.type,
-               content: block.content,
-               settings: block.settings,
-               responseTemplates: block.responseTemplates || [],
-               orderIndex: index
-            }
-         }));
-      }
+       // Only include valid fields for the database
+       const blockData = {
+          lessonId: block.lessonId || null,
+          type: block.type,
+          content: block.content,
+          settings: block.settings,
+          responseTemplates: block.responseTemplates || [],
+          orderIndex: index
+       };
+
+       if (block.id) {
+          ops.push(prisma.landingBlock.upsert({
+             where: { id: block.id },
+             update: blockData,
+             create: {
+                id: block.id,
+                pageId: id,
+                ...blockData
+             }
+          }));
+       } else {
+          // If no ID for some reason, create new
+          ops.push(prisma.landingBlock.create({
+             data: {
+                pageId: id,
+                ...blockData
+             }
+          }));
+       }
     });
 
     await prisma.$transaction(ops);
