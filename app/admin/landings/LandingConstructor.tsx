@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, Trash, ArrowUp, ArrowDown, Type, AlignJustify, Video } from "lucide-react";
 
 interface Block {
@@ -13,6 +13,7 @@ interface Block {
   // Text block specific
   hasInput?: boolean; 
   inputLabel?: string;
+  lessonId?: string | null;
 }
 
 export default function LandingConstructor({ 
@@ -28,7 +29,15 @@ export default function LandingConstructor({
 }) {
   const [blocks, setBlocks] = useState<Block[]>(initialBlocks);
   const [isPublished, setIsPublished] = useState(initialIsPublished);
-  const [activeTab, setActiveTab] = useState<number | null>(null);
+  const [lessons, setLessons] = useState<any[]>([]);
+
+  // Fetch lessons for binding
+  useEffect(() => {
+     fetch('/api/admin/lessons/all')
+        .then(res => res.json())
+        .then(data => setLessons(Array.isArray(data) ? data : []))
+        .catch(err => console.error("Failed to fetch lessons", err));
+  }, []);
 
   const addBlock = (type: "text" | "video" | "form") => {
     const newBlock: Block = {
@@ -37,9 +46,9 @@ export default function LandingConstructor({
       settings: { openAt: null, utm: "" },
       orderIndex: blocks.length,
       responseTemplates: type === "form" ? ["", "", "", "", ""] : [],
+      lessonId: null
     };
     setBlocks([...blocks, newBlock]);
-    setActiveTab(blocks.length);
   };
 
   const getInitialContent = (type: string) => {

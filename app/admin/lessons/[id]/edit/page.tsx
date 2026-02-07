@@ -49,6 +49,7 @@ interface LessonDetail {
   isStopLesson: boolean;
   dripRule: any;
   settings: any;
+  aiPrompt: string | null;
   module: {
     id: string;
     title: string;
@@ -83,6 +84,7 @@ export default function LessonEditorPage() {
   const [dripRule, setDripRule] = useState<any>(null);
   const [settings, setSettings] = useState<any>(null);
   const [homeworkDeadline, setHomeworkDeadline] = useState("");
+  const [aiPrompt, setAiPrompt] = useState("");
 
   const { data: lesson, isLoading } = useQuery<LessonDetail>({
     queryKey: ["admin", "lesson", lessonId],
@@ -149,7 +151,8 @@ export default function LessonEditorPage() {
       setIsFree(lesson.isFree);
       setIsStopLesson(lesson.isStopLesson);
       setDripRule(lesson.dripRule);
-      setSettings(lesson.settings || {});
+    setSettings(lesson.settings || {});
+      setAiPrompt(lesson.aiPrompt || "");
       setHomeworkDeadline(
         (function() {
           try {
@@ -243,6 +246,7 @@ export default function LessonEditorPage() {
         ...settings,
         homeworkDeadline: homeworkDeadline ? new Date(homeworkDeadline).toISOString() : undefined,
       },
+      aiPrompt: aiPrompt || null,
     };
 
     updateMutation.mutate(updateData);
@@ -1255,6 +1259,29 @@ export default function LessonEditorPage() {
 
 
         </TabsContent>
+
+      <TabsContent value="settings" className="mt-6 space-y-6">
+          <Card className="border-gray-200">
+            <CardHeader>
+               <CardTitle className="text-gray-900">Настройки урока</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                <div className="space-y-2">
+                    <Label className="text-gray-700">ИИ Промпт для проверки ДЗ</Label>
+                    <p className="text-xs text-gray-500">
+                        Если заполнено, ИИ будет автоматически проверять ответы на формы, привязанные к этому уроку.
+                    </p>
+                    <Textarea 
+                        value={aiPrompt}
+                        onChange={(e) => setAiPrompt(e.target.value)}
+                        placeholder="Например: Ты проверяешь отчет об инвентаризации. Ответ должен содержать фото и список..."
+                        rows={6}
+                        className="font-mono text-sm border-gray-300"
+                    />
+                </div>
+            </CardContent>
+          </Card>
+      </TabsContent>
 
         {/* Просмотр */}
         <TabsContent value="preview" className="mt-6">

@@ -141,12 +141,14 @@ model Lesson {
   quizPassingScore   Int?                 @map("quiz_passing_score")
   quizRequiresReview Boolean              @default(false) @map("quiz_requires_review")
   quizTimeLimit      Int?                 @map("quiz_time_limit")
+  aiPrompt           String?              @db.Text @map("ai_prompt")
   homework           HomeworkSubmission[]
   comments           LessonComment[]
   LessonMedia        LessonMedia[]
   progress           LessonProgress[]
   module             Module               @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   quizAttempts       QuizAttempt[]
+  landingBlocks      LandingBlock[]
 
   @@index([moduleId])
   @@map("lessons")
@@ -563,9 +565,12 @@ model LandingBlock {
   orderIndex        Int                  @map("order_index")
   createdAt         DateTime             @default(now()) @map("created_at")
   updatedAt         DateTime             @updatedAt @map("updated_at")
+  lessonId          String?              @map("lesson_id")
+  lesson            Lesson?              @relation(fields: [lessonId], references: [id])
   page              LandingPage          @relation(fields: [pageId], references: [id], onDelete: Cascade)
   submissions       HomeworkSubmission[]
 
   @@index([pageId])
+  @@index([lessonId])
   @@map("landing_blocks")
 }
