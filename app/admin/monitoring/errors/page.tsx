@@ -113,6 +113,13 @@ export default function ErrorsPage() {
         </p>
       </div>
 
+      <div className="flex gap-4 border-b pb-4">
+          <Button variant="secondary">Ошибки системы</Button>
+          <Link href="/admin/monitoring/logs">
+             <Button variant="ghost">Бизнес-логи</Button>
+          </Link>
+      </div>
+
       {/* Фильтры */}
       <Card className="p-4">
         <div className="flex gap-4">

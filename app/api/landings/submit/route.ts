@@ -86,6 +86,17 @@ export async function POST(req: Request) {
     // 6. Integrate with LMS, AI, and Bitrix24 (Async background task)
     (async () => {
        try {
+          // Log submission start
+          await prisma.auditLog.create({
+             data: {
+                userId: user.id,
+                action: "LANDING_SUBMISSION",
+                entity: "HomeworkSubmission",
+                entityId: submission.id,
+                details: { step: "started", email, blockId }
+             }
+          });
+
           // --- SEND WELCOME EMAIL ---
           if (isNewUser) {
              console.log(`Sending welcome email to ${email}`);
@@ -93,6 +104,16 @@ export async function POST(req: Request) {
                to: email,
                subject: "Добро пожаловать в PRORYV!",
                html: emailTemplates.welcome(email, generatedPassword)
+             });
+             
+             await prisma.auditLog.create({
+                data: {
+                   userId: user.id,
+                   action: "EMAIL_SENT",
+                   entity: "User",
+                   entityId: user.id,
+                   details: { type: "welcome", email }
+                }
              });
           }
 
@@ -130,6 +151,16 @@ export async function POST(req: Request) {
                          startDate: new Date()
                       }
                    });
+                   
+                   await prisma.auditLog.create({
+                      data: {
+                         userId: user.id,
+                         action: "COURSE_ENROLLMENT",
+                         entity: "Course",
+                         entityId: courseId,
+                         details: { reason: "landing_submission" }
+                      }
+                   });
                 }
                 
                 // Link submission to lesson
@@ -159,6 +190,16 @@ export async function POST(req: Request) {
                          curatorId: null // System
                       }
                    });
+                   
+                   await prisma.auditLog.create({
+                      data: {
+                         userId: user.id,
+                         action: "AI_GRADING",
+                         entity: "HomeworkSubmission",
+                         entityId: submissionId,
+                         details: { status: aiResult.status, comment_length: aiResult.comment?.length }
+                      }
+                   });
 
                    // Send Grading Notification
                    console.log(`Sending homework graded email to ${email}`);
@@ -166,6 +207,16 @@ export async function POST(req: Request) {
                      to: email,
                      subject: `Результат проверки ДЗ: ${lesson.title}`,
                      html: emailTemplates.homeworkGraded(lesson.title, aiResult.status, aiResult.comment)
+                   });
+                   
+                   await prisma.auditLog.create({
+                      data: {
+                         userId: user.id,
+                         action: "EMAIL_SENT",
+                         entity: "HomeworkSubmission",
+                         entityId: submissionId,
+                         details: { type: "graded", email, status: aiResult.status }
+                      }
                    });
                 }
              }
@@ -239,11 +290,34 @@ export async function POST(req: Request) {
                 });
                 const dealData = await dealRes.json();
                 console.log("Deal created:", dealData);
+                
+                await prisma.auditLog.create({
+                   data: {
+                      userId: user.id,
+                      action: "BITRIX_DEAL",
+                      entity: "Integration",
+                      entityId: dealData.result, // Deal ID
+                      details: { contactId, funnelId, stageId }
+                   }
+                });
              }
           }
 
        } catch (err) {
           console.error("Async integration error:", err);
+          
+          // Log error to AuditLog as well for visibility
+          try {
+             await prisma.auditLog.create({
+                data: {
+                   userId: user.id,
+                   action: "SUBMISSION_ERROR",
+                   entity: "HomeworkSubmission",
+                   entityId: submission.id,
+                   details: { error: String(err) }
+                }
+             });
+          } catch (e) { /* ignore secondary error */ }
        }
     })();
 
