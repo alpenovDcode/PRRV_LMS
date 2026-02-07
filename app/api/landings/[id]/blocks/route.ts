@@ -62,6 +62,7 @@ export async function POST(
          ops.push(prisma.landingBlock.update({
             where: { id: block.id },
             data: {
+               lessonId: block.lessonId || null,
                type: block.type,
                content: block.content,
                settings: block.settings,
@@ -73,6 +74,7 @@ export async function POST(
          ops.push(prisma.landingBlock.create({
             data: {
                pageId: id,
+               lessonId: block.lessonId || null,
                type: block.type,
                content: block.content,
                settings: block.settings,
