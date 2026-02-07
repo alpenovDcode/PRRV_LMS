@@ -29,6 +29,8 @@ export async function middleware(request: NextRequest) {
     "/api/auth",
     "/api/health", // Allow health checks
     "/l", // Public landing pages
+    "/api/landings/submit",
+    "/api/landings/check-status",
   ];
   const isPublicRoute = publicRoutes.some((route) => path.startsWith(route));
 
