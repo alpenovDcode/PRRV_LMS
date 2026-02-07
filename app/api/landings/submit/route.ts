@@ -333,7 +333,7 @@ export async function POST(req: Request) {
                       userId: user.id,
                       action: "BITRIX_DEAL",
                       entity: "Integration",
-                      entityId: dealData.result, // Deal ID
+                      entityId: String(dealData.result), // Deal ID is number, cast to string
                       details: { contactId, funnelId, stageId }
                    }
                 });
