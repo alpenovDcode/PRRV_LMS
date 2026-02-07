@@ -362,11 +362,85 @@ export default function LandingConstructor({
                        {/* FORM LEGACY EDITOR (Partial) */}
                         {activeBlock.type === 'form' && (
                           <div className="space-y-4">
-                             <div className="bg-blue-50 p-3 rounded text-sm text-blue-800">
-                                Поля формы фиксированы (Имя, Email, Телефон).
+                             <div className="space-y-3">
+                                <label className="text-xs font-semibold text-gray-500">Поля формы</label>
+                                {activeBlock.content.fields.map((field: any, idx: number) => (
+                                   <div key={idx} className="p-3 border rounded bg-gray-50 relative group space-y-2">
+                                      <div className="flex justify-between items-center">
+                                         <span className="text-xs font-bold text-gray-400">Поле #{idx + 1}</span>
+                                         <button 
+                                            onClick={() => {
+                                               const newFields = [...activeBlock.content.fields];
+                                               newFields.splice(idx, 1);
+                                               updateContent(activeBlock.id, { fields: newFields });
+                                            }}
+                                            className="text-red-400 hover:text-red-600 p-1"
+                                         >
+                                            <X size={14}/>
+                                         </button>
+                                      </div>
+                                      
+                                      <Input 
+                                         label="Название поля (Label)" 
+                                         value={field.label} 
+                                         onChange={v => {
+                                            const newFields = [...activeBlock.content.fields];
+                                            newFields[idx].label = v;
+                                            updateContent(activeBlock.id, { fields: newFields });
+                                         }} 
+                                      />
+                                      
+                                      <div className="flex gap-2">
+                                         <div className="flex-1">
+                                            <label className="text-xs text-gray-500 block mb-1">Тип</label>
+                                            <select 
+                                               className="w-full text-sm border rounded p-2"
+                                               value={field.type}
+                                               onChange={e => {
+                                                  const newFields = [...activeBlock.content.fields];
+                                                  newFields[idx].type = e.target.value;
+                                                  updateContent(activeBlock.id, { fields: newFields });
+                                               }}
+                                            >
+                                               <option value="text">Текст</option>
+                                               <option value="email">Email</option>
+                                               <option value="tel">Телефон</option>
+                                               <option value="number">Число</option>
+                                               <option value="date">Дата</option>
+                                            </select>
+                                         </div>
+                                         <div className="flex items-end pb-2">
+                                            <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                                               <input 
+                                                  type="checkbox" 
+                                                  checked={field.required}
+                                                  onChange={(e) => {
+                                                     const newFields = [...activeBlock.content.fields];
+                                                     newFields[idx].required = e.target.checked;
+                                                     updateContent(activeBlock.id, { fields: newFields });
+                                                  }}
+                                                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                               />
+                                               <span className="text-gray-600 text-xs">Обязательное</span>
+                                            </label>
+                                         </div>
+                                      </div>
+                                   </div>
+                                ))}
+                                
+                                <button 
+                                   onClick={() => updateContent(activeBlock.id, { 
+                                      fields: [...activeBlock.content.fields, { type: "text", label: "Новое поле", required: false }] 
+                                   })}
+                                   className="w-full py-2 text-sm text-blue-600 border border-blue-200 bg-blue-50 rounded hover:bg-blue-100 flex items-center justify-center gap-2"
+                                >
+                                   <Plus size={14} /> Добавить поле
+                                </button>
                              </div>
+
+                             <Input label="Текст кнопки" value={activeBlock.content.buttonText} onChange={v => updateContent(activeBlock.id, { buttonText: v })} />
                              
-                             <div className="space-y-2">
+                             <div className="space-y-2 pt-4 border-t">
                                 <label className="text-xs font-semibold text-gray-500">Привязать к уроку (AI Проверка)</label>
                                 <select 
                                   className="w-full p-2 border rounded text-sm"
@@ -464,6 +538,16 @@ export default function LandingConstructor({
                        </div>
                     </div>
                  )}
+              </div>
+              
+              <div className="pt-6 mt-6 border-t">
+                 <button 
+                    onClick={() => removeBlock(activeBlock.id)}
+                    className="w-full flex items-center justify-center gap-2 py-3 text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+                 >
+                    <Trash size={16} />
+                    Удалить этот блок
+                 </button>
               </div>
            </>
          ) : (
