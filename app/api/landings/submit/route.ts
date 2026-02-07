@@ -1,4 +1,10 @@
 import { sendEmail, emailTemplates } from "@/lib/email-service";
+import { NextResponse } from "next/server";
+import { db as prisma } from "@/lib/db"; // Assuming this is where the prisma client is exported
+import { hash } from "bcrypt";
+import { v4 as uuidv4 } from "uuid";
+import { cookies } from "next/headers";
+import { gradeHomework } from "@/lib/ai-grader";
 
 export async function POST(req: Request) {
   try {
