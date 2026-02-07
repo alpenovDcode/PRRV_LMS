@@ -426,7 +426,13 @@ export default function LandingConstructor({
 
 // --- SUBCOMPONENTS ---
 
-function AddBtn({ icon: Icon, label, onClick }: any) {
+interface AddBtnProps {
+  icon: React.ElementType;
+  label: string;
+  onClick: () => void;
+}
+
+function AddBtn({ icon: Icon, label, onClick }: AddBtnProps) {
   return (
     <button onClick={onClick} className="flex flex-col items-center justify-center p-4 bg-white border rounded-xl shadow-sm hover:shadow-md hover:border-blue-300 transition-all gap-2 group">
       <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -437,7 +443,14 @@ function AddBtn({ icon: Icon, label, onClick }: any) {
   )
 }
 
-function TabBtn({ active, onClick, icon: Icon, label }: any) {
+interface TabBtnProps {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ElementType;
+  label: string;
+}
+
+function TabBtn({ active, onClick, icon: Icon, label }: TabBtnProps) {
    return (
       <button 
         onClick={onClick}
@@ -449,13 +462,20 @@ function TabBtn({ active, onClick, icon: Icon, label }: any) {
    )
 }
 
-function Input({ label, value, onChange, placeholder }: any) {
+interface InputProps {
+  label: string;
+  value: string | number | undefined;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}
+
+function Input({ label, value, onChange, placeholder }: InputProps) {
    return (
       <div>
          <label className="text-xs text-gray-500 block mb-1 font-medium">{label}</label>
          <input 
             className="w-full p-2 border rounded text-sm focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all"
-            value={value}
+            value={value || ""}
             onChange={e => onChange(e.target.value)}
             placeholder={placeholder}
          />
@@ -463,13 +483,20 @@ function Input({ label, value, onChange, placeholder }: any) {
    )
 }
 
-function TextArea({ label, value, onChange, placeholder }: any) {
+interface TextAreaProps {
+  label: string;
+  value: string | undefined;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}
+
+function TextArea({ label, value, onChange, placeholder }: TextAreaProps) {
    return (
       <div>
          <label className="text-xs text-gray-500 block mb-1 font-medium">{label}</label>
          <textarea 
             className="w-full p-2 border rounded text-sm focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all h-24"
-            value={value}
+            value={value || ""}
             onChange={e => onChange(e.target.value)}
             placeholder={placeholder}
          />
