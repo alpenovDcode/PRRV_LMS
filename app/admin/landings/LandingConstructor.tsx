@@ -180,6 +180,28 @@ export default function LandingConstructor({
                   <div className="mb-4 p-3 bg-blue-50 text-blue-800 text-sm rounded">
                     Поля <b>Имя</b> и <b>Email</b> обязательны и добавляются автоматически. Можно добавить только кастомные поля.
                   </div>
+
+                  {/* Lesson Binding */}
+                  <div className="mb-4">
+                     <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Привязать к уроку (для AI проверки)
+                     </label>
+                     <select
+                        className="w-full p-2 border rounded text-sm bg-white"
+                        value={block.lessonId || ""}
+                        onChange={(e) => updateBlock(index, { lessonId: e.target.value === "" ? null : e.target.value })}
+                     >
+                        <option value="">-- Без привязки --</option>
+                        {lessons.map((l: any) => (
+                           <option key={l.id} value={l.id}>
+                              {l.title} ({l.module?.title || "Без модуля"})
+                           </option>
+                        ))}
+                     </select>
+                     <p className="text-xs text-gray-500 mt-1">
+                        Если выбран урок, ответ студента будет проверен AI по промпту из этого урока.
+                     </p>
+                  </div>
                   
                   {/* Response Templates Editor */}
                   <div className="mt-6 border-t pt-4">
