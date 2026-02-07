@@ -560,6 +560,7 @@ model LandingBlock {
   pageId            String               @map("page_id")
   type              String               // 'text', 'form', 'video'
   content           Json
+  design            Json?                // Background, text color, padding, etc.
   settings          Json?                // UTM tags, openAt
   responseTemplates String[]             @default([]) @map("response_templates")
   orderIndex        Int                  @map("order_index")

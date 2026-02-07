@@ -63,6 +63,7 @@ export async function POST(
           lessonId: block.lessonId || null,
           type: block.type,
           content: block.content,
+          design: block.design, // Added design
           settings: block.settings,
           responseTemplates: block.responseTemplates || [],
           orderIndex: index

@@ -41,7 +41,7 @@ export default function LandingPageClient({ blocks, initialSubmissions = {} }: W
                     <section className={`${design.bg} ${design.textColor} ${design.padding}`}>
                        <div className={design.container === 'fluid' ? 'w-full px-4' : 'max-w-7xl mx-auto px-4'}>
                            <div 
-                             className={`prose max-w-none ${design.textColor === 'text-white' ? 'prose-invert' : ''} ${design.textSize ? `text-${design.textSize}` : ''}`}
+                             className={`prose max-w-none ${design.textColor === 'text-white' ? 'prose-invert' : ''} ${design.textSize ? `text-${design.textSize}` : ''} text-${design.textAlign}`}
                              dangerouslySetInnerHTML={{ __html: (block.content as any).html }} 
                            />
                            
@@ -52,7 +52,7 @@ export default function LandingPageClient({ blocks, initialSubmissions = {} }: W
                                     {(block.content as any).inputLabel || "Ваш ответ"}
                                  </label>
                                  <textarea 
-                                    className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none min-h-[100px]"
+                                    className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none min-h-[100px] bg-white text-gray-900"
                                     placeholder="Напишите ваш ответ здесь..."
                                     value={answers[block.id] || ""}
                                     onChange={(e) => handleAnswerChange(block.id, e.target.value)}

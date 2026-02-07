@@ -175,7 +175,7 @@ export default function LandingConstructor({
                    {block.type === 'features' && <FeaturesBlock content={block.content} design={block.design} />}
                    {block.type === 'button' && <ButtonBlock content={block.content} design={block.design} />}
                    {block.type === 'text' && (
-                     <div className={`${block.design.bg} ${block.design.textColor} ${block.design.textSize ? `text-${block.design.textSize}` : ''} ${block.design.padding} prose max-w-none`} dangerouslySetInnerHTML={{ __html: block.content.html }} />
+                     <div className={`${block.design.bg} ${block.design.textColor} ${block.design.textSize ? `text-${block.design.textSize}` : ''} ${block.design.padding} text-${block.design.textAlign} prose max-w-none`} dangerouslySetInnerHTML={{ __html: block.content.html }} />
                    )}
                    {block.type === 'form' && (
                      <div className="p-8 text-center bg-gray-100 border-dashed border-2 rounded m-4">
@@ -431,6 +431,21 @@ export default function LandingConstructor({
                                    <button onClick={() => updateDesign(activeBlock.id, { textAlign: 'center' })} className={`px-2 py-1 rounded ${activeBlock.design.textAlign === 'center' ? 'bg-white shadow' : ''}`}>Center</button>
                                 </div>
                              </div>
+                          </div>
+                       </div>
+                       
+                        <div>
+                          <label className="text-xs font-bold text-gray-400 block mb-3 uppercase">Отступы (Высота)</label>
+                          <div className="flex bg-gray-100 p-0.5 rounded text-xs">
+                             {['py-0', 'py-8', 'py-12', 'py-20', 'py-32'].map(p => (
+                               <button 
+                                 key={p} 
+                                 onClick={() => updateDesign(activeBlock.id, { padding: p })} 
+                                 className={`flex-1 py-1 rounded ${activeBlock.design.padding === p ? 'bg-white shadow text-blue-600 font-bold' : 'text-gray-500'}`}
+                               >
+                                 {p.replace('py-', '')}
+                               </button>
+                             ))}
                           </div>
                        </div>
                        
