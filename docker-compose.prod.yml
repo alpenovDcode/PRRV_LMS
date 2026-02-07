@@ -120,6 +120,16 @@ services:
 
       # Sentry (optional)
       NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
+
+      # Email (SMTP)
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_FROM: ${SMTP_FROM}
+
+      # AI (Replicate)
+      REPLICATE_API_TOKEN: ${REPLICATE_API_TOKEN}
     volumes:
       - ./public/uploads:/app/public/uploads
     depends_on:
