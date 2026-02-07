@@ -110,23 +110,28 @@ export async function POST(req: Request) {
 
           // --- SEND WELCOME EMAIL ---
           if (isNewUser) {
-             log(`Sending welcome email to ${email}`);
-             await sendEmail({
-               to: email,
-               subject: "Добро пожаловать в PRORYV!",
-               html: emailTemplates.welcome(email, generatedPassword)
-             });
-             log('Welcome email sent');
-             
-             await prisma.auditLog.create({
-                data: {
-                   userId: user.id,
-                   action: "EMAIL_SENT",
-                   entity: "User",
-                   entityId: user.id,
-                   details: { type: "welcome", email }
-                }
-             });
+             try {
+                 log(`Sending welcome email to ${email}`);
+                 await sendEmail({
+                   to: email,
+                   subject: "Добро пожаловать в PRORYV!",
+                   html: emailTemplates.welcome(email, generatedPassword)
+                 });
+                 log('Welcome email sent');
+                 
+                 await prisma.auditLog.create({
+                    data: {
+                       userId: user.id,
+                       action: "EMAIL_SENT",
+                       entity: "User",
+                       entityId: user.id,
+                       details: { type: "welcome", email }
+                    }
+                 });
+             } catch (e: any) {
+                 log(`[ERROR] Failed to send welcome email: ${e.message}`);
+                 // Continue execution even if email fails
+             }
           } else {
              log('User exists, skipping welcome email');
           }
@@ -225,23 +230,27 @@ export async function POST(req: Request) {
                    log('Audit log created: AI_GRADING');
 
                    // Send Grading Notification
-                   log(`Sending homework graded email to ${email}`);
-                   await sendEmail({
-                     to: email,
-                     subject: `Результат проверки ДЗ: ${lesson.title}`,
-                     html: emailTemplates.homeworkGraded(lesson.title, aiResult.status, aiResult.comment)
-                   });
-                   log('Graded email sent');
-                   
-                   await prisma.auditLog.create({
-                      data: {
-                         userId: user.id,
-                         action: "EMAIL_SENT",
-                         entity: "HomeworkSubmission",
-                         entityId: submissionId,
-                         details: { type: "graded", email, status: aiResult.status }
-                      }
-                   });
+                   try {
+                       log(`Sending homework graded email to ${email}`);
+                       await sendEmail({
+                         to: email,
+                         subject: `Результат проверки ДЗ: ${lesson.title}`,
+                         html: emailTemplates.homeworkGraded(lesson.title, aiResult.status, aiResult.comment)
+                       });
+                       log('Graded email sent');
+                       
+                       await prisma.auditLog.create({
+                          data: {
+                             userId: user.id,
+                             action: "EMAIL_SENT",
+                             entity: "HomeworkSubmission",
+                             entityId: submissionId,
+                             details: { type: "graded", email, status: aiResult.status }
+                          }
+                       });
+                   } catch (e: any) {
+                       log(`[ERROR] Failed to send graded email: ${e.message}`);
+                   }
                 } else {
                    log('No AI Prompt for lesson');
                 }
