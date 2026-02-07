@@ -8,6 +8,7 @@ export default function EditLandingPage({ params }: { params: Promise<{ id: stri
   const { id } = use(params);
   const [initialBlocks, setInitialBlocks] = useState([]);
   const [isPublished, setIsPublished] = useState(false);
+  const [slug, setSlug] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -34,6 +35,7 @@ export default function EditLandingPage({ params }: { params: Promise<{ id: stri
         // Metadata
         if (landingRes.data) {
            setIsPublished(landingRes.data.isPublished);
+           setSlug(landingRes.data.slug);
         }
 
         setLoading(false);
@@ -66,6 +68,7 @@ export default function EditLandingPage({ params }: { params: Promise<{ id: stri
         landingId={id} 
         initialBlocks={initialBlocks} 
         initialIsPublished={isPublished}
+        slug={slug}
         onSave={handleSave} 
       />
     </div>

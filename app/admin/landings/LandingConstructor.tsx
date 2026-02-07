@@ -12,10 +12,12 @@ import HeroBlock from "@/components/landing/blocks/HeroBlock";
 import FeaturesBlock from "@/components/landing/blocks/FeaturesBlock";
 import ButtonBlock from "@/components/landing/blocks/ButtonBlock";
 
+
 // --- TYPES ---
 interface BlockDesign {
   bg: string;
   textColor: string;
+  textSize?: "sm" | "base" | "lg" | "xl" | "2xl";
   padding: string;
   container: "fixed" | "fluid";
   textAlign: "left" | "center" | "right";
@@ -35,6 +37,7 @@ interface Block {
 const DEFAULT_DESIGN: BlockDesign = {
   bg: "bg-white",
   textColor: "text-gray-900",
+  textSize: "base",
   padding: "py-12",
   container: "fixed",
   textAlign: "left"
@@ -52,11 +55,13 @@ export default function LandingConstructor({
   landingId, 
   initialBlocks,
   initialIsPublished,
+  slug,
   onSave 
 }: { 
   landingId: string, 
   initialBlocks: any[],
   initialIsPublished: boolean,
+  slug?: string,
   onSave: (blocks: Block[], isPublished: boolean) => void
 }) {
   // Migration logic for old blocks
@@ -80,6 +85,14 @@ export default function LandingConstructor({
         .then(data => setLessons(Array.isArray(data) ? data : []))
         .catch(err => console.error("Failed to fetch lessons", err));
   }, []);
+
+  const textSizeOptions = [
+     { value: "sm", label: "Мелкий" },
+     { value: "base", label: "Обычный" },
+     { value: "lg", label: "Крупный" },
+     { value: "xl", label: "Заголовок" },
+     { value: "2xl", label: "Гигант" },
+  ];
 
   const addBlock = (type: Block["type"]) => {
     const newBlock: Block = {
@@ -162,7 +175,7 @@ export default function LandingConstructor({
                    {block.type === 'features' && <FeaturesBlock content={block.content} design={block.design} />}
                    {block.type === 'button' && <ButtonBlock content={block.content} design={block.design} />}
                    {block.type === 'text' && (
-                     <div className={`${block.design.bg} ${block.design.textColor} ${block.design.padding} prose max-w-none`} dangerouslySetInnerHTML={{ __html: block.content.html }} />
+                     <div className={`${block.design.bg} ${block.design.textColor} ${block.design.textSize ? `text-${block.design.textSize}` : ''} ${block.design.padding} prose max-w-none`} dangerouslySetInnerHTML={{ __html: block.content.html }} />
                    )}
                    {block.type === 'form' && (
                      <div className="p-8 text-center bg-gray-100 border-dashed border-2 rounded m-4">
@@ -208,6 +221,16 @@ export default function LandingConstructor({
               {activeBlock ? "Настройки блока" : "Конструктор"}
             </h2>
             <div className="flex gap-2">
+               {slug && (
+                  <a 
+                    href={`/l/${slug}`} 
+                    target="_blank" 
+                    className="p-2 text-gray-500 hover:text-blue-600 border rounded hover:bg-gray-50"
+                    title="Предпросмотр"
+                  >
+                    <ImageIcon size={18} />
+                  </a>
+               )}
                <button 
                  onClick={() => onSave(blocks, isPublished)}
                  className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded font-medium hover:bg-blue-700"
@@ -363,6 +386,20 @@ export default function LandingConstructor({
 
                  {activeTab === 'design' && (
                     <div className="space-y-6">
+                       {/* TEXT SIZE CONTROL */}
+                       <div>
+                          <label className="text-xs font-bold text-gray-400 block mb-3 uppercase">Размер текста</label>
+                          <select 
+                             className="w-full border rounded p-2 text-sm"
+                             value={activeBlock.design.textSize || "base"}
+                             onChange={e => updateDesign(activeBlock.id, { textSize: e.target.value as any })}
+                          >
+                             {textSizeOptions.map(opt => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                             ))}
+                          </select>
+                       </div>
+
                        <div>
                           <label className="text-xs font-bold text-gray-400 block mb-3 uppercase">Фон секции</label>
                           <div className="grid grid-cols-5 gap-2">

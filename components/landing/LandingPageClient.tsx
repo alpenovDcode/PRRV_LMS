@@ -25,7 +25,7 @@ export default function LandingPageClient({ blocks, initialSubmissions = {} }: W
           {blocks.map((block) => {
              // Fallback for old blocks without design prop
              const design = block.design || { 
-               bg: "bg-white", textColor: "text-gray-900", padding: "py-12", container: "fixed", textAlign: "left"
+               bg: "bg-white", textColor: "text-gray-900", textSize: "base", padding: "py-12", container: "fixed", textAlign: "left"
              };
 
              return (
@@ -41,7 +41,7 @@ export default function LandingPageClient({ blocks, initialSubmissions = {} }: W
                     <section className={`${design.bg} ${design.textColor} ${design.padding}`}>
                        <div className={design.container === 'fluid' ? 'w-full px-4' : 'max-w-7xl mx-auto px-4'}>
                            <div 
-                             className={`prose max-w-none ${design.textColor === 'text-white' ? 'prose-invert' : ''}`}
+                             className={`prose max-w-none ${design.textColor === 'text-white' ? 'prose-invert' : ''} ${design.textSize ? `text-${design.textSize}` : ''}`}
                              dangerouslySetInnerHTML={{ __html: (block.content as any).html }} 
                            />
                            
