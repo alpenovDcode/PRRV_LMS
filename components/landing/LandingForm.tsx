@@ -3,15 +3,29 @@
 import { useState, useEffect } from "react";
 import { Loader2, AlertTriangle, CheckCircle } from "lucide-react";
 
-export default function LandingForm({ block, answers }: { block: any, answers?: Record<string, string> }) {
+export default function LandingForm({ block, answers, initialSubmission }: { block: any, answers?: Record<string, string>, initialSubmission?: any }) {
   const [formData, setFormData] = useState<any>({});
   const [status, setStatus] = useState<"idle" | "submitting" | "waiting" | "completed">("idle");
   const [submissionId, setSubmissionId] = useState<string | null>(null);
   const [result, setResult] = useState<string>("");
   const [showWarning, setShowWarning] = useState(false);
 
-  // Load saved state from local storage to resume waiting if page refreshed
+  // Load saved state from local storage or initialSubmission (cookie)
   useEffect(() => {
+     // 1. Try Initial Submission (Server Side / Cookie)
+     if (initialSubmission) {
+        setSubmissionId(initialSubmission.id);
+        if (initialSubmission.status === "approved" || initialSubmission.status === "rejected") {
+           setResult(initialSubmission.curatorComment || "");
+           setStatus("completed");
+           return;
+        } else {
+           setStatus("waiting");
+           // Don't return, let polling start
+        }
+     }
+
+     // 2. Try Local Storage (Client Side Fallback)
      const stored = localStorage.getItem(`landing_submission_${block.id}`);
      if (stored) {
         const { id, state } = JSON.parse(stored);
@@ -20,7 +34,7 @@ export default function LandingForm({ block, answers }: { block: any, answers?: 
            setStatus("waiting");
         }
      }
-  }, [block.id]);
+  }, [block.id, initialSubmission]);
 
   // Polling Effect
   useEffect(() => {

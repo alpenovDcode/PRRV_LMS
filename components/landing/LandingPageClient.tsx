@@ -4,10 +4,11 @@ import { useState } from "react";
 import LandingForm from "./LandingForm";
 
 interface WrapperProps {
-  blocks: any[]; // Using any for simplicity as Block type not exported from DB schema directly here
+  blocks: any[]; 
+  initialSubmissions?: Record<string, any>;
 }
 
-export default function LandingPageClient({ blocks }: WrapperProps) {
+export default function LandingPageClient({ blocks, initialSubmissions = {} }: WrapperProps) {
   // Global state for answers from Text Blocks
   // Key: blockId, Value: text answer
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -59,7 +60,11 @@ export default function LandingPageClient({ blocks }: WrapperProps) {
                 {block.type === "form" && (
                    <div className="bg-gray-50 border rounded-2xl p-6 md:p-8">
                       {/* Pass global answers to the form submission logic */}
-                      <LandingForm block={block} answers={answers} />
+                      <LandingForm 
+                        block={block} 
+                        answers={answers} 
+                        initialSubmission={initialSubmissions[block.id]}
+                      />
                    </div>
                 )}
 
