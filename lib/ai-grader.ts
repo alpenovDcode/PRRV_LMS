@@ -1,8 +1,63 @@
-import Replicate from "replicate";
+import axios from "axios";
 
-const replicate = new Replicate({
-  auth: process.env.REPLICATE_API_TOKEN,
-});
+const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN;
+
+async function pollPrediction(predictionId: string): Promise<any> {
+    const maxAttempts = 60;
+    const delayMs = 2000;
+
+    for (let i = 0; i < maxAttempts; i++) {
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+
+        const response = await axios.get(
+            `https://api.replicate.com/v1/predictions/${predictionId}`,
+            {
+                headers: {
+                    Authorization: `Bearer ${REPLICATE_API_TOKEN}`,
+                    'Content-Type': 'application/json',
+                },
+            }
+        );
+
+        const prediction = response.data;
+        if (prediction.status === 'succeeded' || prediction.status === 'failed' || prediction.status === 'canceled') {
+            return prediction;
+        }
+    }
+    throw new Error("Prediction timed out");
+}
+
+async function runReplicatePrediction(model: string, input: any): Promise<any> {
+    if (!REPLICATE_API_TOKEN) {
+        throw new Error("REPLICATE_API_TOKEN is not set");
+    }
+
+    const response = await axios.post(
+        `https://api.replicate.com/v1/models/${model}/predictions`,
+        {
+            input: input,
+        },
+        {
+            headers: {
+                Authorization: `Bearer ${REPLICATE_API_TOKEN}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'wait',
+            },
+        }
+    );
+
+    let prediction = response.data;
+
+    if (prediction.status !== 'succeeded' && prediction.status !== 'failed' && prediction.status !== 'canceled') {
+        prediction = await pollPrediction(prediction.id);
+    }
+
+    if (prediction.status === 'failed' || prediction.status === 'canceled') {
+        throw new Error(`Replicate prediction failed: ${prediction.error}`);
+    }
+
+    return prediction;
+}
 
 export async function gradeHomework(
   submissionContent: string, 
@@ -12,8 +67,7 @@ export async function gradeHomework(
   comment: string 
 }> {
   try {
-    const input = {
-      prompt: `
+    const prompt = `
       Ты — строгий, но справедливый куратор образовательных курсов. Твоя задача — проверить домашнее задание студента.
       
       ИНСТРУКЦИЯ К ЗАДАНИЮ (КРИТЕРИИ):
@@ -24,56 +78,29 @@ export async function gradeHomework(
       
       ТВОЯ ЗАДАЧА:
       1. Проанализируй ответ студента на соответствие инструкции.
-      2. Если ответ студента удовлетворяет критериям, верни статус APPROVE.
-      3. Если ответ слабый, неполный или не по теме, верни статус REJECT.
-      4. Напиши комментарий для студента на русском языке. Если REJECT — объясни, что исправить. Если APPROVE — похвали и подбодри.
+      2. Если ответ студента удовлетворяет критериям, верни статус APPROVED.
+      3. Если ответ слабый, неполный или не по теме, верни статус REJECTED.
+      4. Напиши комментарий для студента на русском языке. Если REJECTED — объясни, что исправить. Если APPROVED — похвали и подбодри.
       
       ФОРМАТ ОТВЕТА (JSON):
       {
         "status": "APPROVED" или "REJECTED",
         "comment": "Текст комментария..."
       }
-      Отвечай ТОЛЬКО валидным JSON.
-      `,
-      max_tokens: 1000,
-      temperature: 0.5
-    };
+      Отвечай ТОЛЬКО валидным JSON. Не пиши ничего лишнего.
+    `;
 
-    // Using Llama 3 70B Instruct
-    const output = await replicate.run(
-      "meta/meta-llama-3-70b-instruct",
+    // Using Anthropic Claude 3.5 Sonnet
+    const prediction = await runReplicatePrediction(
+      "anthropic/claude-3.5-sonnet",
       { 
-        input: {
-          prompt: `
-            Ты — строгий, но справедливый куратор образовательных курсов. Твоя задача — проверить домашнее задание студента.
-            
-            ИНСТРУКЦИЯ К ЗАДАНИЮ (КРИТЕРИИ):
-            ${aiPrompt}
-            
-            ОТВЕТ СТУДЕНТА:
-            ${submissionContent}
-            
-            ТВОЯ ЗАДАЧА:
-            1. Проанализируй ответ студента на соответствие инструкции.
-            2. Если ответ студента удовлетворяет критериям, верни статус APPROVED.
-            3. Если ответ слабый, неполный или не по теме, верни статус REJECTED.
-            4. Напиши комментарий для студента на русском языке. Если REJECTED — объясни, что исправить. Если APPROVED — похвали и подбодри.
-            
-            ФОРМАТ ОТВЕТА (JSON):
-            {
-              "status": "APPROVED" или "REJECTED",
-              "comment": "Текст комментария..."
-            }
-            Отвечай ТОЛЬКО валидным JSON. Не пиши ничего лишнего.
-          `,
-          max_tokens: 1000,
-          temperature: 0.5
-        }
+        prompt: prompt,
+        max_tokens: 1000,
+        temperature: 0.5
       }
     );
 
-    // Replicate's Llama 3 output is an array of strings (stream chunks)
-    const resultText = Array.isArray(output) ? output.join("") : String(output);
+    const resultText = Array.isArray(prediction.output) ? prediction.output.join("") : String(prediction.output);
     console.log("AI Raw Output:", resultText);
 
     try {
@@ -96,7 +123,7 @@ export async function gradeHomework(
     }
 
   } catch (error) {
-    console.error("Replicate AI error:", error);
+    console.error("AI Service error:", error);
     return { status: "rejected", comment: "Техническая ошибка проверки. Попробуйте позже." };
   }
 }

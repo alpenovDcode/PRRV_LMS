@@ -85,7 +85,17 @@ export async function POST(req: Request) {
 
     // 6. Integrate with LMS, AI, and Bitrix24 (Async background task)
     (async () => {
+       const fs = require('fs');
+       const logFile = '/tmp/debug_route.log';
+       const log = (msg: string) => {
+          const entry = `[${new Date().toISOString()}] ${msg}\n`;
+          fs.appendFileSync(logFile, entry);
+          console.log(msg);
+       };
+
        try {
+          log(`Async task started for user ${user.id}`);
+
           // Log submission start
           await prisma.auditLog.create({
              data: {
@@ -96,15 +106,17 @@ export async function POST(req: Request) {
                 details: { step: "started", email, blockId }
              }
           });
+          log('Audit log created: LANDING_SUBMISSION');
 
           // --- SEND WELCOME EMAIL ---
           if (isNewUser) {
-             console.log(`Sending welcome email to ${email}`);
+             log(`Sending welcome email to ${email}`);
              await sendEmail({
                to: email,
                subject: "Добро пожаловать в PRORYV!",
                html: emailTemplates.welcome(email, generatedPassword)
              });
+             log('Welcome email sent');
              
              await prisma.auditLog.create({
                 data: {
@@ -115,26 +127,32 @@ export async function POST(req: Request) {
                    details: { type: "welcome", email }
                 }
              });
+          } else {
+             log('User exists, skipping welcome email');
           }
 
           // --- LMS LOGIC ---
+          log(`Fetching landing block ${blockId}`);
           const landingBlock = await prisma.landingBlock.findUnique({
              where: { id: blockId },
              include: { page: true }
           });
+          log(`Landing block fetch result: ${landingBlock ? 'Found' : 'Null'}`);
 
           let lessonId = landingBlock?.lessonId;
           const submissionId = submission.id;
 
           if (lessonId) {
-             console.log(`Block linked to lesson ${lessonId}, processing LMS logic...`);
+             log(`Block linked to lesson ${lessonId}, processing LMS logic...`);
              const lesson = await prisma.lesson.findUnique({
                 where: { id: lessonId },
                 include: { module: true }
              });
+             log(`Lesson fetch result: ${lesson ? 'Found' : 'Null'}`);
 
              if (lesson) {
                 const courseId = lesson.module.courseId;
+                log(`Course ID: ${courseId}`);
                 
                 // Enroll user if not enrolled
                 const existingEnrollment = await prisma.enrollment.findUnique({
@@ -142,7 +160,7 @@ export async function POST(req: Request) {
                 });
 
                 if (!existingEnrollment) {
-                   console.log(`Enrolling user to course ${courseId}`);
+                   log(`Enrolling user to course ${courseId}`);
                    await prisma.enrollment.create({
                       data: {
                          userId: user.id,
@@ -161,6 +179,9 @@ export async function POST(req: Request) {
                          details: { reason: "landing_submission" }
                       }
                    });
+                   log('Enrollment created');
+                } else {
+                   log('User already enrolled');
                 }
                 
                 // Link submission to lesson
@@ -168,18 +189,18 @@ export async function POST(req: Request) {
                    where: { id: submissionId },
                    data: { lessonId: lesson.id }
                 });
-                console.log(`Linked submission ${submissionId} to lesson ${lesson.id}`);
+                log(`Linked submission ${submissionId} to lesson ${lesson.id}`);
 
                 // --- AI AUTO-GRADING ---
                 if (lesson.aiPrompt) {
-                   console.log(`Lesson has AI prompt. Starting auto-grading for submission ${submissionId}...`);
+                   log(`Lesson has AI prompt. Starting auto-grading for submission ${submissionId}...`);
                    const aiResult = await gradeHomework(
                       // Combine form data and answers for full context
                       JSON.stringify({ form: data, answers: answers }), 
                       lesson.aiPrompt
                    );
                    
-                   console.log(`AI Result: ${JSON.stringify(aiResult)}`);
+                   log(`AI Result: ${JSON.stringify(aiResult)}`);
                    
                    await prisma.homeworkSubmission.update({
                       where: { id: submissionId },
@@ -190,6 +211,7 @@ export async function POST(req: Request) {
                          curatorId: null // System
                       }
                    });
+                   log('Submission updated with AI result');
                    
                    await prisma.auditLog.create({
                       data: {
@@ -200,14 +222,16 @@ export async function POST(req: Request) {
                          details: { status: aiResult.status, comment_length: aiResult.comment?.length }
                       }
                    });
+                   log('Audit log created: AI_GRADING');
 
                    // Send Grading Notification
-                   console.log(`Sending homework graded email to ${email}`);
+                   log(`Sending homework graded email to ${email}`);
                    await sendEmail({
                      to: email,
                      subject: `Результат проверки ДЗ: ${lesson.title}`,
                      html: emailTemplates.homeworkGraded(lesson.title, aiResult.status, aiResult.comment)
                    });
+                   log('Graded email sent');
                    
                    await prisma.auditLog.create({
                       data: {
@@ -218,15 +242,19 @@ export async function POST(req: Request) {
                          details: { type: "graded", email, status: aiResult.status }
                       }
                    });
+                } else {
+                   log('No AI Prompt for lesson');
                 }
              }
+          } else {
+             log('No lessonId for block');
           }
 
           // --- BITRIX LOGIC ---
           const bitrixUrl = process.env.BITRIX24_WEBHOOK_URL;
           
           if (bitrixUrl) {
-             console.log("Starting Bitrix integration...");
+             log("Starting Bitrix integration...");
              const funnelId = process.env.BITRIX_FUNNEL_ID || "14";
              const stageId = process.env.BITRIX_SOURCE_STAGE_ID || "C14:PREPAYMENT_INVOIC";
              
@@ -289,7 +317,7 @@ export async function POST(req: Request) {
                    body: JSON.stringify({ fields: dealFields })
                 });
                 const dealData = await dealRes.json();
-                console.log("Deal created:", dealData);
+                log(`Deal created: ${JSON.stringify(dealData)}`);
                 
                 await prisma.auditLog.create({
                    data: {
@@ -305,6 +333,8 @@ export async function POST(req: Request) {
 
        } catch (err) {
           console.error("Async integration error:", err);
+          const fs = require('fs');
+          fs.appendFileSync('/tmp/debug_route.log', `[ERROR] ${String(err)}\n`);
           
           // Log error to AuditLog as well for visibility
           try {
