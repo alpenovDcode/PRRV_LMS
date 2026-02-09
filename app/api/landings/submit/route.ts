@@ -265,7 +265,10 @@ export async function POST(req: Request) {
           const bitrixUrl = process.env.BITRIX24_WEBHOOK_URL;
           
           if (bitrixUrl) {
-             log("Starting Bitrix integration...");
+             const fs = require('fs');
+             const debugLog = (msg: string) => fs.appendFileSync('/tmp/bitrix_debug.log', `[${new Date().toISOString()}] ${msg}\n`);
+
+             debugLog("Starting Bitrix integration...");
              const funnelId = process.env.BITRIX_FUNNEL_ID || "14";
              const stageId = process.env.BITRIX_SOURCE_STAGE_ID || "C14:PREPAYMENT_INVOIC";
              
@@ -286,15 +289,35 @@ export async function POST(req: Request) {
 
              const landingTitle = landingBlock?.page.title || "Unknown Landing";
              
-             // Find/Create Contact
-             const searchRes = await fetch(`${bitrixUrl}crm.contact.list?filter[EMAIL]=${email}&select[]=ID`);
-             const searchData = await searchRes.json();
-             let contactId = searchData.result?.[0]?.ID;
+             // 1. Find/Create Contact (Enhanced Search)
+             // Try Email first
+             debugLog(`Searching contact by email: ${email}`);
+             let contactId = null;
              
-             if (!contactId) {
-                const phoneKey = Object.keys(data).find(k => k.toLowerCase().includes("phone") || k.toLowerCase().includes("телефон"));
-                const phone = phoneKey ? data[phoneKey] : null;
+             try {
+                const searchRes = await fetch(`${bitrixUrl}crm.contact.list?filter[EMAIL]=${email}&select[]=ID`);
+                const searchData = await searchRes.json();
+                contactId = searchData.result?.[0]?.ID;
+             } catch (e) { debugLog(`Email search failed: ${e}`); }
+             
+             // Try Phone if not found and phone exists
+             const phoneKey = Object.keys(data).find(k => k.toLowerCase().includes("phone") || k.toLowerCase().includes("телефон"));
+             const phone = phoneKey ? data[phoneKey] : null;
 
+             if (!contactId && phone) {
+                debugLog(`Searching contact by phone: ${phone}`);
+                try {
+                   // Clean phone for search if needed, but Bitrix usually fuzzy matches. 
+                   // Sending exact string first.
+                   const searchRes = await fetch(`${bitrixUrl}crm.contact.list?filter[PHONE]=${phone}&select[]=ID`);
+                   const searchData = await searchRes.json();
+                   contactId = searchData.result?.[0]?.ID;
+                } catch (e) { debugLog(`Phone search failed: ${e}`); }
+             }
+             
+             // Create if still not found
+             if (!contactId) {
+                debugLog("Contact not found, creating new...");
                 const createContactRes = await fetch(`${bitrixUrl}crm.contact.add`, {
                    method: "POST",
                    headers: { "Content-Type": "application/json" },
@@ -303,15 +326,20 @@ export async function POST(req: Request) {
                          NAME: fullName || "Студент",
                          EMAIL: [{ VALUE: email, VALUE_TYPE: "WORK" }],
                          PHONE: phone ? [{ VALUE: phone, VALUE_TYPE: "WORK" }] : [],
-                         SOURCE_ID: "WEB"
+                         SOURCE_ID: "WEB",
+                         OPENED: "Y"
                       }
                    })
                 });
                 const createData = await createContactRes.json();
                 contactId = createData.result;
+                debugLog(`Created contact ID: ${contactId}`);
+             } else {
+                debugLog(`Found contact ID: ${contactId}`);
              }
              
              if (contactId) {
+                // 2. Create NEW Deal (Master Deal)
                 const dealTitle = `Сдал ДЗ [${landingTitle}]`;
                 const dealFields = {
                    TITLE: dealTitle,
@@ -322,21 +350,82 @@ export async function POST(req: Request) {
                    UF_CRM_1770370876447: qaString
                 };
 
+                debugLog("Creating new deal...");
                 const dealRes = await fetch(`${bitrixUrl}crm.deal.add`, {
                    method: "POST",
                    headers: { "Content-Type": "application/json" },
                    body: JSON.stringify({ fields: dealFields })
                 });
                 const dealData = await dealRes.json();
-                log(`Deal created: ${JSON.stringify(dealData)}`);
+                const newDealId = dealData.result;
+                debugLog(`New Deal created: ${newDealId}`);
+                
+                log(`Deal created: ${JSON.stringify(dealData)}`); // Original log
+
+                // 3. Right Hand Logic: Find "Left" (Old) Open Deals and Close them
+                try {
+                   debugLog("Searching for old open deals...");
+                   const oldDealsRes = await fetch(`${bitrixUrl}crm.deal.list?filter[CONTACT_ID]=${contactId}&filter[CLOSED]=N&select[]=ID&select[]=TITLE&select[]=DATE_CREATE`);
+                   const oldDealsData = await oldDealsRes.json();
+                   const oldDeals = oldDealsData.result || [];
+
+                   const dealsToClose = oldDeals.filter((d: any) => d.ID != newDealId);
+                   
+                   if (dealsToClose.length > 0) {
+                      debugLog(`Found ${dealsToClose.length} old deals to close.`);
+                      let mergeComment = "🔗 **Автоматическая склейка (Принцип правой руки)**\nИстория из предыдущих сделок перенесена сюда (они закрыты):\n\n";
+                      
+                      const loseStage = funnelId === "0" ? "LOSE" : `C${funnelId}:LOSE`; 
+                      // Fallback if C_X:LOSE assumes ID X. 
+                      // If funnelId is 14, default lose is usually "C14:LOSE" or "C14:APOLOGY" etc.
+                      // We will try generic "LOSE" if the specific one fails? No, "LOSE" only works for General funnel. 
+                      // We'll stick to C{ID}:LOSE strategy or just "LOSE" if ID=0.
+
+                      for (const oldDeal of dealsToClose) {
+                         // Close Old Deal
+                         debugLog(`Closing old deal #${oldDeal.ID}...`);
+                         await fetch(`${bitrixUrl}crm.deal.update`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ 
+                               id: oldDeal.ID, 
+                               fields: { 
+                                  STAGE_ID: loseStage,
+                                  CLOSED: "Y" // Ensure it closes
+                               } 
+                            })
+                         });
+                         mergeComment += `- [URL=/crm/deal/details/${oldDeal.ID}/]Сделка #${oldDeal.ID}[/URL] (${oldDeal.TITLE}) — Закрыта\n`;
+                      }
+
+                      // Add Comment to NEW Deal
+                      debugLog(`Adding merge comment to new deal #${newDealId}...`);
+                      await fetch(`${bitrixUrl}crm.timeline.comment.add`, {
+                           method: "POST",
+                           headers: { "Content-Type": "application/json" },
+                           body: JSON.stringify({ 
+                              fields: { 
+                                 ENTITY_ID: newDealId, 
+                                 ENTITY_TYPE: "DEAL", 
+                                 COMMENT: mergeComment 
+                              } 
+                           })
+                      });
+                   } else {
+                      debugLog("No old deals to close.");
+                   }
+                } catch (mergeErr) {
+                   debugLog(`Merge logic failed: ${mergeErr}`);
+                   console.error("Merge error:", mergeErr);
+                }
                 
                 await prisma.auditLog.create({
                    data: {
                       userId: user.id,
                       action: "BITRIX_DEAL",
                       entity: "Integration",
-                      entityId: String(dealData.result), // Deal ID is number, cast to string
-                      details: { contactId, funnelId, stageId }
+                      entityId: String(newDealId),
+                      details: { contactId, funnelId, stageId, merged: true }
                    }
                 });
              }
