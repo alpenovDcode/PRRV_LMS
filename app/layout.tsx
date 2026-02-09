@@ -7,7 +7,7 @@ import { Providers } from "@/components/providers";
 const inter = { className: "font-sans" }; // Use system font fallback
 
 export const metadata: Metadata = {
-  title: "Прорыв.ру",
+  title: "PRRV",
   description: "Платформа для онлайн-обучения",
 };
 

@@ -19,7 +19,11 @@ export async function POST(req: Request) {
       data: { title, slug },
     });
     return NextResponse.json(landing);
-  } catch (error) {
-    return NextResponse.json({ error: "Failed to create" }, { status: 500 });
+  } catch (error: any) {
+    console.error("Create landing error:", error);
+    if (error.code === 'P2002') {
+       return NextResponse.json({ error: "Лендинг с таким URL уже существует" }, { status: 400 });
+    }
+    return NextResponse.json({ error: "Failed to create: " + error.message }, { status: 500 });
   }
 }

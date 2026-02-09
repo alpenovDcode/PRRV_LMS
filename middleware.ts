@@ -72,9 +72,10 @@ export async function middleware(request: NextRequest) {
 
       if (!isAuthorized) {
         // Для API возвращаем JSON
+        // Возвращаем 401, чтобы клиент мог попытаться обновить токен (refresh token)
         return NextResponse.json(
-          { success: false, error: { code: "FORBIDDEN", message: "Invalid API Key or Session" } },
-          { status: 403 }
+          { success: false, error: { code: "UNAUTHORIZED", message: "Invalid API Key or Session" } },
+          { status: 401 }
         );
       }
     }

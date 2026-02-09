@@ -316,7 +316,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900">Мои курсы</h2>
+                <h2 className="text-2xl font-bold text-gray-900">Мои материалы</h2>
                 <p className="text-sm text-gray-600 mt-1">Управляйте своим обучением и отслеживайте прогресс</p>
               </div>
               <Button variant="outline" asChild className="border-gray-300">

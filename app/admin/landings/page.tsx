@@ -42,8 +42,8 @@ export default function LandingsPage() {
     try {
       await apiClient.post("/landings", { title, slug });
       fetchLandings();
-    } catch (error) {
-      alert("Ошибка сети или сервера");
+    } catch (error: any) {
+      alert(error.response?.data?.error || error.message || "Ошибка сети или сервера");
     }
   };
 

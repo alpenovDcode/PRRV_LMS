@@ -40,7 +40,7 @@ export default function CoursesPage() {
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl space-y-6">
       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Мои курсы</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Мои материалы</h1>
         <p className="text-gray-600">
           Управляйте своим обучением и отслеживайте прогресс
         </p>

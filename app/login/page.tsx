@@ -53,20 +53,24 @@ export default function LoginPage() {
         <div className="flex flex-col items-center justify-between gap-10 md:flex-row">
           <div className="max-w-xl space-y-6">
             <h1 className="text-4xl font-bold tracking-tight sm:text-5xl text-gray-900">
-              Добро пожаловать в <span className="text-orange-500">Прорыв</span>
+              Добро пожаловать в <span className="text-orange-500">экосистему Прорыв</span>
             </h1>
             <p className="text-lg text-gray-600">
               Продолжайте обучение с того места, где остановились. Интерфейс в духе
-              лучших образовательных платформ: ваши курсы, прогресс и достижения — всё в одном месте.
+              лучших образовательных платформ: ваши материалы, прогресс и достижения - всё в одном месте.
             </p>
             <ul className="mt-6 space-y-3 text-sm text-gray-600">
               <li className="flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-orange-500"></span>
-                Персональная лента обучения
+                Персональная лента
               </li>
               <li className="flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-orange-500"></span>
-                Удобная навигация по курсам и урокам
+                Удобная навигация
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-orange-500"></span>
+                ИИ-сервисы для репетиторов
               </li>
             </ul>
           </div>
