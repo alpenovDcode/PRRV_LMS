@@ -1,12 +1,13 @@
 
 import { PrismaClient } from "@prisma/client";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 const prisma = new PrismaClient();
 
-export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = await params;
+    const params = await props.params;
+    const { id } = params;
     
     // Get Landing Page Views
     const landing = await prisma.landingPage.findUnique({

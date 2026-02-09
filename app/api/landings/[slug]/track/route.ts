@@ -1,13 +1,14 @@
 
 import { PrismaClient } from "@prisma/client";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
 const prisma = new PrismaClient();
 
-export async function POST(req: Request, { params }: { params: Promise<{ slug: string }> }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ slug: string }> }) {
   try {
-    const { slug } = await params;
+    const params = await props.params;
+    const { slug } = params;
     const cookieStore = await cookies();
     const cookieName = `landing_viewed_${slug}`;
 
