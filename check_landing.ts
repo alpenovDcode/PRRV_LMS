@@ -4,10 +4,16 @@ const prisma = new PrismaClient();
 
 async function main() {
   const slug = 'intensiv-day-1';
-  const landing = await prisma.landingPage.findUnique({
+  console.log(`Checking ${slug}...`);
+  
+  const before = await prisma.landingPage.findUnique({ where: { slug } });
+  console.log('Views before:', before?.views);
+
+  const updated = await prisma.landingPage.update({
     where: { slug },
+    data: { views: { increment: 1 } },
   });
-  console.log('Landing Page:', landing);
+  console.log('Views after increment:', updated.views);
 }
 
 main()

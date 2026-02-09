@@ -45,7 +45,8 @@ export async function middleware(request: NextRequest) {
      !path.startsWith("/api/auth") && 
      !path.startsWith("/api/video-proxy") &&
      !path.startsWith("/api/landings/submit") &&
-     !path.startsWith("/api/landings/check-status")
+     !path.startsWith("/api/landings/check-status") &&
+     !path.match(/^\/api\/landings\/[^/]+\/view$/)
   ) {
     const apiKey = request.nextUrl.searchParams.get("apiKey");
     const validKey = process.env.API_SECRET_KEY;
