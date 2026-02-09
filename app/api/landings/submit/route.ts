@@ -64,7 +64,6 @@ export async function POST(req: Request) {
     }
 
     // 4. Create Submission
-    // 4. Create Submission
     const submission = await prisma.homeworkSubmission.create({
       data: {
         userId: user.id,
@@ -306,22 +305,20 @@ export async function POST(req: Request) {
                 contactId = searchData.result?.[0]?.ID;
              } catch (e) { debugLog(`Email search failed: ${e}`); }
              
-             // Try Phone if not found and phone exists
+             // Try Phone
              const phoneKey = Object.keys(data).find(k => k.toLowerCase().includes("phone") || k.toLowerCase().includes("телефон"));
              const phone = phoneKey ? data[phoneKey] : null;
 
              if (!contactId && phone) {
                 debugLog(`Searching contact by phone: ${phone}`);
                 try {
-                   // Clean phone for search if needed, but Bitrix usually fuzzy matches. 
-                   // Sending exact string first.
                    const searchRes = await fetch(`${bitrixUrl}crm.contact.list?filter[PHONE]=${phone}&select[]=ID`);
                    const searchData = await searchRes.json();
                    contactId = searchData.result?.[0]?.ID;
                 } catch (e) { debugLog(`Phone search failed: ${e}`); }
              }
              
-             // Create if still not found
+             // Create Contact if not found
              if (!contactId) {
                 debugLog("Contact not found, creating new...");
                 const createContactRes = await fetch(`${bitrixUrl}crm.contact.add`, {
@@ -345,99 +342,243 @@ export async function POST(req: Request) {
              }
              
              if (contactId) {
-                // 2. Create NEW Deal (Master Deal)
-                const dealTitle = `Сдал ДЗ [${landingTitle}]`;
-                const dealFields = {
-                   TITLE: dealTitle,
-                   CATEGORY_ID: funnelId,
-                   STAGE_ID: stageId,
-                   CONTACT_ID: contactId,
-                   OPENED: "Y",
-                   UF_CRM_1770370876447: qaString
-                };
-
-                debugLog("Creating new deal...");
-                const dealRes = await fetch(`${bitrixUrl}crm.deal.add`, {
-                   method: "POST",
-                   headers: { "Content-Type": "application/json" },
-                   body: JSON.stringify({ fields: dealFields })
-                });
-                const dealData = await dealRes.json();
-                const newDealId = dealData.result;
-                debugLog(`New Deal created: ${newDealId}`);
-                
-                log(`Deal created: ${JSON.stringify(dealData)}`); // Original log
-
-                // 3. Right Hand Logic: Find "Left" (Old) Open Deals and Close them
+                // Fetch Stage Order for Funnel (to use Right-Hand Logic)
+                let stageSortMap: Record<string, number> = {};
                 try {
-                   debugLog("Searching for old open deals...");
-                   const oldDealsRes = await fetch(`${bitrixUrl}crm.deal.list?filter[CONTACT_ID]=${contactId}&filter[CLOSED]=N&select[]=ID&select[]=TITLE&select[]=DATE_CREATE&select[]=CATEGORY_ID`);
-                   const oldDealsData = await oldDealsRes.json();
-                   const oldDeals = oldDealsData.result || [];
+                    const stagesRes = await fetch(`${bitrixUrl}crm.dealcategory.stage.list?id=${funnelId}`);
+                    const stagesData = await stagesRes.json();
+                    const stages = stagesData.result || [];
+                    stages.forEach((s: any) => {
+                        stageSortMap[s.STATUS_ID] = parseInt(s.SORT);
+                    });
+                } catch (e) { debugLog(`Error fetching stages: ${e}`); }
 
-                   const dealsToClose = oldDeals.filter((d: any) => d.ID != newDealId);
-                   
-                   if (dealsToClose.length > 0) {
-                      debugLog(`Found ${dealsToClose.length} old deals to close.`);
-                      let mergeComment = "🔗 **Автоматическая склейка (Принцип правой руки)**\nИстория из предыдущих сделок перенесена сюда (они закрыты):\n\n";
-                      
-                      const loseStage = funnelId === "0" ? "LOSE" : `C${funnelId}:LOSE`; 
-                      // Fallback if C_X:LOSE assumes ID X. 
-                      // If funnelId is 14, default lose is usually "C14:LOSE" or "C14:APOLOGY" etc.
-                      // We will try generic "LOSE" if the specific one fails? No, "LOSE" only works for General funnel. 
-                      // We'll stick to C{ID}:LOSE strategy or just "LOSE" if ID=0.
+                // 2. CHECK FOR EXISTING ACTIVE DEALS (Right Hand Logic - "Keep the Right-most")
+                debugLog("Searching for EXISTING open deals (with all fields)...");
+                let activeDealId = null;
+                let activeDeals: any[] = [];
+                
+                try {
+                    // Fetch deals with Custom Fields (UF_*) and SELECT ALL ("*")
+                    const activeDealsRes = await fetch(`${bitrixUrl}crm.deal.list?filter[CONTACT_ID]=${contactId}&filter[CLOSED]=N&select[]=ID&select[]=TITLE&select[]=STAGE_ID&select[]=CATEGORY_ID&select[]=DATE_CREATE&select[]=UF_*`);
+                    const activeDealsData = await activeDealsRes.json();
+                    activeDeals = activeDealsData.result || [];
+                    
+                    if (activeDeals.length > 0) {
+                        // Select Master Deal (The one with the HIGHEST sort order in stage)
+                        let masterDeal = activeDeals[0];
+                        let maxSort = -1;
 
-                      for (const oldDeal of dealsToClose) {
-                         // Determine correct LOSE stage for THIS deal's category
-                         const oldCategoryId = oldDeal.CATEGORY_ID || 0;
-                         const dealLoseStage = oldCategoryId == 0 ? "LOSE" : `C${oldCategoryId}:LOSE`;
+                        // Determine sort for first deal as baseline
+                        const initSort = stageSortMap[masterDeal.STAGE_ID];
+                        maxSort = initSort !== undefined ? initSort : -1;
 
-                         // Close Old Deal
-                         debugLog(`Closing old deal #${oldDeal.ID} in funnel ${oldCategoryId} (Stage: ${dealLoseStage})...`);
-                         await fetch(`${bitrixUrl}crm.deal.update`, {
+                        for (const deal of activeDeals) {
+                            const sId = deal.STAGE_ID;
+                            const sort = stageSortMap[sId] !== undefined ? stageSortMap[sId] : -1;
+                            
+                            if (sort > maxSort) {
+                                maxSort = sort;
+                                masterDeal = deal;
+                            } else if (sort === maxSort) {
+                                // Tie-breaker: Newer ID
+                                if (parseInt(deal.ID) > parseInt(masterDeal.ID)) {
+                                    masterDeal = deal;
+                                }
+                            }
+                        }
+                        
+                        activeDealId = masterDeal.ID;
+                        debugLog(`Found ${activeDeals.length} active deals. Selected Master: #${activeDealId} (${masterDeal.TITLE}) - Stage: ${masterDeal.STAGE_ID} (Sort: ${maxSort})`);
+                    }
+                } catch (e) { debugLog(`Error searching active deals: ${e}`); }
+
+                const dealTitle = `Сдал ДЗ [${landingTitle}]`;
+                
+                if (activeDealId) {
+                    // UPDATE MASTER DEAL
+                    debugLog(`Updating master deal #${activeDealId}...`);
+
+                    // 1. Fetch FULL DATA for Master Deal
+                    let masterFull: any = null;
+                    try {
+                        const masterRes = await fetch(`${bitrixUrl}crm.deal.get?id=${activeDealId}`);
+                        const masterData = await masterRes.json();
+                        masterFull = masterData.result;
+                    } catch(e) { debugLog(`Error fetching full master deal: ${e}`); }
+
+                    // 2. Prepare Fields to Update (Merged + New)
+                    let mergedFields: any = {};
+                    const duplicates = activeDeals.filter((d: any) => d.ID != activeDealId);
+                    
+                    if (duplicates.length > 0 && masterFull) {
+                         // Sort duplicates by ID ASC (Oldest -> Newest)
+                         duplicates.sort((a: any, b: any) => parseInt(a.ID) - parseInt(b.ID));
+
+                         for (const dupStub of duplicates) {
+                             try {
+                                 // Fetch Full Duo Data
+                                 const dupRes = await fetch(`${bitrixUrl}crm.deal.get?id=${dupStub.ID}`);
+                                 const dupData = await dupRes.json();
+                                 const dupFull = dupData.result;
+                                 
+                                 if (!dupFull) continue;
+
+                                 for (const key of Object.keys(dupFull)) {
+                                     // Skip system fields
+                                     if (["ID", "TITLE", "DATE_CREATE", "STAGE_ID", "CATEGORY_ID", "IS_RECURRING", "IS_RETURN_CUSTOMER", "IS_REPEATED_APPROACH", "CREATED_BY_ID", "MODIFY_BY_ID", "DATE_MODIFY", "OPENED", "CLOSED", "CURRENCY_ID"].includes(key)) {
+                                          continue;
+                                     }
+
+                                     const val = dupFull[key];
+                                     const masterVal = masterFull[key];
+
+                                     const isDupHasValue = val !== null && val !== "" && val !== undefined && val !== "0.00" && !(Array.isArray(val) && val.length === 0);
+
+                                     if (isDupHasValue) {
+                                          let isMasterEmpty = 
+                                              masterVal === null || 
+                                              masterVal === undefined || 
+                                              (typeof masterVal === "string" && masterVal.trim() === "") ||
+                                              (Array.isArray(masterVal) && masterVal.length === 0) ||
+                                              (key === "OPPORTUNITY" && parseFloat(masterVal) === 0);
+
+                                          // Positive Value Promotion: Overwrite "0", "No", "false"
+                                          if (!isMasterEmpty && key.startsWith("UF_")) {
+                                               if (masterVal === "0" || masterVal === 0 || masterVal === "No" || masterVal === false) {
+                                                   if (val !== "0" && val !== 0 && val !== "No" && val !== false) {
+                                                        debugLog(`Promoting field ${key}: ${masterVal} -> ${val}`);
+                                                        isMasterEmpty = true; 
+                                                   }
+                                               }
+                                          }
+
+                                          if (isMasterEmpty) {
+                                              mergedFields[key] = val;
+                                              // Optimistically update local masterFull so subsequent duplicates don't overwrite if we already merged (unless we want Newest Wins, which is what happens by default iteration)
+                                              masterFull[key] = val; 
+                                          }
+                                     }
+                                 }
+                             } catch(e) { debugLog(`Error merging duplicate #${dupStub.ID}: ${e}`); }
+                         }
+                    } else if (!masterFull) {
+                        debugLog("Could not fetch Master Deal details, skipping deep merge.");
+                    }
+
+                    // Add current submission data (Highest Priority for this specific field)
+                    // Always overwrite this specific integration field
+                    mergedFields["UF_CRM_1770370876447"] = qaString;
+
+                    try {
+                        if (Object.keys(mergedFields).length > 0) {
+                             debugLog(`Updating Master with fields: ${JSON.stringify(Object.keys(mergedFields))}`);
+                             await fetch(`${bitrixUrl}crm.deal.update`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ fields: mergedFields, id: activeDealId })
+                             });
+                        } else {
+                             debugLog(`No new fields to merge.`);
+                        }
+                    } catch (e) { debugLog(`Error updating deal fields: ${e}`); }
+                    
+                    // 2. Add Comment
+                    const newComment = `📢 **Новая активность**\nКлиент отправил форму: "${landingTitle}"\n\n${qaString}`;
+                    
+                    await fetch(`${bitrixUrl}crm.timeline.comment.add`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ 
+                           fields: { 
+                              ENTITY_ID: activeDealId, 
+                              ENTITY_TYPE: "DEAL", 
+                              COMMENT: newComment 
+                           } 
+                        })
+                    });
+                    
+                    log(`Updated deal ${activeDealId} with new submission comment.`);
+                    
+                    // CLOSE OTHERS (Duplicates)
+                    if (duplicates.length > 0) {
+                        debugLog(`Closing ${duplicates.length} duplicate deals...`);
+                        let mergeComment = "🔗 **Автоматическая склейка (Right-Hand Logic)**\nЗакрыты дублирующие сделки:\n";
+
+                        for (const dup of duplicates) {
+                             const oldCategoryId = dup.CATEGORY_ID || 0;
+                             const dealLoseStage = oldCategoryId == 0 ? "LOSE" : `C${oldCategoryId}:LOSE`;
+                             
+                             debugLog(`Closing Duplicate #${dup.ID} in funnel ${oldCategoryId}...`);
+                             await fetch(`${bitrixUrl}crm.deal.update`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ 
+                                   id: dup.ID, 
+                                   fields: { 
+                                      STAGE_ID: dealLoseStage,
+                                      CLOSED: "Y"
+                                   } 
+                                })
+                             });
+                             mergeComment += `- [URL=/crm/deal/details/${dup.ID}/]Сделка #${dup.ID}[/URL] (${dup.TITLE})\n`;
+                        }
+                        
+                         await fetch(`${bitrixUrl}crm.timeline.comment.add`, {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({ 
-                               id: oldDeal.ID, 
                                fields: { 
-                                  STAGE_ID: dealLoseStage,
-                                  CLOSED: "Y" // Ensure it closes
+                                  ENTITY_ID: activeDealId, 
+                                  ENTITY_TYPE: "DEAL", 
+                                  COMMENT: mergeComment 
                                } 
                             })
-                         });
-                         mergeComment += `- [URL=/crm/deal/details/${oldDeal.ID}/]Сделка #${oldDeal.ID}[/URL] (${oldDeal.TITLE}) — Закрыта\n`;
-                      }
+                        });
+                    }
 
-                      // Add Comment to NEW Deal
-                      debugLog(`Adding merge comment to new deal #${newDealId}...`);
-                      await fetch(`${bitrixUrl}crm.timeline.comment.add`, {
-                           method: "POST",
-                           headers: { "Content-Type": "application/json" },
-                           body: JSON.stringify({ 
-                              fields: { 
-                                 ENTITY_ID: newDealId, 
-                                 ENTITY_TYPE: "DEAL", 
-                                 COMMENT: mergeComment 
-                              } 
-                           })
-                      });
-                   } else {
-                      debugLog("No old deals to close.");
-                   }
-                } catch (mergeErr) {
-                   debugLog(`Merge logic failed: ${mergeErr}`);
-                   console.error("Merge error:", mergeErr);
+                     await prisma.auditLog.create({
+                       data: {
+                          userId: user.id,
+                          action: "BITRIX_DEAL_UPDATE",
+                          entity: "Integration",
+                          entityId: String(activeDealId),
+                          details: { contactId, funnelId, merged: true, type: "comment_added", duplicatesClosed: duplicates.length }
+                       }
+                    });
+
+                } else {
+                    // CREATE NEW DEAL
+                    debugLog("No active deal found. Creating NEW deal...");
+                    const dealFields = {
+                       TITLE: dealTitle,
+                       CATEGORY_ID: funnelId,
+                       STAGE_ID: stageId,
+                       CONTACT_ID: contactId,
+                       OPENED: "Y",
+                       UF_CRM_1770370876447: qaString
+                    };
+
+                    const dealRes = await fetch(`${bitrixUrl}crm.deal.add`, {
+                       method: "POST",
+                       headers: { "Content-Type": "application/json" },
+                       body: JSON.stringify({ fields: dealFields })
+                    });
+                    const dealData = await dealRes.json();
+                    const newDealId = dealData.result;
+                    debugLog(`New Deal created: ${newDealId}`);
+                    log(`Deal created: ${JSON.stringify(dealData)}`);
+                    
+                    await prisma.auditLog.create({
+                       data: {
+                          userId: user.id,
+                          action: "BITRIX_DEAL",
+                          entity: "Integration",
+                          entityId: String(newDealId),
+                          details: { contactId, funnelId, stageId, type: "new_deal" }
+                       }
+                    });
                 }
-                
-                await prisma.auditLog.create({
-                   data: {
-                      userId: user.id,
-                      action: "BITRIX_DEAL",
-                      entity: "Integration",
-                      entityId: String(newDealId),
-                      details: { contactId, funnelId, stageId, merged: true }
-                   }
-                });
              }
           }
 
