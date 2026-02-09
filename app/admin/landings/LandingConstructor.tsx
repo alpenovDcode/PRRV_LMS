@@ -177,6 +177,26 @@ export default function LandingConstructor({
                    {block.type === 'text' && (
                      <div className={`${block.design.bg} ${block.design.textColor} ${block.design.textSize ? `text-${block.design.textSize}` : ''} ${block.design.padding} text-${block.design.textAlign} prose max-w-none`} dangerouslySetInnerHTML={{ __html: block.content.html }} />
                    )}
+                   {block.type === 'video' && (
+                     <div className={`${block.design.bg} ${block.design.padding} rounded-xl`}>
+                        {block.content.videoId ? (
+                           <div className="aspect-video bg-black rounded-xl overflow-hidden shadow-lg mx-auto max-w-4xl relative">
+                              <div className="absolute inset-0 flex items-center justify-center text-white/50 z-10 bg-black/20">
+                                 <Video size={48} />
+                              </div>
+                              <iframe
+                                 src={`https://customer-2h654e7z77942781.cloudflarestream.com/${block.content.videoId}/iframe?poster=https%3A%2F%2Fcustomer-2h654e7z77942781.cloudflarestream.com%2F${block.content.videoId}%2Fthumbnails%2Fthumbnail.jpg%3Ftime%3D%26height%3D600`}
+                                 className="w-full h-full pointer-events-none"
+                              ></iframe>
+                           </div>
+                        ) : (
+                           <div className="aspect-video bg-gray-100 rounded-xl flex flex-col items-center justify-center text-gray-400 border-2 border-dashed">
+                              <Video size={48} className="mb-2" />
+                              <span className="text-sm">Введите Video ID в настройках</span>
+                           </div>
+                        )}
+                     </div>
+                   )}
                    {block.type === 'form' && (
                      <div className="p-8 text-center bg-gray-100 border-dashed border-2 rounded m-4">
                        <h3 className="font-bold">Форма заявки</h3>
@@ -358,6 +378,17 @@ export default function LandingConstructor({
                              </div>
                           </>
                        )}
+
+                        {/* VIDEO EDITOR */}
+                        {activeBlock.type === 'video' && (
+                           <>
+                              <div className="bg-blue-50 p-3 rounded text-sm text-blue-800 mb-4">
+                                 Вставьте ID видео из Cloudflare Stream.
+                              </div>
+                              <Input label="Video ID" value={activeBlock.content.videoId} onChange={v => updateContent(activeBlock.id, { videoId: v })} placeholder="e.g. 52494..." />
+                              <Input label="Заголовок (необязательно)" value={activeBlock.content.title} onChange={v => updateContent(activeBlock.id, { title: v })} />
+                           </>
+                        )}
 
                        {/* FORM LEGACY EDITOR (Partial) */}
                         {activeBlock.type === 'form' && (
