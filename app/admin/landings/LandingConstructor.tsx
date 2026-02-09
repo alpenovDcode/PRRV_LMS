@@ -252,6 +252,22 @@ export default function LandingConstructor({
                   </a>
                )}
                <button 
+                 onClick={() => {
+                    const newStatus = !isPublished;
+                    setIsPublished(newStatus);
+                    onSave(blocks, newStatus);
+                 }}
+                 className={`px-3 py-1.5 text-sm rounded font-medium border transition-colors flex items-center gap-2 ${
+                    isPublished 
+                      ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100" 
+                      : "bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200"
+                 }`}
+                 title={isPublished ? "Снять с публикации" : "Опубликовать"}
+               >
+                 <div className={`w-2 h-2 rounded-full ${isPublished ? "bg-green-500" : "bg-gray-400"}`} />
+                 {isPublished ? "Опубликовано" : "Черновик"}
+               </button>
+               <button 
                  onClick={() => onSave(blocks, isPublished)}
                  className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded font-medium hover:bg-blue-700"
                >
