@@ -51,6 +51,9 @@
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "check_landing.ts",
+    "manual_bitrix_test.ts",
+    "list_user_deals.ts"
   ]
 }
