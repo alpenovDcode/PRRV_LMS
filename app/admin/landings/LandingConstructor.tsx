@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { 
   Plus, Trash, ArrowUp, ArrowDown, Type, AlignJustify, Video, 
   LayoutTemplate, CheckSquare, MousePointerClick, Image as ImageIcon,
-  Settings, Palette, GripVertical, ChevronRight, X
+  Settings, Palette, GripVertical, ChevronRight, X, MessageSquare
 } from "lucide-react";
 import { v4 as uuidv4 } from 'uuid';
 import RichTextEditor from "@/components/landing/RichTextEditor";
@@ -94,15 +94,20 @@ export default function LandingConstructor({
      { value: "2xl", label: "Гигант" },
   ];
 
-  const addBlock = (type: Block["type"]) => {
+  const addBlock = (type: Block["type"] | "text_input") => {
+    const realType = type === "text_input" ? "text" : type;
+    const initialContent = type === "text_input" 
+      ? { html: "<h2>Вопрос</h2><p>Ваш текст здесь...</p>", hasInput: true, inputLabel: "Ваш ответ" }
+      : getInitialContent(realType);
+
     const newBlock: Block = {
       id: uuidv4(),
-      type,
-      content: getInitialContent(type),
+      type: realType,
+      content: initialContent,
       design: { ...DEFAULT_DESIGN },
       settings: { openAt: null, utm: "" },
       orderIndex: blocks.length,
-      responseTemplates: type === "form" ? ["", "", "", "", ""] : [],
+      responseTemplates: realType === "form" ? ["", "", "", "", ""] : [],
       lessonId: null
     };
     setBlocks([...blocks, newBlock]);
@@ -175,7 +180,17 @@ export default function LandingConstructor({
                    {block.type === 'features' && <FeaturesBlock content={block.content} design={block.design} />}
                    {block.type === 'button' && <ButtonBlock content={block.content} design={block.design} />}
                    {block.type === 'text' && (
-                     <div className={`${block.design.bg} ${block.design.textColor} ${block.design.textSize ? `text-${block.design.textSize}` : ''} ${block.design.padding} text-${block.design.textAlign} prose max-w-none`} dangerouslySetInnerHTML={{ __html: block.content.html }} />
+                     <div className={`${block.design.bg} ${block.design.textColor} ${block.design.textSize ? `text-${block.design.textSize}` : ''} ${block.design.padding} text-${block.design.textAlign} prose max-w-none`}>
+                        <div dangerouslySetInnerHTML={{ __html: block.content.html }} />
+                        {block.content.hasInput && (
+                           <div className="mt-4 p-4 border rounded-xl bg-gray-50/50">
+                              <label className="block text-sm font-medium opacity-70 mb-2">{block.content.inputLabel || "Ваш ответ"}</label>
+                              <div className="w-full h-24 bg-white border rounded px-3 py-2 text-sm text-gray-400 italic">
+                                 Поле для ввода ответа (видят студенты)
+                              </div>
+                           </div>
+                        )}
+                     </div>
                    )}
                    {block.type === 'video' && (
                      <div className={`${block.design.bg} ${block.design.padding} rounded-xl`}>
@@ -224,6 +239,7 @@ export default function LandingConstructor({
              <div className="grid grid-cols-3 gap-3">
                <AddBtn icon={LayoutTemplate} label="Hero" onClick={() => addBlock("hero")} />
                <AddBtn icon={Type} label="Текст" onClick={() => addBlock("text")} />
+               <AddBtn icon={MessageSquare} label="Текст с ответом" onClick={() => addBlock("text_input")} />
                <AddBtn icon={CheckSquare} label="Преимущества" onClick={() => addBlock("features")} />
                <AddBtn icon={MousePointerClick} label="Кнопка" onClick={() => addBlock("button")} />
                <AddBtn icon={AlignJustify} label="Форма" onClick={() => addBlock("form")} />
@@ -236,31 +252,34 @@ export default function LandingConstructor({
       {/* RIGHT: Sidebar / Inspector */}
       <div className="w-[350px] bg-white border-l rounded-xl flex flex-col">
          {/* HEADER */}
-         <div className="p-4 border-b flex items-center justify-between">
-            <h2 className="font-bold text-gray-800">
-              {activeBlock ? "Настройки блока" : "Конструктор"}
-            </h2>
-            <div className="flex gap-2">
+         <div className="p-4 border-b space-y-3">
+            <div className="flex items-center justify-between">
+               <h2 className="font-bold text-gray-800">
+                 {activeBlock ? "Настройки блока" : "Конструктор"}
+               </h2>
                {slug && (
                   <a 
                     href={`/l/${slug}`} 
                     target="_blank" 
-                    className="p-2 text-gray-500 hover:text-blue-600 border rounded hover:bg-gray-50"
-                    title="Предпросмотр"
+                    className="p-1.5 text-gray-400 hover:text-blue-600 border rounded-lg hover:bg-gray-50 transition-colors"
+                    title="Предпросмотр на сайте"
                   >
-                    <ImageIcon size={18} />
+                    <ImageIcon size={16} />
                   </a>
                )}
+            </div>
+            
+            <div className="grid grid-cols-2 gap-2">
                <button 
                  onClick={() => {
                     const newStatus = !isPublished;
                     setIsPublished(newStatus);
                     onSave(blocks, newStatus);
                  }}
-                 className={`px-3 py-1.5 text-sm rounded font-medium border transition-colors flex items-center gap-2 ${
+                 className={`px-3 py-2 text-sm rounded-lg font-medium border transition-all flex items-center justify-center gap-2 ${
                     isPublished 
                       ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100" 
-                      : "bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200"
+                      : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
                  }`}
                  title={isPublished ? "Снять с публикации" : "Опубликовать"}
                >
@@ -269,7 +288,7 @@ export default function LandingConstructor({
                </button>
                <button 
                  onClick={() => onSave(blocks, isPublished)}
-                 className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded font-medium hover:bg-blue-700"
+                 className="px-3 py-2 bg-blue-600 text-white text-sm rounded-lg font-medium hover:bg-blue-700 hover:shadow-md transition-all flex items-center justify-center gap-2"
                >
                  Сохранить
                </button>
@@ -300,12 +319,35 @@ export default function LandingConstructor({
 
                        {/* TEXT EDITOR */}
                        {activeBlock.type === 'text' && (
-                         <div className="space-y-2">
-                            <label className="text-xs font-semibold text-gray-500">Текст</label>
-                            <RichTextEditor 
-                               content={activeBlock.content.html} 
-                               onChange={html => updateContent(activeBlock.id, { html })}
-                            />
+                         <div className="space-y-4">
+                            <div className="space-y-2">
+                               <label className="text-xs font-semibold text-gray-500">Текст</label>
+                               <RichTextEditor 
+                                  content={activeBlock.content.html} 
+                                  onChange={html => updateContent(activeBlock.id, { html })}
+                               />
+                            </div>
+
+                            <div className="pt-4 border-t space-y-3">
+                               <label className="flex items-center gap-2 cursor-pointer select-none">
+                                  <input 
+                                     type="checkbox" 
+                                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                     checked={activeBlock.content.hasInput || false} 
+                                     onChange={e => updateContent(activeBlock.id, { hasInput: e.target.checked })} 
+                                  />
+                                  <span className="text-sm font-medium text-gray-700">Поле для ответа</span>
+                               </label>
+                               
+                               {activeBlock.content.hasInput && (
+                                  <Input 
+                                     label="Заголовок поля (Label)" 
+                                     value={activeBlock.content.inputLabel} 
+                                     onChange={v => updateContent(activeBlock.id, { inputLabel: v })} 
+                                     placeholder="Например: Ваш ответ"
+                                  />
+                               )}
+                            </div>
                          </div>
                        )}
 
