@@ -19,8 +19,15 @@ export default function LandingPageClient({ slug, blocks, initialSubmissions = {
 
   useEffect(() => {
     // Track view (only once per mount)
-    fetch(`/api/landings/${slug}/track`, { method: "POST" })
-      .catch((err) => console.error("Tracking error:", err));
+    // Using 'view' instead of 'track' to avoid ad blockers
+    fetch(`/api/landings/${encodeURIComponent(slug)}/view?t=${Date.now()}`, { 
+       method: "POST",
+       headers: { "Content-Type": "application/json" }
+    })
+      .then(res => {
+         if (!res.ok) console.error("View tracking failed");
+      })
+      .catch((err) => console.error("View tracking error:", err));
   }, [slug]);
 
   const handleAnswerChange = (blockId: string, text: string) => {

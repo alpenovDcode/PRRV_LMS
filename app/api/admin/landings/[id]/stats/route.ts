@@ -19,19 +19,54 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
       return NextResponse.json({ error: "Landing not found" }, { status: 404 });
     }
 
-    // Get Submission Count (Unique users or total submissions?)
-    // Let's count total submissions for now
-    const submissionsCount = await prisma.homeworkSubmission.count({
+    // Get Submissions with details
+    const submissions = await prisma.homeworkSubmission.findMany({
       where: {
         landingBlock: {
           pageId: id
         }
-      }
+      },
+      include: {
+        user: {
+          select: {
+            email: true,
+            fullName: true
+          }
+        },
+        landingBlock: {
+          select: {
+            type: true,
+            content: true
+          }
+        }
+      },
+      orderBy: { createdAt: "desc" }
+    });
+
+    // Count
+    const submissionsCount = submissions.length;
+
+    // Process list (parse content JSON)
+    const list = submissions.map(sub => {
+       let parsedContent = null;
+       try {
+          parsedContent = sub.content ? JSON.parse(sub.content) : null;
+       } catch (e) {
+          parsedContent = sub.content;
+       }
+       return {
+          id: sub.id,
+          createdAt: sub.createdAt,
+          user: sub.user,
+          content: parsedContent,
+          blockType: sub.landingBlock?.type
+       };
     });
 
     return NextResponse.json({
       views: landing.views,
-      submissions: submissionsCount
+      submissions: submissionsCount,
+      list
     });
 
   } catch (error) {

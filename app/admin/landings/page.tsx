@@ -153,8 +153,8 @@ export default function LandingsPage() {
 
       {/* STATS MODAL */}
       {statsOpen && selectedLanding && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-           <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
+           <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden my-8">
               <div className="p-4 border-b flex justify-between items-center bg-gray-50">
                  <h3 className="font-bold text-lg">Статистика: {selectedLanding.title}</h3>
                  <button onClick={() => setStatsOpen(false)} className="text-gray-400 hover:text-gray-600">
@@ -184,12 +184,82 @@ export default function LandingsPage() {
                           </div>
                           <div className="text-xs uppercase font-bold text-gray-400 tracking-wider">Конверсия</div>
                        </div>
+                    
+                       {/* Table Section */}
+                       <div className="mt-8">
+                       <h4 className="font-bold text-gray-800 mb-4">Последние заявки</h4>
+                       <div className="bg-gray-50 rounded-xl border overflow-hidden">
+                          <table className="w-full text-sm text-left">
+                             <thead className="bg-gray-100 text-gray-500 font-medium">
+                                <tr>
+                                   <th className="p-3">Дата</th>
+                                   <th className="p-3">Пользователь</th>
+                                   <th className="p-3">Данные</th>
+                                </tr>
+                             </thead>
+                             <tbody className="divide-y">
+                                {currentStats.list && currentStats.list.length > 0 ? (
+                                   currentStats.list.map((sub: any) => (
+                                      <tr key={sub.id} className="hover:bg-white transition-colors">
+                                         <td className="p-3 text-gray-500 whitespace-nowrap">
+                                            {new Date(sub.createdAt).toLocaleString('ru-RU')}
+                                         </td>
+                                         <td className="p-3">
+                                            {sub.user ? (
+                                               <div>
+                                                  <div className="font-medium">{sub.user.fullName || "Без имени"}</div>
+                                                  <div className="text-xs text-gray-400">{sub.user.email}</div>
+                                               </div>
+                                            ) : (
+                                               <span className="text-gray-400 italic">Аноним</span>
+                                            )}
+                                         </td>
+                                         <td className="p-3">
+                                            {sub.content ? (
+                                               <div className="space-y-1">
+                                                  {Object.entries(sub.content).map(([key, value]: [string, any]) => {
+                                                     if (key === '_answers') {
+                                                        return (
+                                                           <div key={key} className="pt-1 mt-1 border-t border-dashed">
+                                                              {Object.values(value).map((ans: any, idx) => (
+                                                                 <div key={idx} className="text-xs text-blue-600">
+                                                                    <span className="opacity-70">Ответ:</span> {ans}
+                                                                 </div>
+                                                              ))}
+                                                           </div>
+                                                        );
+                                                     }
+                                                     return (
+                                                        <div key={key} className="flex gap-2">
+                                                           <span className="text-gray-500 opacity-70">{key}:</span>
+                                                           <span className="font-medium text-gray-800">{String(value)}</span>
+                                                        </div>
+                                                     );
+                                                  })}
+                                               </div>
+                                            ) : (
+                                               <span className="text-gray-400">-</span>
+                                            )}
+                                         </td>
+                                      </tr>
+                                   ))
+                                ) : (
+                                   <tr>
+                                      <td colSpan={3} className="p-4 text-center text-gray-400 italic">
+                                         Нет заявок
+                                      </td>
+                                   </tr>
+                                )}
+                             </tbody>
+                          </table>
+                       </div>
                     </div>
-                 ) : (
-                    <div className="py-12 flex justify-center">
-                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                    </div>
-                 )}
+                 </div>
+              ) : (
+                 <div className="py-12 flex justify-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                 </div>
+              )}
               </div>
            </div>
         </div>

@@ -64,11 +64,13 @@ export async function POST(req: Request) {
     }
 
     // 4. Create Submission
+    // 4. Create Submission
     const submission = await prisma.homeworkSubmission.create({
       data: {
         userId: user.id,
         landingBlockId: blockId,
-        content: JSON.stringify(data),
+        // Store both form data and text answers
+        content: JSON.stringify({ ...data, _answers: answers }),
         status: "pending",
         autoResponseScheduledAt,
         responseTemplateIndex
