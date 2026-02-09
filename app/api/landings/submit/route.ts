@@ -266,7 +266,13 @@ export async function POST(req: Request) {
           
           if (bitrixUrl) {
              const fs = require('fs');
-             const debugLog = (msg: string) => fs.appendFileSync('/tmp/bitrix_debug.log', `[${new Date().toISOString()}] ${msg}\n`);
+             const logPath = '/tmp/bitrix_debug.log';
+             const debugLog = (msg: string) => {
+                 try {
+                     fs.appendFileSync(logPath, `[${new Date().toISOString()}] ${msg}\n`);
+                     console.log(`[BITRIX] ${msg}`);
+                 } catch (e) { console.error("Log failed", e); }
+             };
 
              debugLog("Starting Bitrix integration...");
              const funnelId = process.env.BITRIX_FUNNEL_ID || "14";
@@ -365,7 +371,7 @@ export async function POST(req: Request) {
                 // 3. Right Hand Logic: Find "Left" (Old) Open Deals and Close them
                 try {
                    debugLog("Searching for old open deals...");
-                   const oldDealsRes = await fetch(`${bitrixUrl}crm.deal.list?filter[CONTACT_ID]=${contactId}&filter[CLOSED]=N&select[]=ID&select[]=TITLE&select[]=DATE_CREATE`);
+                   const oldDealsRes = await fetch(`${bitrixUrl}crm.deal.list?filter[CONTACT_ID]=${contactId}&filter[CLOSED]=N&select[]=ID&select[]=TITLE&select[]=DATE_CREATE&select[]=CATEGORY_ID`);
                    const oldDealsData = await oldDealsRes.json();
                    const oldDeals = oldDealsData.result || [];
 
@@ -382,15 +388,19 @@ export async function POST(req: Request) {
                       // We'll stick to C{ID}:LOSE strategy or just "LOSE" if ID=0.
 
                       for (const oldDeal of dealsToClose) {
+                         // Determine correct LOSE stage for THIS deal's category
+                         const oldCategoryId = oldDeal.CATEGORY_ID || 0;
+                         const dealLoseStage = oldCategoryId == 0 ? "LOSE" : `C${oldCategoryId}:LOSE`;
+
                          // Close Old Deal
-                         debugLog(`Closing old deal #${oldDeal.ID}...`);
+                         debugLog(`Closing old deal #${oldDeal.ID} in funnel ${oldCategoryId} (Stage: ${dealLoseStage})...`);
                          await fetch(`${bitrixUrl}crm.deal.update`, {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({ 
                                id: oldDeal.ID, 
                                fields: { 
-                                  STAGE_ID: loseStage,
+                                  STAGE_ID: dealLoseStage,
                                   CLOSED: "Y" // Ensure it closes
                                } 
                             })
