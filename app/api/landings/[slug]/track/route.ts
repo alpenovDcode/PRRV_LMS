@@ -5,7 +5,7 @@ import { cookies } from "next/headers";
 
 const prisma = new PrismaClient();
 
-export async function POST(req: Request, { params }: { params: { slug: string } }) {
+export async function POST(req: Request, { params }: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await params;
     const cookieStore = await cookies();
