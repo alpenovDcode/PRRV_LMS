@@ -548,6 +548,7 @@ model LandingPage {
   title       String
   slug        String         @unique
   isPublished Boolean        @default(false) @map("is_published")
+  views       Int            @default(0)
   blocks      LandingBlock[]
   createdAt   DateTime       @default(now()) @map("created_at")
   updatedAt   DateTime       @updatedAt @map("updated_at")

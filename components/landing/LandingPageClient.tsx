@@ -1,20 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import LandingForm from "./LandingForm";
 import HeroBlock from "./blocks/HeroBlock";
 import FeaturesBlock from "./blocks/FeaturesBlock";
 import ButtonBlock from "./blocks/ButtonBlock";
 
 interface WrapperProps {
+  slug: string;
   blocks: any[]; 
   initialSubmissions?: Record<string, any>;
 }
 
-export default function LandingPageClient({ blocks, initialSubmissions = {} }: WrapperProps) {
+export default function LandingPageClient({ slug, blocks, initialSubmissions = {} }: WrapperProps) {
   // Global state for answers from Text Blocks
   // Key: blockId, Value: text answer
   const [answers, setAnswers] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    // Track view (only once per mount)
+    fetch(`/api/landings/${slug}/track`, { method: "POST" })
+      .catch((err) => console.error("Tracking error:", err));
+  }, [slug]);
 
   const handleAnswerChange = (blockId: string, text: string) => {
     setAnswers(prev => ({ ...prev, [blockId]: text }));

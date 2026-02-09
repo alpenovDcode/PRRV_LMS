@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Plus, Globe, Eye, MoreHorizontal, Copy, Trash } from "lucide-react";
+import { Plus, Globe, Eye, MoreHorizontal, Copy, Trash, BarChart, X } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 
 interface LandingPage {
@@ -16,6 +16,9 @@ interface LandingPage {
 export default function LandingsPage() {
   const [landings, setLandings] = useState<LandingPage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [statsOpen, setStatsOpen] = useState(false);
+  const [currentStats, setCurrentStats] = useState<any>(null);
+  const [selectedLanding, setSelectedLanding] = useState<LandingPage | null>(null);
 
   useEffect(() => {
     fetchLandings();
@@ -54,6 +57,18 @@ export default function LandingsPage() {
       setLandings(landings.filter((l) => l.id !== id));
     } catch (error) {
       alert("Ошибка удаления");
+    }
+  };
+
+  const openStats = async (landing: LandingPage) => {
+    setSelectedLanding(landing);
+    setStatsOpen(true);
+    setCurrentStats(null); // Reset
+    try {
+       const { data } = await apiClient.get(`/admin/landings/${landing.id}/stats`);
+       setCurrentStats(data);
+    } catch (error) {
+       alert("Не удалось загрузить статистику");
     }
   };
 
@@ -112,6 +127,13 @@ export default function LandingsPage() {
                 <Eye size={20} />
               </Link>
               <button
+                 onClick={() => openStats(landing)}
+                 className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                 title="Статистика"
+              >
+                 <BarChart size={20} />
+              </button>
+              <button
                 onClick={() => deleteLanding(landing.id)}
                 className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
                 title="Удалить"
@@ -128,6 +150,50 @@ export default function LandingsPage() {
           </div>
         )}
       </div>
+
+      {/* STATS MODAL */}
+      {statsOpen && selectedLanding && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+           <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+              <div className="p-4 border-b flex justify-between items-center bg-gray-50">
+                 <h3 className="font-bold text-lg">Статистика: {selectedLanding.title}</h3>
+                 <button onClick={() => setStatsOpen(false)} className="text-gray-400 hover:text-gray-600">
+                    <X size={20} />
+                 </button>
+              </div>
+              
+              <div className="p-6">
+                 {currentStats ? (
+                    <div className="space-y-6">
+                       <div className="grid grid-cols-2 gap-4">
+                          <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 text-center">
+                             <div className="text-3xl font-bold text-blue-600">{currentStats.views}</div>
+                             <div className="text-sm text-blue-800 font-medium opacity-70">Просмотры</div>
+                          </div>
+                          <div className="p-4 bg-purple-50 rounded-xl border border-purple-100 text-center">
+                             <div className="text-3xl font-bold text-purple-600">{currentStats.submissions}</div>
+                             <div className="text-sm text-purple-800 font-medium opacity-70">Заявки</div>
+                          </div>
+                       </div>
+                       
+                       <div className="p-4 bg-gray-50 rounded-xl text-center">
+                          <div className="text-xl font-bold text-gray-800">
+                             {currentStats.views > 0 
+                               ? ((currentStats.submissions / currentStats.views) * 100).toFixed(1) 
+                               : 0}%
+                          </div>
+                          <div className="text-xs uppercase font-bold text-gray-400 tracking-wider">Конверсия</div>
+                       </div>
+                    </div>
+                 ) : (
+                    <div className="py-12 flex justify-center">
+                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    </div>
+                 )}
+              </div>
+           </div>
+        </div>
+      )}
     </div>
   );
 }

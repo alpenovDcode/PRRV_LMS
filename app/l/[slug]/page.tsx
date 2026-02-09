@@ -46,7 +46,7 @@ export default async function LandingPage({ params }: { params: Promise<{ slug: 
 
   return (
     <div className="min-h-screen bg-white text-gray-900 font-sans">
-       <LandingPageClient blocks={visibleBlocks} initialSubmissions={initialSubmissions} />
+       <LandingPageClient slug={slug} blocks={visibleBlocks} initialSubmissions={initialSubmissions} />
     </div>
   );
 }
