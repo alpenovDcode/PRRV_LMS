@@ -236,43 +236,61 @@ export async function POST(req: Request) {
                 });
                 log(`Linked submission ${submissionId} to lesson ${lesson.id}`);
 
-                // --- AI AUTO-GRADING (TEMPORARILY DISABLED) ---
+                // --- AI AUTO-GRADING ---
                 if (lesson.aiPrompt) {
-                   log(`[STUB] AI grading temporarily disabled. Submission ${submissionId} saved without auto-grading.`);
+                   log(`Lesson has AI prompt. Starting auto-grading for submission ${submissionId}...`);
+                   const aiResult = await gradeHomework(
+                      // Combine form data and answers for full context
+                      JSON.stringify({ form: data, answers: answers }), 
+                      lesson.aiPrompt
+                   );
                    
-                   // Mark as pending review instead of auto-grading
+                   log(`AI Result: ${JSON.stringify(aiResult)}`);
+                   
                    await prisma.homeworkSubmission.update({
                       where: { id: submissionId },
                       data: {
-                         status: "pending",
-                         curatorComment: "Ваши ответы приняты и ожидают проверки.",
+                         status: aiResult.status,
+                         curatorComment: aiResult.comment,
+                         reviewedAt: new Date(),
+                         curatorId: null // System
                       }
                    });
-                   log('Submission marked as PENDING (AI disabled)');
+                   log('Submission updated with AI result');
                    
                    await prisma.auditLog.create({
                       data: {
                          userId: user.id,
-                         action: "SUBMISSION_SAVED",
+                         action: "AI_GRADING",
                          entity: "HomeworkSubmission",
                          entityId: submissionId,
-                         details: { ai_disabled: true, note: "AI grading temporarily disabled" }
+                         details: { status: aiResult.status, comment_length: aiResult.comment?.length }
                       }
                    });
-                   log('Audit log created: SUBMISSION_SAVED');
+                   log('Audit log created: AI_GRADING');
 
-                   // Email notification (TEMPORARILY DISABLED)
-                   log(`[STUB] Email sending temporarily disabled. Would have sent to ${email}`);
-                   
-                   await prisma.auditLog.create({
-                      data: {
-                         userId: user.id,
-                         action: "EMAIL_SKIPPED",
-                         entity: "HomeworkSubmission",
-                         entityId: submissionId,
-                         details: { type: "graded", email, reason: "Email temporarily disabled" }
-                      }
-                   });
+                   // Send Grading Notification
+                   try {
+                       log(`Sending homework graded email to ${email}`);
+                       await sendEmail({
+                         to: email,
+                         subject: `Результат проверки ДЗ: ${lesson.title}`,
+                         html: emailTemplates.homeworkGraded(lesson.title, aiResult.status, aiResult.comment)
+                       });
+                       log('Graded email sent');
+                       
+                       await prisma.auditLog.create({
+                          data: {
+                             userId: user.id,
+                             action: "EMAIL_SENT",
+                             entity: "HomeworkSubmission",
+                             entityId: submissionId,
+                             details: { type: "graded", email, status: aiResult.status }
+                          }
+                       });
+                   } catch (e: any) {
+                       log(`[ERROR] Failed to send graded email: ${e.message}`);
+                   }
                 } else {
                    log('No AI Prompt for lesson');
                 }
@@ -623,11 +641,7 @@ export async function POST(req: Request) {
        }
     })();
 
-    return NextResponse.json({ 
-      success: true, 
-      submissionId: submission.id,
-      message: "Спасибо! Ваши ответы приняты. На указанную вами почту придут данные для входа."
-    });
+    return NextResponse.json({ success: true, submissionId: submission.id });
   } catch (error) {
     console.error("Submit error:", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
