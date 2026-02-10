@@ -56,13 +56,15 @@ export default function LandingConstructor({
   initialBlocks,
   initialIsPublished,
   slug,
+  initialSettings,
   onSave 
 }: { 
   landingId: string, 
   initialBlocks: any[],
+  initialSettings?: any,
   initialIsPublished: boolean,
   slug?: string,
-  onSave: (blocks: Block[], isPublished: boolean) => void
+  onSave: (blocks: Block[], isPublished: boolean, settings: any) => void
 }) {
   // Migration logic for old blocks
   const normalizedBlocks = initialBlocks.map(b => ({
@@ -74,6 +76,8 @@ export default function LandingConstructor({
 
   const [blocks, setBlocks] = useState<Block[]>(normalizedBlocks);
   const [isPublished, setIsPublished] = useState(initialIsPublished);
+  const [settings, setSettings] = useState(initialSettings || {});
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [activeBlockId, setActiveBlockId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"content" | "design" | "settings">("content");
   const [lessons, setLessons] = useState<any[]>([]);
@@ -274,7 +278,7 @@ export default function LandingConstructor({
                  onClick={() => {
                     const newStatus = !isPublished;
                     setIsPublished(newStatus);
-                    onSave(blocks, newStatus);
+                    onSave(blocks, newStatus, settings);
                  }}
                  className={`px-3 py-2 text-sm rounded-lg font-medium border transition-all flex items-center justify-center gap-2 ${
                     isPublished 
@@ -287,12 +291,21 @@ export default function LandingConstructor({
                  {isPublished ? "Опубликовано" : "Черновик"}
                </button>
                <button 
-                 onClick={() => onSave(blocks, isPublished)}
+                 onClick={() => onSave(blocks, isPublished, settings)}
                  className="px-3 py-2 bg-blue-600 text-white text-sm rounded-lg font-medium hover:bg-blue-700 hover:shadow-md transition-all flex items-center justify-center gap-2"
                >
                  Сохранить
                </button>
             </div>
+            
+            {/* GLOBAL SETTINGS BUTTON */}
+            <button 
+               onClick={() => setShowSettingsModal(true)}
+               className="w-full py-2 flex items-center justify-center gap-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:text-gray-900 transition-colors"
+            >
+               <Settings size={16} />
+               Настройки интеграций
+            </button>
          </div>
 
          {/* CONTENT (if active block) */}
@@ -666,6 +679,74 @@ export default function LandingConstructor({
            </div>
          )}
       </div>
+
+      {/* SETTINGS MODAL */}
+      {showSettingsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+           <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex items-center justify-between p-4 border-b bg-gray-50">
+                 <h3 className="font-bold text-lg flex items-center gap-2">
+                    <Settings size={20} className="text-gray-500" />
+                    Настройки лендинга
+                 </h3>
+                 <button onClick={() => setShowSettingsModal(false)} className="p-1 hover:bg-gray-200 rounded-lg transition">
+                    <X size={20} />
+                 </button>
+              </div>
+              
+              <div className="p-6 space-y-6">
+                 {/* BITRIX INTEGRATION */}
+                 <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                       <h4 className="font-semibold text-gray-800">Интеграция с Битрикс24</h4>
+                       <label className="relative inline-flex items-center cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            className="sr-only peer" 
+                            checked={settings?.bitrix?.enabled || false}
+                            onChange={e => setSettings({ 
+                               ...settings, 
+                               bitrix: { ...settings?.bitrix, enabled: e.target.checked } 
+                            })}
+                          />
+                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                       </label>
+                    </div>
+
+                    {settings?.bitrix?.enabled && (
+                       <div className="space-y-3 p-4 bg-blue-50 border border-blue-100 rounded-xl animate-in fade-in slide-in-from-top-2">
+                          <div>
+                             <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Target Stage ID (Сделка)</label>
+                             <input 
+                                className="w-full p-2 border rounded text-sm font-mono"
+                                placeholder="C14:NEW (Default)"
+                                value={settings?.bitrix?.targetStageId || ""}
+                                onChange={e => setSettings({
+                                   ...settings,
+                                   bitrix: { ...settings?.bitrix, targetStageId: e.target.value }
+                                })}
+                             />
+                             <p className="text-xs text-gray-500 mt-1">
+                                ID стадии, куда будет попадать сделка. Если пусто, используется системный `BITRIX_SOURCE_STAGE_ID`.
+                             </p>
+                          </div>
+                       </div>
+                    )}
+                 </div>
+              </div>
+
+              <div className="p-4 border-t bg-gray-50 flex justify-end">
+                 <button 
+                   onClick={() => setShowSettingsModal(false)}
+                   className="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition"
+                 >
+                    Готово
+                 </button>
+              </div>
+           </div>
+        </div>
+      )}
+
     </div>
   );
 }

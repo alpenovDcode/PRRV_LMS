@@ -8,18 +8,11 @@ export default function EditLandingPage({ params }: { params: Promise<{ id: stri
   const { id } = use(params);
   const [initialBlocks, setInitialBlocks] = useState([]);
   const [isPublished, setIsPublished] = useState(false);
+  const [initialSettings, setInitialSettings] = useState({});
   const [slug, setSlug] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 1. Fetch metadata (published status)
-    apiClient.get(`/landings`) // Optimization: fetch specific, but list is cached/fast enough for now or assume passed. 
-    // actually we need specific. Let's create GET /api/landings/[id] later if needed.
-    // For now, let's assume we can add GET to [id] route I just created.
-    // Wait, I didn't add GET to [id] route yet. I only added PATCH.
-    // Let's rely on list or just add GET.
-    // Let's add GET to [id] route as well to be clean.
-    
     Promise.all([
        apiClient.get(`/landings/${id}/blocks`),
        apiClient.get(`/landings/${id}`)
@@ -36,20 +29,18 @@ export default function EditLandingPage({ params }: { params: Promise<{ id: stri
         if (landingRes.data) {
            setIsPublished(landingRes.data.isPublished);
            setSlug(landingRes.data.slug);
+           setInitialSettings(landingRes.data.settings || {});
         }
 
         setLoading(false);
     });
   }, [id]);
 
-  // FIXME: Need to fetch isPublished to show correct initial state. 
-  // I will add GET to /api/landings/[id] in next tool call and use it here.
-  
-  const handleSave = async (blocks: any[], published: boolean) => {
+  const handleSave = async (blocks: any[], published: boolean, settings: any) => {
     try {
       await Promise.all([
          apiClient.post(`/landings/${id}/blocks`, { blocks }),
-         apiClient.patch(`/landings/${id}`, { isPublished: published })
+         apiClient.patch(`/landings/${id}`, { isPublished: published, settings })
       ]);
       alert("Сохранено!");
     } catch (e) {
@@ -68,6 +59,7 @@ export default function EditLandingPage({ params }: { params: Promise<{ id: stri
         landingId={id} 
         initialBlocks={initialBlocks} 
         initialIsPublished={isPublished}
+        initialSettings={initialSettings}
         slug={slug}
         onSave={handleSave} 
       />

@@ -29,7 +29,8 @@ export async function PATCH(
       data: {
         title: body.title,
         slug: body.slug,
-        isPublished: body.isPublished
+        isPublished: body.isPublished,
+        settings: body.settings ?? undefined // Only update if provided
       }
     });
     return NextResponse.json(landing);

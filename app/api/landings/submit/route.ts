@@ -301,8 +301,17 @@ export async function POST(req: Request) {
 
           // --- BITRIX LOGIC ---
           const bitrixUrl = process.env.BITRIX24_WEBHOOK_URL;
+          const pageSettings = (landingBlock?.page as any)?.settings;
+          // Default to enabled if no settings (legacy behavior), OR check explicit enable flag
+          // Actually, if settings exist, we should probably respect them. 
+          // If settings are null, we default to enabled (legacy)? 
+          // User asked: "toggle... if check is set, integration works". 
+          // So if settings exist, we follow them. If not (legacy pages), we probably should keep working or default to disabled?
+          // Let's assume: if settings.bitrix is defined, we use it. If not, we fall back to global enabled (existing behavior).
           
-          if (bitrixUrl) {
+          const isBitrixEnabled = pageSettings?.bitrix?.enabled ?? true; // Default to true for backward compatibility if not set
+          
+          if (bitrixUrl && isBitrixEnabled) {
              const fs = require('fs');
              const logPath = '/tmp/bitrix_debug.log';
              const debugLog = (msg: string) => {
@@ -314,7 +323,9 @@ export async function POST(req: Request) {
 
              debugLog("Starting Bitrix integration...");
              const funnelId = process.env.BITRIX_FUNNEL_ID || "14";
-             const stageId = process.env.BITRIX_SOURCE_STAGE_ID || "C14:PREPAYMENT_INVOIC";
+             
+             // Use Stage ID from settings OR Env
+             const stageId = pageSettings?.bitrix?.targetStageId || process.env.BITRIX_SOURCE_STAGE_ID || "C14:PREPAYMENT_INVOIC";
              
              // Fetch all blocks to resolve question texts
              const allBlocks = await prisma.landingBlock.findMany({
