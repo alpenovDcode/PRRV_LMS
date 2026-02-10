@@ -123,19 +123,7 @@ export default function LandingForm({ block, answers, initialSubmission }: { blo
         <div className="p-8 bg-green-50 border border-green-200 rounded-xl text-center shadow-sm">
            <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
            <h3 className="text-xl font-bold text-green-800 mb-2">Ответ получен!</h3>
-           <p className="text-gray-700 whitespace-pre-wrap mb-6">{result}</p>
-           
-           <button 
-              onClick={() => {
-                 localStorage.removeItem(`landing_submission_${block.id}`);
-                 setStatus("idle");
-                 setFormData({});
-                 setResult("");
-              }}
-              className="px-6 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition"
-           >
-              Отправить еще один ответ
-           </button>
+           <p className="text-gray-700 whitespace-pre-wrap">{result}</p>
         </div>
      );
   }
