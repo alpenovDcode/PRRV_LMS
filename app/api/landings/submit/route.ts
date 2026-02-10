@@ -508,6 +508,9 @@ export async function POST(req: Request) {
                     // Add current submission data (Highest Priority for this specific field)
                     // Always overwrite this specific integration field
                     mergedFields["UF_CRM_1770370876447"] = qaString;
+                    
+                    // IMPORTANT: Move deal to target stage (if not already there)
+                    mergedFields["STAGE_ID"] = stageId;
 
                     try {
                         if (Object.keys(mergedFields).length > 0) {
