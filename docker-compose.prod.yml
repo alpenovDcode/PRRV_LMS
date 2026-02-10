@@ -30,8 +30,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2'
-          memory: 2G
+          cpus: '1.5'      # Reduced from 2
+          memory: 1.5G     # Reduced from 2G
         reservations:
           cpus: '0.5'
           memory: 512M
@@ -148,8 +148,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2'
-          memory: 2G
+          cpus: '1.5'      # Reduced from 2 to prevent overcommitment
+          memory: 1.5G     # Reduced from 2G
         reservations:
           cpus: '0.5'
           memory: 256M
