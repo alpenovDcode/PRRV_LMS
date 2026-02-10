@@ -145,6 +145,45 @@ export async function POST(req: Request) {
           });
           log(`Landing block fetch result: ${landingBlock ? 'Found' : 'Null'}`);
 
+          // --- KEYWORD COLLECTION LOGIC ---
+          if (landingBlock?.content && typeof landingBlock.content === 'object') {
+             const blockContent = landingBlock.content as any;
+             
+             if (blockContent.isKeywordField && blockContent.hasInput && answers && answers.length > 0) {
+                // Extract keyword from first answer (text input blocks typically have one answer)
+                const keywordAnswer = answers[0]?.value;
+                
+                if (keywordAnswer && typeof keywordAnswer === 'string' && keywordAnswer.trim() !== '') {
+                   log(`Saving keyword: "${keywordAnswer}" for user ${user.id}`);
+                   
+                   try {
+                      await prisma.user.update({
+                         where: { id: user.id },
+                         data: {
+                            keywords: {
+                               push: keywordAnswer.trim()
+                            }
+                         }
+                      });
+                      
+                      log(`Keyword saved successfully`);
+                      
+                      await prisma.auditLog.create({
+                         data: {
+                            userId: user.id,
+                            action: "KEYWORD_SAVED",
+                            entity: "User",
+                            entityId: user.id,
+                            details: { keyword: keywordAnswer.trim(), blockId }
+                         }
+                      });
+                   } catch (e: any) {
+                      log(`[ERROR] Failed to save keyword: ${e.message}`);
+                   }
+                }
+             }
+          }
+
           let lessonId = landingBlock?.lessonId;
           const submissionId = submission.id;
 

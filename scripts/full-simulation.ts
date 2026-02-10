@@ -7,7 +7,7 @@ import { generateAccessToken, generateSessionId } from "../lib/auth";
 
 // Configuration
 const BASE_URL = process.env.BASE_URL || "https://prrv.tech";
-const USER_COUNT = 100;
+const USER_COUNT = 500;
 const TEST_EMAIL_DOMAIN = "loadtest.local";
 const PASSWORD = "password123";
 const CONCURRENT_BATCH_SIZE = 20;

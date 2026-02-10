@@ -340,12 +340,32 @@ export default function LandingConstructor({
                                </label>
                                
                                {activeBlock.content.hasInput && (
-                                  <Input 
-                                     label="Заголовок поля (Label)" 
-                                     value={activeBlock.content.inputLabel} 
-                                     onChange={v => updateContent(activeBlock.id, { inputLabel: v })} 
-                                     placeholder="Например: Ваш ответ"
-                                  />
+                                  <>
+                                     <Input 
+                                        label="Заголовок поля (Label)" 
+                                        value={activeBlock.content.inputLabel} 
+                                        onChange={v => updateContent(activeBlock.id, { inputLabel: v })} 
+                                        placeholder="Например: Ваш ответ"
+                                     />
+                                     
+                                     <label className="flex items-center gap-2 cursor-pointer select-none mt-2">
+                                        <input 
+                                           type="checkbox" 
+                                           className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                           checked={activeBlock.content.isKeywordField || false} 
+                                           onChange={e => updateContent(activeBlock.id, { isKeywordField: e.target.checked })} 
+                                        />
+                                        <span className="text-sm font-medium text-gray-700">
+                                           Сохранять как ключевое слово
+                                        </span>
+                                     </label>
+                                     
+                                     {activeBlock.content.isKeywordField && (
+                                        <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700">
+                                           💡 Ответы пользователей будут накапливаться в их профиле
+                                        </div>
+                                     )}
+                                  </>
                                )}
                             </div>
                          </div>

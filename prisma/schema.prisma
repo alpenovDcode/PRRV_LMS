@@ -54,6 +54,7 @@ model User {
   userSessions            UserSession[]
   errorLogs               ErrorLog[]
   loginTokens             LoginToken[]
+  keywords                String[]                @default([])  // Накопленные ключевые слова из форм
 
   @@index([email])
   @@map("users")
