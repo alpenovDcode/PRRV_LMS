@@ -78,6 +78,10 @@ export default function LandingConstructor({
   const [isPublished, setIsPublished] = useState(initialIsPublished);
   const [settings, setSettings] = useState(initialSettings || {});
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [bitrixFunnels, setBitrixFunnels] = useState<any[]>([]);
+  const [loadingFunnels, setLoadingFunnels] = useState(false);
+  const [expandedFunnelId, setExpandedFunnelId] = useState<string | null>(null);
+
   const [activeBlockId, setActiveBlockId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"content" | "design" | "settings">("content");
   const [lessons, setLessons] = useState<any[]>([]);
@@ -717,19 +721,99 @@ export default function LandingConstructor({
                        <div className="space-y-3 p-4 bg-blue-50 border border-blue-100 rounded-xl animate-in fade-in slide-in-from-top-2">
                           <div>
                              <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Target Stage ID (Сделка)</label>
-                             <input 
-                                className="w-full p-2 border rounded text-sm font-mono"
-                                placeholder="C14:NEW (Default)"
-                                value={settings?.bitrix?.targetStageId || ""}
-                                onChange={e => setSettings({
-                                   ...settings,
-                                   bitrix: { ...settings?.bitrix, targetStageId: e.target.value }
-                                })}
-                             />
+                             <div className="flex gap-2">
+                                <input 
+                                   className="w-full p-2 border rounded text-sm font-mono"
+                                   placeholder="C14:NEW (Default)"
+                                   value={settings?.bitrix?.targetStageId || ""}
+                                   onChange={e => setSettings({
+                                      ...settings,
+                                      bitrix: { ...settings?.bitrix, targetStageId: e.target.value }
+                                   })}
+                                />
+                                <button 
+                                   onClick={async () => {
+                                      if (bitrixFunnels.length > 0) {
+                                         // Already loaded, just toggle visibility or scroll?
+                                         // For now just re-fetch to be safe or do nothing
+                                      } else {
+                                         setLoadingFunnels(true);
+                                         try {
+                                            const res = await fetch('/api/bitrix/funnels');
+                                            const data = await res.json();
+                                            if (Array.isArray(data)) {
+                                               setBitrixFunnels(data);
+                                            } else {
+                                               alert("Ошибка загрузки данных из Bitrix");
+                                            }
+                                         } catch (e) {
+                                            alert("Ошибка сети");
+                                         } finally {
+                                            setLoadingFunnels(false);
+                                         }
+                                      }
+                                   }}
+                                   className="px-3 py-2 bg-white border border-blue-200 text-blue-600 rounded hover:bg-blue-50 text-xs font-bold whitespace-nowrap flex items-center gap-1 transition-colors"
+                                   title="Загрузить список воронок из Bitrix24"
+                                >
+                                   {loadingFunnels ? "Загрузка..." : "Синхронизировать"}
+                                </button>
+                             </div>
                              <p className="text-xs text-gray-500 mt-1">
                                 ID стадии, куда будет попадать сделка. Если пусто, используется системный `BITRIX_SOURCE_STAGE_ID`.
                              </p>
                           </div>
+
+                          {/* FUNNELS TABLE */}
+                          {(bitrixFunnels.length > 0 || loadingFunnels) && (
+                             <div className="mt-4 border rounded-lg bg-white overflow-hidden">
+                                <div className="bg-gray-100 px-3 py-2 text-xs font-bold text-gray-500 border-b flex justify-between items-center">
+                                   <span>Доступные воронки ({bitrixFunnels.length})</span>
+                                   <button onClick={() => setBitrixFunnels([])} className="text-gray-400 hover:text-gray-600"><X size={14}/></button>
+                                </div>
+                                <div className="max-h-60 overflow-y-auto">
+                                   {loadingFunnels ? (
+                                      <div className="p-4 text-center text-sm text-gray-500">Загрузка данных...</div>
+                                   ) : (
+                                      <div className="divide-y">
+                                         {bitrixFunnels.map(funnel => (
+                                            <div key={funnel.id} className="text-sm">
+                                               <button 
+                                                  onClick={() => setExpandedFunnelId(expandedFunnelId === funnel.id ? null : funnel.id)}
+                                                  className="w-full flex items-center justify-between p-3 hover:bg-gray-50 text-left"
+                                               >
+                                                  <span className="font-medium text-gray-800">{funnel.name || `Воронка #${funnel.id}`}</span>
+                                                  <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{funnel.stages.length} стадий</span>
+                                               </button>
+                                               
+                                               {expandedFunnelId === funnel.id && (
+                                                  <div className="bg-gray-50 p-2 pl-4 space-y-1 border-t shadow-inner">
+                                                     {funnel.stages.map((stage: any) => (
+                                                        <div key={stage.id} className="flex justify-between items-center group">
+                                                           <span className="text-xs text-gray-600">{stage.name}</span>
+                                                           <button 
+                                                              onClick={() => {
+                                                                 setSettings({
+                                                                    ...settings,
+                                                                    bitrix: { ...settings?.bitrix, targetStageId: stage.id }
+                                                                 });
+                                                              }}
+                                                              className="text-xs font-mono bg-white border px-1.5 py-0.5 rounded text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition-colors cursor-pointer"
+                                                              title="Нажмите, чтобы выбрать"
+                                                           >
+                                                              {stage.id}
+                                                           </button>
+                                                        </div>
+                                                     ))}
+                                                  </div>
+                                               )}
+                                            </div>
+                                         ))}
+                                      </div>
+                                   )}
+                                </div>
+                             </div>
+                          )}
                        </div>
                     )}
                  </div>
