@@ -195,7 +195,6 @@ export default function LandingsPage() {
                                   <tr>
                                      <th className="p-3 w-32">Дата</th>
                                      <th className="p-3 w-48">Пользователь</th>
-                                     <th className="p-3 w-48">Контакты</th>
                                      <th className="p-3">Ответы / Данные формы</th>
                                   </tr>
                                </thead>
@@ -204,14 +203,12 @@ export default function LandingsPage() {
                                      currentStats.list.map((sub: any) => {
                                         const content = sub.content || {};
                                         // Extract standard fields to avoid duplication or identifying contact info
-                                        const { name, email, phone, telegram, _answers, ...otherProps } = content;
+                                        const { name, email, _answers, ...otherProps } = content;
                                         const answers = _answers || [];
                                         
                                         // Fallbacks for user info
                                         const displayName = sub.user?.fullName || name || "Без имени";
                                         const displayEmail = sub.user?.email || email || "-";
-                                        const displayPhone = phone || "-";
-                                        const displayTelegram = telegram || "-";
 
                                         return (
                                           <tr key={sub.id} className="hover:bg-gray-50 transition-colors align-top">
@@ -226,25 +223,6 @@ export default function LandingsPage() {
                                                       ID: {sub.user.id.slice(0, 4)}...
                                                    </Badge> 
                                                 )}
-                                             </td>
-                                             <td className="p-3">
-                                                <div className="space-y-1 text-xs">
-                                                   {displayPhone !== "-" && (
-                                                      <div className="flex items-center gap-1">
-                                                         <span className="text-gray-400">Tel:</span>
-                                                         <span>{displayPhone}</span>
-                                                      </div>
-                                                   )}
-                                                   {displayTelegram !== "-" && (
-                                                      <div className="flex items-center gap-1">
-                                                         <span className="text-gray-400">Tg:</span>
-                                                         <span>{displayTelegram}</span>
-                                                      </div>
-                                                   )}
-                                                   {displayPhone === "-" && displayTelegram === "-" && (
-                                                      <span className="text-gray-400 italic">Нет контактов</span>
-                                                   )}
-                                                </div>
                                              </td>
                                              <td className="p-3">
                                                 <div className="grid gap-2">
@@ -287,7 +265,7 @@ export default function LandingsPage() {
                                      })
                                   ) : (
                                      <tr>
-                                        <td colSpan={4} className="p-8 text-center text-gray-400 italic">
+                                        <td colSpan={3} className="p-8 text-center text-gray-400 italic">
                                            Заявок пока нет
                                         </td>
                                      </tr>
