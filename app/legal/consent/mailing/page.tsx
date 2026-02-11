@@ -41,7 +41,7 @@ export default function MailingConsentPage() {
         </p>
 
         <p>
-          Пользователь имеет право отозвать свое согласие посредством направления письма по адресу электронной почты <a href="mailto:top@esvasileva.ru">top@esvasileva.ru</a>
+          Пользователь имеет право отозвать свое согласие посредством направления письма по адресу электронной почты <a href="mailto:hello@prrv.tech">hello@prrv.tech</a>
         </p>
       </CardContent>
     </Card>
