@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CircleCheck, Clock, Filter, Search, User } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
 
 interface InboxItem {
   id: string;
@@ -64,29 +65,40 @@ function getStatusVariant(status: InboxItem["status"]) {
 
 export default function AdminHomeworkPage() {
   const [statusFilter, setStatusFilter] = useState<InboxItem["status"] | "all">("pending");
+  const [typeFilter, setTypeFilter] = useState<"all" | "course" | "landing">("all");
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [limit] = useState(20);
 
-  const { data, isLoading } = useQuery<InboxItem[]>({
-    queryKey: ["admin", "homework", statusFilter],
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+        setDebouncedSearch(search);
+        setPage(1); // Reset page on search
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin", "homework", statusFilter, typeFilter, debouncedSearch, page, limit],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (statusFilter !== "all") params.set("status", statusFilter);
+      if (typeFilter !== "all") params.set("type", typeFilter);
+      if (debouncedSearch) params.set("search", debouncedSearch);
+      params.set("page", page.toString());
+      params.set("limit", limit.toString());
+      
       const response = await apiClient.get(`/curator/homework?${params.toString()}`);
-      return response.data.data || [];
+      return response.data; // { data: [], meta: ... }
     },
   });
 
-  const filtered =
-    data?.filter((item) => {
-      if (!search.trim()) return true;
-      const q = search.toLowerCase();
-      return (
-        item.user.fullName?.toLowerCase().includes(q) ||
-        item.user.email.toLowerCase().includes(q) ||
-        item.course.title.toLowerCase().includes(q) ||
-        item.lesson.title.toLowerCase().includes(q)
-      );
-    }) || [];
+  const submissions = data?.data || [];
+  const meta = data?.meta;
+
+
 
   return (
     <div className="container mx-auto max-w-6xl px-4 py-8 space-y-6">
@@ -99,8 +111,29 @@ export default function AdminHomeworkPage() {
           </div>
           <div className="flex gap-2">
             <Select
+              value={typeFilter}
+              onValueChange={(v) => {
+                  setTypeFilter(v as "all" | "course" | "landing");
+                  setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-[180px]">
+                <Filter className="mr-2 h-4 w-4" />
+                <SelectValue placeholder="Тип" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Все типы</SelectItem>
+                <SelectItem value="course">Курсы</SelectItem>
+                <SelectItem value="landing">Лендинги</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select
               value={statusFilter}
-              onValueChange={(v) => setStatusFilter(v as InboxItem["status"] | "all")}
+              onValueChange={(v) => {
+                  setStatusFilter(v as InboxItem["status"] | "all");
+                  setPage(1);
+              }}
             >
               <SelectTrigger className="w-[180px]">
                 <Filter className="mr-2 h-4 w-4" />
@@ -132,7 +165,7 @@ export default function AdminHomeworkPage() {
           <CardHeader>
             <CardTitle>Домашние задания</CardTitle>
             <CardDescription>
-              {isLoading ? "Загружаем список..." : `Найдено: ${filtered.length}`}
+              {isLoading ? "Загружаем список..." : `Найдено: ${meta?.total || 0}`}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -149,7 +182,7 @@ export default function AdminHomeworkPage() {
                   </div>
                 ))}
               </div>
-            ) : filtered.length === 0 ? (
+            ) : submissions.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
                 <CircleCheck className="h-10 w-10 mb-3" />
                 <p className="font-medium">Нет заданий по текущим фильтрам</p>
@@ -159,7 +192,7 @@ export default function AdminHomeworkPage() {
               </div>
             ) : (
               <div className="space-y-2">
-                {filtered.map((item) => (
+                {submissions.map((item: InboxItem) => (
                   <Link key={item.id} href={`/admin/homework/${item.id}`}>
                     <div className="flex items-center gap-4 rounded-lg border px-4 py-3 hover:bg-accent cursor-pointer transition-colors">
                       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
@@ -198,9 +231,57 @@ export default function AdminHomeworkPage() {
                 ))}
               </div>
             )}
-          </CardContent>
+           </CardContent>
+           
+           {/* Pagination Controls */}
+           {meta && meta.totalPages > 1 && (
+            <div className="flex items-center justify-between p-4 border-t">
+              <div className="text-sm text-gray-500">
+                Показано {submissions.length} из {meta.total} (Страница {meta.page} из {meta.totalPages})
+              </div>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  disabled={page === 1}
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                >
+                  Назад
+                </Button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, meta.totalPages) }, (_, i) => {
+                    let pNum = i + 1;
+                    if (meta.totalPages > 5 && page > 3) {
+                       pNum = page - 2 + i;
+                    }
+                    if (pNum > meta.totalPages) return null;
+                    
+                    return (
+                        <Button
+                          key={pNum}
+                          variant={page === pNum ? "default" : "ghost"}
+                          size="sm"
+                          className="w-8 h-8 p-0"
+                          onClick={() => setPage(pNum)}
+                        >
+                          {pNum}
+                        </Button>
+                    );
+                  })}
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  disabled={page >= meta.totalPages}
+                  onClick={() => setPage(p => p + 1)}
+                >
+                  Вперед
+                </Button>
+              </div>
+            </div>
+           )}
+
         </Card>
     </div>
   );
 }
-

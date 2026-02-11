@@ -11,40 +11,61 @@ export async function GET(request: NextRequest) {
       try {
         const { searchParams } = new URL(request.url);
         const status = searchParams.get("status") as HomeworkStatus | null;
-        const courseId = searchParams.get("courseId");
+        const page = parseInt(searchParams.get("page") || "1");
+        const limit = parseInt(searchParams.get("limit") || "20");
+        const search = searchParams.get("search") || "";
+        const type = searchParams.get("type") as "course" | "landing" | null; // "course" or "landing"
 
-        const submissions = await db.homeworkSubmission.findMany({
-          where: {
-            status: status || undefined,
-            lesson: courseId
-              ? {
+        const where: any = {
+          status: status && status !== "all" as any ? status : undefined,
+        };
+
+        // Type filter
+        if (type === "course") {
+           where.lessonId = { not: null };
+        } else if (type === "landing") {
+           where.landingBlockId = { not: null };
+        }
+
+        // Search filter
+        if (search) {
+          where.OR = [
+            { user: { fullName: { contains: search, mode: "insensitive" } } },
+            { user: { email: { contains: search, mode: "insensitive" } } },
+            { lesson: { title: { contains: search, mode: "insensitive" } } },
+            { landingBlock: { page: { title: { contains: search, mode: "insensitive" } } } },
+          ];
+        }
+
+        const skip = (page - 1) * limit;
+
+        const [submissions, total] = await Promise.all([
+          db.homeworkSubmission.findMany({
+            where,
+            include: {
+              user: true,
+              lesson: {
+                include: {
                   module: {
-                    courseId,
-                  },
-                }
-              : undefined,
-          },
-          include: {
-            user: true,
-            lesson: {
-              include: {
-                module: {
-                  include: {
-                    course: true,
+                    include: {
+                      course: true,
+                    },
                   },
                 },
               },
+              curator: true,
+              landingBlock: {
+                 include: { page: true }
+              }
             },
-            curator: true,
-            landingBlock: {
-               include: { page: true }
-            }
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-          take: 100,
-        });
+            orderBy: {
+              createdAt: "desc",
+            },
+            take: limit,
+            skip: skip,
+          }),
+          db.homeworkSubmission.count({ where }),
+        ]);
 
         const data = submissions.map((s) => ({
           id: s.id,
@@ -71,7 +92,16 @@ export async function GET(request: NextRequest) {
           } : null,
         }));
 
-        return NextResponse.json<ApiResponse>({ success: true, data }, { status: 200 });
+        return NextResponse.json<ApiResponse>({ 
+           success: true, 
+           data,
+           meta: {
+              total,
+              page,
+              limit,
+              totalPages: Math.ceil(total / limit)
+           }
+        }, { status: 200 });
       } catch (error) {
         console.error("Curator inbox error:", error);
         return NextResponse.json<ApiResponse>(
