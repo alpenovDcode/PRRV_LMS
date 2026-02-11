@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Plus, Globe, Eye, MoreHorizontal, Copy, Trash, BarChart, X } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
+import { Badge } from "@/components/ui/badge";
 
 interface LandingPage {
   id: string;
@@ -154,18 +155,18 @@ export default function LandingsPage() {
       {/* STATS MODAL */}
       {statsOpen && selectedLanding && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
-           <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden my-8">
-              <div className="p-4 border-b flex justify-between items-center bg-gray-50">
+           <div className="bg-white rounded-2xl w-full max-w-6xl shadow-2xl overflow-hidden my-8 flex flex-col max-h-[90vh]">
+              <div className="p-4 border-b flex justify-between items-center bg-gray-50 flex-shrink-0">
                  <h3 className="font-bold text-lg">Статистика: {selectedLanding.title}</h3>
                  <button onClick={() => setStatsOpen(false)} className="text-gray-400 hover:text-gray-600">
                     <X size={20} />
                  </button>
               </div>
               
-              <div className="p-6">
+              <div className="p-6 overflow-y-auto flex-1">
                  {currentStats ? (
                     <div className="space-y-6">
-                       <div className="grid grid-cols-2 gap-4">
+                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                           <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 text-center">
                              <div className="text-3xl font-bold text-blue-600">{currentStats.views}</div>
                              <div className="text-sm text-blue-800 font-medium opacity-70">Просмотры</div>
@@ -174,92 +175,135 @@ export default function LandingsPage() {
                              <div className="text-3xl font-bold text-purple-600">{currentStats.submissions}</div>
                              <div className="text-sm text-purple-800 font-medium opacity-70">Заявки</div>
                           </div>
-                       </div>
-                       
-                       <div className="p-4 bg-gray-50 rounded-xl text-center">
-                          <div className="text-xl font-bold text-gray-800">
-                             {currentStats.views > 0 
-                               ? ((currentStats.submissions / currentStats.views) * 100).toFixed(1) 
-                               : 0}%
+                          <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 text-center">
+                             <div className="text-xl font-bold text-gray-800">
+                                {currentStats.views > 0 
+                                  ? ((currentStats.submissions / currentStats.views) * 100).toFixed(1) 
+                                  : 0}%
+                             </div>
+                             <div className="text-xs uppercase font-bold text-gray-400 tracking-wider">Конверсия</div>
                           </div>
-                          <div className="text-xs uppercase font-bold text-gray-400 tracking-wider">Конверсия</div>
                        </div>
                     
                        {/* Table Section */}
                        <div className="mt-8">
                        <h4 className="font-bold text-gray-800 mb-4">Последние заявки</h4>
-                       <div className="bg-gray-50 rounded-xl border overflow-hidden">
-                          <table className="w-full text-sm text-left">
-                             <thead className="bg-gray-100 text-gray-500 font-medium">
-                                <tr>
-                                   <th className="p-3">Дата</th>
-                                   <th className="p-3">Пользователь</th>
-                                   <th className="p-3">Данные</th>
-                                </tr>
-                             </thead>
-                             <tbody className="divide-y">
-                                {currentStats.list && currentStats.list.length > 0 ? (
-                                   currentStats.list.map((sub: any) => (
-                                      <tr key={sub.id} className="hover:bg-white transition-colors">
-                                         <td className="p-3 text-gray-500 whitespace-nowrap">
-                                            {new Date(sub.createdAt).toLocaleString('ru-RU')}
-                                         </td>
-                                         <td className="p-3">
-                                            {sub.user ? (
-                                               <div>
-                                                  <div className="font-medium">{sub.user.fullName || "Без имени"}</div>
-                                                  <div className="text-xs text-gray-400">{sub.user.email}</div>
-                                               </div>
-                                            ) : (
-                                               <span className="text-gray-400 italic">Аноним</span>
-                                            )}
-                                         </td>
-                                         <td className="p-3">
-                                            {sub.content ? (
-                                               <div className="space-y-1">
-                                                  {Object.entries(sub.content).map(([key, value]: [string, any]) => {
-                                                     if (key === '_answers') {
-                                                        return (
-                                                           <div key={key} className="pt-1 mt-1 border-t border-dashed">
-                                                              {Object.values(value).map((ans: any, idx) => (
-                                                                 <div key={idx} className="text-xs text-blue-600">
-                                                                    <span className="opacity-70">Ответ:</span> {ans}
-                                                                 </div>
-                                                              ))}
-                                                           </div>
-                                                        );
-                                                     }
-                                                     return (
-                                                        <div key={key} className="flex gap-2">
-                                                           <span className="text-gray-500 opacity-70">{key}:</span>
-                                                           <span className="font-medium text-gray-800">{String(value)}</span>
-                                                        </div>
-                                                     );
-                                                  })}
-                                               </div>
-                                            ) : (
-                                               <span className="text-gray-400">-</span>
-                                            )}
-                                         </td>
-                                      </tr>
-                                   ))
-                                ) : (
-                                   <tr>
-                                      <td colSpan={3} className="p-4 text-center text-gray-400 italic">
-                                         Нет заявок
-                                      </td>
-                                   </tr>
-                                )}
-                             </tbody>
-                          </table>
+                       <div className="bg-white rounded-xl border overflow-hidden shadow-sm">
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm text-left">
+                               <thead className="bg-gray-100 text-gray-500 font-medium">
+                                  <tr>
+                                     <th className="p-3 w-32">Дата</th>
+                                     <th className="p-3 w-48">Пользователь</th>
+                                     <th className="p-3 w-48">Контакты</th>
+                                     <th className="p-3">Ответы / Данные формы</th>
+                                  </tr>
+                               </thead>
+                               <tbody className="divide-y">
+                                  {currentStats.list && currentStats.list.length > 0 ? (
+                                     currentStats.list.map((sub: any) => {
+                                        const content = sub.content || {};
+                                        // Extract standard fields to avoid duplication or identifying contact info
+                                        const { name, email, phone, telegram, _answers, ...otherProps } = content;
+                                        const answers = _answers || [];
+                                        
+                                        // Fallbacks for user info
+                                        const displayName = sub.user?.fullName || name || "Без имени";
+                                        const displayEmail = sub.user?.email || email || "-";
+                                        const displayPhone = phone || "-";
+                                        const displayTelegram = telegram || "-";
+
+                                        return (
+                                          <tr key={sub.id} className="hover:bg-gray-50 transition-colors align-top">
+                                             <td className="p-3 text-gray-500 whitespace-nowrap">
+                                                {new Date(sub.createdAt).toLocaleString('ru-RU')}
+                                             </td>
+                                             <td className="p-3">
+                                                <div className="font-medium text-gray-900">{displayName}</div>
+                                                <div className="text-xs text-gray-500">{displayEmail}</div>
+                                                {sub.user && (
+                                                   <Badge variant="outline" className="mt-1 text-[10px] h-4 px-1">
+                                                      ID: {sub.user.id.slice(0, 4)}...
+                                                   </Badge> 
+                                                ) /* Assuming Badge is imported or just use span if not */}
+                                             </td>
+                                             <td className="p-3">
+                                                <div className="space-y-1 text-xs">
+                                                   {displayPhone !== "-" && (
+                                                      <div className="flex items-center gap-1">
+                                                         <span className="text-gray-400">Tel:</span>
+                                                         <span>{displayPhone}</span>
+                                                      </div>
+                                                   )}
+                                                   {displayTelegram !== "-" && (
+                                                      <div className="flex items-center gap-1">
+                                                         <span className="text-gray-400">Tg:</span>
+                                                         <span>{displayTelegram}</span>
+                                                      </div>
+                                                   )}
+                                                   {displayPhone === "-" && displayTelegram === "-" && (
+                                                      <span className="text-gray-400 italic">Нет контактов</span>
+                                                   )}
+                                                </div>
+                                             </td>
+                                             <td className="p-3">
+                                                <div className="grid gap-2">
+                                                   {/* Show Answers Array if exists */}
+                                                   {Array.isArray(answers) && answers.length > 0 && (
+                                                      <div className="bg-blue-50/50 p-2 rounded border border-blue-100/50">
+                                                         <div className="text-xs font-semibold text-blue-700 mb-1">Ответы на вопросы:</div>
+                                                         <ul className="list-disc list-inside space-y-0.5">
+                                                            {answers.map((ans: any, idx: number) => (
+                                                               <li key={idx} className="text-sm text-gray-700 marker:text-blue-400">
+                                                                  {typeof ans === 'object' ? JSON.stringify(ans) : String(ans)}
+                                                               </li>
+                                                            ))}
+                                                         </ul>
+                                                      </div>
+                                                   )}
+
+                                                   {/* Show Other Properties */}
+                                                   {Object.entries(otherProps).length > 0 && (
+                                                      <div className="space-y-1">
+                                                         {Object.entries(otherProps).map(([key, value]) => (
+                                                            <div key={key} className="text-sm flex flex-col sm:flex-row sm:gap-2">
+                                                               <span className="text-gray-500 font-medium min-w-[100px]">{key}:</span>
+                                                               <span className="text-gray-800 break-words whitespace-pre-wrap">
+                                                                  {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                                                               </span>
+                                                            </div>
+                                                         ))}
+                                                      </div>
+                                                   )}
+
+                                                   {/* Fallback if empty */}
+                                                   {!Array.isArray(answers) && Object.keys(otherProps).length === 0 && (
+                                                      <span className="text-gray-400 italic text-sm">Нет дополнительных данных</span>
+                                                   )}
+                                                </div>
+                                             </td>
+                                          </tr>
+                                        );
+                                     })
+                                  ) : (
+                                     <tr>
+                                        <td colSpan={4} className="p-8 text-center text-gray-400 italic">
+                                           Заявок пока нет
+                                        </td>
+                                     </tr>
+                                  )}
+                               </tbody>
+                            </table>
+                          </div>
                        </div>
                     </div>
-                 </div>
-              ) : (
-                 <div className="py-12 flex justify-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                 </div>
-              )}
+                    </div>
+                 ) : (
+                    <div className="py-24 flex justify-center items-center">
+                       <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+                       <span className="ml-3 text-gray-500">Загрузка статистики...</span>
+                    </div>
+                 )}
               </div>
            </div>
         </div>
