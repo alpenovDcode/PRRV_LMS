@@ -221,11 +221,11 @@ export default function LandingsPage() {
                                              <td className="p-3">
                                                 <div className="font-medium text-gray-900">{displayName}</div>
                                                 <div className="text-xs text-gray-500">{displayEmail}</div>
-                                                {sub.user && (
+                                                {sub.user && sub.user.id && (
                                                    <Badge variant="outline" className="mt-1 text-[10px] h-4 px-1">
                                                       ID: {sub.user.id.slice(0, 4)}...
                                                    </Badge> 
-                                                ) /* Assuming Badge is imported or just use span if not */}
+                                                )}
                                              </td>
                                              <td className="p-3">
                                                 <div className="space-y-1 text-xs">
