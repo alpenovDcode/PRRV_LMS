@@ -226,19 +226,30 @@ export default function LandingsPage() {
                                              </td>
                                              <td className="p-3">
                                                 <div className="grid gap-2">
-                                                   {/* Show Answers Array if exists */}
-                                                   {Array.isArray(answers) && answers.length > 0 && (
-                                                      <div className="bg-blue-50/50 p-2 rounded border border-blue-100/50">
-                                                         <div className="text-xs font-semibold text-blue-700 mb-1">Ответы на вопросы:</div>
-                                                         <ul className="list-disc list-inside space-y-0.5">
-                                                            {answers.map((ans: any, idx: number) => (
-                                                               <li key={idx} className="text-sm text-gray-700 marker:text-blue-400">
-                                                                  {typeof ans === 'object' ? JSON.stringify(ans) : String(ans)}
-                                                               </li>
-                                                            ))}
-                                                         </ul>
-                                                      </div>
-                                                   )}
+                                                   {/* Show Answers (Array or Object) */}
+                                                   {(() => {
+                                                      const answersList = Array.isArray(answers) 
+                                                         ? answers 
+                                                         : typeof answers === 'object' && answers !== null 
+                                                            ? Object.values(answers) 
+                                                            : [];
+                                                      
+                                                      if (answersList.length > 0) {
+                                                         return (
+                                                            <div className="bg-blue-50/50 p-2 rounded border border-blue-100/50">
+                                                               <div className="text-xs font-semibold text-blue-700 mb-1">Ответы на вопросы:</div>
+                                                               <ul className="list-disc list-inside space-y-0.5">
+                                                                  {answersList.map((ans: any, idx: number) => (
+                                                                     <li key={idx} className="text-sm text-gray-700 marker:text-blue-400">
+                                                                        {typeof ans === 'object' ? JSON.stringify(ans) : String(ans)}
+                                                                     </li>
+                                                                  ))}
+                                                               </ul>
+                                                            </div>
+                                                         );
+                                                      }
+                                                      return null;
+                                                   })()}
 
                                                    {/* Show Other Properties */}
                                                    {Object.entries(otherProps).length > 0 && (
@@ -255,7 +266,7 @@ export default function LandingsPage() {
                                                    )}
 
                                                    {/* Fallback if empty */}
-                                                   {!Array.isArray(answers) && Object.keys(otherProps).length === 0 && (
+                                                   {((!Array.isArray(answers) && (!answers || typeof answers !== 'object' || Object.keys(answers).length === 0)) || (Array.isArray(answers) && answers.length === 0)) && Object.keys(otherProps).length === 0 && (
                                                       <span className="text-gray-400 italic text-sm">Нет дополнительных данных</span>
                                                    )}
                                                 </div>
