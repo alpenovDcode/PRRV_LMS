@@ -80,5 +80,23 @@ export const emailTemplates = {
         </a>
       </p>
     </div>
+  `,
+
+  homeworkAccepted: (lessonTitle: string) => `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2>Ответ принят!</h2>
+      <p>Спасибо за ваш ответ к уроку <strong>"${sanitizeHtml(lessonTitle)}"</strong>!</p>
+      <div style="padding: 15px; border-radius: 5px; background-color: #f0fdf4; border: 1px solid #86efac;">
+        <h3 style="margin-top: 0; color: #166534;">
+          Ответ получен! ✅
+        </h3>
+        <p>Спасибо за заполненную форму! Хорошего дня!</p>
+      </div>
+      <p>
+        <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://prrv.tech'}/dashboard" style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+          Вернуться к обучению
+        </a>
+      </p>
+    </div>
   `
 };

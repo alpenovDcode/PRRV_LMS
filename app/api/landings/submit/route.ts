@@ -292,7 +292,40 @@ export async function POST(req: Request) {
                        log(`[ERROR] Failed to send graded email: ${e.message}`);
                    }
                 } else {
-                   log('No AI Prompt for lesson');
+                   log('No AI Prompt for lesson. Auto-approving submission.');
+                   
+                   // Auto-approve submission
+                   await prisma.homeworkSubmission.update({
+                      where: { id: submissionId },
+                      data: {
+                         status: "approved",
+                         curatorComment: "Ответ получен! Спасибо за заполненную форму! Хорошего дня!",
+                         reviewedAt: new Date(),
+                         curatorId: null // System
+                      }
+                   });
+
+                   try {
+                       log(`Sending answer accepted email to ${email}`);
+                       await sendEmail({
+                         to: email,
+                         subject: `Ответ принят: ${lesson.title}`,
+                         html: emailTemplates.homeworkAccepted(lesson.title)
+                       });
+                       log('Answer accepted email sent');
+                       
+                       await prisma.auditLog.create({
+                          data: {
+                             userId: user.id,
+                             action: "EMAIL_SENT",
+                             entity: "HomeworkSubmission",
+                             entityId: submissionId,
+                             details: { type: "accepted", email }
+                          }
+                       });
+                   } catch (e: any) {
+                       log(`[ERROR] Failed to send accepted email: ${e.message}`);
+                   }
                 }
              }
           } else {

@@ -607,7 +607,34 @@ export default function LessonPlayerPage() {
                         </div>
                         
                         <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{homework.content}</p>
+                          {(() => {
+                            try {
+                              const content = homework.content || "";
+                              // Try parsing as JSON
+                              if (content.trim().startsWith("{")) {
+                                const json = JSON.parse(content);
+                                if (typeof json === 'object' && json !== null && !Array.isArray(json)) {
+                                  return (
+                                    <div className="space-y-3">
+                                      {Object.entries(json).map(([key, value]) => {
+                                        // Skip internal fields (starting with _)
+                                        if (key.startsWith('_')) return null;
+                                        return (
+                                          <div key={key} className="flex flex-col sm:flex-row sm:gap-4 border-b border-gray-200/50 last:border-0 pb-2 last:pb-0">
+                                            <span className="font-semibold text-gray-500 text-xs uppercase tracking-wider shrink-0 w-32 pt-0.5">{key}</span>
+                                            <span className="text-gray-900 text-sm whitespace-pre-wrap flex-1">{String(value)}</span>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  );
+                                }
+                              }
+                            } catch (e) {
+                              // Not JSON or parse error, fall through
+                            }
+                            return <p className="text-sm text-gray-700 whitespace-pre-wrap">{homework.content}</p>;
+                          })()}
                         </div>
 
                         {homework.files && homework.files.length > 0 && (
