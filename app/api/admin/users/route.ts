@@ -48,23 +48,42 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        const users = await db.user.findMany({
-          where: Object.keys(where).length > 0 ? where : undefined,
-          select: {
-            id: true,
-            email: true,
-            fullName: true,
-            role: true,
-            tariff: true,
-            track: true,
-            createdAt: true,
-            lastActiveAt: true,
-          },
-          orderBy: { createdAt: "desc" },
-          take: 200,
-        });
+        const page = parseInt(searchParams.get("page") || "1");
+        const limit = parseInt(searchParams.get("limit") || "20");
+        const skip = (page - 1) * limit;
 
-        return NextResponse.json<ApiResponse>({ success: true, data: users }, { status: 200 });
+        const [users, total] = await Promise.all([
+          db.user.findMany({
+            where: Object.keys(where).length > 0 ? where : undefined,
+            select: {
+              id: true,
+              email: true,
+              fullName: true,
+              role: true,
+              tariff: true,
+              track: true,
+              createdAt: true,
+              lastActiveAt: true,
+            },
+            orderBy: { createdAt: "desc" },
+            take: limit,
+            skip: skip,
+          }),
+          db.user.count({
+            where: Object.keys(where).length > 0 ? where : undefined,
+          }),
+        ]);
+
+        return NextResponse.json<ApiResponse>({ 
+          success: true, 
+          data: users,
+          meta: {
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit)
+          } 
+        }, { status: 200 });
       } catch (error) {
         console.error("Admin users error:", error);
         return NextResponse.json<ApiResponse>(

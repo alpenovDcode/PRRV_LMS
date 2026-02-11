@@ -81,6 +81,15 @@ export default function AdminGroupDetailPage() {
   const [isEditOpen, setIsEditOpen] = React.useState(false);
   const [openCombobox, setOpenCombobox] = React.useState(false);
   const [searchTerm, setSearchTerm] = React.useState("");
+  const [debouncedSearch, setDebouncedSearch] = React.useState("");
+
+  // Debounce search term
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
   const [selectedUserId, setSelectedUserId] = React.useState<string>("");
   const [selectedCourseId, setSelectedCourseId] = React.useState<string>("");
 
@@ -101,13 +110,19 @@ export default function AdminGroupDetailPage() {
     },
   });
 
-  const { data: users } = useQuery<AdminUserOption[]>({
-    queryKey: ["admin", "users", "options"],
+  const { data: usersData, isFetching: isUsersLoading } = useQuery({
+    queryKey: ["admin", "users", "options", debouncedSearch],
     queryFn: async () => {
-      const response = await apiClient.get("/admin/users");
-      return response.data.data;
+      const params = new URLSearchParams();
+      if (debouncedSearch) params.append("search", debouncedSearch);
+      params.append("limit", "20"); // Fetch top 20 matches
+      
+      const response = await apiClient.get(`/admin/users?${params.toString()}`);
+      return response.data; // { data: [...], meta: ... }
     },
   });
+
+  const userOptions = usersData?.data || [];
 
   const { data: courses } = useQuery<AdminCourseOption[]>({
     queryKey: ["admin", "courses", "options"],
@@ -302,7 +317,8 @@ export default function AdminGroupDetailPage() {
                         className="w-full justify-between"
                       >
                         {selectedUserId
-                          ? users?.find((user) => user.id === selectedUserId)?.email
+                          ? (userOptions.find((u: AdminUserOption) => u.id === selectedUserId) || 
+                             members?.find(m => m.userId === selectedUserId)?.user)?.email || "Пользователь выбран"
                           : "Выберите пользователя..."}
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                       </Button>
@@ -319,16 +335,15 @@ export default function AdminGroupDetailPage() {
                           />
                         </div>
                         <div className="max-h-[300px] overflow-y-auto p-1">
-                          {users
-                            ?.filter((user) => {
-                              if (!searchTerm) return true;
-                              const term = searchTerm.toLowerCase();
-                              return (
-                                user.email.toLowerCase().includes(term) ||
-                                user.fullName?.toLowerCase().includes(term)
-                              );
-                            })
-                            .map((user) => (
+                          {isUsersLoading && (
+                             <div className="p-2 text-center text-sm text-muted-foreground">Загрузка...</div>
+                          )}
+                          {!isUsersLoading && userOptions.length === 0 && (
+                            <div className="py-6 text-center text-sm text-muted-foreground">
+                              Пользователь не найден.
+                            </div>
+                          )}
+                          {!isUsersLoading && userOptions.map((user: AdminUserOption) => (
                               <div
                                 key={user.id}
                                 onClick={() => {
@@ -355,18 +370,6 @@ export default function AdminGroupDetailPage() {
                                 </div>
                               </div>
                             ))}
-                          {users?.filter((user) => {
-                            if (!searchTerm) return true;
-                            const term = searchTerm.toLowerCase();
-                            return (
-                              user.email.toLowerCase().includes(term) ||
-                              user.fullName?.toLowerCase().includes(term)
-                            );
-                          }).length === 0 && (
-                            <div className="py-6 text-center text-sm text-muted-foreground">
-                              Пользователь не найден.
-                            </div>
-                          )}
                         </div>
                       </div>
                     </PopoverContent>

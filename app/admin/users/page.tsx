@@ -54,6 +54,8 @@ export default function AdminUsersPage() {
   const [roleFilter, setRoleFilter] = useState<string>("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [page, setPage] = useState(1);
+  const [limit] = useState(20);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
@@ -76,21 +78,25 @@ export default function AdminUsersPage() {
     toast.info("Пароль сгенерирован");
   };
 
-  const { data, isLoading, error } = useQuery<AdminUser[]>({
-    queryKey: ["admin", "users", search, roleFilter, dateFrom, dateTo],
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["admin", "users", search, roleFilter, dateFrom, dateTo, page, limit],
     queryFn: async () => {
-      // Построение query параметров внутри queryFn
       const queryParams = new URLSearchParams();
       if (search) queryParams.append("search", search);
       if (roleFilter) queryParams.append("role", roleFilter);
       if (dateFrom) queryParams.append("dateFrom", dateFrom);
       if (dateTo) queryParams.append("dateTo", dateTo);
+      queryParams.append("page", page.toString());
+      queryParams.append("limit", limit.toString());
       
       const response = await apiClient.get(`/admin/users?${queryParams.toString()}`);
-      return response.data.data;
+      return response.data; // Returns { data: [...], meta: ... }
     },
     retry: 1,
   });
+
+  const users = data?.data || [];
+  const meta = data?.meta;
 
   const createUserMutation = useMutation({
     mutationFn: async (userData: typeof formData) => {
@@ -120,6 +126,7 @@ export default function AdminUsersPage() {
     setRoleFilter("");
     setDateFrom("");
     setDateTo("");
+    setPage(1);
   };
 
   // Преобразуем roleFilter для отображения в Select (пустая строка -> "all")
@@ -325,7 +332,10 @@ export default function AdminUsersPage() {
                 <Input
                   placeholder="Поиск по имени или email..."
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(1); // Reset page on search
+                  }}
                   className="pl-9"
                 />
               </div>
@@ -418,7 +428,7 @@ export default function AdminUsersPage() {
                         </td>
                       </tr>
                     ))
-                  : data?.map((user) => (
+                  : users.map((user: AdminUser) => (
                       <tr
                         key={user.id}
                         className="border-b last:border-0 hover:bg-accent/40"
@@ -470,9 +480,9 @@ export default function AdminUsersPage() {
                         </td>
                       </tr>
                     ))}
-                {!isLoading && data && data.length === 0 && (
+                {!isLoading && users.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="py-6 text-center text-muted-foreground">
+                    <td colSpan={7} className="py-6 text-center text-muted-foreground">
                       {hasActiveFilters
                         ? "Пользователи не найдены по заданным фильтрам."
                         : "Пользователей пока нет."}
@@ -482,6 +492,57 @@ export default function AdminUsersPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination */}
+          {meta && meta.totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4">
+              <div className="text-sm text-gray-500">
+                Показано {users.length} из {meta.total} пользователей (Страница {meta.page} из {meta.totalPages})
+              </div>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  disabled={page === 1}
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                >
+                  Назад
+                </Button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, meta.totalPages) }, (_, i) => {
+                    // Simple logic to show a window of pages around current page could be better, 
+                    // but for now 1-5 or simple range
+                    let pNum = i + 1;
+                    if (meta.totalPages > 5 && page > 3) {
+                       pNum = page - 2 + i;
+                    }
+                    if (pNum > meta.totalPages) return null;
+                    
+                    return (
+                        <Button
+                          key={pNum}
+                          variant={page === pNum ? "default" : "ghost"}
+                          size="sm"
+                          className="w-8 h-8 p-0"
+                          onClick={() => setPage(pNum)}
+                        >
+                          {pNum}
+                        </Button>
+                    );
+                  })}
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  disabled={page >= meta.totalPages}
+                  onClick={() => setPage(p => p + 1)}
+                >
+                  Вперед
+                </Button>
+              </div>
+            </div>
+          )}
+
         </CardContent>
       </Card>
     </div>

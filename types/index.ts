@@ -29,6 +29,12 @@ export interface ApiResponse<T = unknown> {
     message: string;
     details?: unknown;
   };
+  meta?: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
 }
 
 export interface PaginatedResponse<T> {
