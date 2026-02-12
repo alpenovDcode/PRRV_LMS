@@ -20,8 +20,26 @@ export function HomeworkContentRenderer({ content }: HomeworkContentRendererProp
           try {
              contentObj = JSON.parse(trimmed);
           } catch (e) {
-             // If parse fails, stop trying
-             break;
+             // If parse fails, try to sanitize invalid escape sequences and literal control chars
+             // e.g. "some text \with backslash" -> "some text \\with backslash"
+             // e.g. literal newline -> "\n"
+             try {
+                // 1. Escape invalid backslashes
+                let sanitized = trimmed.replace(/\\(?!["\\/bfnrtu])/g, "\\\\");
+                
+                // 2. Escape literal newlines and tabs (which are valid in JS strings but invalid in JSON strings)
+                // Note: We use a function replacement to avoid double-escaping if already escaped in some weird way, 
+                // but generally replacing literal \n with \\n is safe for JSON.parse
+                sanitized = sanitized
+                   .replace(/\n/g, "\\n")
+                   .replace(/\r/g, "\\r")
+                   .replace(/\t/g, "\\t");
+
+                contentObj = JSON.parse(sanitized);
+             } catch (e2) {
+                // If sanitization fails, stop trying
+                break;
+             }
           }
        } else {
           break;
