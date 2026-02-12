@@ -84,7 +84,7 @@ function TextArea({ label, value, onChange, placeholder }: TextAreaProps) {
 import { 
   Plus, Trash, ArrowUp, ArrowDown, Type, AlignJustify, Video, 
   LayoutTemplate, CheckSquare, MousePointerClick, Image as ImageIcon,
-  Settings, Palette, GripVertical, ChevronRight, X, MessageSquare
+  Settings, Palette, GripVertical, ChevronRight, X, MessageSquare, RefreshCw
 } from "lucide-react";
 import { v4 as uuidv4 } from 'uuid';
 import RichTextEditor from "@/components/landing/RichTextEditor";
@@ -918,9 +918,32 @@ export default function LandingConstructor({
                              </p>
 
                               <div className="mt-4 pt-4 border-t border-blue-200/50">
-                                 <label className="text-xs font-bold text-gray-500 uppercase block mb-1">
-                                    Глобальное поле для ответов
-                                 </label>
+                                 <div className="flex justify-between items-center mb-1">
+                                    <label className="text-xs font-bold text-gray-500 uppercase">
+                                       Глобальное поле для ответов
+                                    </label>
+                                    <button 
+                                       onClick={() => {
+                                          setLoadingFields(true);
+                                          fetch('/api/bitrix/fields/route')
+                                             .then(res => res.json())
+                                             .then(data => {
+                                                if (Array.isArray(data)) {
+                                                   setBitrixFields(data);
+                                                } else {
+                                                   alert("Не удалось загрузить поля");
+                                                }
+                                             })
+                                             .catch(e => console.error(e))
+                                             .finally(() => setLoadingFields(false));
+                                       }}
+                                       disabled={loadingFields}
+                                       className="text-xs text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50 flex items-center gap-1"
+                                    >
+                                       <RefreshCw size={12} className={loadingFields ? "animate-spin" : ""} />
+                                       {loadingFields ? "Загрузка..." : "Обновить поля"}
+                                    </button>
+                                 </div>
                                  <select 
                                     className="w-full text-sm border rounded p-2"
                                     value={settings?.bitrix?.globalAnswerFieldId || ""}
