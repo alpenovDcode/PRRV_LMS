@@ -24,9 +24,12 @@ export async function GET() {
       // Filter out system fields that shouldn't be mapped manually usually, 
       // or keep them if we want full flexibility. 
       // Let's keep custom fields (UF_*) and standard editable fields.
-      const writableFields = fields.filter(f => 
-        !f.isReadOnly && 
-        (f.id.startsWith("UF_") || ["TITLE", "COMMENTS", "OPPORTUNITY", "BEGINDATE", "CLOSEDATE"].includes(f.id))
+      // Filter: Must not be Read Only.
+      // Include: Custom fields (UF_*), and standard useful fields like COMMENTS, OPPORTUNITY, TITLE, BEGINDATE, CLOSEDATE, etc.
+      // Or just include everything that is not ReadOnly?
+      // Some standard fields like "TYPE_ID", "STAGE_ID" are better handled via other UI logic, but allowing them here doesn't hurt.
+      const writableFields = fields.filter((f: any) => 
+        !f.isReadOnly
       );
       
       return NextResponse.json(writableFields);
