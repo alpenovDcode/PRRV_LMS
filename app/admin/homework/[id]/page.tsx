@@ -64,6 +64,7 @@ const quickTemplates = [
 ];
 
 import { AudioRecorder } from "@/components/ui/audio-recorder";
+import { HomeworkContentRenderer } from "@/components/HomeworkContentRenderer";
 
 export default function AdminHomeworkReviewPage() {
   const params = useParams();
@@ -286,20 +287,10 @@ export default function AdminHomeworkReviewPage() {
                 <div className="space-y-2">
                   <h3 className="font-medium">Ответ:</h3>
                   {/* If landing, try to prettify JSON */}
-                  {!submission.lesson ? (
-                     <div className="p-4 bg-muted rounded-lg whitespace-pre-wrap font-mono text-sm">
-                        {(() => {
-                           try {
-                              const json = JSON.parse(submission.content);
-                              return Object.entries(json).map(([k, v]) => `${k}: ${v}`).join("\n");
-                           } catch(e) {
-                              return submission.content;
-                           }
-                        })()}
-                     </div>
-                  ) : (
-                     <div className="p-4 bg-muted rounded-lg whitespace-pre-wrap">{submission.content}</div>
-                  )}
+                  {/* Use shared renderer for both landing and lesson submissions */}
+                  <div className="p-4 bg-muted rounded-lg">
+                     <HomeworkContentRenderer content={submission.content} />
+                  </div>
                 </div>
               )}
               
