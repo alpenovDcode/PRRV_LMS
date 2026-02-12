@@ -609,31 +609,54 @@ export default function LessonPlayerPage() {
                         <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                           {(() => {
                             try {
-                              const content = homework.content || "";
-                              // Try parsing as JSON
-                              if (content.trim().startsWith("{")) {
-                                const json = JSON.parse(content);
-                                if (typeof json === 'object' && json !== null && !Array.isArray(json)) {
-                                  return (
+                              let contentObj: any = null;
+                              
+                              if (typeof homework.content === 'object' && homework.content !== null) {
+                                 contentObj = homework.content;
+                              } else if (typeof homework.content === 'string') {
+                                 const raw = homework.content.trim();
+                                 if (raw.startsWith("{") || raw.startsWith("[")) {
+                                    contentObj = JSON.parse(raw);
+                                 }
+                              }
+
+                              if (contentObj && typeof contentObj === 'object' && !Array.isArray(contentObj)) {
+                                return (
+                                  <div className="space-y-4">
+                                    {/* Standard Fields */}
                                     <div className="space-y-3">
-                                      {Object.entries(json).map(([key, value]) => {
-                                        // Skip internal fields (starting with _)
-                                        if (key.startsWith('_')) return null;
-                                        return (
-                                          <div key={key} className="flex flex-col sm:flex-row sm:gap-4 border-b border-gray-200/50 last:border-0 pb-2 last:pb-0">
-                                            <span className="font-semibold text-gray-500 text-xs uppercase tracking-wider shrink-0 w-32 pt-0.5">{key}</span>
-                                            <span className="text-gray-900 text-sm whitespace-pre-wrap flex-1">{String(value)}</span>
-                                          </div>
-                                        );
-                                      })}
+                                       {Object.entries(contentObj).map(([key, value]) => {
+                                         if (key === '_answers') return null; // Handle separately
+                                         return (
+                                           <div key={key} className="flex flex-col sm:flex-row sm:gap-4 border-b border-gray-200/50 last:border-0 pb-2 last:pb-0">
+                                             <span className="font-semibold text-gray-500 text-xs uppercase tracking-wider shrink-0 w-32 pt-0.5">{key}</span>
+                                             <span className="text-gray-900 text-sm whitespace-pre-wrap flex-1">{String(value)}</span>
+                                           </div>
+                                         );
+                                       })}
                                     </div>
-                                  );
-                                }
+
+                                    {/* Answers from Text Blocks */}
+                                    {contentObj._answers && typeof contentObj._answers === 'object' && Object.keys(contentObj._answers).length > 0 && (
+                                       <div className="pt-4 border-t border-gray-200">
+                                          <h4 className="text-sm font-semibold text-gray-900 mb-3">Ответы на вопросы</h4>
+                                          <div className="space-y-3">
+                                             {Object.entries(contentObj._answers).map(([key, value], idx) => (
+                                                <div key={key} className="bg-white p-3 rounded border border-gray-100">
+                                                   <span className="block text-xs text-gray-400 mb-1">Ответ #{idx + 1}</span>
+                                                   <span className="text-gray-900 text-sm whitespace-pre-wrap block">{String(value)}</span>
+                                                </div>
+                                             ))}
+                                          </div>
+                                       </div>
+                                    )}
+                                  </div>
+                                );
                               }
                             } catch (e) {
-                              // Not JSON or parse error, fall through
+                              console.error("Format error", e);
                             }
-                            return <p className="text-sm text-gray-700 whitespace-pre-wrap">{homework.content}</p>;
+                            return <p className="text-sm text-gray-700 whitespace-pre-wrap">{String(homework.content)}</p>;
                           })()}
                         </div>
 

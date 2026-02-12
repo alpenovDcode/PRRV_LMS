@@ -278,6 +278,8 @@ export async function POST(req: Request) {
                    log('Audit log created: AI_GRADING');
 
                    // Send Grading Notification
+                   // Send Grading Notification - DISABLED by user request
+                   /* 
                    try {
                        log(`Sending homework graded email to ${email}`);
                        await sendEmail({
@@ -299,6 +301,7 @@ export async function POST(req: Request) {
                    } catch (e: any) {
                        log(`[ERROR] Failed to send graded email: ${e.message}`);
                    }
+                   */
                 } else {
                    log('No AI Prompt for lesson. Auto-approving submission.');
                    
