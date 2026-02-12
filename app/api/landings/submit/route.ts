@@ -123,7 +123,7 @@ export async function POST(req: Request) {
                  log(`Sending welcome email to ${email}`);
                  await sendEmail({
                    to: email,
-                   subject: "Добро пожаловать в PRORYV!",
+                   subject: "Добро пожаловать на ПРОРЫВ!",
                    html: emailTemplates.welcome(email, generatedPassword)
                  });
                  log('Welcome email sent');

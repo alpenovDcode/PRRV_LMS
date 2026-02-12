@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Публичная оферта | Прорыв",
+  title: "Публичная оферта | Прорыв.ру",
   description: "Публичная оферта на заключение договора для передачи прав на использование программы для ЭВМ «Прорыв» и оказания образовательных услуг",
 };
 

@@ -68,9 +68,9 @@ export const emailTemplates = {
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <h2>Результат проверки домашнего задания</h2>
       <p>Ваше задание к уроку <strong>"${sanitizeHtml(lessonTitle)}"</strong> проверено.</p>
-      <div style="padding: 15px; border-radius: 5px; background-color: ${status === 'approved' ? '#f0fdf4' : '#fef2f2'}; border: 1px solid ${status === 'approved' ? '#86efac' : '#fecaca'};">
-        <h3 style="margin-top: 0; color: ${status === 'approved' ? '#166534' : '#991b1b'};">
-          ${status === 'approved' ? 'ЗАЧЕТ! 🎉' : 'ТРЕБУЕТСЯ ДОРАБОТКА ⚠️'}
+      <div style="padding: 15px; border-radius: 5px; background-color: #f0fdf4; border: 1px solid #86efac;">
+        <h3 style="margin-top: 0; color: #166534;">
+          ЗАЧЕТ! 🎉
         </h3>
         <p style="white-space: pre-wrap;">${sanitizeHtml(comment, { allowedTags: [], allowedAttributes: {} })}</p>
       </div>

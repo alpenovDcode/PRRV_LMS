@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Согласие на получение рекламной информации | Proryv LMS",
+  title: "Согласие на получение рекламной информации | Прорыв.ру",
   description: "Согласие на получение рекламной информации (в том числе в форме рекламной рассылки)",
 };
 

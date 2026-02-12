@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Политика конфиденциальности | Proryv LMS",
+  title: "Политика конфиденциальности | Прорыв.ру",
   description: "Политика в отношении обработки персональных данных",
 };
 
