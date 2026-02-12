@@ -180,7 +180,7 @@ export default function LandingConstructor({
 
      // Fetch Bitrix Fields
      setLoadingFields(true);
-     fetch('/api/bitrix/fields/route')
+     fetch('/api/bitrix/fields')
         .then(res => res.json())
         .then(data => {
             if (Array.isArray(data)) setBitrixFields(data);
@@ -925,7 +925,7 @@ export default function LandingConstructor({
                                     <button 
                                        onClick={() => {
                                           setLoadingFields(true);
-                                          fetch('/api/bitrix/fields/route')
+                                          fetch('/api/bitrix/fields')
                                              .then(res => res.json())
                                              .then(data => {
                                                 if (Array.isArray(data)) {
