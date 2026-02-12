@@ -137,3 +137,84 @@ export async function deleteLessonComment(commentId: string, userId: string) {
   });
 }
 
+/**
+ * Получает все комментарии (для админки) с пагинацией
+ */
+export async function getAllComments(
+  page: number = 1,
+  limit: number = 20,
+  lessonId?: string
+) {
+  const skip = (page - 1) * limit;
+  const where: any = {
+    isDeleted: false,
+    parentId: null,
+  };
+
+  if (lessonId) {
+    where.lessonId = lessonId;
+  }
+
+  const [comments, total] = await Promise.all([
+    db.lessonComment.findMany({
+      where,
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            fullName: true,
+            avatarUrl: true,
+          },
+        },
+        lesson: {
+          select: {
+            id: true,
+            title: true,
+            module: {
+              select: {
+                course: {
+                  select: {
+                    title: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        replies: {
+          where: {
+            isDeleted: false,
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                fullName: true,
+                avatarUrl: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: "asc",
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      skip,
+      take: limit,
+    }),
+    db.lessonComment.count({ where }),
+  ]);
+
+  return {
+    comments,
+    total,
+    page,
+    totalPages: Math.ceil(total / limit),
+  };
+}
+

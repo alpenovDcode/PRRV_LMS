@@ -1,12 +1,13 @@
+
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/api-middleware";
 import { ApiResponse } from "@/types";
+import { getAllComments, deleteLessonComment } from "@/lib/lesson-comments";
 import { UserRole } from "@prisma/client";
-import { db } from "@/lib/db";
 
 /**
  * GET /api/admin/comments
- * Получить все комментарии (с фильтрами для модерации)
+ * Получить все комментарии (с пагинацией)
  */
 export async function GET(request: NextRequest) {
   return withAuth(
@@ -14,91 +15,96 @@ export async function GET(request: NextRequest) {
     async () => {
       try {
         const { searchParams } = new URL(request.url);
-        const lessonId = searchParams.get("lessonId");
-        const userId = searchParams.get("userId");
-        const includeDeleted = searchParams.get("includeDeleted") === "true";
-        const limit = parseInt(searchParams.get("limit") || "100");
-        const offset = parseInt(searchParams.get("offset") || "0");
+        const page = parseInt(searchParams.get("page") || "1");
+        const limit = parseInt(searchParams.get("limit") || "20");
+        const lessonId = searchParams.get("lessonId") || undefined;
 
-        const comments = await db.lessonComment.findMany({
-          where: {
-            lessonId: lessonId || undefined,
-            userId: userId || undefined,
-            isDeleted: includeDeleted ? undefined : false,
-          },
-          include: {
-            user: {
-              select: {
-                id: true,
-                email: true,
-                fullName: true,
-                avatarUrl: true,
-              },
-            },
-            lesson: {
-              select: {
-                id: true,
-                title: true,
-                module: {
-                  select: {
-                    course: {
-                      select: {
-                        id: true,
-                        title: true,
-                      },
-                    },
-                  },
-                },
-              },
-            },
-            _count: {
-              select: {
-                replies: true,
-              },
-            },
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-          take: limit,
-          skip: offset,
-        });
-
-        const total = await db.lessonComment.count({
-          where: {
-            lessonId: lessonId || undefined,
-            userId: userId || undefined,
-            isDeleted: includeDeleted ? undefined : false,
-          },
-        });
+        const result = await getAllComments(page, limit, lessonId);
 
         return NextResponse.json<ApiResponse>(
           {
             success: true,
-            data: {
-              comments,
-              total,
-              limit,
-              offset,
-            },
+            data: result,
           },
           { status: 200 }
         );
       } catch (error) {
-        console.error("Admin get comments error:", error);
+        console.error("Get admin comments error:", error);
         return NextResponse.json<ApiResponse>(
           {
             success: false,
             error: {
               code: "INTERNAL_ERROR",
-              message: "Не удалось получить список комментариев",
+              message: "Произошла ошибка при получении комментариев",
             },
           },
           { status: 500 }
         );
       }
     },
-    { roles: [UserRole.admin] }
+    { roles: [UserRole.admin, UserRole.curator] }
   );
 }
 
+/**
+ * DELETE /api/admin/comments
+ * Удалить комментарий
+ */
+export async function DELETE(request: NextRequest) {
+    return withAuth(
+      request,
+      async (req) => {
+        try {
+          const { searchParams } = new URL(request.url);
+          const id = searchParams.get("id") || (await request.json()).id; 
+          // Support both query param and body for delete ID (usually fetch uses method DELETE with body or query)
+          // To be safe, let's use searchParams primarily for DELETE requests in Next.js/REST style.
+          
+          if (!id) {
+             const body = await request.json().catch(() => ({}));
+             if (body.id) {
+                 // Fallback to body
+                 await deleteLessonComment(body.id, req.user!.userId);
+                 return NextResponse.json({ success: true, data: { id: body.id } });
+             }
+
+            return NextResponse.json<ApiResponse>(
+              {
+                success: false,
+                error: {
+                  code: "VALIDATION_ERROR",
+                  message: "ID комментария обязателен",
+                },
+              },
+              { status: 400 }
+            );
+          }
+  
+          await deleteLessonComment(id, req.user!.userId);
+  
+          return NextResponse.json<ApiResponse>(
+            {
+              success: true,
+              data: { id },
+            },
+            { status: 200 }
+          );
+        } catch (error) {
+          console.error("Delete comment error:", error);
+          const message = error instanceof Error ? error.message : "Ошибка сервера";
+          
+          return NextResponse.json<ApiResponse>(
+            {
+              success: false,
+              error: {
+                code: "INTERNAL_ERROR",
+                message: "Не удалось удалить комментарий: " + message,
+              },
+            },
+            { status: 500 }
+          );
+        }
+      },
+      { roles: [UserRole.admin] }
+    );
+  }

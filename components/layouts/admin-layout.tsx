@@ -21,6 +21,7 @@ import {
   TrendingUp,
   Film,
   GraduationCap,
+  MessageSquare,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -31,6 +32,7 @@ const adminNavigation = [
   { name: "Группы", href: "/admin/groups", icon: Layers },
   { name: "Видео-библиотека", href: "/admin/video-library", icon: Film },
   { name: "Входящие ДЗ", href: "/admin/homework", icon: Inbox },
+  { name: "Обсуждения", href: "/admin/comments", icon: MessageSquare },
   { name: "Уведомления", href: "/admin/notifications", icon: Bell },
   { name: "Аналитика", href: "/admin/analytics", icon: BarChart },
   { name: "Детальная аналитика", href: "/admin/analytics/detailed", icon: TrendingUp },
@@ -98,7 +100,6 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                  "/admin/courses",
                  "/admin/users",
                  "/admin/groups",
-                 "/admin/homework",
                  "/admin/trainings"
                ];
                return allowed.includes(item.href);
