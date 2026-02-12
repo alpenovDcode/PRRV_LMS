@@ -21,10 +21,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Email required" }, { status: 400 });
     }
 
-    // 1. Find or Create User
+    // 1. Fetch Block Info (to get settings like User Role)
+    const block = await prisma.landingBlock.findUnique({ where: { id: blockId } });
+    const blockContent = block?.content as any;
+    const targetRole = blockContent?.role || "student"; // Default to student
+
+    // 2. Find or Create User
     let user = await prisma.user.findUnique({ where: { email } });
     let isNewUser = false;
     let generatedPassword = "";
+    
+    // Validate Role Enum (basic safety)
+    const validRoles = ["student", "teacher", "admin", "curator"];
+    const roleToAssign = validRoles.includes(targetRole) ? targetRole : "student";
 
     if (!user) {
       generatedPassword = uuidv4().slice(0, 8); // Random 8-char password
@@ -35,19 +44,18 @@ export async function POST(req: Request) {
           email,
           fullName,
           passwordHash,
-          role: "student",
+          role: roleToAssign, 
           tariff: "SR"
         }
       });
       isNewUser = true;
     }
 
-    // 2. Schedule Auto-Review (Legacy Random Delay)
+    // 3. Schedule Auto-Review (Legacy Random Delay)
     const delayMinutes = Math.floor(Math.random() * (90 - 60 + 1) + 60);
     const autoResponseScheduledAt = new Date(Date.now() + delayMinutes * 60 * 1000);
 
-    // 3. Pick random response template
-    const block = await prisma.landingBlock.findUnique({ where: { id: blockId } });
+    // 4. Pick random response template
     const templates = block?.responseTemplates || [];
     const validTemplates = templates.filter(t => t && t.trim() !== "");
     
@@ -551,7 +559,13 @@ export async function POST(req: Request) {
 
                     // Add current submission data (Highest Priority for this specific field)
                     // Always overwrite this specific integration field
+                    // Always overwrite this specific integration field
                     mergedFields["UF_CRM_1770370876447"] = qaString;
+
+                    // Global Field Mapping (User Selected)
+                    if (pageSettings?.bitrix?.globalAnswerFieldId) {
+                        mergedFields[pageSettings.bitrix.globalAnswerFieldId] = qaString;
+                    }
 
                     // --- NEW: Map Specific Bitrix Fields ---
                     // 1. Map "Text with Answer" blocks from `answers`
@@ -671,6 +685,11 @@ export async function POST(req: Request) {
                        OPENED: "Y",
                        UF_CRM_1770370876447: qaString
                     };
+
+                    // Global Field Mapping (User Selected)
+                    if (pageSettings?.bitrix?.globalAnswerFieldId) {
+                       (dealFields as any)[pageSettings.bitrix.globalAnswerFieldId] = qaString;
+                    }
 
                     // --- NEW: Map Specific Bitrix Fields (For New Deal) ---
                     // 1. Map "Text with Answer" blocks

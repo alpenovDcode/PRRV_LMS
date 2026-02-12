@@ -473,10 +473,27 @@ export default function LandingConstructor({
                                      </label>
                                      
                                      {activeBlock.content.isKeywordField && (
-                                        <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700">
-                                           💡 Ответы пользователей будут накапливаться в их профиле
-                                        </div>
-                                     )}
+                                         <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700">
+                                            💡 Ответы пользователей будут накапливаться в их профиле
+                                         </div>
+                                      )}
+
+                                     <div className="mt-4 pt-4 border-t">
+                                        <label className="text-xs font-semibold text-gray-500 block mb-2">Сохранять в поле сделки Bitrix24</label>
+                                        <select 
+                                            className="w-full text-sm border rounded p-2"
+                                            value={activeBlock.content.bitrixFieldId || ""}
+                                            onChange={e => updateContent(activeBlock.id, { bitrixFieldId: e.target.value })}
+                                        >
+                                            <option value="">-- Не сохранять / Комментарий --</option>
+                                            {loadingFields ? <option disabled>Загрузка полей...</option> : bitrixFields.map((f: any) => (
+                                                <option key={f.id} value={f.id}>{f.label} ({f.id})</option>
+                                            ))}
+                                        </select>
+                                        <p className="text-xs text-gray-400 mt-1">
+                                            Ответ пользователя попадет в выбранное поле сделки.
+                                        </p>
+                                     </div>
                                   </>
                                )}
                             </div>
@@ -660,6 +677,23 @@ export default function LandingConstructor({
                              </div>
 
                              <Input label="Текст кнопки" value={activeBlock.content.buttonText} onChange={v => updateContent(activeBlock.id, { buttonText: v })} />
+                             
+                             <div className="space-y-2 pt-4 border-t">
+                                <label className="text-xs font-semibold text-gray-500">Роль нового пользователя</label>
+                                <select 
+                                   className="w-full p-2 border rounded text-sm bg-white"
+                                   value={activeBlock.content.role || "student"}
+                                   onChange={e => updateContent(activeBlock.id, { role: e.target.value })}
+                                >
+                                   <option value="student">Студент (Default)</option>
+                                   <option value="teacher">Преподаватель</option>
+                                   <option value="curator">Куратор</option>
+                                   <option value="admin">Администратор</option>
+                                </select>
+                                <p className="text-xs text-gray-400">
+                                   Если пользователь новый, ему будет присвоена эта роль.
+                                </p>
+                             </div>
                              
                              <div className="space-y-2 pt-4 border-t">
                                 <label className="text-xs font-semibold text-gray-500">Привязать к уроку (AI Проверка)</label>
@@ -882,6 +916,28 @@ export default function LandingConstructor({
                              <p className="text-xs text-gray-500 mt-1">
                                 ID стадии, куда будет попадать сделка. Если пусто, используется системный `BITRIX_SOURCE_STAGE_ID`.
                              </p>
+
+                              <div className="mt-4 pt-4 border-t border-blue-200/50">
+                                 <label className="text-xs font-bold text-gray-500 uppercase block mb-1">
+                                    Глобальное поле для ответов
+                                 </label>
+                                 <select 
+                                    className="w-full text-sm border rounded p-2"
+                                    value={settings?.bitrix?.globalAnswerFieldId || ""}
+                                    onChange={e => setSettings({
+                                       ...settings, 
+                                       bitrix: { ...settings?.bitrix, globalAnswerFieldId: e.target.value } 
+                                    })}
+                                 >
+                                    <option value="">-- Не сохранять (только комментарий) --</option>
+                                    {loadingFields ? <option disabled>Загрузка полей...</option> : bitrixFields.map((f: any) => (
+                                       <option key={f.id} value={f.id}>{f.label} ({f.id})</option>
+                                    ))}
+                                 </select>
+                                 <p className="text-xs text-gray-500 mt-1">
+                                    Сюда будут сохраняться <b>все ответы</b> из текстовых блоков (Многострочный текст).
+                                 </p>
+                              </div>
                           </div>
 
                           {/* FUNNELS TABLE */}
