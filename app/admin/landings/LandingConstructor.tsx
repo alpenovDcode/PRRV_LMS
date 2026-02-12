@@ -1,6 +1,86 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, ElementType } from "react";
+
+// --- SUBCOMPONENTS ---
+
+interface AddBtnProps {
+  icon: ElementType;
+  label: string;
+  onClick: () => void;
+}
+
+function AddBtn({ icon: Icon, label, onClick }: AddBtnProps) {
+  return (
+    <button onClick={onClick} className="flex flex-col items-center justify-center p-4 bg-white border rounded-xl shadow-sm hover:shadow-md hover:border-blue-300 transition-all gap-2 group">
+      <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
+         <Icon size={20} />
+      </div>
+      <span className="text-sm font-medium text-gray-700">{label}</span>
+    </button>
+  )
+}
+
+interface TabBtnProps {
+  active: boolean;
+  onClick: () => void;
+  icon: ElementType;
+  label: string;
+}
+
+function TabBtn({ active, onClick, icon: Icon, label }: TabBtnProps) {
+   return (
+      <button 
+        onClick={onClick}
+        className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors border-b-2
+          ${active ? 'border-blue-500 text-blue-600 bg-blue-50/50' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+      >
+         <Icon size={16} /> {label}
+      </button>
+   )
+}
+
+interface InputProps {
+  label: string;
+  value: string | number | undefined;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}
+
+function Input({ label, value, onChange, placeholder }: InputProps) {
+   return (
+      <div>
+         <label className="text-xs text-gray-500 block mb-1 font-medium">{label}</label>
+         <input 
+            className="w-full p-2 border rounded text-sm bg-white text-gray-900 focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all placeholder:text-gray-400"
+            value={value || ""}
+            onChange={e => onChange(e.target.value)}
+            placeholder={placeholder}
+         />
+      </div>
+   )
+}
+
+interface TextAreaProps {
+  label: string;
+  value: string | undefined;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}
+
+function TextArea({ label, value, onChange, placeholder }: TextAreaProps) {
+   return (
+      <div>
+         <label className="text-xs text-gray-500 block mb-1 font-medium">{label}</label>
+         <textarea 
+            className="w-full p-2 border rounded text-sm bg-white text-gray-900 focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all h-24 placeholder:text-gray-400"
+            value={value || ""}
+            onChange={e => onChange(e.target.value)}
+            placeholder={placeholder}
+         />
+      </div>
+   )
+}
 import { 
   Plus, Trash, ArrowUp, ArrowDown, Type, AlignJustify, Video, 
   LayoutTemplate, CheckSquare, MousePointerClick, Image as ImageIcon,
@@ -79,19 +159,34 @@ export default function LandingConstructor({
   const [settings, setSettings] = useState(initialSettings || {});
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [bitrixFunnels, setBitrixFunnels] = useState<any[]>([]);
+  const [bitrixFields, setBitrixFields] = useState<any[]>([]);
   const [loadingFunnels, setLoadingFunnels] = useState(false);
+  const [loadingFields, setLoadingFields] = useState(false);
   const [expandedFunnelId, setExpandedFunnelId] = useState<string | null>(null);
 
   const [activeBlockId, setActiveBlockId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"content" | "design" | "settings">("content");
   const [lessons, setLessons] = useState<any[]>([]);
 
-  // Fetch lessons for binding
+   // Fetch lessons for binding
   useEffect(() => {
      fetch('/api/admin/lessons/all')
         .then(res => res.json())
         .then(data => setLessons(Array.isArray(data) ? data : []))
         .catch(err => console.error("Failed to fetch lessons", err));
+  }, []); // Added missing closure and dependency array for the first useEffect
+
+  useEffect(() => {
+
+     // Fetch Bitrix Fields
+     setLoadingFields(true);
+     fetch('/api/bitrix/fields/route')
+        .then(res => res.json())
+        .then(data => {
+            if (Array.isArray(data)) setBitrixFields(data);
+        })
+        .catch(err => console.error("Failed to fetch Bitrix fields", err))
+        .finally(() => setLoadingFields(false));
   }, []);
 
   const textSizeOptions = [
@@ -578,8 +673,33 @@ export default function LandingConstructor({
                                      <option key={l.id} value={l.id}>{l.title}</option>
                                    ))}
                                 </select>
-                             </div>
-                          </div>
+                              </div>
+                           
+                              <div className="space-y-4 pt-4 border-t">
+                                 <h4 className="text-xs font-bold text-gray-500 uppercase">Настройки полей Bitrix</h4>
+                                 {activeBlock.content.fields.map((field: any, idx: number) => (
+                                    <div key={idx} className="flex flex-col gap-1">
+                                       <label className="text-xs text-gray-600 font-medium truncate">
+                                          {field.label} ({field.type})
+                                       </label>
+                                       <select 
+                                          className="w-full text-sm border rounded p-1.5"
+                                          value={field.bitrixFieldId || ""}
+                                          onChange={(e) => {
+                                             const newFields = [...activeBlock.content.fields];
+                                             newFields[idx].bitrixFieldId = e.target.value;
+                                             updateContent(activeBlock.id, { fields: newFields });
+                                          }}
+                                       >
+                                          <option value="">-- Auto / Default --</option>
+                                          {bitrixFields.map((f: any) => (
+                                             <option key={f.id} value={f.id}>{f.label} ({f.id})</option>
+                                          ))}
+                                       </select>
+                                    </div>
+                                 ))}
+                              </div>
+                           </div>
                         )}
                     </div>
                  )}
@@ -835,82 +955,4 @@ export default function LandingConstructor({
   );
 }
 
-// --- SUBCOMPONENTS ---
 
-interface AddBtnProps {
-  icon: React.ElementType;
-  label: string;
-  onClick: () => void;
-}
-
-function AddBtn({ icon: Icon, label, onClick }: AddBtnProps) {
-  return (
-    <button onClick={onClick} className="flex flex-col items-center justify-center p-4 bg-white border rounded-xl shadow-sm hover:shadow-md hover:border-blue-300 transition-all gap-2 group">
-      <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
-         <Icon size={20} />
-      </div>
-      <span className="text-sm font-medium text-gray-700">{label}</span>
-    </button>
-  )
-}
-
-interface TabBtnProps {
-  active: boolean;
-  onClick: () => void;
-  icon: React.ElementType;
-  label: string;
-}
-
-function TabBtn({ active, onClick, icon: Icon, label }: TabBtnProps) {
-   return (
-      <button 
-        onClick={onClick}
-        className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors border-b-2
-          ${active ? 'border-blue-500 text-blue-600 bg-blue-50/50' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-      >
-         <Icon size={16} /> {label}
-      </button>
-   )
-}
-
-interface InputProps {
-  label: string;
-  value: string | number | undefined;
-  onChange: (value: string) => void;
-  placeholder?: string;
-}
-
-function Input({ label, value, onChange, placeholder }: InputProps) {
-   return (
-      <div>
-         <label className="text-xs text-gray-500 block mb-1 font-medium">{label}</label>
-         <input 
-            className="w-full p-2 border rounded text-sm bg-white text-gray-900 focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all placeholder:text-gray-400"
-            value={value || ""}
-            onChange={e => onChange(e.target.value)}
-            placeholder={placeholder}
-         />
-      </div>
-   )
-}
-
-interface TextAreaProps {
-  label: string;
-  value: string | undefined;
-  onChange: (value: string) => void;
-  placeholder?: string;
-}
-
-function TextArea({ label, value, onChange, placeholder }: TextAreaProps) {
-   return (
-      <div>
-         <label className="text-xs text-gray-500 block mb-1 font-medium">{label}</label>
-         <textarea 
-            className="w-full p-2 border rounded text-sm bg-white text-gray-900 focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all h-24 placeholder:text-gray-400"
-            value={value || ""}
-            onChange={e => onChange(e.target.value)}
-            placeholder={placeholder}
-         />
-      </div>
-   )
-}

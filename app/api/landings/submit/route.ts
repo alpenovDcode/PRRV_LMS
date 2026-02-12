@@ -552,6 +552,33 @@ export async function POST(req: Request) {
                     // Add current submission data (Highest Priority for this specific field)
                     // Always overwrite this specific integration field
                     mergedFields["UF_CRM_1770370876447"] = qaString;
+
+                    // --- NEW: Map Specific Bitrix Fields ---
+                    // 1. Map "Text with Answer" blocks from `answers`
+                    Object.entries(answers || {}).forEach(([blkId, answer]) => {
+                       const questionBlock = allBlocks.find(b => b.id === blkId);
+                       if (questionBlock) {
+                          const content = questionBlock.content as any;
+                          // If block has a direct mapping (Text with Answer)
+                          if (content.bitrixFieldId && typeof answer === 'string') {
+                             mergedFields[content.bitrixFieldId] = answer;
+                          }
+                       }
+                    });
+
+                    // 2. Map "Form" fields from `data` (using the submitting block `blockId`)
+                    // `landingBlock` is already fetched above as the submitting block
+                    if (landingBlock && landingBlock.type === "form" && landingBlock.content) {
+                       const content = landingBlock.content as any;
+                       if (Array.isArray(content.fields)) {
+                          Object.entries(data || {}).forEach(([key, value]) => { // key is Label
+                             const fieldDef = content.fields.find((f: any) => f.label === key);
+                             if (fieldDef && fieldDef.bitrixFieldId && typeof value === 'string') {
+                                mergedFields[fieldDef.bitrixFieldId] = value;
+                             }
+                          });
+                       }
+                    }
                     
                     // IMPORTANT: Move deal to target stage (if not already there)
                     mergedFields["STAGE_ID"] = stageId;
@@ -644,6 +671,31 @@ export async function POST(req: Request) {
                        OPENED: "Y",
                        UF_CRM_1770370876447: qaString
                     };
+
+                    // --- NEW: Map Specific Bitrix Fields (For New Deal) ---
+                    // 1. Map "Text with Answer" blocks
+                    Object.entries(answers || {}).forEach(([blkId, answer]) => {
+                       const questionBlock = allBlocks.find(b => b.id === blkId);
+                       if (questionBlock) {
+                          const content = questionBlock.content as any;
+                          if (content.bitrixFieldId && typeof answer === 'string') {
+                             (dealFields as any)[content.bitrixFieldId] = answer;
+                          }
+                       }
+                    });
+
+                    // 2. Map "Form" fields
+                    if (landingBlock && landingBlock.type === "form" && landingBlock.content) {
+                       const content = landingBlock.content as any;
+                       if (Array.isArray(content.fields)) {
+                          Object.entries(data || {}).forEach(([key, value]) => {
+                             const fieldDef = content.fields.find((f: any) => f.label === key);
+                             if (fieldDef && fieldDef.bitrixFieldId && typeof value === 'string') {
+                                (dealFields as any)[fieldDef.bitrixFieldId] = value;
+                             }
+                          });
+                       }
+                    }
 
                     const dealRes = await fetch(`${bitrixUrl}crm.deal.add`, {
                        method: "POST",

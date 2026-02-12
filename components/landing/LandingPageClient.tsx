@@ -5,6 +5,7 @@ import LandingForm from "./LandingForm";
 import HeroBlock from "./blocks/HeroBlock";
 import FeaturesBlock from "./blocks/FeaturesBlock";
 import ButtonBlock from "./blocks/ButtonBlock";
+import { trackLandingView } from "@/app/actions/landing";
 
 interface WrapperProps {
   slug: string;
@@ -18,16 +19,16 @@ export default function LandingPageClient({ slug, blocks, initialSubmissions = {
   const [answers, setAnswers] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    // Track view (only once per mount)
-    // Using 'view' instead of 'track' to avoid ad blockers
-    fetch(`/api/landings/${encodeURIComponent(slug)}/view?t=${Date.now()}`, { 
-       method: "POST",
-       headers: { "Content-Type": "application/json" }
-    })
-      .then(res => {
-         if (!res.ok) console.error("View tracking failed");
-      })
-      .catch((err) => console.error("View tracking error:", err));
+    // Track view using Server Action
+    const track = async () => {
+      try {
+        await trackLandingView(slug);
+      } catch (err) {
+        console.error("View tracking error:", err);
+      }
+    };
+    
+    track();
   }, [slug]);
 
   const handleAnswerChange = (blockId: string, text: string) => {
