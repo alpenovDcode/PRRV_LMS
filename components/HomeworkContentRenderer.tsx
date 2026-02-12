@@ -15,7 +15,8 @@ export function HomeworkContentRenderer({ content }: HomeworkContentRendererProp
     let attempts = 0;
     while (typeof contentObj === 'string' && attempts < 3) {
        const trimmed = contentObj.trim();
-       if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+       // Allow " (quote) for double-serialized JSON that might be wrapped in quotes
+       if (trimmed.startsWith('{') || trimmed.startsWith('[') || trimmed.startsWith('"')) {
           try {
              contentObj = JSON.parse(trimmed);
           } catch (e) {
