@@ -297,6 +297,126 @@ export default function LessonEditorPage() {
             <Save className="mr-2 h-4 w-4" />
             Сохранить изменения
           </Button>
+          <Button
+            variant="outline"
+            className="border-gray-300"
+            onClick={async () => {
+                try {
+                    toast.info("Подготовка выгрузки...");
+                    const { data } = await apiClient.get<{ data: any[] }>(`/admin/lessons/${lessonId}/submissions`);
+                    const submissions = data.data;
+
+                    if (!submissions || submissions.length === 0) {
+                        toast.warning("Нет ответов для выгрузки");
+                        return;
+                    }
+
+                    // 1. Collect all unique keys from all submissions to build headers
+                    const allKeys = new Set<string>();
+                    submissions.forEach((item: any) => {
+                        // Parse content if string
+                        let content: any = {};
+                        try {
+                            content = typeof item.content === 'string' ? JSON.parse(item.content) : item.content;
+                        } catch {
+                            content = { text: item.content };
+                        }
+
+                        // If content is just a string, map it to "Answer"
+                        if (typeof content !== 'object' || content === null) {
+                             content = { text: String(content) };
+                        }
+
+                        const { _answers, ...otherProps } = content;
+                        
+                        // Add keys from otherProps
+                        Object.keys(otherProps).forEach(k => allKeys.add(k));
+                        
+                        // Add keys from _answers
+                        if (_answers) {
+                            if (Array.isArray(_answers)) {
+                                _answers.forEach((_, i) => allKeys.add(`Answer ${i+1}`));
+                            } else if (typeof _answers === 'object') {
+                                Object.keys(_answers).forEach(k => allKeys.add(k));
+                            }
+                        }
+                    });
+
+                    // Ensure we have at least "Content" if no keys found
+                    if (allKeys.size === 0) allKeys.add("Content");
+                    
+                    const dynamicHeaders = Array.from(allKeys);
+                    const headers = ["ID", "Date", "User Name", "User Email", "Status", ...dynamicHeaders];
+                    
+                    // 2. Build rows
+                    const csvRows = [headers.join(",")];
+                    
+                    submissions.forEach((item: any) => {
+                        let content: any = {};
+                        try {
+                             content = typeof item.content === 'string' ? JSON.parse(item.content) : item.content;
+                        } catch {
+                             content = { text: item.content };
+                        }
+                         if (typeof content !== 'object' || content === null) {
+                             content = { text: String(content) };
+                        }
+
+                        const { _answers, ...otherProps } = content;
+                        
+                        const row = [
+                            item.id,
+                            new Date(item.createdAt).toLocaleString("ru-RU"),
+                            (item.user?.fullName || "Guest").replace(/,/g, ""),
+                            (item.user?.email || "-").replace(/,/g, ""),
+                            item.status || "pending",
+                        ];
+                        
+                        dynamicHeaders.forEach(header => {
+                            let val = "";
+                            
+                            // Check in otherProps
+                            if (otherProps[header] !== undefined) {
+                                val = otherProps[header];
+                            } 
+                            // Check in _answers (object)
+                            else if (_answers && !Array.isArray(_answers) && typeof _answers === 'object' && _answers[header] !== undefined) {
+                                val = _answers[header];
+                            }
+                            // Check in _answers (array) - header format "Answer X"
+                            else if (_answers && Array.isArray(_answers) && header.startsWith("Answer ")) {
+                                const idx = parseInt(header.split(" ")[1]) - 1;
+                                if (_answers[idx] !== undefined) val = _answers[idx];
+                            }
+                            
+                            // Value sanitization for CSV
+                            const stringVal = (typeof val === 'object' ? JSON.stringify(val) : String(val)).replace(/"/g, '""');
+                            row.push(`"${stringVal}"`);
+                        });
+                        
+                        csvRows.push(row.join(","));
+                    });
+                    
+                    // 3. Download
+                    const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.setAttribute("href", url);
+                    link.setAttribute("download", `lesson_submissions_${lessonId}_${new Date().toISOString().slice(0,10)}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    toast.success("Выгрузка завершена");
+
+                } catch (e) {
+                    console.error(e);
+                    toast.error("Ошибка при выгрузке ответов");
+                }
+            }}
+          >
+            <FileText className="mr-2 h-4 w-4" />
+            Экспорт ответов
+          </Button>
         </div>
       </div>
 
