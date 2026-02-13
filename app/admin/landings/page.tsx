@@ -158,9 +158,96 @@ export default function LandingsPage() {
            <div className="bg-white rounded-2xl w-full max-w-6xl shadow-2xl overflow-hidden my-8 flex flex-col max-h-[90vh]">
               <div className="p-4 border-b flex justify-between items-center bg-gray-50 flex-shrink-0">
                  <h3 className="font-bold text-lg">Статистика: {selectedLanding.title}</h3>
-                 <button onClick={() => setStatsOpen(false)} className="text-gray-400 hover:text-gray-600">
-                    <X size={20} />
-                 </button>
+                 <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => {
+                            if (!currentStats?.list?.length) return;
+                            
+                            const items = currentStats.list;
+                            
+                            // 1. Collect all unique keys from all submissions to build headers
+                            const allKeys = new Set<string>();
+                            items.forEach((item: any) => {
+                                const content = item.content || {};
+                                const { _answers, ...otherProps } = content;
+                                
+                                // Add keys from otherProps
+                                Object.keys(otherProps).forEach(k => allKeys.add(k));
+                                
+                                // Add keys from _answers if it's an object, or just "Answer 1", "Answer 2" if array?
+                                // Let's try to be smart. If _answers is array, we might just put them in "Answers" column or "Answer 1", "Answer 2"
+                                // If _answers is object (record), treat keys as headers.
+                                if (_answers) {
+                                    if (Array.isArray(_answers)) {
+                                        _answers.forEach((_, i) => allKeys.add(`Answer ${i+1}`));
+                                    } else if (typeof _answers === 'object') {
+                                        Object.keys(_answers).forEach(k => allKeys.add(k));
+                                    }
+                                }
+                            });
+                            
+                            const dynamicHeaders = Array.from(allKeys);
+                            const headers = ["ID", "Date", "User Name", "User Email", ...dynamicHeaders];
+                            
+                            // 2. Build rows
+                            const csvRows = [headers.join(",")];
+                            
+                            items.forEach((item: any) => {
+                                const content = item.content || {};
+                                const { _answers, ...otherProps } = content;
+                                
+                                const row = [
+                                    item.id,
+                                    new Date(item.createdAt).toLocaleString("ru-RU"),
+                                    (item.user?.fullName || "Guest").replace(/,/g, ""),
+                                    (item.user?.email || "-").replace(/,/g, ""),
+                                ];
+                                
+                                dynamicHeaders.forEach(header => {
+                                    let val = "";
+                                    
+                                    // Check in otherProps
+                                    if (otherProps[header] !== undefined) {
+                                        val = otherProps[header];
+                                    } 
+                                    // Check in _answers (object)
+                                    else if (_answers && !Array.isArray(_answers) && typeof _answers === 'object' && _answers[header] !== undefined) {
+                                        val = _answers[header];
+                                    }
+                                    // Check in _answers (array) - header format "Answer X"
+                                    else if (_answers && Array.isArray(_answers) && header.startsWith("Answer ")) {
+                                        const idx = parseInt(header.split(" ")[1]) - 1;
+                                        if (_answers[idx] !== undefined) val = _answers[idx];
+                                    }
+                                    
+                                    // Value sanitization for CSV
+                                    const stringVal = (typeof val === 'object' ? JSON.stringify(val) : String(val)).replace(/"/g, '""');
+                                    row.push(`"${stringVal}"`);
+                                });
+                                
+                                csvRows.push(row.join(","));
+                            });
+                            
+                            // 3. Download
+                            const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
+                            const url = URL.createObjectURL(blob);
+                            const link = document.createElement("a");
+                            link.setAttribute("href", url);
+                            link.setAttribute("download", `submissions_${selectedLanding.slug}_${new Date().toISOString().slice(0,10)}.csv`);
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                        }}
+                        className="flex items-center gap-1 px-3 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                        title="Скачать CSV"
+                    >
+                        <Copy size={16} />
+                        Экспорт CSV
+                    </button>
+                    <button onClick={() => setStatsOpen(false)} className="text-gray-400 hover:text-gray-600">
+                        <X size={20} />
+                    </button>
+                 </div>
               </div>
               
               <div className="p-6 overflow-y-auto flex-1">
