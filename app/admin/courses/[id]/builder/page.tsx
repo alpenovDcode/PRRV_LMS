@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Trash, Pencil, ChevronUp, ChevronDown, GripVertical, Save, X, Play, FileText, CircleHelp, CornerDownRight, Lock, Settings } from "lucide-react";
+import { Plus, Trash, Pencil, ChevronUp, ChevronDown, GripVertical, Save, X, Play, FileText, CircleHelp, CornerDownRight, Lock, Settings, Copy } from "lucide-react";
 import { useState, useMemo } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -478,6 +478,70 @@ function AccessSettingsDialog({ module, open, onOpenChange, onSave }: AccessSett
   );
 }
 
+function CopyModuleDialog({ module, open, onOpenChange, onSave }: {
+    module: AdminModule;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    onSave: (targetCourseId: string) => void;
+}) {
+    const params = useParams();
+    const currentCourseId = params.id as string;
+    const [targetCourseId, setTargetCourseId] = useState<string>(currentCourseId);
+
+    const { data: courses } = useQuery({
+        queryKey: ["admin", "courses-list"],
+        queryFn: async () => {
+            const response = await apiClient.get<{ data: { id: string; title: string }[] }>("/admin/courses");
+            return response.data.data;
+        },
+        enabled: open
+    });
+
+    const handleSave = () => {
+        onSave(targetCourseId);
+        onOpenChange(false);
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                    <DialogTitle>Копирование модуля</DialogTitle>
+                    <DialogDescription>
+                        Копирование модуля <strong>&quot;{module.title}&quot;</strong> со всеми уроками и настройками.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                        <Label>Целевой курс</Label>
+                        <Select value={targetCourseId} onValueChange={setTargetCourseId}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Выберите курс" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {courses?.map((course: any) => (
+                                    <SelectItem key={course.id} value={course.id}>
+                                        {course.title} {course.id === currentCourseId ? "(Текущий)" : ""}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <p className="text-xs text-gray-500">
+                            Модуль будет скопирован в конец списка модулей выбранного курса.
+                        </p>
+                    </div>
+                </div>
+
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Отмена</Button>
+                    <Button onClick={handleSave}>Копировать</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 export default function CourseBuilderPage() {
   const params = useParams();
   const courseId = params.id as string;
@@ -494,6 +558,7 @@ export default function CourseBuilderPage() {
   
   // Access Settings State
   const [accessSettingsModuleId, setAccessSettingsModuleId] = useState<string | null>(null);
+  const [copyModuleId, setCopyModuleId] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery<AdminCourseDetail>({
     queryKey: ["admin", "courses", courseId],
@@ -591,6 +656,24 @@ export default function CourseBuilderPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "courses", courseId] });
     },
+  });
+
+  const copyModuleMutation = useMutation({
+      mutationFn: async ({ moduleId, targetCourseId }: { moduleId: string; targetCourseId: string }) => {
+          await apiClient.post(`/admin/modules/${moduleId}/copy`, {
+              targetCourseId,
+              targetParentId: null // Always copy to root for simplicity or current logic
+          });
+      },
+      onSuccess: () => {
+          setCopyModuleId(null);
+          queryClient.invalidateQueries({ queryKey: ["admin", "courses", courseId] });
+          toast.success("Модуль успешно скопирован");
+      },
+      onError: (e) => {
+          console.error(e);
+          toast.error("Ошибка при копировании модуля");
+      }
   });
 
   const createLessonMutation = useMutation({
@@ -788,6 +871,15 @@ export default function CourseBuilderPage() {
                       className="text-gray-600 hover:text-gray-900"
                     >
                       <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCopyModuleId(module.id)}
+                      className="text-gray-600 hover:text-blue-600"
+                      title="Копировать модуль"
+                    >
+                      <Copy className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="ghost"
@@ -1143,6 +1235,18 @@ export default function CourseBuilderPage() {
             });
           }}
         />
+      )}
+
+      {/* Copy Module Dialog */}
+      {copyModuleId && data && (
+          <CopyModuleDialog 
+            open={!!copyModuleId}
+            onOpenChange={(open) => !open && setCopyModuleId(null)}
+            module={data.modules.find(m => m.id === copyModuleId)!}
+            onSave={(targetCourseId) => {
+                copyModuleMutation.mutate({ moduleId: copyModuleId, targetCourseId });
+            }}
+          />
       )}
     </div>
   );
