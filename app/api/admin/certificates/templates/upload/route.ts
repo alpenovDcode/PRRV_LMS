@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { withAuth } from "@/lib/auth-middleware";
+import { withAuth } from "@/lib/api-middleware";
 import { UserRole } from "@prisma/client";
-import { put } from "@vercel/blob";
+import { writeFile, mkdir } from "fs/promises";
+import { join } from "path";
 import { ApiResponse } from "@/types";
 
 export async function POST(request: NextRequest) {
@@ -54,16 +55,24 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        // Upload to Vercel Blob
-        const blob = await put(`certificates/${Date.now()}-${file.name}`, file, {
-          access: "public",
-        });
+        // Upload to local storage
+        const uploadDir = join(process.cwd(), "public", "uploads", "certificates");
+        await mkdir(uploadDir, { recursive: true });
+
+        const filename = `${Date.now()}-${file.name}`;
+        const filepath = join(uploadDir, filename);
+        
+        const bytes = await file.arrayBuffer();
+        const buffer = Buffer.from(bytes);
+        await writeFile(filepath, buffer);
+
+        const url = `/uploads/certificates/${filename}`;
 
         return NextResponse.json<ApiResponse>(
           {
             success: true,
             data: {
-              url: blob.url,
+              url,
             },
           },
           { status: 200 }

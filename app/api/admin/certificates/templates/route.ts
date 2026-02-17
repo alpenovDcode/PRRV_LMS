@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { withAuth } from "@/lib/auth-middleware";
+import { withAuth } from "@/lib/api-middleware";
 import { UserRole } from "@prisma/client";
 import { db } from "@/lib/db";
 import { ApiResponse } from "@/types";
