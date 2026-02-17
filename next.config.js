@@ -5,7 +5,7 @@ require('dotenv').config();
 const nextConfig = {
   reactStrictMode: true,
   compiler: {
-    // removeConsole: process.env.NODE_ENV === "production", // Temporarily disabled for debugging
+    removeConsole: process.env.NODE_ENV === "production",
   },
   output: "standalone",
   experimental: {
