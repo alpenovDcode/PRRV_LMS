@@ -104,6 +104,10 @@ export async function GET(request: NextRequest) {
 
 // POST /api/admin/certificates/templates - Create template
 export async function POST(request: NextRequest) {
+  console.log('=== POST /api/admin/certificates/templates CALLED ===');
+  console.log('Request URL:', request.url);
+  console.log('Request method:', request.method);
+  
   return withAuth(
     request,
     async () => {
