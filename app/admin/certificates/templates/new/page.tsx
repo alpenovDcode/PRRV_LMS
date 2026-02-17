@@ -110,6 +110,7 @@ export default function NewCertificateTemplatePage() {
     };
 
     createMutation.mutate({
+      courseId: null,
       name,
       imageUrl,
       fieldConfig,
