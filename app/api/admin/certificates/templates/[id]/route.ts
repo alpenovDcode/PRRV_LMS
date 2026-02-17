@@ -15,13 +15,13 @@ const templateUpdateSchema = z.object({
 // PATCH /api/admin/certificates/templates/[id] - Update template
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   return withAuth(
     request,
     async () => {
       try {
-        const { id } = params;
+        const { id } = await params;
         const body = await request.json();
         const data = templateUpdateSchema.parse(body);
 
@@ -79,13 +79,13 @@ export async function PATCH(
 // DELETE /api/admin/certificates/templates/[id] - Delete template
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   return withAuth(
     request,
     async () => {
       try {
-        const { id } = params;
+        const { id } = await params;
 
         // Check if template has issued certificates
         const certificateCount = await db.certificate.count({

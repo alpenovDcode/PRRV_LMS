@@ -5,10 +5,10 @@ import { ApiResponse } from "@/types";
 // GET /api/certificates/verify/[number] - Public certificate verification
 export async function GET(
   request: NextRequest,
-  { params }: { params: { number: string } }
+  { params }: { params: Promise<{ number: string }> }
 ) {
   try {
-    const { number } = params;
+    const { number } = await params;
 
     const certificate = await db.certificate.findUnique({
       where: { certificateNumber: number },

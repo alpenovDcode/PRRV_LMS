@@ -7,7 +7,7 @@ import { ApiResponse } from "@/types";
 export async function GET(request: NextRequest) {
   return withAuth(request, async (req) => {
     try {
-      const userId = req.user.userId;
+      const userId = req.user!.userId;
 
       const certificates = await db.certificate.findMany({
         where: { userId },

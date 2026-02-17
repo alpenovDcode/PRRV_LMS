@@ -7,13 +7,13 @@ import { ApiResponse } from "@/types";
 // GET /api/admin/users/[id]/certificates - Get user's certificates (admin only)
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   return withAuth(
     request,
     async () => {
       try {
-        const { id: userId } = params;
+        const { id: userId } = await params;
 
         const certificates = await db.certificate.findMany({
           where: { userId },
