@@ -108,8 +108,15 @@ export async function POST(request: NextRequest) {
     request,
     async () => {
       try {
+        console.log('=== Certificate Template POST Request ===');
+        console.log('Request URL:', request.url);
+        console.log('Request headers:', Object.fromEntries(request.headers));
+        
         const body = await request.json();
+        console.log('Request body:', JSON.stringify(body, null, 2));
+        
         const data = templateCreateSchema.parse(body);
+        console.log('Validated data:', JSON.stringify(data, null, 2));
 
         // If courseId is provided, verify course exists
         if (data.courseId) {
@@ -156,18 +163,25 @@ export async function POST(request: NextRequest) {
           { status: 201 }
         );
       } catch (error) {
+        console.error('=== Certificate Template POST Error ===');
+        console.error('Error type:', error instanceof z.ZodError ? 'ZodError' : 'Other');
+        
         if (error instanceof z.ZodError) {
+          console.error('Validation errors:', JSON.stringify(error.errors, null, 2));
           return NextResponse.json<ApiResponse>(
             {
               success: false,
               error: {
                 code: "VALIDATION_ERROR",
                 message: error.errors[0]?.message || "Некорректные данные",
+                details: error.errors, // Add full error details
               },
             },
             { status: 400 }
           );
         }
+        
+        console.error('Unexpected error:', error);
 
         console.error("Create template error:", error);
         return NextResponse.json<ApiResponse>(
