@@ -48,30 +48,45 @@ export async function middleware(request: NextRequest) {
      !path.startsWith("/api/landings/check-status") &&
      !path.match(/^\/api\/landings\/[^/]+\/view$/)
   ) {
+    console.log('=== MIDDLEWARE API KEY CHECK ===');
+    console.log('Path:', path);
+    
     const apiKey = request.nextUrl.searchParams.get("apiKey");
     const validKey = process.env.API_SECRET_KEY;
+    
+    console.log('API Key present:', !!apiKey);
+    console.log('Valid key configured:', !!validKey);
     
     // Если ключ не задан в .env, пропускаем (режим разработки/отладки без ключа)
     // Но если задан - проверяем строго
     if (validKey && apiKey !== validKey) {
+      console.log('API key mismatch, checking session...');
+      
       // PROPYV_UPDATE: Allow authenticated sessions (Cookie) to bypass API Key check
       // This fixes issues where client-side env vars might be missing
       const token = request.cookies.get("accessToken")?.value;
       let isAuthorized = false;
 
+      console.log('Access token present:', !!token);
+
       if (token) {
         try {
           const payload = await verifyAccessTokenEdge(token);
+          console.log('Token payload:', payload ? { userId: payload.userId, role: payload.role } : null);
+          
           // Allow admins and curators to access API without key (since they are logged in)
           if (payload && (payload.role === "admin" || payload.role === "curator")) {
             isAuthorized = true;
+            console.log('Authorized via session (admin/curator)');
           }
         } catch (e) {
+          console.error('Token verification failed:', e);
           // Token invalid, ignore
         }
       }
 
       if (!isAuthorized) {
+        console.log('UNAUTHORIZED - returning 401');
         // Для API возвращаем JSON
         // Возвращаем 401, чтобы клиент мог попытаться обновить токен (refresh token)
         return NextResponse.json(
@@ -79,6 +94,10 @@ export async function middleware(request: NextRequest) {
           { status: 401 }
         );
       }
+      
+      console.log('Request authorized, proceeding...');
+    } else {
+      console.log('API key valid or not required, proceeding...');
     }
   }
   // --- API SECURITY CHECK END ---
