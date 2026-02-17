@@ -46,7 +46,7 @@ export default function NewCertificateTemplatePage() {
       formData.append("file", file);
 
       const response = await apiClient.post(
-        "/admin/certificates/templates/upload",
+        "/admin/certificates/templates-upload",
         formData,
         {
           headers: {
