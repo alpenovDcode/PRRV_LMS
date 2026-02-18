@@ -22,6 +22,8 @@ export const courseSchema = z.object({
   // Принимаем как полный URL, так и Cloudflare Image ID (UUID или любую строку)
   coverImage: z.string().min(1).optional(),
   isPublished: z.boolean().default(false),
+  autoIssueCertificate: z.boolean().optional(),
+  certificateTemplateId: z.string().nullable().optional(),
 });
 
 export const lessonSchema = z.object({

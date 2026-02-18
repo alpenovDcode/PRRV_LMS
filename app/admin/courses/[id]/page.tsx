@@ -17,6 +17,13 @@ import { toast } from "sonner";
 import { getCloudflareImageUrl, extractImageId } from "@/lib/cloudflare-images";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 
 interface CourseDetail {
@@ -27,6 +34,10 @@ interface CourseDetail {
   coverImage: string | null;
   isPublished: boolean;
   createdAt: string;
+  coverImage: string | null;
+  isPublished: boolean;
+  autoIssueCertificate: boolean;
+  certificateTemplateId: string | null;
   modules: Array<{
     id: string;
     title: string;
@@ -47,6 +58,8 @@ export default function AdminCourseEditPage() {
   const [description, setDescription] = useState("");
   const [coverImage, setCoverImage] = useState("");
   const [isPublished, setIsPublished] = useState(false);
+  const [autoIssueCertificate, setAutoIssueCertificate] = useState(false);
+  const [certificateTemplateId, setCertificateTemplateId] = useState<string | null>(null);
 
   const { data: course, isLoading } = useQuery<CourseDetail>({
     queryKey: ["admin", "courses", courseId],
@@ -62,6 +75,8 @@ export default function AdminCourseEditPage() {
       setDescription(course.description || "");
       setCoverImage(course.coverImage || "");
       setIsPublished(course.isPublished);
+      setAutoIssueCertificate(course.autoIssueCertificate || false);
+      setCertificateTemplateId(course.certificateTemplateId || null);
     }
   }, [course]);
 
@@ -72,6 +87,8 @@ export default function AdminCourseEditPage() {
         description,
         coverImage: coverImage ? extractImageId(coverImage) : null,
         isPublished,
+        autoIssueCertificate,
+        certificateTemplateId,
       });
       return response.data.data;
     },
@@ -373,3 +390,90 @@ export default function AdminCourseEditPage() {
   );
 }
 
+    </div>
+  );
+}
+
+function CertificateSettings({
+  courseId,
+  autoIssueCertificate,
+  setAutoIssueCertificate,
+  certificateTemplateId,
+  setCertificateTemplateId,
+}: {
+  courseId: string;
+  autoIssueCertificate: boolean;
+  setAutoIssueCertificate: (val: boolean) => void;
+  certificateTemplateId: string | null;
+  setCertificateTemplateId: (val: string | null) => void;
+}) {
+  const { data: templates } = useQuery<any[]>({
+    queryKey: ["admin", "certificates", "templates"],
+    queryFn: async () => {
+      const response = await apiClient.get("/admin/certificates/templates");
+      return response.data.data;
+    },
+  });
+
+  return (
+    <Card className="border-gray-200">
+      <CardHeader>
+        <CardTitle className="text-gray-900">Настройки сертификата</CardTitle>
+        <CardDescription className="text-gray-600">
+          Настройте автоматическую выдачу сертификатов при завершении курса
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+          <div className="space-y-0.5">
+            <Label htmlFor="autoIssue" className="text-gray-900">
+              Автоматическая выдача
+            </Label>
+            <p className="text-sm text-gray-600">
+              Сертификат будет выдан автоматически, когда студент завершит все уроки
+            </p>
+          </div>
+          <Switch
+            id="autoIssue"
+            checked={autoIssueCertificate}
+            onCheckedChange={setAutoIssueCertificate}
+          />
+        </div>
+
+        {autoIssueCertificate && (
+          <div className="space-y-2">
+            <Label htmlFor="template" className="text-gray-700">
+              Шаблон сертификата
+            </Label>
+            <Select
+              value={certificateTemplateId || "none"}
+              onValueChange={(value) => setCertificateTemplateId(value === "none" ? null : value)}
+            >
+              <SelectTrigger id="template" className="bg-white">
+                <SelectValue placeholder="Выберите шаблон" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Не выбран</SelectItem>
+                {templates?.map((template) => (
+                  <SelectItem key={template.id} value={template.id}>
+                    {template.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-gray-500">
+              Выберите шаблон, который будет использоваться для генерации PDF
+            </p>
+             <div className="pt-2">
+              <Button variant="link" asChild className="p-0 h-auto text-blue-600">
+                <Link href="/admin/certificates/templates" target="_blank">
+                  Управление шаблонами
+                </Link>
+              </Button>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}

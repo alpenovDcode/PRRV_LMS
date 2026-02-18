@@ -12,6 +12,67 @@ const templateUpdateSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
+// GET /api/admin/certificates/templates/[id] - Get template details
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  return withAuth(
+    request,
+    async () => {
+      try {
+        const { id } = await params;
+
+        const template = await db.certificateTemplate.findUnique({
+          where: { id },
+          include: {
+            course: {
+              select: {
+                id: true,
+                title: true,
+              },
+            },
+          },
+        });
+
+        if (!template) {
+          return NextResponse.json<ApiResponse>(
+            {
+              success: false,
+              error: {
+                code: "NOT_FOUND",
+                message: "Шаблон не найден",
+              },
+            },
+            { status: 404 }
+          );
+        }
+
+        return NextResponse.json<ApiResponse>(
+          {
+            success: true,
+            data: template,
+          },
+          { status: 200 }
+        );
+      } catch (error) {
+        console.error("Get template error:", error);
+        return NextResponse.json<ApiResponse>(
+          {
+            success: false,
+            error: {
+              code: "FETCH_ERROR",
+              message: "Ошибка при получении шаблона",
+            },
+          },
+          { status: 500 }
+        );
+      }
+    },
+    { roles: [UserRole.admin] }
+  );
+}
+
 // PATCH /api/admin/certificates/templates/[id] - Update template
 export async function PATCH(
   request: NextRequest,

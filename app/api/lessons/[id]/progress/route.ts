@@ -103,6 +103,19 @@ export async function POST(
         await logAction(req.user!.userId, "LESSON_COMPLETED", "lesson", id, {
           rating: ratingToSave
         });
+
+        // Проверяем и выдаем сертификат, если курс завершен
+        try {
+          // Нам нужен courseId. Мы уже получали урок с курсом выше.
+          const courseId = lesson.module.course.id;
+          // Импортируем динамически, чтобы избежать циклических зависимостей, если они есть,
+          // или просто импортируем стандартно.
+          const { checkAndIssueCertificate } = await import("@/lib/certificate-service");
+          await checkAndIssueCertificate(req.user!.userId, courseId);
+        } catch (certError) {
+          console.error("Certificate issuance check failed:", certError);
+          // Не блокируем ответ, если сертификат не выдался
+        }
       }
 
       return NextResponse.json<ApiResponse>(

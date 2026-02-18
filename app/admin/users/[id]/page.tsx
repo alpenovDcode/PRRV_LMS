@@ -21,7 +21,8 @@ import {
   BookOpen,
   CircleCheck,
   LogIn,
-  Pencil
+  Pencil,
+  Download
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -487,6 +488,7 @@ export default function AdminUserDetailPage() {
         <TabsList className="mb-6">
           <TabsTrigger value="profile">Профиль</TabsTrigger>
           <TabsTrigger value="access">Доступы</TabsTrigger>
+          <TabsTrigger value="certificates">Сертификаты</TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile" className="space-y-6">
@@ -763,9 +765,86 @@ export default function AdminUserDetailPage() {
                )}
              </CardContent>
            </Card>
+            </Card>
+        </TabsContent>
+
+        <TabsContent value="certificates" className="space-y-6">
+          <UserCertificates userId={userId} />
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+function UserCertificates({ userId }: { userId: string }) {
+  const { data: certificates, isLoading } = useQuery<any[]>({
+    queryKey: ["admin", "users", userId, "certificates"],
+    queryFn: async () => {
+      const response = await apiClient.get(`/admin/users/${userId}/certificates`);
+      return response.data.data;
+    },
+  });
+
+  if (isLoading) {
+    return <div className="text-center py-8 text-gray-500">Загрузка сертификатов...</div>;
+  }
+
+  if (!certificates || certificates.length === 0) {
+    return (
+      <Card className="border-none shadow-sm bg-white">
+        <CardHeader>
+          <CardTitle>Сертификаты пользователя</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-12 text-gray-500">
+            <p>У пользователя нет выданных сертификатов</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="border-none shadow-sm bg-white">
+      <CardHeader>
+        <CardTitle>Сертификаты ({certificates.length})</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          {certificates.map((cert) => (
+            <div
+              key={cert.id}
+              className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <div className="flex items-center gap-4">
+                <div className="h-16 w-24 bg-gray-100 rounded overflow-hidden flex-shrink-0">
+                  <img
+                    src={cert.pdfUrl}
+                    alt={cert.course.title}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div>
+                  <h4 className="font-medium text-gray-900">{cert.course.title}</h4>
+                  <p className="text-sm text-gray-500 font-mono">{cert.certificateNumber}</p>
+                  <p className="text-xs text-gray-400">
+                    Выдан: {new Date(cert.issuedAt).toLocaleDateString("ru-RU")}
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.open(cert.pdfUrl, "_blank")}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Скачать PDF
+              </Button>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

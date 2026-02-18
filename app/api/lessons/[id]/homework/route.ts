@@ -225,6 +225,19 @@ export async function POST(
          title: submission.lesson?.title
       });
 
+      // Проверяем и выдаем сертификат, если курс завершен (только если урок был завершен автоматически)
+      if (submission.lesson && !submission.lesson.isStopLesson) {
+        try {
+          // Нам нужно получить courseId. В `submission.lesson` его сейчас нет в select.
+          // Но мы делали запрос `lesson` в начале (строка 39), там есть courseId.
+          const courseId = lesson.module.course.id;
+          const { checkAndIssueCertificate } = await import("@/lib/certificate-service");
+          await checkAndIssueCertificate(req.user!.userId, courseId);
+        } catch (certError) {
+          console.error("Certificate issuance check failed:", certError);
+        }
+      }
+
       return NextResponse.json<ApiResponse>(
         {
           success: true,

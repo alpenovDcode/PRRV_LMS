@@ -121,6 +121,8 @@ export async function PATCH(
             description: sanitizedDescription,
             isPublished: parsed.isPublished,
             coverImage: parsed.coverImage,
+            autoIssueCertificate: parsed.autoIssueCertificate,
+            certificateTemplateId: parsed.certificateTemplateId,
           },
         });
 

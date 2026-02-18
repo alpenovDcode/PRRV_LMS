@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,24 +16,48 @@ import {
 } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Upload } from "lucide-react";
+import { useParams } from "next/navigation";
 import { CertificateEditor } from "@/components/admin/certificates/certificate-editor";
 
-export default function NewCertificateTemplatePage() {
+export default function EditCertificateTemplatePage() {
   const router = useRouter();
+  const params = useParams();
+  const id = params.id as string;
+
   const [name, setName] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [uploading, setUploading] = useState(false);
 
-  const createMutation = useMutation({
+  const [fieldConfig, setFieldConfig] = useState<any>(null);
+
+  // Fetch existing template
+  const { data: template, isLoading } = useQuery({
+    queryKey: ["admin", "certificate-templates", id],
+    queryFn: async () => {
+      const response = await apiClient.get(`/admin/certificates/templates/${id}`);
+      return response.data.data;
+    },
+  });
+
+  // Populate form when data loads
+  useEffect(() => {
+    if (template) {
+      setName(template.name);
+      setImageUrl(template.imageUrl);
+      setFieldConfig(template.fieldConfig);
+    }
+  }, [template]);
+
+  const updateMutation = useMutation({
     mutationFn: async (data: any) => {
-      await apiClient.post("/admin/certificates/templates", data);
+      await apiClient.patch(`/admin/certificates/templates/${id}`, data);
     },
     onSuccess: () => {
-      toast.success("Шаблон создан");
+      toast.success("Шаблон обновлен");
       router.push("/admin/certificates/templates");
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.error?.message || "Ошибка при создании");
+      toast.error(error.response?.data?.error?.message || "Ошибка при обновлении");
     },
   });
 
@@ -65,43 +89,6 @@ export default function NewCertificateTemplatePage() {
     }
   };
 
-  // Initial state for field config
-  const [fieldConfig, setFieldConfig] = useState<any>({
-    fullName: {
-      x: 400,
-      y: 300,
-      fontSize: 48,
-      fontFamily: "Arial",
-      color: "#000000",
-      align: "center",
-    },
-    courseName: {
-      x: 400,
-      y: 400,
-      fontSize: 32,
-      fontFamily: "Arial",
-      color: "#000000",
-      align: "center",
-    },
-    date: {
-      x: 400,
-      y: 500,
-      fontSize: 24,
-      fontFamily: "Arial",
-      color: "#000000",
-      align: "center",
-      format: "DD.MM.YYYY",
-    },
-    certificateNumber: {
-      x: 400,
-      y: 550,
-      fontSize: 18,
-      fontFamily: "Arial",
-      color: "#666666",
-      align: "center",
-    },
-  });
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -110,21 +97,24 @@ export default function NewCertificateTemplatePage() {
       return;
     }
 
-    createMutation.mutate({
-      courseId: null,
+    updateMutation.mutate({
       name,
       imageUrl,
       fieldConfig,
     });
   };
 
+  if (isLoading) {
+    return <div className="container mx-auto max-w-3xl px-4 py-8">Загрузка...</div>;
+  }
+
   return (
-    <div className="container mx-auto max-w-7xl px-4 py-8">
+    <div className="container mx-auto max-w-3xl px-4 py-8">
       <Card>
         <CardHeader>
-          <CardTitle>Создать шаблон сертификата</CardTitle>
+          <CardTitle>Редактировать шаблон сертификата</CardTitle>
           <CardDescription>
-            Загрузите изображение шаблона. Поля будут размещены автоматически, вы можете их переместить.
+            Измените название или изображение шаблона.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -152,11 +142,13 @@ export default function NewCertificateTemplatePage() {
               />
               {uploading && <p className="text-sm text-gray-500">Загрузка...</p>}
               
-              <CertificateEditor
-                imageUrl={imageUrl}
-                fieldConfig={fieldConfig}
-                onChange={setFieldConfig}
-              />
+              {fieldConfig && (
+                <CertificateEditor
+                  imageUrl={imageUrl}
+                  fieldConfig={fieldConfig}
+                  onChange={setFieldConfig}
+                />
+              )}
             </div>
 
             <div className="flex gap-3">
@@ -167,8 +159,8 @@ export default function NewCertificateTemplatePage() {
               >
                 Отмена
               </Button>
-              <Button type="submit" disabled={createMutation.isPending || uploading}>
-                {createMutation.isPending ? "Создание..." : "Создать шаблон"}
+              <Button type="submit" disabled={updateMutation.isPending || uploading}>
+                {updateMutation.isPending ? "Сохранение..." : "Сохранить"}
               </Button>
             </div>
           </form>
