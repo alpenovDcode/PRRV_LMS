@@ -72,10 +72,33 @@ async function generateCertificatePdf(
     // Draw fields
     // fieldConfig structure: { fullName: { x, y, fontSize, color, ... }, ... }
     const config = template.fieldConfig as any;
+    
+    try {
+      await appendFile("/tmp/certificate-debug.log", `\n[${new Date().toISOString()}] Config keys: ${Object.keys(config).join(", ")}\n`);
+    } catch (e) {}
 
     const drawField = async (key: string, text: string, isBold = false) => {
       const field = config[key];
-      if (!field || field.hidden) return;
+      
+      const debugInfo = {
+        key,
+        text,
+        fieldExists: !!field,
+        fieldHidden: field?.hidden,
+        fieldConfig: field
+      };
+      
+      const logEntry = `\n[${new Date().toISOString()}] Processing field ${key}: ${JSON.stringify(debugInfo, null, 2)}\n`;
+      
+      try {
+        await appendFile("/tmp/certificate-debug.log", logEntry);
+      } catch (e) {
+        console.error("Failed to write debug log", e);
+      }
+
+      if (!field || field.hidden) {
+         return;
+      }
 
       const size = field.fontSize || 24;
       // Convert hex color to RGB
@@ -97,25 +120,6 @@ async function generateCertificatePdf(
       }
       
       const y = height - field.y - (size / 2); // Approximating vertical center
-
-      const logEntry = `\n[${new Date().toISOString()}] Drawing field ${key}: ${JSON.stringify({
-        text,
-        x,
-        y,
-        size,
-        color: field.color,
-        pageWidth: width,
-        pageHeight: height,
-        fontRegistered: !!pdfDoc.registerFontkit,
-        fontToUse: isBold ? "bold" : "regular",
-        textWidth
-      }, null, 2)}\n`;
-      
-      try {
-        await appendFile(join(process.cwd(), "certificate-debug.log"), logEntry);
-      } catch (e) {
-        console.error("Failed to write debug log", e);
-      }
 
       page.drawText(text, {
         x,
