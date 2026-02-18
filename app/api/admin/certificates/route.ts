@@ -55,3 +55,58 @@ export async function GET(request: NextRequest) {
     { roles: [UserRole.admin] }
   );
 }
+
+export async function POST(request: NextRequest) {
+  return withAuth(
+    request,
+    async (req) => {
+      try {
+        const body = await request.json();
+        const { userId, courseId, templateId } = body;
+
+        if (!userId || !courseId || !templateId) {
+          return NextResponse.json<ApiResponse>(
+            {
+              success: false,
+              error: {
+                code: "VALIDATION_ERROR",
+                message: "Необходимо указать пользователя, курс и шаблон",
+              },
+            },
+            { status: 400 }
+          );
+        }
+
+        // Dynamically import to avoid circular dep if any, though likely safe
+        const { generateCertificate } = await import("@/lib/certificate-service");
+
+        const certificate = await generateCertificate({
+          userId,
+          courseId,
+          templateId,
+        });
+
+        return NextResponse.json<ApiResponse>(
+          {
+            success: true,
+            data: certificate,
+          },
+          { status: 201 }
+        );
+      } catch (error: any) {
+        console.error("Issue certificate error:", error);
+        return NextResponse.json<ApiResponse>(
+          {
+            success: false,
+            error: {
+              code: "ISSUANCE_ERROR",
+              message: error.message || "Ошибка при выдаче сертификата",
+            },
+          },
+          { status: 500 }
+        );
+      }
+    },
+    { roles: [UserRole.admin, UserRole.curator] }
+  );
+}
