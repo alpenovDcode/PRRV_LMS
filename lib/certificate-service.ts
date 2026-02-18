@@ -166,11 +166,9 @@ async function generateCertificatePdf(
     };
   } catch (error: any) {
     console.error("PDF Generation error:", error);
-    // Fallback to template image if generation fails
-    return { 
-        url: template.imageUrl, 
-        logs: logs.concat([`ERROR: ${error.message}`])
-    };
+    // DO NOT Fallback. Throw error to make it visible.
+    const combinedLog = logs.join('\n');
+    throw new Error(`PDF Gen Failed: ${error.message}\nLogs:\n${combinedLog}`);
   }
 }
 
