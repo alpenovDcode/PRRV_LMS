@@ -98,6 +98,19 @@ async function generateCertificatePdf(
       
       const y = height - field.y - (size / 2); // Approximating vertical center
 
+      console.log(`Drawing field ${key}:`, {
+        text,
+        x,
+        y,
+        size,
+        color: field.color,
+        pageWidth: width,
+        pageHeight: height,
+        fontRegistered: !!pdfDoc.registerFontkit,
+        fontToUse: isBold ? "bold" : "regular",
+        textWidth
+      });
+
       page.drawText(text, {
         x,
         y,
