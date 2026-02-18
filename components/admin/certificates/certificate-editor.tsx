@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface FieldConfig {
   x: number;
@@ -15,6 +16,7 @@ interface FieldConfig {
   color: string;
   align: "left" | "center" | "right";
   format?: string;
+  hidden?: boolean;
 }
 
 interface CertificateFieldConfig {
@@ -92,8 +94,15 @@ export function CertificateEditor({
     });
   };
 
+  const toggleFieldVisibility = (field: keyof CertificateFieldConfig) => {
+    const current = fieldConfig[field].hidden;
+    updateFieldStyle(field, "hidden", !current);
+  };
+
   const renderField = (key: keyof CertificateFieldConfig, label: string, sampleText: string) => {
     const config = fieldConfig[key];
+    if (config.hidden) return null;
+    
     const isSelected = selectedField === key;
 
     return (
@@ -116,6 +125,13 @@ export function CertificateEditor({
         {sampleText}
       </div>
     );
+  };
+
+  const fieldLabels: Record<keyof CertificateFieldConfig, string> = {
+    fullName: "Имя студента",
+    courseName: "Название курса",
+    date: "Дата выдачи",
+    certificateNumber: "Номер сертификата",
   };
 
   return (
@@ -157,96 +173,124 @@ export function CertificateEditor({
         </p>
       </div>
 
-      <div className="bg-white p-4 rounded-lg border h-fit">
-        <h3 className="font-semibold mb-4">Настройки полей</h3>
+      <div className="bg-white p-4 rounded-lg border h-fit space-y-6">
         
-        {!selectedField ? (
-          <div className="text-gray-500 text-sm">
-            Выберите поле на шаблоне для редактирования
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="font-medium border-b pb-2 mb-2">
-              {selectedField === "fullName" && "Имя студента"}
-              {selectedField === "courseName" && "Название курса"}
-              {selectedField === "date" && "Дата"}
-              {selectedField === "certificateNumber" && "Номер сертификата"}
-            </div>
-
+        {/* Fields Toggle List */}
+        <div>
+            <h3 className="font-semibold mb-2">Элементы сертификата</h3>
             <div className="space-y-2">
-              <Label>Размер шрифта (px)</Label>
-              <Input
-                type="number"
-                value={fieldConfig[selectedField].fontSize}
-                onChange={(e) =>
-                  updateFieldStyle(selectedField, "fontSize", Number(e.target.value))
-                }
-              />
+                {(Object.keys(fieldLabels) as Array<keyof CertificateFieldConfig>).map((key) => (
+                    <div key={key} className="flex items-center justify-between p-2 border rounded hover:bg-gray-50 cursor-pointer" onClick={() => setSelectedField(key)}>
+                        <span className={cn("text-sm", selectedField === key && "font-medium text-blue-600")}>
+                            {fieldLabels[key]}
+                        </span>
+                        <div className="flex items-center gap-2">
+                             <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-6 px-2 text-xs"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleFieldVisibility(key);
+                                }}
+                             >
+                                {fieldConfig[key].hidden ? "Показать" : "Скрыть"}
+                             </Button>
+                        </div>
+                    </div>
+                ))}
             </div>
+        </div>
 
-            <div className="space-y-2">
-              <Label>Цвет текста</Label>
-              <div className="flex gap-2">
-                <Input
-                  type="color"
-                  value={fieldConfig[selectedField].color}
-                  onChange={(e) =>
-                    updateFieldStyle(selectedField, "color", e.target.value)
-                  }
-                  className="w-12 p-1 h-10"
-                />
-                <Input
-                  type="text"
-                  value={fieldConfig[selectedField].color}
-                  onChange={(e) =>
-                    updateFieldStyle(selectedField, "color", e.target.value)
-                  }
-                  className="flex-1"
-                />
-              </div>
+        <div className="border-t pt-4">
+            <h3 className="font-semibold mb-4">Настройки полей</h3>
+            
+            {!selectedField ? (
+            <div className="text-gray-500 text-sm">
+                Выберите поле на шаблоне для редактирования
             </div>
+            ) : (
+            <div className="space-y-4">
+                <div className="font-medium border-b pb-2 mb-2">
+                {fieldLabels[selectedField]}
+                {fieldConfig[selectedField].hidden && <span className="ml-2 text-red-500 text-xs">(Скрыто)</span>}
+                </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-2">
-                <Label>Координата X</Label>
+                <div className="space-y-2">
+                <Label>Размер шрифта (px)</Label>
                 <Input
-                  type="number"
-                  value={fieldConfig[selectedField].x}
-                  onChange={(e) =>
-                    updateFieldStyle(selectedField, "x", Number(e.target.value))
-                  }
+                    type="number"
+                    value={fieldConfig[selectedField].fontSize}
+                    onChange={(e) =>
+                    updateFieldStyle(selectedField, "fontSize", Number(e.target.value))
+                    }
                 />
-              </div>
-              <div className="space-y-2">
-                <Label>Координата Y</Label>
-                <Input
-                  type="number"
-                  value={fieldConfig[selectedField].y}
-                  onChange={(e) =>
-                    updateFieldStyle(selectedField, "y", Number(e.target.value))
-                  }
-                />
-              </div>
+                </div>
+
+                <div className="space-y-2">
+                <Label>Цвет текста</Label>
+                <div className="flex gap-2">
+                    <Input
+                    type="color"
+                    value={fieldConfig[selectedField].color}
+                    onChange={(e) =>
+                        updateFieldStyle(selectedField, "color", e.target.value)
+                    }
+                    className="w-12 p-1 h-10"
+                    />
+                    <Input
+                    type="text"
+                    value={fieldConfig[selectedField].color}
+                    onChange={(e) =>
+                        updateFieldStyle(selectedField, "color", e.target.value)
+                    }
+                    className="flex-1"
+                    />
+                </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-2">
+                    <Label>Координата X</Label>
+                    <Input
+                    type="number"
+                    value={fieldConfig[selectedField].x}
+                    onChange={(e) =>
+                        updateFieldStyle(selectedField, "x", Number(e.target.value))
+                    }
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label>Координата Y</Label>
+                    <Input
+                    type="number"
+                    value={fieldConfig[selectedField].y}
+                    onChange={(e) =>
+                        updateFieldStyle(selectedField, "y", Number(e.target.value))
+                    }
+                    />
+                </div>
+                </div>
+                {selectedField === "date" && (
+                    <div className="space-y-2">
+                        <Label>Формат даты</Label>
+                        <Select
+                            value={(fieldConfig.date as any).format || "DD.MM.YYYY"}
+                            onValueChange={(val) => updateFieldStyle("date", "format", val)} // Use "date" explicitly
+                        >
+                            <SelectTrigger>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="DD.MM.YYYY">DD.MM.YYYY</SelectItem>
+                                <SelectItem value="DD MMMM YYYY">DD MMMM YYYY</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                )}
             </div>
-            {selectedField === "date" && (
-                 <div className="space-y-2">
-                    <Label>Формат даты</Label>
-                    <Select
-                        value={(fieldConfig.date as any).format || "DD.MM.YYYY"}
-                        onValueChange={(val) => updateFieldStyle("date", "format", val)} // Use "date" explicitly
-                    >
-                        <SelectTrigger>
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="DD.MM.YYYY">DD.MM.YYYY</SelectItem>
-                            <SelectItem value="DD MMMM YYYY">DD MMMM YYYY</SelectItem>
-                        </SelectContent>
-                    </Select>
-                 </div>
             )}
-          </div>
-        )}
+        </div>
       </div>
     </div>
   );
