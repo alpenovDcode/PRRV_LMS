@@ -180,8 +180,10 @@ export function IssueCertificateDialog({ children }: IssueCertificateDialogProps
                         {!isLoadingUsers && users?.map((user: any) => (
                         <CommandItem
                           key={user.id}
-                          value={user.id} // value is used for selection, but display is customized
-                          onSelect={() => {
+                          value={user.id}
+                          onSelect={(currentValue) => {
+                            // currentValue in cmdk is the value prop (lowercased typically, but we should use the ID)
+                            // If we rely on closure, we can just use user.id
                             setSelectedUser(user.id);
                             setUserSearchOpen(false);
                           }}
