@@ -7,13 +7,13 @@ import { join } from "path";
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   return withAuth(
     request,
     async (req) => {
       try {
-        const { id } = params;
+        const { id } = await params;
 
         const certificate = await db.certificate.findUnique({
           where: { id },
