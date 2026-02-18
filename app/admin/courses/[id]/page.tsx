@@ -34,10 +34,9 @@ interface CourseDetail {
   coverImage: string | null;
   isPublished: boolean;
   createdAt: string;
-  coverImage: string | null;
-  isPublished: boolean;
   autoIssueCertificate: boolean;
   certificateTemplateId: string | null;
+
   modules: Array<{
     id: string;
     title: string;
@@ -390,9 +389,6 @@ export default function AdminCourseEditPage() {
   );
 }
 
-    </div>
-  );
-}
 
 function CertificateSettings({
   courseId,

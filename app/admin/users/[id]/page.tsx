@@ -765,7 +765,7 @@ export default function AdminUserDetailPage() {
                )}
              </CardContent>
            </Card>
-            </Card>
+
         </TabsContent>
 
         <TabsContent value="certificates" className="space-y-6">
