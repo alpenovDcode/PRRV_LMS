@@ -245,7 +245,6 @@ export async function checkAndIssueCertificate(userId: string, courseId: string)
       module: {
         courseId,
       },
-      isPublished: true,
     },
   });
 
@@ -261,7 +260,6 @@ export async function checkAndIssueCertificate(userId: string, courseId: string)
         module: {
           courseId,
         },
-        isPublished: true,
       },
       status: "completed",
     },
