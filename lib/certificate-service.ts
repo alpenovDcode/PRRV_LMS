@@ -38,7 +38,8 @@ async function generateCertificatePdf(
     // Resolve template image path
     // Assuming template.imageUrl starts with /uploads/
     const publicDir = join(process.cwd(), "public");
-    const imagePath = join(publicDir, template.imageUrl);
+    const safeImageUrl = decodeURIComponent(template.imageUrl);
+    const imagePath = join(publicDir, safeImageUrl);
     const imageBytes = await readFile(imagePath);
 
     // Create PDF
@@ -74,11 +75,21 @@ async function generateCertificatePdf(
 
     log(`Loading fonts from ${fontPath}`);
 
-    const fontBytes = await readFile(fontPath);
-    const fontBoldBytes = await readFile(fontBoldPath);
+    let customFont, customFontBold;
+    try {
+        const fontBytes = await readFile(fontPath);
+        const fontBoldBytes = await readFile(fontBoldPath);
+        
+        // Debug: Log first 16 bytes to check header
+        log(`Font Header (Regular): ${fontBytes.subarray(0, 16).toString('hex')}`);
 
-    const customFont = await pdfDoc.embedFont(fontBytes);
-    const customFontBold = await pdfDoc.embedFont(fontBoldBytes);
+        customFont = await pdfDoc.embedFont(fontBytes);
+        customFontBold = await pdfDoc.embedFont(fontBoldBytes);
+    } catch (fontError: any) {
+        log(`Font loading failed: ${fontError.message}. Falling back to Helvetica (No Cyrillic support)`);
+        customFont = await pdfDoc.embedFont("Helvetica");
+        customFontBold = await pdfDoc.embedFont("Helvetica-Bold");
+    }
 
     // Draw fields
     // fieldConfig structure: { fullName: { x, y, fontSize, color, ... }, ... }
