@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { PDFDocument, rgb } from "pdf-lib";
 const fontkit = require("fontkit");
-import { readFile, writeFile, mkdir } from "fs/promises";
+import { readFile, writeFile, mkdir, appendFile } from "fs/promises";
 import { join } from "path";
 
 interface GenerateCertificateParams {
@@ -73,7 +73,7 @@ async function generateCertificatePdf(
     // fieldConfig structure: { fullName: { x, y, fontSize, color, ... }, ... }
     const config = template.fieldConfig as any;
 
-    const drawField = (key: string, text: string, isBold = false) => {
+    const drawField = async (key: string, text: string, isBold = false) => {
       const field = config[key];
       if (!field || field.hidden) return;
 
@@ -98,7 +98,7 @@ async function generateCertificatePdf(
       
       const y = height - field.y - (size / 2); // Approximating vertical center
 
-      console.log(`Drawing field ${key}:`, {
+      const logEntry = `\n[${new Date().toISOString()}] Drawing field ${key}: ${JSON.stringify({
         text,
         x,
         y,
@@ -109,7 +109,13 @@ async function generateCertificatePdf(
         fontRegistered: !!pdfDoc.registerFontkit,
         fontToUse: isBold ? "bold" : "regular",
         textWidth
-      });
+      }, null, 2)}\n`;
+      
+      try {
+        await appendFile(join(process.cwd(), "certificate-debug.log"), logEntry);
+      } catch (e) {
+        console.error("Failed to write debug log", e);
+      }
 
       page.drawText(text, {
         x,
@@ -120,13 +126,13 @@ async function generateCertificatePdf(
       });
     };
 
-    drawField("fullName", data.studentName, true);
-    drawField("courseName", data.courseName);
+    await drawField("fullName", data.studentName, true);
+    await drawField("courseName", data.courseName);
     
     const dateStr = format(data.date, (config.date?.format || "dd.MM.yyyy"), { locale: ru });
-    drawField("date", dateStr);
+    await drawField("date", dateStr);
     
-    drawField("certificateNumber", data.certificateNumber);
+    await drawField("certificateNumber", data.certificateNumber);
 
     // Save PDF
     const pdfBytes = await pdfDoc.save();
