@@ -8,7 +8,7 @@ import { z } from "zod";
 const templateCreateSchema = z.object({
   courseId: z.string().uuid().optional().nullable(),
   name: z.string().min(1, "Название обязательно"),
-  imageUrl: z.string().url("Некорректный URL изображения"),
+  imageUrl: z.string().min(1, "URL изображения обязателен"),
   fieldConfig: z.object({
     fullName: z.object({
       x: z.number(),

@@ -7,7 +7,7 @@ import { z } from "zod";
 
 const templateUpdateSchema = z.object({
   name: z.string().min(1).optional(),
-  imageUrl: z.string().url().optional(),
+  imageUrl: z.string().min(1).optional(),
   fieldConfig: z.any().optional(),
   isActive: z.boolean().optional(),
 });
