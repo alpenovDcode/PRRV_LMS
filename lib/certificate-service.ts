@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { PDFDocument, rgb } from "pdf-lib";
 const fontkit = require("fontkit");
-import { readFile, writeFile, mkdir, appendFile } from "fs/promises";
+import { readFile, writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 
 interface GenerateCertificateParams {
@@ -26,7 +26,14 @@ async function generateCertificatePdf(
     date: Date;
     certificateNumber: string;
   }
-): Promise<string> {
+): Promise<{ url: string, logs: string[] }> {
+  const logs: string[] = [];
+  const log = (msg: string, data?: any) => {
+      const entry = `[${new Date().toISOString()}] ${msg} ${data ? JSON.stringify(data, null, 2) : ''}`;
+      console.log(entry);
+      logs.push(entry);
+  };
+
   try {
     // Resolve template image path
     // Assuming template.imageUrl starts with /uploads/
@@ -58,11 +65,15 @@ async function generateCertificatePdf(
       width,
       height,
     });
+    
+    log(`STARTED PDF GENERATION for ${data.studentName}`);
 
     // Load custom fonts (Roboto) for Cyrillic support
     const fontPath = join(publicDir, "fonts", "Roboto-Regular.ttf");
     const fontBoldPath = join(publicDir, "fonts", "Roboto-Bold.ttf");
-    
+
+    log(`Loading fonts from ${fontPath}`);
+
     const fontBytes = await readFile(fontPath);
     const fontBoldBytes = await readFile(fontBoldPath);
 
@@ -73,11 +84,9 @@ async function generateCertificatePdf(
     // fieldConfig structure: { fullName: { x, y, fontSize, color, ... }, ... }
     const config = template.fieldConfig as any;
     
-    try {
-      await appendFile("/tmp/certificate-debug.log", `\n[${new Date().toISOString()}] Config keys: ${Object.keys(config).join(", ")}\n`);
-    } catch (e) {}
+    log(`Config keys: ${Object.keys(config).join(", ")}`);
 
-    const drawField = async (key: string, text: string, isBold = false) => {
+    const drawField = (key: string, text: string, isBold = false) => {
       const field = config[key];
       
       const debugInfo = {
@@ -88,13 +97,7 @@ async function generateCertificatePdf(
         fieldConfig: field
       };
       
-      const logEntry = `\n[${new Date().toISOString()}] Processing field ${key}: ${JSON.stringify(debugInfo, null, 2)}\n`;
-      
-      try {
-        await appendFile("/tmp/certificate-debug.log", logEntry);
-      } catch (e) {
-        console.error("Failed to write debug log", e);
-      }
+      log(`Processing field ${key}:`, debugInfo);
 
       if (!field || field.hidden) {
          return;
@@ -130,13 +133,13 @@ async function generateCertificatePdf(
       });
     };
 
-    await drawField("fullName", data.studentName, true);
-    await drawField("courseName", data.courseName);
+    drawField("fullName", data.studentName, true);
+    drawField("courseName", data.courseName);
     
     const dateStr = format(data.date, (config.date?.format || "dd.MM.yyyy"), { locale: ru });
-    await drawField("date", dateStr);
+    drawField("date", dateStr);
     
-    await drawField("certificateNumber", data.certificateNumber);
+    drawField("certificateNumber", data.certificateNumber);
 
     // Save PDF
     const pdfBytes = await pdfDoc.save();
@@ -148,11 +151,17 @@ async function generateCertificatePdf(
     const outputPath = join(outputDir, filename);
     await writeFile(outputPath, pdfBytes);
 
-    return `/uploads/certificates/generated/${filename}`;
-  } catch (error) {
+    return { 
+        url: `/uploads/certificates/generated/${filename}`,
+        logs
+    };
+  } catch (error: any) {
     console.error("PDF Generation error:", error);
     // Fallback to template image if generation fails
-    return template.imageUrl;
+    return { 
+        url: template.imageUrl, 
+        logs: logs.concat([`ERROR: ${error.message}`])
+    };
   }
 }
 
@@ -165,10 +174,15 @@ export async function generateCertificate(params: GenerateCertificateParams) {
       userId,
       courseId,
     },
+    include: { // Include relations for consistency if we return existing
+        user: { select: { id: true, fullName: true, email: true } },
+        course: { select: { id: true, title: true, slug: true } },
+        template: true
+    }
   });
 
   if (existing) {
-    return existing;
+    return { certificate: existing, logs: ["Certificate already exists"] };
   }
 
   // Fetch user, course, and template
@@ -186,7 +200,7 @@ export async function generateCertificate(params: GenerateCertificateParams) {
   const certificateNumber = await generateCertificateNumber(course.slug);
 
   // Generate PDF
-  const pdfUrl = await generateCertificatePdf(template, {
+  const { url: pdfUrl, logs } = await generateCertificatePdf(template, {
     studentName: user.fullName || "Студент",
     courseName: course.title,
     date: new Date(),
@@ -221,7 +235,7 @@ export async function generateCertificate(params: GenerateCertificateParams) {
     },
   });
 
-  return certificate;
+  return { certificate, logs };
 }
 
 export async function checkAndIssueCertificate(userId: string, courseId: string) {

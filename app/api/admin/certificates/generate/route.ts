@@ -20,12 +20,13 @@ export async function POST(request: NextRequest) {
         const body = await request.json();
         const data = generateSchema.parse(body);
 
-        const certificate = await generateCertificate(data);
+        const { certificate, logs } = await generateCertificate(data);
 
-        return NextResponse.json<ApiResponse>(
+        return NextResponse.json(
           {
             success: true,
             data: certificate,
+            logs // Adding logs to response
           },
           { status: 201 }
         );
