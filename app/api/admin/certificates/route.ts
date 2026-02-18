@@ -80,16 +80,17 @@ export async function POST(request: NextRequest) {
         // Dynamically import to avoid circular dep if any, though likely safe
         const { generateCertificate } = await import("@/lib/certificate-service");
 
-        const certificate = await generateCertificate({
+        const { certificate, logs } = await generateCertificate({
           userId,
           courseId,
           templateId,
         });
 
-        return NextResponse.json<ApiResponse>(
+        return NextResponse.json(
           {
             success: true,
             data: certificate,
+            logs
           },
           { status: 201 }
         );
