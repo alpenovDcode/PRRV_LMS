@@ -21,7 +21,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Check, ChevronsUpDown, Loader2, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Command,
@@ -150,41 +151,45 @@ export function IssueCertificateDialog({ children }: IssueCertificateDialogProps
           {/* USER SELECT */}
           <div className="grid gap-2">
             <Label>Пользователь</Label>
-            <Popover open={userSearchOpen} onOpenChange={setUserSearchOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={userSearchOpen}
-                  className="w-full justify-between"
-                >
-                  {getSelectedUserLabel()}
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[400px] p-0">
-                <Command shouldFilter={false}>
-                  <CommandInput 
-                    placeholder="Поиск по имени или email..." 
-                    value={userSearchQuery}
-                    onValueChange={handleUserSearch}
-                  />
-                  <CommandList>
-                    <CommandEmpty>Пользователи не найдены.</CommandEmpty>
-                    <CommandGroup>
-                        {isLoadingUsers && (
-                            <CommandItem disabled>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Загрузка...
-                            </CommandItem>
-                        )}
-                        {!isLoadingUsers && users?.map((user: any) => (
-                        <CommandItem
+            <Label>Пользователь</Label>
+            <div className="relative">
+              <div className="relative">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Поиск по имени или email..."
+                  value={userSearchQuery}
+                  onChange={(e) => {
+                    setUserSearchQuery(e.target.value);
+                    setUserSearchOpen(true);
+                  }}
+                  onFocus={() => setUserSearchOpen(true)}
+                  className="pl-8"
+                />
+              </div>
+              
+              {userSearchOpen && (userSearchQuery || users?.length > 0) && (
+                <div className="absolute z-[100] mt-1 w-full rounded-md border bg-popover p-0 shadow-md">
+                  <div className="max-h-[200px] overflow-y-auto p-1">
+                    {isLoadingUsers ? (
+                      <div className="flex items-center p-2 text-sm text-muted-foreground">
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Загрузка...
+                      </div>
+                    ) : users?.length === 0 ? (
+                       <div className="p-2 text-sm text-muted-foreground text-center">
+                         Пользователи не найдены
+                       </div>
+                    ) : (
+                      users?.map((user: any) => (
+                        <div
                           key={user.id}
-                          value={user.id}
-                          onSelect={(currentValue) => {
-                            // currentValue in cmdk is the value prop (lowercased typically, but we should use the ID)
-                            // If we rely on closure, we can just use user.id
+                          className={cn(
+                            "flex cursor-pointer items-center rounded-sm px-2 py-2 text-sm hover:bg-accent hover:text-accent-foreground",
+                            selectedUser === user.id && "bg-accent/50"
+                          )}
+                          onClick={() => {
                             setSelectedUser(user.id);
+                            setUserSearchQuery(user.fullName || user.email);
                             setUserSearchOpen(false);
                           }}
                         >
@@ -195,16 +200,23 @@ export function IssueCertificateDialog({ children }: IssueCertificateDialogProps
                             )}
                           />
                           <div className="flex flex-col">
-                              <span>{user.fullName || "Без имени"}</span>
-                              <span className="text-xs text-muted-foreground">{user.email}</span>
+                            <span className="font-medium">{user.fullName || "Без имени"}</span>
+                            <span className="text-xs text-muted-foreground">{user.email}</span>
                           </div>
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+              {/* Backdrop to close dropdown on click outside */}
+              {userSearchOpen && (
+                <div 
+                  className="fixed inset-0 z-[99]" 
+                  onClick={() => setUserSearchOpen(false)} 
+                />
+              )}
+            </div>
           </div>
 
           {/* COURSE SELECT */}
