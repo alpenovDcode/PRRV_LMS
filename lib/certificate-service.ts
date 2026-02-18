@@ -134,6 +134,15 @@ async function generateCertificatePdf(
     };
 
     drawField("fullName", data.studentName, true);
+    
+    // DEBUG: Force error to show logs in UI
+    const fullNameField = config["fullName"];
+    throw new Error(`DEBUG REPORT: 
+      StudentName: "${data.studentName}"
+      FullName Config: ${JSON.stringify(fullNameField)}
+      Config Keys: ${Object.keys(config).join(", ")}
+    `);
+
     drawField("courseName", data.courseName);
     
     const dateStr = format(data.date, (config.date?.format || "dd.MM.yyyy"), { locale: ru });
@@ -312,9 +321,11 @@ export async function checkAndIssueCertificate(userId: string, courseId: string)
   }
 
   // Generate and issue certificate
-  return await generateCertificate({
+  const { certificate } = await generateCertificate({
     userId,
     courseId,
     templateId: course.certificateTemplateId,
   });
+  
+  return certificate;
 }
