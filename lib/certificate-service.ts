@@ -1,7 +1,8 @@
 import { db } from "@/lib/db";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
-import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import { PDFDocument, rgb } from "pdf-lib";
+import fontkit from "fontkit";
 import { readFile, writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 
@@ -36,6 +37,9 @@ async function generateCertificatePdf(
     // Create PDF
     const pdfDoc = await PDFDocument.create();
     
+    // Register fontkit
+    pdfDoc.registerFontkit(fontkit);
+    
     // Embed image
     let image;
     if (template.imageUrl.toLowerCase().endsWith(".png")) {
@@ -55,9 +59,15 @@ async function generateCertificatePdf(
       height,
     });
 
-    // Load font (using standard font for now, could be improved with custom fonts)
-    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    // Load custom fonts (Roboto) for Cyrillic support
+    const fontPath = join(publicDir, "fonts", "Roboto-Regular.ttf");
+    const fontBoldPath = join(publicDir, "fonts", "Roboto-Bold.ttf");
+    
+    const fontBytes = await readFile(fontPath);
+    const fontBoldBytes = await readFile(fontBoldPath);
+
+    const customFont = await pdfDoc.embedFont(fontBytes);
+    const customFontBold = await pdfDoc.embedFont(fontBoldBytes);
 
     // Draw fields
     // fieldConfig structure: { fullName: { x, y, fontSize, color, ... }, ... }
@@ -65,7 +75,7 @@ async function generateCertificatePdf(
 
     const drawField = (key: string, text: string, isBold = false) => {
       const field = config[key];
-      if (!field) return;
+      if (!field || field.hidden) return;
 
       const size = field.fontSize || 24;
       // Convert hex color to RGB
@@ -75,29 +85,24 @@ async function generateCertificatePdf(
       const b = parseInt(hex.substring(4, 6), 16) / 255;
       const color = rgb(isNaN(r) ? 0 : r, isNaN(g) ? 0 : g, isNaN(b) ? 0 : b);
 
-      const textWidth = (isBold ? fontBold : font).widthOfTextAtSize(text, size);
+      const fontToUse = isBold ? customFontBold : customFont;
+      const textWidth = fontToUse.widthOfTextAtSize(text, size);
       
       let x = field.x;
-      // Adjust X based on alignment (coordinates are center-based in editor, but pdf-lib draws from bottom-left)
-      // Our editor centers: transform: translate(-50%, -50%)
-      // So field.x is the center point.
-      
+      // Adjust X based on alignment
       if (field.align === "center") {
         x = field.x - textWidth / 2;
       } else if (field.align === "right") {
         x = field.x - textWidth;
       }
       
-      // PDF-lib coordinate system: (0,0) is bottom-left. 
-      // Our editor (CSS) coordinate system: (0,0) is top-left.
-      // We need to invert Y.
       const y = height - field.y - (size / 2); // Approximating vertical center
 
       page.drawText(text, {
         x,
         y,
         size,
-        font: isBold ? fontBold : font,
+        font: fontToUse,
         color,
       });
     };
