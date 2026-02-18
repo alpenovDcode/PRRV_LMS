@@ -244,7 +244,6 @@ export async function checkAndIssueCertificate(userId: string, courseId: string)
     where: {
       module: {
         courseId,
-        isPublished: true,
       },
       isPublished: true,
     },
