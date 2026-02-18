@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { PDFDocument, rgb } from "pdf-lib";
-import fontkit from "fontkit";
+const fontkit = require("fontkit");
 import { readFile, writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 

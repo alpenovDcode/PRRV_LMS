@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import {
   Card,
@@ -18,10 +18,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Download, Plus } from "lucide-react";
+import { Download, Plus, Trash } from "lucide-react";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { IssueCertificateDialog } from "./issue-certificate-dialog";
+import { toast } from "sonner";
 
 interface Certificate {
   id: string;
@@ -41,6 +42,7 @@ interface Certificate {
 
 export function IssuedCertificatesList() {
   const [search, setSearch] = useState("");
+  const queryClient = useQueryClient();
 
   const { data: certificates, isLoading } = useQuery<Certificate[]>({
     queryKey: ["admin", "certificates"],
@@ -49,6 +51,25 @@ export function IssuedCertificatesList() {
       return response.data.data;
     },
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiClient.delete(`/admin/certificates/${id}`);
+    },
+    onSuccess: () => {
+      toast.success("Сертификат удален");
+      queryClient.invalidateQueries({ queryKey: ["admin", "certificates"] });
+    },
+    onError: () => {
+      toast.error("Не удалось удалить сертификат");
+    },
+  });
+
+  const handleDelete = (id: string) => {
+    if (confirm("Вы уверены, что хотите удалить этот сертификат?")) {
+      deleteMutation.mutate(id);
+    }
+  };
 
   const filteredCertificates = certificates?.filter((cert) => {
     const searchLower = search.toLowerCase();
@@ -115,14 +136,23 @@ export function IssuedCertificatesList() {
                   <TableCell>
                     {new Date(cert.issuedAt).toLocaleDateString("ru-RU")}
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-right whitespace-nowrap">
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => window.open(cert.pdfUrl, "_blank")}
+                      className="mr-2"
                     >
                       <Download className="h-4 w-4 mr-2" />
-                      Скачать PDF
+                      Скачать
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDelete(cert.id)}
+                      className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                    >
+                      <Trash className="h-4 w-4" />
                     </Button>
                   </TableCell>
                 </TableRow>
