@@ -5,6 +5,7 @@ import { ApiResponse } from "@/types";
 import { UserRole } from "@prisma/client";
 import { adminEnrollmentSchema } from "@/lib/validations";
 import { logAction } from "@/lib/audit";
+import { sendTemplateEmail } from "@/lib/email-template-service";
 
 export async function GET(
   request: NextRequest,
@@ -123,6 +124,20 @@ export async function POST(
               isRead: false,
             },
           });
+
+          // Send email notification
+          const user = await db.user.findUnique({
+            where: { id },
+            select: { email: true, fullName: true },
+          });
+
+          if (user) {
+            await sendTemplateEmail("COURSE_ACCESS_GRANTED", user.email, {
+              fullName: user.fullName || "Студент",
+              courseName: course.title,
+              courseUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://prrv.tech"}/courses/${course.slug}`,
+            });
+          }
         }
 
         // Audit log

@@ -147,7 +147,11 @@ async function generateCertificatePdf(
     drawField("fullName", data.studentName, true);
     drawField("courseName", data.courseName);
     
-    const dateStr = format(data.date, (config.date?.format || "dd.MM.yyyy"), { locale: ru });
+    let dateFormat = config.date?.format || "dd.MM.yyyy";
+    // Fix common format mismatches for date-fns
+    dateFormat = dateFormat.replace(/DD/g, "dd").replace(/YYYY/g, "yyyy");
+    
+    const dateStr = format(data.date, dateFormat, { locale: ru });
     drawField("date", dateStr);
     
     drawField("certificateNumber", data.certificateNumber);

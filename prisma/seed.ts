@@ -1,5 +1,6 @@
 import { PrismaClient, UserRole } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { defaultEmailTemplates } from "../lib/default-email-templates";
 
 const prisma = new PrismaClient();
 
@@ -10,6 +11,24 @@ async function hashPassword(password: string): Promise<string> {
 async function main() {
   console.log("🌱 Seeding database...");
 
+
+
+  // Seeding Email Templates
+  console.log("📧 Seeding email templates...");
+  for (const template of defaultEmailTemplates) {
+    await prisma.emailTemplate.upsert({
+      where: { event: template.event },
+      update: {}, // Don't overwrite existing templates to respect user edits
+      create: {
+        event: template.event,
+        name: template.name,
+        subject: template.subject,
+        body: template.body,
+        variables: template.variables,
+      },
+    });
+  }
+  console.log("✅ Email templates seeded");
 
   // Seeding videos
   const videosPath = "cloudflare_videos.json";

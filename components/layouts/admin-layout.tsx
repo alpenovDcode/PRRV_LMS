@@ -23,6 +23,7 @@ import {
   GraduationCap,
   MessageSquare,
   Award,
+  Mail,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -40,6 +41,7 @@ const adminNavigation = [
   { name: "Мониторинг", href: "/admin/monitoring/errors", icon: AlertTriangle },
   { name: "Тренинги", href: "/admin/trainings", icon: GraduationCap },
   { name: "Сертификаты", href: "/admin/certificates", icon: Award },
+  { name: "Email шаблоны", href: "/admin/email-templates", icon: Mail },
   { name: "Лендинги", href: "/admin/landings", icon: LayoutDashboard }, // Using LayoutDashboard temporarily or until a better icon is imported
   { name: "Настройки", href: "/admin/settings", icon: Settings },
 ];

@@ -275,15 +275,15 @@ export function CertificateEditor({
                     <div className="space-y-2">
                         <Label>Формат даты</Label>
                         <Select
-                            value={(fieldConfig.date as any).format || "DD.MM.YYYY"}
+                            value={(fieldConfig.date as any).format || "dd.MM.yyyy"}
                             onValueChange={(val) => updateFieldStyle("date", "format", val)} // Use "date" explicitly
                         >
                             <SelectTrigger>
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="DD.MM.YYYY">DD.MM.YYYY</SelectItem>
-                                <SelectItem value="DD MMMM YYYY">DD MMMM YYYY</SelectItem>
+                                <SelectItem value="dd.MM.yyyy">dd.MM.yyyy</SelectItem>
+                                <SelectItem value="dd MMMM yyyy">dd MMMM yyyy</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>

@@ -847,4 +847,3 @@ function UserCertificates({ userId }: { userId: string }) {
     </Card>
   );
 }
-

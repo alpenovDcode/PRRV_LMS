@@ -7,6 +7,7 @@ import { adminUserCreateSchema } from "@/lib/validations";
 import { hashPassword, generateSessionId } from "@/lib/auth";
 import { logAction } from "@/lib/audit";
 import { z } from "zod";
+import { sendTemplateEmail } from "@/lib/email-template-service";
 
 export async function GET(request: NextRequest) {
   return withAuth(
@@ -157,6 +158,14 @@ export async function POST(request: NextRequest) {
           email: user.email,
           role: user.role,
           tariff: user.tariff,
+        });
+
+        // Send email notification
+        await sendTemplateEmail("USER_CREATED_BY_ADMIN", user.email, {
+          fullName: user.fullName || "Пользователь",
+          email: user.email,
+          password: password,
+          loginUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://prrv.tech"}/login`,
         });
 
         return NextResponse.json<ApiResponse>({ success: true, data: user }, { status: 201 });

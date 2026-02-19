@@ -13,12 +13,24 @@ import {
   LogOut,
   User,
   X,
+  LayoutDashboard,
+  BookOpen,
+  Users,
+  Layers,
+  MessageSquare,
+  GraduationCap
 } from "lucide-react";
 import { useState } from "react";
 import { NotificationsPopover } from "@/components/notifications-popover";
 
 const curatorNavigation = [
-  { name: "Входящие ДЗ", href: "/curator/inbox", icon: Inbox },
+  { name: "Обзор", href: "/admin", icon: LayoutDashboard },
+  { name: "Курсы", href: "/admin/courses", icon: BookOpen },
+  { name: "Пользователи", href: "/admin/users", icon: Users },
+  { name: "Группы", href: "/admin/groups", icon: Layers },
+  { name: "Входящие ДЗ", href: "/admin/homework", icon: Inbox },
+  { name: "Обсуждения", href: "/admin/comments", icon: MessageSquare },
+  { name: "Тренинги", href: "/admin/trainings", icon: GraduationCap },
 ];
 
 export function CuratorLayout({ children }: { children: React.ReactNode }) {

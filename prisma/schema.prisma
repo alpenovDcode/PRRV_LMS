@@ -619,3 +619,17 @@ model Certificate {
   @@index([certificateNumber])
   @@map("certificates")
 }
+
+model EmailTemplate {
+  id          String   @id @default(uuid())
+  event       String   @unique
+  name        String
+  subject     String
+  body        String   @db.Text
+  variables   Json
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("email_templates")
+}
