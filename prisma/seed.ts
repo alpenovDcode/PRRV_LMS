@@ -16,17 +16,22 @@ async function main() {
   // Seeding Email Templates
   console.log("📧 Seeding email templates...");
   for (const template of defaultEmailTemplates) {
-    await prisma.emailTemplate.upsert({
-      where: { event: template.event },
-      update: {}, // Don't overwrite existing templates to respect user edits
-      create: {
-        event: template.event,
-        name: template.name,
-        subject: template.subject,
-        body: template.body,
-        variables: template.variables,
-      },
+    const existing = await prisma.emailTemplate.findFirst({
+        where: { event: template.event },
     });
+
+    if (!existing) {
+        await prisma.emailTemplate.create({
+            data: {
+                event: template.event,
+                name: template.name,
+                subject: template.subject,
+                body: template.body,
+                variables: template.variables,
+                isActive: true
+            }
+        });
+    }
   }
   console.log("✅ Email templates seeded");
 

@@ -13,8 +13,10 @@ export async function sendTemplateEmail(
   data: Record<string, string>
 ) {
   try {
-    const template = await db.emailTemplate.findUnique({
-      where: { event },
+    const template = await db.emailTemplate.findFirst({
+      where: { event, isActive: true },
+        // If multiple active templates exist (shouldn't happen with our logic), take the latest one
+        orderBy: { createdAt: "desc" },
     });
 
     if (!template) {
