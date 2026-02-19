@@ -28,6 +28,7 @@ import {
 import Link from "next/link";
 import { Plus, Search, X, Wand2, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
+import { MultiSelect, Option } from "@/components/ui/multi-select";
 
 interface AdminUser {
   id: string;
@@ -48,10 +49,18 @@ const isOnline = (lastActiveAt?: string | null) => {
   return diffMinutes < 15; // 15 minutes threshold
 };
 
+const roleOptions: Option[] = [
+  { label: "Студент", value: "student" },
+  { label: "Куратор", value: "curator" },
+  { label: "Администратор", value: "admin" },
+];
+
 export default function AdminUsersPage() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState<string>("");
+  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+  const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
+  const [selectedCourses, setSelectedCourses] = useState<string[]>([]);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
@@ -74,23 +83,44 @@ export default function AdminUsersPage() {
       password += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     setFormData(prev => ({ ...prev, password }));
-    setShowPassword(true); // Show the password so they can see/copy it
+    setShowPassword(true);
     toast.info("Пароль сгенерирован");
   };
 
+  // Fetch groups and courses for filters
+  const { data: groupsData } = useQuery({
+    queryKey: ["admin", "groups", "list"],
+    queryFn: async () => {
+      const response = await apiClient.get("/admin/groups");
+      return response.data.data.map((g: any) => ({ label: g.name, value: g.id }));
+    },
+    staleTime: 60000,
+  });
+
+  const { data: coursesData } = useQuery({
+    queryKey: ["admin", "courses", "list"],
+    queryFn: async () => {
+      const response = await apiClient.get("/admin/courses");
+      return response.data.data.map((c: any) => ({ label: c.title, value: c.id }));
+    },
+    staleTime: 60000,
+  });
+
   const { data, isLoading, error } = useQuery({
-    queryKey: ["admin", "users", search, roleFilter, dateFrom, dateTo, page, limit],
+    queryKey: ["admin", "users", search, selectedRoles, selectedGroups, selectedCourses, dateFrom, dateTo, page, limit],
     queryFn: async () => {
       const queryParams = new URLSearchParams();
       if (search) queryParams.append("search", search);
-      if (roleFilter) queryParams.append("role", roleFilter);
+      if (selectedRoles.length > 0) queryParams.append("roles", selectedRoles.join(","));
+      if (selectedGroups.length > 0) queryParams.append("groupIds", selectedGroups.join(","));
+      if (selectedCourses.length > 0) queryParams.append("courseIds", selectedCourses.join(","));
       if (dateFrom) queryParams.append("dateFrom", dateFrom);
       if (dateTo) queryParams.append("dateTo", dateTo);
       queryParams.append("page", page.toString());
       queryParams.append("limit", limit.toString());
       
       const response = await apiClient.get(`/admin/users?${queryParams.toString()}`);
-      return response.data; // Returns { data: [...], meta: ... }
+      return response.data;
     },
     retry: 1,
   });
@@ -123,16 +153,15 @@ export default function AdminUsersPage() {
 
   const clearFilters = () => {
     setSearch("");
-    setRoleFilter("");
+    setSelectedRoles([]);
+    setSelectedGroups([]);
+    setSelectedCourses([]);
     setDateFrom("");
     setDateTo("");
     setPage(1);
   };
 
-  // Преобразуем roleFilter для отображения в Select (пустая строка -> "all")
-  const displayRoleFilter = roleFilter || "all";
-
-  const hasActiveFilters = search || roleFilter || dateFrom || dateTo;
+  const hasActiveFilters = search || selectedRoles.length > 0 || selectedGroups.length > 0 || selectedCourses.length > 0 || dateFrom || dateTo;
 
   if (error) {
     return (
@@ -326,33 +355,53 @@ export default function AdminUsersPage() {
         <CardContent>
           {/* Фильтры и поиск */}
           <div className="space-y-4 mb-6">
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="flex-1 relative">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Поиск по имени или email..."
                   value={search}
                   onChange={(e) => {
                     setSearch(e.target.value);
-                    setPage(1); // Reset page on search
+                    setPage(1);
                   }}
                   className="pl-9"
                 />
               </div>
-              <Select value={displayRoleFilter} onValueChange={(value) => setRoleFilter(value === "all" ? "" : value)}>
-                <SelectTrigger className="w-full sm:w-[180px]">
-                  <SelectValue placeholder="Все роли" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Все роли</SelectItem>
-                  <SelectItem value="student">Студент</SelectItem>
-                  <SelectItem value="curator">Куратор</SelectItem>
-                  <SelectItem value="admin">Администратор</SelectItem>
-                </SelectContent>
-              </Select>
+              
+              <MultiSelect
+                options={roleOptions}
+                selected={selectedRoles}
+                onChange={(vals) => {
+                  setSelectedRoles(vals);
+                  setPage(1);
+                }}
+                placeholder="Фильтр по ролям"
+              />
+
+              <MultiSelect
+                options={groupsData || []}
+                selected={selectedGroups}
+                onChange={(vals) => {
+                  setSelectedGroups(vals);
+                  setPage(1);
+                }}
+                placeholder="Фильтр по группам"
+              />
+
+              <MultiSelect
+                options={coursesData || []}
+                selected={selectedCourses}
+                onChange={(vals) => {
+                  setSelectedCourses(vals);
+                  setPage(1);
+                }}
+                placeholder="Фильтр по курсам"
+              />
             </div>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="flex-1">
+
+            <div className="flex flex-col sm:flex-row gap-4 items-end">
+              <div className="flex-1 w-full sm:w-auto">
                 <Label htmlFor="dateFrom" className="text-xs text-muted-foreground mb-1 block">
                   Дата регистрации от
                 </Label>
@@ -363,7 +412,7 @@ export default function AdminUsersPage() {
                   onChange={(e) => setDateFrom(e.target.value)}
                 />
               </div>
-              <div className="flex-1">
+              <div className="flex-1 w-full sm:w-auto">
                 <Label htmlFor="dateTo" className="text-xs text-muted-foreground mb-1 block">
                   Дата регистрации до
                 </Label>
@@ -375,17 +424,14 @@ export default function AdminUsersPage() {
                 />
               </div>
               {hasActiveFilters && (
-                <div className="flex items-end">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={clearFilters}
-                    className="w-full sm:w-auto"
-                  >
-                    <X className="h-4 w-4 mr-2" />
-                    Сбросить фильтры
-                  </Button>
-                </div>
+                <Button
+                  variant="outline"
+                  onClick={clearFilters}
+                  className="w-full sm:w-auto"
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Сбросить
+                </Button>
               )}
             </div>
           </div>
@@ -419,6 +465,9 @@ export default function AdminUsersPage() {
                         </td>
                         <td className="py-3">
                           <Skeleton className="h-4 w-16" />
+                        </td>
+                        <td className="py-3">
+                          <Skeleton className="h-4 w-24" />
                         </td>
                         <td className="py-3">
                           <Skeleton className="h-4 w-24" />
@@ -510,8 +559,6 @@ export default function AdminUsersPage() {
                 </Button>
                 <div className="flex items-center gap-1">
                   {Array.from({ length: Math.min(5, meta.totalPages) }, (_, i) => {
-                    // Simple logic to show a window of pages around current page could be better, 
-                    // but for now 1-5 or simple range
                     let pNum = i + 1;
                     if (meta.totalPages > 5 && page > 3) {
                        pNum = page - 2 + i;

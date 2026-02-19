@@ -16,7 +16,11 @@ export async function GET(request: NextRequest) {
       try {
         const { searchParams } = new URL(request.url);
         const search = searchParams.get("search") || "";
-        const role = searchParams.get("role") || "";
+        const roles = searchParams.get("roles")?.split(",").filter(Boolean) || [];
+        const groupIds = searchParams.get("groupIds")?.split(",").filter(Boolean) || [];
+        const courseIds = searchParams.get("courseIds")?.split(",").filter(Boolean) || [];
+        const role = searchParams.get("role"); // Backward compatibility
+
         const dateFrom = searchParams.get("dateFrom") || "";
         const dateTo = searchParams.get("dateTo") || "";
 
@@ -30,9 +34,29 @@ export async function GET(request: NextRequest) {
           ];
         }
 
-        // Фильтр по роли
-        if (role && ["student", "curator", "admin"].includes(role)) {
+        // Фильтр по роли (поддержка множественного выбора и обратная совместимость)
+        if (roles.length > 0) {
+          where.role = { in: roles as UserRole[] };
+        } else if (role && ["student", "curator", "admin"].includes(role)) {
           where.role = role as UserRole;
+        }
+
+        // Фильтр по группам
+        if (groupIds.length > 0) {
+          where.groupMembers = {
+            some: {
+              groupId: { in: groupIds },
+            },
+          };
+        }
+
+        // Фильтр по курсам
+        if (courseIds.length > 0) {
+          where.enrollments = {
+            some: {
+              courseId: { in: courseIds },
+            },
+          };
         }
 
         // Фильтр по дате регистрации

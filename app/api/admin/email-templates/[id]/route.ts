@@ -13,14 +13,15 @@ const updateSchema = z.object({
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   return withAuth(
     request,
     async () => {
       try {
+        const { id } = await params;
         const template = await db.emailTemplate.findUnique({
-          where: { id: params.id },
+          where: { id },
         });
 
         if (!template) {
@@ -63,17 +64,18 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   return withAuth(
     request,
     async () => {
       try {
+        const { id } = await params;
         const body = await request.json();
         const data = updateSchema.parse(body);
 
         const template = await db.emailTemplate.update({
-          where: { id: params.id },
+          where: { id },
           data: {
             subject: data.subject,
             body: data.body,
