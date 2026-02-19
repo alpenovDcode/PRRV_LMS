@@ -44,7 +44,7 @@ const formSchema = z.object({
 // Helper to get variables for a selected event
 const getVariablesForEvent = (event: string) => {
   const template = defaultEmailTemplates.find((t) => t.event === event);
-  return template?.variables || {};
+  return (template?.variables || {}) as Record<string, string>;
 };
 
 // Available events from default templates
