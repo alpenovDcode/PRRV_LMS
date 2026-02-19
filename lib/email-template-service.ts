@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { sendEmail } from "@/lib/email-service";
+import { logAction } from "@/lib/audit";
 
 /**
  * Отправляет письмо, используя шаблон из базы данных.
@@ -12,6 +13,12 @@ export async function sendTemplateEmail(
   to: string,
   data: Record<string, string>
 ) {
+  // Find user to associate log with
+  const user = await db.user.findUnique({
+    where: { email: to },
+    select: { id: true },
+  });
+
   try {
     const template = await db.emailTemplate.findFirst({
       where: { event, isActive: true },
@@ -21,11 +28,27 @@ export async function sendTemplateEmail(
 
     if (!template) {
       console.warn(`Email template not found for event: ${event}`);
+      if (user) {
+         await logAction(user.id, "EMAIL_ERROR", "EmailTemplate", undefined, {
+            event,
+            to,
+            error: "Template not found or inactive",
+            status: "failed"
+         });
+      }
       return;
     }
 
     if (!template.isActive) {
       console.log(`Email template for event ${event} is disabled`);
+       if (user) {
+         await logAction(user.id, "EMAIL_ERROR", "EmailTemplate", template.id, {
+            event,
+            to,
+            error: "Template is disabled",
+            status: "failed"
+         });
+      }
       return;
     }
 
@@ -47,8 +70,32 @@ export async function sendTemplateEmail(
     });
 
     console.log(`Template email sent: ${event} to ${to}`);
+    
+    if (user) {
+      await logAction(
+        user.id,
+        "EMAIL_SENT",
+        "EmailTemplate",
+        template.id,
+        { event, to, subject, status: "success" }
+      );
+    }
   } catch (error) {
     console.error(`Error sending template email (${event}):`, error);
-    // Не выбрасываем ошибку, чтобы не ломать основной флоу (например, создание пользователя)
+    
+    if (user) {
+       await logAction(
+        user.id,
+        "EMAIL_ERROR",
+        "EmailTemplate",
+        undefined, 
+        { 
+            event, 
+            to, 
+            error: error instanceof Error ? error.message : String(error), 
+            status: "failed" 
+        }
+      );
+    }
   }
 }

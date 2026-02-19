@@ -36,6 +36,7 @@ interface AuditLog {
 const actionIcons: Record<string, React.ReactNode> = {
   "BITRIX_DEAL": <Database className="w-4 h-4 text-blue-500" />,
   "EMAIL_SENT": <Mail className="w-4 h-4 text-purple-500" />,
+  "EMAIL_ERROR": <XCircle className="w-4 h-4 text-red-500" />,
   "AI_GRADING": <Bot className="w-4 h-4 text-cyan-500" />,
   "USER_REGISTERED": <UserPlus className="w-4 h-4 text-green-500" />,
   "LANDING_SUBMISSION": <Scroll className="w-4 h-4 text-yellow-500" />,
@@ -45,6 +46,7 @@ const actionIcons: Record<string, React.ReactNode> = {
 const actionLabels: Record<string, string> = {
   "BITRIX_DEAL": "Bitrix сделка",
   "EMAIL_SENT": "Email отправлен",
+  "EMAIL_ERROR": "Ошибка Email",
   "AI_GRADING": "AI Проверка",
   "USER_REGISTERED": "Новый юзер",
   "LANDING_SUBMISSION": "Заявка с лендинга",
