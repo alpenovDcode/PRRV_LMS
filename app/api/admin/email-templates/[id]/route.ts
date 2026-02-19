@@ -74,6 +74,33 @@ export async function PUT(
         const body = await request.json();
         const data = updateSchema.parse(body);
 
+        // Get current template to know the event
+        const currentTemplate = await db.emailTemplate.findUnique({
+          where: { id },
+          select: { event: true },
+        });
+
+        if (!currentTemplate) {
+          return NextResponse.json<ApiResponse>(
+            {
+              success: false,
+              error: { code: "NOT_FOUND", message: "Шаблон не найден" },
+            },
+            { status: 404 }
+          );
+        }
+
+        // If activating, deactivate others
+        if (data.isActive) {
+          await db.emailTemplate.updateMany({
+            where: {
+              event: currentTemplate.event,
+              id: { not: id },
+            },
+            data: { isActive: false },
+          });
+        }
+
         const template = await db.emailTemplate.update({
           where: { id },
           data: {

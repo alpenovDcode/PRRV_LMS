@@ -113,7 +113,8 @@ export function MultiSelect({
               {options.map((option) => (
                 <CommandItem
                   key={option.value}
-                  value={option.label} // Filtering by label
+                  value={option.value} 
+                  keywords={[option.label]}
                   onSelect={() => {
                     const isSelected = selected.includes(option.value);
                     if (isSelected) {

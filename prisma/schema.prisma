@@ -622,7 +622,7 @@ model Certificate {
 
 model EmailTemplate {
   id          String   @id @default(uuid())
-  event       String   @unique
+  event       String
   name        String
   subject     String
   body        String   @db.Text
