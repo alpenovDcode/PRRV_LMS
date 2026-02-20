@@ -75,31 +75,6 @@ export default function NewCertificateTemplatePage() {
       color: "#000000",
       align: "center",
     },
-    courseName: {
-      x: 400,
-      y: 400,
-      fontSize: 32,
-      fontFamily: "Arial",
-      color: "#000000",
-      align: "center",
-    },
-    date: {
-      x: 400,
-      y: 500,
-      fontSize: 24,
-      fontFamily: "Arial",
-      color: "#000000",
-      align: "center",
-      format: "DD.MM.YYYY",
-    },
-    certificateNumber: {
-      x: 400,
-      y: 550,
-      fontSize: 18,
-      fontFamily: "Arial",
-      color: "#666666",
-      align: "center",
-    },
   });
 
   const handleSubmit = (e: React.FormEvent) => {

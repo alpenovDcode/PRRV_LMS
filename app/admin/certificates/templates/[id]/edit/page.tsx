@@ -43,8 +43,17 @@ export default function EditCertificateTemplatePage() {
   useEffect(() => {
     if (template) {
       setName(template.name);
-      setImageUrl(template.imageUrl);
-      setFieldConfig(template.fieldConfig);
+      const config = template.fieldConfig || {};
+      setFieldConfig({
+        fullName: config.fullName || {
+            x: 400,
+            y: 300,
+            fontSize: 48,
+            fontFamily: "Arial",
+            color: "#000000",
+            align: "center",
+        }
+      });
     }
   }, [template]);
 

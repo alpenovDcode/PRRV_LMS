@@ -21,9 +21,6 @@ interface FieldConfig {
 
 interface CertificateFieldConfig {
   fullName: FieldConfig;
-  courseName: FieldConfig;
-  date: FieldConfig;
-  certificateNumber: FieldConfig;
 }
 
 interface CertificateEditorProps {
@@ -129,9 +126,6 @@ export function CertificateEditor({
 
   const fieldLabels: Record<keyof CertificateFieldConfig, string> = {
     fullName: "Имя студента",
-    courseName: "Название курса",
-    date: "Дата выдачи",
-    certificateNumber: "Номер сертификата",
   };
 
   return (
@@ -161,9 +155,6 @@ export function CertificateEditor({
             {imageUrl && (
               <>
                 {renderField("fullName", "Имя студента", "Иванов Иван Иванович")}
-                {renderField("courseName", "Название курса", "Название курса")}
-                {renderField("date", "Дата выдачи", "01.01.2024")}
-                {renderField("certificateNumber", "Номер сертификата", "CERT-12345")}
               </>
             )}
           </div>
@@ -271,23 +262,6 @@ export function CertificateEditor({
                     />
                 </div>
                 </div>
-                {selectedField === "date" && (
-                    <div className="space-y-2">
-                        <Label>Формат даты</Label>
-                        <Select
-                            value={(fieldConfig.date as any).format || "dd.MM.yyyy"}
-                            onValueChange={(val) => updateFieldStyle("date", "format", val)} // Use "date" explicitly
-                        >
-                            <SelectTrigger>
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="dd.MM.yyyy">dd.MM.yyyy</SelectItem>
-                                <SelectItem value="dd MMMM yyyy">dd MMMM yyyy</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                )}
             </div>
             )}
         </div>
