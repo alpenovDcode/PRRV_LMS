@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { PDFDocument, rgb } from "pdf-lib";
-const fontkit = require("fontkit");
+import fontkit from "@pdf-lib/fontkit";
 import { readFile, writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 
@@ -114,28 +114,32 @@ async function generateCertificatePdf(
          return;
       }
 
-      const size = field.fontSize || 24;
+      const size = Number(field.fontSize) || 24;
       // Convert hex color to RGB
-      const hex = field.color.replace("#", "");
+      const hex = field.color?.replace("#", "") || "000000";
       const r = parseInt(hex.substring(0, 2), 16) / 255;
       const g = parseInt(hex.substring(2, 4), 16) / 255;
       const b = parseInt(hex.substring(4, 6), 16) / 255;
       const color = rgb(isNaN(r) ? 0 : r, isNaN(g) ? 0 : g, isNaN(b) ? 0 : b);
 
       const fontToUse = isBold ? customFontBold : customFont;
-      const textWidth = fontToUse.widthOfTextAtSize(text, size);
+      const textToDraw = text?.trim() ? text.trim() : " ";
+      const textWidth = fontToUse.widthOfTextAtSize(textToDraw, size);
       
-      let x = field.x;
+      let x = Number(field.x);
       // Adjust X based on alignment
       if (field.align === "center") {
-        x = field.x - textWidth / 2;
+        x = x - textWidth / 2;
       } else if (field.align === "right") {
-        x = field.x - textWidth;
+        x = x - textWidth;
       }
       
-      const y = height - field.y - (size / 2); // Approximating vertical center
+      const fieldY = Number(field.y);
+      // More accurate vertical centering accounting for ascenders and descenders
+      const textHeight = fontToUse.heightAtSize(size);
+      const y = height - fieldY - (textHeight / 2);
 
-      page.drawText(text, {
+      page.drawText(textToDraw, {
         x,
         y,
         size,
@@ -144,8 +148,11 @@ async function generateCertificatePdf(
       });
     };
 
-    drawField("fullName", data.studentName, true);
-    drawField("courseName", data.courseName);
+    let studentName = data.studentName?.trim();
+    if (!studentName) studentName = "Студент";
+
+    drawField("fullName", studentName, true);
+    drawField("courseName", data.courseName || "Название курса");
     
     let dateFormat = config.date?.format || "dd.MM.yyyy";
     // Fix common format mismatches for date-fns
