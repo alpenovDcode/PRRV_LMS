@@ -268,10 +268,10 @@ export function QuizPlayer({ lessonId, content, isPreview = false }: QuizPlayerP
           <CardContent className="p-6 space-y-6">
             <h3 className="text-xl font-semibold text-gray-900">{questionText}</h3>
 
-            <div className="space-y-4">
+            <div key={question.id || currentQuestionIndex} className="space-y-4">
               {questionType === "single_choice" && question.options && (
                 <RadioGroup
-                  value={currentAnswer as string}
+                  value={(currentAnswer as string) || ""}
                   onValueChange={handleAnswer}
                   className="space-y-3"
                 >
