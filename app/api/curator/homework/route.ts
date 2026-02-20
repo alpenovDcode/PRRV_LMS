@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
         const limit = parseInt(searchParams.get("limit") || "20");
         const search = searchParams.get("search") || "";
         const type = searchParams.get("type") as "course" | "landing" | null; // "course" or "landing"
+        const courseId = searchParams.get("courseId");
 
         const where: any = {
           status: status && status !== "all" as any ? status : undefined,
@@ -25,6 +26,14 @@ export async function GET(request: NextRequest) {
            where.lessonId = { not: null };
         } else if (type === "landing") {
            where.landingBlockId = { not: null };
+        }
+
+        if (courseId && courseId !== "all") {
+           where.lesson = {
+               module: {
+                   courseId: courseId
+               }
+           };
         }
 
         // Search filter

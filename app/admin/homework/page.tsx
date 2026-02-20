@@ -66,6 +66,7 @@ function getStatusVariant(status: InboxItem["status"]) {
 export default function AdminHomeworkPage() {
   const [statusFilter, setStatusFilter] = useState<InboxItem["status"] | "all">("pending");
   const [typeFilter, setTypeFilter] = useState<"all" | "course" | "landing">("all");
+  const [courseFilter, setCourseFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -80,12 +81,22 @@ export default function AdminHomeworkPage() {
     return () => clearTimeout(timer);
   }, [search]);
 
+  const { data: coursesData } = useQuery({
+    queryKey: ["admin", "courses-list"],
+    queryFn: async () => {
+      const response = await apiClient.get("/admin/courses");
+      return response.data.data;
+    },
+  });
+  const courses = coursesData || [];
+
   const { data, isLoading } = useQuery({
-    queryKey: ["admin", "homework", statusFilter, typeFilter, debouncedSearch, page, limit],
+    queryKey: ["admin", "homework", statusFilter, typeFilter, courseFilter, debouncedSearch, page, limit],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (statusFilter !== "all") params.set("status", statusFilter);
       if (typeFilter !== "all") params.set("type", typeFilter);
+      if (courseFilter !== "all") params.set("courseId", courseFilter);
       if (debouncedSearch) params.set("search", debouncedSearch);
       params.set("page", page.toString());
       params.set("limit", limit.toString());
@@ -127,6 +138,27 @@ export default function AdminHomeworkPage() {
                 <SelectItem value="landing">Лендинги</SelectItem>
               </SelectContent>
             </Select>
+
+            {typeFilter !== "landing" && (
+              <Select
+                value={courseFilter}
+                onValueChange={(v) => {
+                    setCourseFilter(v);
+                    setPage(1);
+                }}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <Filter className="mr-2 h-4 w-4" />
+                  <SelectValue placeholder="Курс" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Все курсы</SelectItem>
+                  {courses.map((c: any) => (
+                    <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
 
             <Select
               value={statusFilter}
