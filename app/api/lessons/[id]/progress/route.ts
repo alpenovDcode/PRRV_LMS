@@ -24,6 +24,8 @@ export async function POST(
         rating: z.number().int().min(1).max(10).optional(),
       }).parse(body);
 
+      const isAdminOrCurator = req.user?.role === "admin" || req.user?.role === "curator";
+
       // Проверяем доступ к уроку
       const lesson = await db.lesson.findUnique({
         where: { id },
@@ -45,7 +47,7 @@ export async function POST(
         },
       });
 
-      if (!lesson || lesson.module.course.enrollments.length === 0) {
+      if (!lesson || (!isAdminOrCurator && lesson.module.course.enrollments.length === 0)) {
         return NextResponse.json<ApiResponse>(
           {
             success: false,
