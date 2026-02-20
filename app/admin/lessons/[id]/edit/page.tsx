@@ -198,26 +198,30 @@ export default function LessonEditorPage() {
           toast.error(`Вопрос ${i + 1}: текст вопроса не может быть пустым`);
           return;
         }
-        if (!question.options || !Array.isArray(question.options) || question.options.length < 2) {
-          toast.error(`Вопрос ${i + 1}: должно быть минимум 2 варианта ответа`);
-          return;
-        }
-        // Проверяем, что все варианты заполнены
-        for (let j = 0; j < question.options.length; j++) {
-          if (!question.options[j] || question.options[j].trim() === "") {
-            toast.error(`Вопрос ${i + 1}, вариант ${j + 1}: текст варианта не может быть пустым`);
+        
+        const qType = question.type || "single_choice";
+        if (qType === "single_choice" || qType === "multiple_choice") {
+          if (!question.options || !Array.isArray(question.options) || question.options.length < 2) {
+            toast.error(`Вопрос ${i + 1}: должно быть минимум 2 варианта ответа`);
             return;
           }
-        }
-        // Проверяем, что выбран правильный ответ
-        if (
-          question.correct === undefined ||
-          question.correct === null ||
-          question.correct < 0 ||
-          question.correct >= question.options.length
-        ) {
-          toast.error(`Вопрос ${i + 1}: необходимо выбрать правильный ответ`);
-          return;
+          // Проверяем, что все варианты заполнены
+          for (let j = 0; j < question.options.length; j++) {
+            if (!question.options[j] || question.options[j].trim() === "") {
+              toast.error(`Вопрос ${i + 1}, вариант ${j + 1}: текст варианта не может быть пустым`);
+              return;
+            }
+          }
+          // Проверяем, что выбран правильный ответ
+          if (
+            question.correct === undefined ||
+            question.correct === null ||
+            question.correct < 0 ||
+            question.correct >= question.options.length
+          ) {
+            toast.error(`Вопрос ${i + 1}: необходимо выбрать правильный ответ`);
+            return;
+          }
         }
       }
     }
@@ -870,6 +874,7 @@ export default function LessonEditorPage() {
                       const currentQuestions = content?.questions || [];
                       const newQuestion = {
                         id: currentQuestions.length + 1,
+                        type: "single_choice",
                         text: "",
                         options: ["", ""],
                         correct: 0,
@@ -898,6 +903,7 @@ export default function LessonEditorPage() {
                           questions: [
                             {
                               id: 1,
+                              type: "single_choice",
                               text: "",
                               options: ["", ""],
                               correct: 0,
@@ -937,115 +943,155 @@ export default function LessonEditorPage() {
                             </Button>
                           </div>
 
-                          <div className="space-y-2">
-                            <Label className="text-gray-700">Текст вопроса *</Label>
-                            <Textarea
-                              value={question.text || ""}
-                              onChange={(e) => {
-                                const newQuestions = [...content.questions];
-                                newQuestions[questionIndex] = {
-                                  ...newQuestions[questionIndex],
-                                  text: e.target.value,
-                                };
-                                setContent({ ...content, questions: newQuestions });
-                              }}
-                              placeholder="Введите текст вопроса..."
-                              rows={2}
-                              className="border-gray-300 focus:border-blue-500"
-                            />
-                          </div>
-
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                              <Label className="text-gray-700">Варианты ответов *</Label>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
+                          <div className="grid gap-4 md:grid-cols-4">
+                            <div className="md:col-span-3 space-y-2">
+                              <Label className="text-gray-700">Текст вопроса *</Label>
+                              <Textarea
+                                value={question.text || ""}
+                                onChange={(e) => {
                                   const newQuestions = [...content.questions];
                                   newQuestions[questionIndex] = {
                                     ...newQuestions[questionIndex],
-                                    options: [...(newQuestions[questionIndex].options || []), ""],
+                                    text: e.target.value,
+                                  };
+                                  setContent({ ...content, questions: newQuestions });
+                                }}
+                                placeholder="Введите текст вопроса..."
+                                rows={2}
+                                className="border-gray-300 focus:border-blue-500"
+                              />
+                            </div>
+                            <div className="md:col-span-1 space-y-2">
+                              <Label className="text-gray-700">Тип вопроса</Label>
+                              <Select
+                                value={question.type || "single_choice"}
+                                onValueChange={(v) => {
+                                  const newQuestions = [...content.questions];
+                                  newQuestions[questionIndex] = {
+                                    ...newQuestions[questionIndex],
+                                    type: v,
                                   };
                                   setContent({ ...content, questions: newQuestions });
                                 }}
                               >
-                                <Plus className="h-3 w-3 mr-1" />
-                                Добавить вариант
-                              </Button>
+                                <SelectTrigger className="border-gray-300 bg-white">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="single_choice">Один выбор</SelectItem>
+                                  <SelectItem value="text">Текстовый ответ</SelectItem>
+                                  <SelectItem value="code">Написание кода</SelectItem>
+                                </SelectContent>
+                              </Select>
                             </div>
+                          </div>
 
-                            {question.options?.map((option: string, optionIndex: number) => (
-                              <div key={optionIndex} className="flex items-center gap-3">
-                                <div className="flex items-center gap-2 flex-1">
-                                  <input
-                                    type="radio"
-                                    name={`correct-${questionIndex}`}
-                                    checked={question.correct === optionIndex}
-                                    onChange={() => {
-                                      const newQuestions = [...content.questions];
-                                      newQuestions[questionIndex] = {
-                                        ...newQuestions[questionIndex],
-                                        correct: optionIndex,
-                                      };
-                                      setContent({ ...content, questions: newQuestions });
-                                    }}
-                                    className="h-4 w-4 text-blue-600 focus:ring-blue-500"
-                                  />
-                                  <Input
-                                    value={option}
-                                    onChange={(e) => {
-                                      const newQuestions = [...content.questions];
-                                      const newOptions = [...newQuestions[questionIndex].options];
-                                      newOptions[optionIndex] = e.target.value;
-                                      newQuestions[questionIndex] = {
-                                        ...newQuestions[questionIndex],
-                                        options: newOptions,
-                                      };
-                                      setContent({ ...content, questions: newQuestions });
-                                    }}
-                                    placeholder={`Вариант ${optionIndex + 1}`}
-                                    className="border-gray-300 focus:border-blue-500"
-                                  />
-                                </div>
-                                {question.options.length > 2 && (
+                          {(question.type === "single_choice" || !question.type) ? (
+                            <>
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <Label className="text-gray-700">Варианты ответов *</Label>
                                   <Button
                                     type="button"
-                                    variant="ghost"
+                                    variant="outline"
                                     size="sm"
                                     onClick={() => {
                                       const newQuestions = [...content.questions];
-                                      const newOptions = newQuestions[questionIndex].options.filter(
-                                        (_: string, idx: number) => idx !== optionIndex
-                                      );
-                                      // Если удаляем правильный ответ, сбрасываем выбор
-                                      let newCorrect = newQuestions[questionIndex].correct;
-                                      if (newCorrect === optionIndex) {
-                                        newCorrect = 0;
-                                      } else if (newCorrect > optionIndex) {
-                                        newCorrect = newCorrect - 1;
-                                      }
                                       newQuestions[questionIndex] = {
                                         ...newQuestions[questionIndex],
-                                        options: newOptions,
-                                        correct: newCorrect,
+                                        options: [...(newQuestions[questionIndex].options || []), ""],
                                       };
                                       setContent({ ...content, questions: newQuestions });
                                     }}
-                                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
                                   >
-                                    <Trash className="h-4 w-4" />
+                                    <Plus className="h-3 w-3 mr-1" />
+                                    Добавить вариант
                                   </Button>
-                                )}
-                              </div>
-                            ))}
-                          </div>
+                                </div>
 
-                          {question.correct !== undefined && question.correct !== null && (
-                            <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
-                              <span className="font-medium">Правильный ответ:</span>{" "}
-                              {question.options?.[question.correct] || "Не выбран"}
+                                {question.options?.map((option: string, optionIndex: number) => (
+                                  <div key={optionIndex} className="flex items-center gap-3">
+                                    <div className="flex items-center gap-2 flex-1">
+                                      <input
+                                        type="radio"
+                                        name={`correct-${questionIndex}`}
+                                        checked={question.correct === optionIndex}
+                                        onChange={() => {
+                                          const newQuestions = [...content.questions];
+                                          newQuestions[questionIndex] = {
+                                            ...newQuestions[questionIndex],
+                                            correct: optionIndex,
+                                          };
+                                          setContent({ ...content, questions: newQuestions });
+                                        }}
+                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500"
+                                      />
+                                      <Input
+                                        value={option}
+                                        onChange={(e) => {
+                                          const newQuestions = [...content.questions];
+                                          const newOptions = [...newQuestions[questionIndex].options];
+                                          newOptions[optionIndex] = e.target.value;
+                                          newQuestions[questionIndex] = {
+                                            ...newQuestions[questionIndex],
+                                            options: newOptions,
+                                          };
+                                          setContent({ ...content, questions: newQuestions });
+                                        }}
+                                        placeholder={`Вариант ${optionIndex + 1}`}
+                                        className="border-gray-300 focus:border-blue-500"
+                                      />
+                                    </div>
+                                    {question.options.length > 2 && (
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => {
+                                          const newQuestions = [...content.questions];
+                                          const newOptions = newQuestions[questionIndex].options.filter(
+                                            (_: string, idx: number) => idx !== optionIndex
+                                          );
+                                          // Если удаляем правильный ответ, сбрасываем выбор
+                                          let newCorrect = newQuestions[questionIndex].correct;
+                                          if (newCorrect === optionIndex) {
+                                            newCorrect = 0;
+                                          } else if (newCorrect > optionIndex) {
+                                            newCorrect = newCorrect - 1;
+                                          }
+                                          newQuestions[questionIndex] = {
+                                            ...newQuestions[questionIndex],
+                                            options: newOptions,
+                                            correct: newCorrect,
+                                          };
+                                          setContent({ ...content, questions: newQuestions });
+                                        }}
+                                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                      >
+                                        <Trash className="h-4 w-4" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+
+                              {question.correct !== undefined && question.correct !== null && (
+                                <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
+                                  <span className="font-medium">Правильный ответ:</span>{" "}
+                                  {question.options?.[question.correct] || "Не выбран"}
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <div className="text-sm text-gray-600 bg-amber-50 border border-amber-200 p-3 rounded-lg">
+                              <span className="font-medium flex items-center gap-2">
+                                <CircleHelp className="h-4 w-4 text-amber-500" />
+                                Ручная проверка
+                              </span>
+                              <p className="mt-1">
+                                Студенту будет предложено поле для ввода свободного текста или кода.
+                                Такие ответы требуют проверки куратором, прежде чем урок будет считаться пройденным.
+                              </p>
                             </div>
                           )}
                         </CardContent>
