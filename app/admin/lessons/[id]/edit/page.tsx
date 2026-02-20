@@ -122,9 +122,8 @@ export default function LessonEditorPage() {
         } else {
           lessonContent = { questions: [] };
         }
-      } else {
-        setContent(lessonContent);
       }
+      setContent(lessonContent);
 
       // Video handling
       if (lesson.content?.videos && Array.isArray(lesson.content.videos)) {
