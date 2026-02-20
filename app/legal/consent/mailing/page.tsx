@@ -18,8 +18,10 @@ export default function MailingConsentPage() {
           <p className="font-bold mb-2">Общество с ограниченной ответственностью “МАСТЕРСКАЯ ЗНАНИЙ”</p>
           <p className="my-1">ОГРН: 1257700218071, ИНН: 9714075294, КПП: 771401001</p>
           <p className="my-1">Адрес: 125167, Г.МОСКВА, ВН.ТЕР.Г. МУНИЦИПАЛЬНЫЙ ОКРУГ АЭРОПОРТ, ПР-КТ ЛЕНИНГРАДСКИЙ, Д. 36, СТР. 39, ПОМЕЩ. 4</p>
-          <p className="my-1">E-mail: <a href="mailto:hello@prrv.tech">hello@prrv.tech</a></p>
-          <p className="my-1">Адрес сайта: <a href="https://prrv.tech/" target="_blank" rel="noopener noreferrer">https://prrv.tech/</a></p>
+          <p className="my-1">E-mail: <a href="mailto:hello@prrv.pro">hello@prrv.pro</a></p>
+          <p className="my-1">
+            Адреса сайтов: <a href="https://prrv.pro/" target="_blank" rel="noopener noreferrer">https://prrv.pro/</a>, <a href="https://prrv.tech/" target="_blank" rel="noopener noreferrer">https://prrv.tech/</a>
+          </p>
         </div>
 
         <p>
@@ -36,13 +38,13 @@ export default function MailingConsentPage() {
         </ul>
 
         <p>
-          Я принимаю условия Политики конфиденциальности Оператора, размещенной в сети Интернет по адресу: <a href="https://prrv.tech/" target="_blank" rel="noopener noreferrer">https://prrv.tech/</a>, включая все домены, субдомены и страницы, их содержимое, а также интернет-сервисы и программное обеспечение, предлагаемые Оператором к использованию на этих Сайтах, и подтверждаю, что ознакомлен или ознакомлена с ней на момент предоставления настоящего Согласия.
+          Я принимаю условия Политики конфиденциальности Оператора, размещенной в сети Интернет по адресам: <a href="https://prrv.tech/legal/privacy" target="_blank" rel="noopener noreferrer">https://prrv.tech/legal/privacy</a>, <a href="https://prrv.pro/politika-konfidencialnosti/" target="_blank" rel="noopener noreferrer">https://prrv.pro/politika-konfidencialnosti/</a>, включая все домены, субдомены и страницы, их содержимое, а также интернет-сервисы и программное обеспечение, предлагаемые Оператором к использованию на этих Сайтах, и подтверждаю, что ознакомлен или ознакомлена с ней на момент предоставления настоящего Согласия.
         </p>
 
         <p>
           Я подтверждаю, что уведомлен (-а) о следующем:
           <br />
-          в случае нежелания получать рекламную информацию на указанных в настоящем согласии условиях мне следует направить уведомление об отзыве настоящего согласия на адрес электронной почты: <a href="mailto:hello@prrv.tech">hello@prrv.tech</a>.
+          в случае нежелания получать рекламную информацию на указанных в настоящем согласии условиях мне следует направить уведомление об отзыве настоящего согласия на адрес электронной почты: <a href="mailto:hello@prrv.pro">hello@prrv.pro</a>.
         </p>
 
         <p>
@@ -50,7 +52,7 @@ export default function MailingConsentPage() {
         </p>
 
         <p>
-          Я соглашаюсь с тем, что считаюсь в том числе давшим (-ей) согласие на получение рекламной информации (в том числе в форме рекламной рассылки) в момент проставления символа в чек-боксе (в поле для ввода) на сайте: <a href="https://prrv.tech/" target="_blank" rel="noopener noreferrer">https://prrv.tech/</a>, рядом с текстом вида: “Я даю согласие на получение рекламной информации (в том числе в форме рекламной рассылки)”.
+          Я соглашаюсь с тем, что считаюсь в том числе давшим (-ей) согласие на получение рекламной информации (в том числе в форме рекламной рассылки) в момент проставления символа в чек-боксе (в поле для ввода) на сайтах: <a href="https://prrv.pro/" target="_blank" rel="noopener noreferrer">https://prrv.pro/</a>, <a href="https://prrv.tech/" target="_blank" rel="noopener noreferrer">https://prrv.tech/</a>, рядом с текстом вида: “Я даю согласие на получение рекламной информации (в том числе в форме рекламной рассылки)”.
         </p>
 
         <p>
