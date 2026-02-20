@@ -104,6 +104,8 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                  "/admin/courses",
                  "/admin/users",
                  "/admin/groups",
+                 "/admin/homework",
+                 "/admin/comments",
                  "/admin/trainings"
                ];
                return allowed.includes(item.href);
