@@ -164,7 +164,7 @@ export async function POST(
         );
       }
     },
-    { roles: [UserRole.admin] }
+    { roles: [UserRole.admin, UserRole.curator] }
   );
 }
 

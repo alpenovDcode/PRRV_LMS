@@ -58,7 +58,7 @@ export async function GET(
         );
       }
     },
-    { roles: [UserRole.admin] }
+    { roles: [UserRole.admin, UserRole.curator] }
   );
 }
 
@@ -144,6 +144,6 @@ export async function PUT(
         );
       }
     },
-    { roles: [UserRole.admin] }
+    { roles: [UserRole.admin, UserRole.curator] }
   );
 }

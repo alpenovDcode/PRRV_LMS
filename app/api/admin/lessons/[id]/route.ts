@@ -79,7 +79,7 @@ export async function GET(
         );
       }
     },
-    { roles: [UserRole.admin] }
+    { roles: [UserRole.admin, UserRole.curator] }
   );
 }
 
@@ -161,7 +161,7 @@ export async function PATCH(
         );
       }
     },
-    { roles: [UserRole.admin] }
+    { roles: [UserRole.admin, UserRole.curator] }
   );
 }
 
@@ -206,6 +206,6 @@ export async function DELETE(
         );
       }
     },
-    { roles: [UserRole.admin] }
+    { roles: [UserRole.admin, UserRole.curator] }
   );
 }

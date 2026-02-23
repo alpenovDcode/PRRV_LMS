@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
         );
       }
     },
-    { roles: [UserRole.admin] }
+    { roles: [UserRole.admin, UserRole.curator] }
   );
 }
 
@@ -108,6 +108,6 @@ export async function POST(request: NextRequest) {
         );
       }
     },
-    { roles: [UserRole.admin] }
+    { roles: [UserRole.admin, UserRole.curator] }
   );
 }

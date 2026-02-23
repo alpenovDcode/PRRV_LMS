@@ -105,6 +105,6 @@ export async function DELETE(request: NextRequest) {
           );
         }
       },
-      { roles: [UserRole.admin] }
+      { roles: [UserRole.admin, UserRole.curator] }
     );
   }

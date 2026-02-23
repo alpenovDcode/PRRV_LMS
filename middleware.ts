@@ -105,10 +105,10 @@ export async function middleware(request: NextRequest) {
     try {
       const payload = await verifyAccessTokenEdge(token);
       if (payload) {
-        // СТРОГАЯ ПРОВЕРКА: /admin - только для админов
+        // СТРОГАЯ ПРОВЕРКА: /admin - для админов и кураторов
         if (path.startsWith("/admin")) {
           // Исключаем /admin/restore из проверки (это страница восстановления)
-          if (path !== "/admin/restore" && payload.role !== "admin") {
+          if (path !== "/admin/restore" && payload.role !== "admin" && payload.role !== "curator") {
             // Проверяем, есть ли активная сессия impersonation
             const originalAdminToken = request.cookies.get("originalAdminToken")?.value;
             if (originalAdminToken) {
@@ -122,7 +122,7 @@ export async function middleware(request: NextRequest) {
 
         // СТРОГАЯ ПРОВЕРКА: /dashboard - только для админов и студентов
         if (path.startsWith("/dashboard") || path === "/dashboard") {
-          // Куратор на /dashboard -> редирект на /curator/inbox (ПЕРЕД проверкой прав)
+          // Куратор на /dashboard -> редирект на /admin (или /curator/inbox)
           if (payload.role === "curator") {
             const url = getSafeUrl("/curator/inbox", request);
             return NextResponse.redirect(url);

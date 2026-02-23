@@ -95,6 +95,6 @@ export async function PATCH(
         );
       }
     },
-    { roles: [UserRole.admin] }
+    { roles: [UserRole.admin, UserRole.curator] }
   );
 }

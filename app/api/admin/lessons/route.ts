@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
         );
       }
     },
-    { roles: [UserRole.admin] }
+    { roles: [UserRole.admin, UserRole.curator] }
   );
 }
 

@@ -55,6 +55,6 @@ export async function GET(
         );
       }
     },
-    { roles: [UserRole.admin] } // STRICTLY ADMIN ONLY
+    { roles: [UserRole.admin, UserRole.curator] } // STRICTLY ADMIN ONLY
   );
 }

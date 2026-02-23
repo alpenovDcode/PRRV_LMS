@@ -63,6 +63,6 @@ export async function GET(request: NextRequest) {
         );
       }
     },
-    { roles: [UserRole.admin] }
+    { roles: [UserRole.admin, UserRole.curator] }
   );
 }
