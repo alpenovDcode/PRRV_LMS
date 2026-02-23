@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CircleCheck, CircleX, ArrowLeft, FileDown, MessageSquare } from "lucide-react";
+import { CircleCheck, CircleX, ArrowLeft, FileDown, MessageSquare, User } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Link from "next/link";
 import { useState } from "react";
@@ -33,6 +33,7 @@ interface SubmissionDetail {
   lesson: {
     id: string;
     title: string;
+    content?: any;
   };
   course: {
     id: string;
@@ -131,16 +132,43 @@ export default function CuratorReviewPage() {
         ) : (
           <div className="grid gap-6 md:grid-cols-[2fr,1.5fr]">
             {/* Left: student answer */}
-            <div className="space-y-4">
+            <div className="space-y-6">
+              {/* Условие задания (Only for lessons) */}
+              {data.lesson?.content && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Условие задания</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="prose prose-sm max-w-none dark:prose-invert text-black prose-p:text-black prose-headings:text-black prose-strong:text-black">
+                      {data.lesson.content.homework ? (
+                        <div className="whitespace-pre-wrap">{data.lesson.content.homework}</div>
+                      ) : (
+                        <p className="text-muted-foreground italic">Текст задания не указан в уроке.</p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               <Card>
                 <CardHeader>
-                  <CardTitle>Ответ студента</CardTitle>
+                  <CardTitle>Работа студента</CardTitle>
                   <CardDescription>
-                    {data.user.fullName || data.user.email} • {data.course.title} /{" "}
-                    {data.lesson.title}
+                    {data.course.title} / {data.lesson.title}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                      <User className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-medium">{data.user.fullName || data.user.email}</p>
+                      <p className="text-sm text-muted-foreground">{data.user.email}</p>
+                    </div>
+                  </div>
+
                   <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                     <span>
                       Отправлено: {new Date(data.createdAt).toLocaleString("ru-RU")}
@@ -155,7 +183,7 @@ export default function CuratorReviewPage() {
                     </Badge>
                   </div>
 
-                  <div className="rounded-md border bg-muted/40 p-4 min-h-[150px] whitespace-pre-wrap text-sm">
+                  <div className="rounded-md border bg-muted/40 p-4 min-h-[150px] whitespace-pre-wrap text-sm text-black">
                     {data.content || (
                       <span className="text-muted-foreground">
                         Текст ответа не указан
