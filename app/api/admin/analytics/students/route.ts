@@ -172,16 +172,16 @@ export async function GET(request: NextRequest) {
             detailedStats: {
               homeworks: student.homework.map((h: any) => ({
                 id: h.id,
-                lessonTitle: h.lesson.title,
+                lessonTitle: h.lesson?.title || 'Без урока',
                 status: h.status,
                 submittedAt: h.createdAt,
               })),
               ratings: student.progress
                 .filter((p: any) => p.rating && p.rating > 0)
                 .map((p: any) => ({
-                  lessonTitle: p.lesson.title,
+                  lessonTitle: p.lesson?.title || 'Без урока',
                   rating: p.rating,
-                  ratedAt: p.completedAt || p.lastUpdated, // Fallback if completedAt is null
+                  ratedAt: p.completedAt || p.lastUpdated,
                 })),
             },
           };
