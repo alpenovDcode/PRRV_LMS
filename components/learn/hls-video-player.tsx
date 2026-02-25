@@ -166,13 +166,20 @@ export function HLSVideoPlayer({
     };
   }, [token, videoId, autoPlay, isMobile]);
 
+  const hasSetInitialTime = useRef(false);
+
+  useEffect(() => {
+    hasSetInitialTime.current = false;
+  }, [videoId]);
+
   // Restore initial time
   useEffect(() => {
-    if (isReady && videoRef.current && initialTime > 0) {
+    if (isReady && videoRef.current && initialTime > 0 && !hasSetInitialTime.current) {
       try {
         if (Math.abs(videoRef.current.currentTime - initialTime) > 2) {
           videoRef.current.currentTime = initialTime;
         }
+        hasSetInitialTime.current = true;
       } catch (e) {
         console.error("Failed to set initial time:", e);
       }
