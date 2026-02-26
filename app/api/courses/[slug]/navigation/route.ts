@@ -79,8 +79,24 @@ export async function GET(
         );
       }
 
-      // Get progress for lessons
-      const allLessons = course.modules.flatMap((m: any) => m.lessons);
+      // Deep clone and structure course modules to get correctly ordered flat list of lessons
+      function getStructuredFlatLessons(rawModules: any[]): any[] {
+        const clonedModules = rawModules.map(m => ({ ...m, lessons: [...m.lessons] }));
+        const structured = structureModules(clonedModules);
+        
+        function flatten(nodes: any[]): any[] {
+          let result: any[] = [];
+          for (const node of nodes) {
+            if (node.lessons) result = result.concat(node.lessons);
+            if (node.children) result = result.concat(flatten(node.children));
+          }
+          return result;
+        }
+        
+        return flatten(structured);
+      }
+
+      const allLessons = getStructuredFlatLessons(course.modules);
       const progressRecords = await db.lessonProgress.findMany({
         where: {
           userId: req.user!.userId,
@@ -234,8 +250,21 @@ export async function GET(
       // Structure modules hierarchically
       const structuredModules = structureModules(modulesWithLessons);
 
-      // Determine prev/next navigation
-      const flattenedLessons = modulesWithLessons.flatMap(m => m.lessons);
+      // Determine prev/next navigation by performing hierarchical flatten on structured modules
+      function flattenNavigationLessons(nodes: any[]): any[] {
+          let lessons: any[] = [];
+          for (const node of nodes) {
+              if (node.lessons && node.lessons.length > 0) {
+                  lessons = lessons.concat(node.lessons);
+              }
+              if (node.children && node.children.length > 0) {
+                  lessons = lessons.concat(flattenNavigationLessons(node.children));
+              }
+          }
+          return lessons;
+      }
+      
+      const flattenedLessons = flattenNavigationLessons(structuredModules);
       const currentIndex = flattenedLessons.findIndex(l => l.id === currentLessonId);
       
       let prevLessonId: string | null = null;
