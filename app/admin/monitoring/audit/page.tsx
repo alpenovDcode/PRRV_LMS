@@ -91,6 +91,9 @@ export default function AuditLogsPage() {
              <Button variant="ghost">Ошибки системы</Button>
           </Link>
           <Button variant="secondary">Бизнес-логи</Button>
+          <Link href="/admin/monitoring/schedule">
+             <Button variant="ghost">Расписание</Button>
+          </Link>
       </div>
 
       <Card>

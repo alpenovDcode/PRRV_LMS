@@ -118,6 +118,9 @@ export default function ErrorsPage() {
           <Link href="/admin/monitoring/audit">
              <Button variant="ghost">Бизнес-логи</Button>
           </Link>
+          <Link href="/admin/monitoring/schedule">
+             <Button variant="ghost">Расписание</Button>
+          </Link>
       </div>
 
       {/* Фильтры */}
