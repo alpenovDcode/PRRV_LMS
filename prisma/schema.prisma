@@ -34,8 +34,6 @@ model User {
   about                   String?
   phone                   String?
   telegram                String?
-  telegramChatId          String?                 @unique @map("telegram_chat_id")
-  telegramAuthToken       String?                 @unique @map("telegram_auth_token")
   track                   String?
   lastActiveAt            DateTime?               @map("last_active_at")
   auditLogs               AuditLog[]

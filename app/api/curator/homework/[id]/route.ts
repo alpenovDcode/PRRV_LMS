@@ -8,7 +8,6 @@ import { notifyHomeworkReviewed } from "@/lib/notifications";
 import { sanitizeText } from "@/lib/sanitize";
 import { canCuratorReviewHomework } from "@/lib/business-rules";
 import { logAction } from "@/lib/audit";
-import { sendTelegramMessage } from "@/lib/telegram";
 
 export async function GET(
   request: NextRequest,
@@ -184,7 +183,7 @@ export async function PATCH(
                  include: { page: true }
               },
               user: {
-                select: { id: true, telegramChatId: true },
+                select: { id: true },
               },
             },
           });
@@ -220,12 +219,6 @@ export async function PATCH(
         if (status === "approved" || status === "rejected") {
           const title = updated.lesson?.title || updated.landingBlock?.page?.title || "Домашнее задание";
           await notifyHomeworkReviewed(updated.userId, title, status);
-          
-          if (updated.user.telegramChatId) {
-            const statusText = status === "approved" ? "✅ Принято" : "❌ Отклонено";
-            const text = `📋 <b>Ваше домашнее задание проверено!</b>\n\n📌 Урок: <b>${title}</b>\nРезультат: <b>${statusText}</b>\n\n💬 Комментарий куратора:\n<i>${sanitizedComment || "Нет комментариев"}</i>`;
-            await sendTelegramMessage(updated.user.telegramChatId, text);
-          }
         }
 
         // Audit log
