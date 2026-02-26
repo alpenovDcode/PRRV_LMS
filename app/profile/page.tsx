@@ -17,7 +17,9 @@ import {
   Calendar,
   Shield,
   User,
-  Loader2
+  Loader2,
+  Bell,
+  MessageSquare
 } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
@@ -141,6 +143,35 @@ export default function ProfilePage() {
     },
   });
 
+  const generateTelegramLinkMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiClient.get("/profile/telegram/link");
+      return response.data.data;
+    },
+    onSuccess: (data) => {
+      if (data.link) {
+        window.open(data.link, "_blank");
+      }
+    },
+    onError: () => {
+      toast.error("Не удалось сгенерировать ссылку для Telegram");
+    },
+  });
+
+  const disconnectTelegramMutation = useMutation({
+    mutationFn: async () => {
+      await apiClient.delete("/profile/telegram/link");
+    },
+    onSuccess: () => {
+      toast.success("Telegram отвязан");
+      queryClient.invalidateQueries({ queryKey: ["profile"] });
+      queryClient.invalidateQueries({ queryKey: ["auth", "user"] });
+    },
+    onError: () => {
+      toast.error("Не удалось отвязать Telegram");
+    },
+  });
+
   const onProfileSubmit = (values: ProfileFormValues) => {
     updateProfileMutation.mutate(values);
   };
@@ -164,8 +195,9 @@ export default function ProfilePage() {
       </div>
 
       <Tabs defaultValue="general" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
+        <TabsList className="grid w-full grid-cols-3 lg:w-[600px]">
           <TabsTrigger value="general">Общие</TabsTrigger>
+          <TabsTrigger value="notifications">Уведомления</TabsTrigger>
           <TabsTrigger value="security">Безопасность</TabsTrigger>
         </TabsList>
         
@@ -463,6 +495,62 @@ export default function ProfilePage() {
                   </Button>
                 </div>
               </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="notifications" className="mt-6">
+          <Card className="border-none shadow-md max-w-2xl mx-auto">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Bell className="h-5 w-5 text-blue-600" />
+                <CardTitle>Уведомления</CardTitle>
+              </div>
+              <CardDescription>
+                Настройте получение уведомлений на различные устройства
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <div className="bg-blue-100 p-2 rounded-full mt-1">
+                      <MessageSquare className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-gray-900">Уведомления в Telegram</h3>
+                      <p className="text-sm text-gray-500 mt-1 max-w-sm">
+                        Привяжите свой аккаунт Telegram, чтобы получать мгновенные уведомления о проверке домашних заданий куратором.
+                      </p>
+                      {user?.telegramChatId && (
+                        <div className="mt-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          Подключено
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    {user?.telegramChatId ? (
+                      <Button 
+                        variant="outline" 
+                        onClick={() => disconnectTelegramMutation.mutate()}
+                        disabled={disconnectTelegramMutation.isPending}
+                        className="w-full md:w-auto text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                      >
+                        Отключить
+                      </Button>
+                    ) : (
+                      <Button 
+                        onClick={() => generateTelegramLinkMutation.mutate()}
+                        disabled={generateTelegramLinkMutation.isPending}
+                        className="w-full md:w-auto bg-[#0088cc] hover:bg-[#0077b3] text-white"
+                      >
+                        {generateTelegramLinkMutation.isPending ? "Подключение..." : "Подключить Telegram"}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
