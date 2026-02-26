@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { ApiResponse } from "@/types";
 import { logAction } from "@/lib/audit";
 import { z } from "zod";
+import { checkLessonAvailability } from "@/lib/lms-logic";
 
 const progressSchema = z.object({
   watchedTime: z.number().int().min(0),
@@ -26,38 +27,46 @@ export async function POST(
 
       const isAdminOrCurator = req.user?.role === "admin" || req.user?.role === "curator";
 
-      // Проверяем доступ к уроку
+      // Проверяем существование урока
       const lesson = await db.lesson.findUnique({
         where: { id },
         include: {
           module: {
             include: {
-              course: {
-                include: {
-                  enrollments: {
-                    where: {
-                      userId: req.user!.userId,
-                      status: "active",
-                    },
-                  },
-                },
-              },
+              course: true,
             },
           },
         },
       });
 
-      if (!lesson || (!isAdminOrCurator && lesson.module.course.enrollments.length === 0)) {
+      if (!lesson) {
         return NextResponse.json<ApiResponse>(
           {
             success: false,
             error: {
-              code: "NO_ACCESS",
-              message: "У вас нет доступа к этому уроку",
+              code: "NOT_FOUND",
+              message: "Урок не найден",
             },
           },
-          { status: 403 }
+          { status: 404 }
         );
+      }
+
+      // Если не админ и не куратор, проверяем доступ через централизованную логику
+      if (!isAdminOrCurator) {
+        const availability = await checkLessonAvailability(req.user!.userId, id);
+        if (!availability.isAvailable) {
+          return NextResponse.json<ApiResponse>(
+            {
+              success: false,
+              error: {
+                code: "NO_ACCESS",
+                message: "У вас нет доступа к этому уроку",
+              },
+            },
+            { status: 403 }
+          );
+        }
       }
 
       // Проверяем существующий прогресс, чтобы не дать изменить оценку
