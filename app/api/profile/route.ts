@@ -26,7 +26,6 @@ export async function GET(request: NextRequest) {
           avatarUrl: true,
           phone: true,
           telegram: true,
-          telegramChatId: true,
           about: true,
           track: true,
           createdAt: true,
@@ -167,7 +166,6 @@ export async function PUT(request: NextRequest) {
           avatarUrl: true,
           phone: true,
           telegram: true,
-          telegramChatId: true,
           about: true,
         },
       });
