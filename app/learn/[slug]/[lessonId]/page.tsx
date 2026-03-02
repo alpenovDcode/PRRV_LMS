@@ -113,6 +113,7 @@ export default function LessonPlayerPage() {
   const [watchedTime, setWatchedTime] = useState(0);
   const lastSavedTimeRef = useRef(0);
   const isCompletedRef = useRef(false);
+  const isSavingRef = useRef(false);
 
   const [homeworkContent, setHomeworkContent] = useState("");
   const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
@@ -167,8 +168,11 @@ export default function LessonPlayerPage() {
       await apiClient.post(`/lessons/${lessonId}/progress`, data);
     },
     onSuccess: (data, variables) => {
-      // Invalidate lesson query to update progress state (including rating)
-      queryClient.invalidateQueries({ queryKey: ["lesson", lessonId] });
+      // Only invalidate lesson query if we completed or submitted a rating
+      // Periodic time updates don't need a full query refetch which causes lag
+      if (variables.status === "completed" || variables.rating) {
+        queryClient.invalidateQueries({ queryKey: ["lesson", lessonId] });
+      }
       
       // Show toast only if rating was updated
       if (variables.rating) {
@@ -176,8 +180,12 @@ export default function LessonPlayerPage() {
       }
     },
     onError: (error: any) => {
-      toast.error("Не удалось сохранить прогресс");
+      console.error("Progress save error:", error);
+      toast.error("Не удалось сохранить прогресс. Попробуйте обновить страницу.");
     },
+    onSettled: () => {
+      isSavingRef.current = false;
+    }
   });
 
   const submitHomeworkMutation = useMutation({
@@ -242,6 +250,9 @@ export default function LessonPlayerPage() {
     const floorTime = Math.floor(currentTime);
     setWatchedTime(floorTime);
 
+    // Skip if we are currently waiting for a save response (prevents overlapping requests during 2x speed)
+    if (isSavingRef.current) return;
+
     // Check if progress reached 90% for completion
     const isNowCompleted = duration > 0 && floorTime / duration >= 0.9;
     
@@ -253,6 +264,7 @@ export default function LessonPlayerPage() {
     if (shouldSaveProgress) {
       const newStatus = isNowCompleted ? "completed" : "in_progress";
       
+      isSavingRef.current = true;
       updateProgressMutation.mutate({
         watchedTime: floorTime,
         status: newStatus,
@@ -262,8 +274,6 @@ export default function LessonPlayerPage() {
       
       if (isNowCompleted && !isCompletedRef.current) {
         isCompletedRef.current = true;
-        // Optionally invalidate to refresh state immediately on completion
-        // But mutation onSuccess already does this, so we don't strictly need it here.
       }
     }
   };
