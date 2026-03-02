@@ -111,6 +111,8 @@ export default function LessonPlayerPage() {
   const queryClient = useQueryClient();
   // const videoRef = useRef<HTMLVideoElement>(null); // Removed: using CloudflarePlayer events
   const [watchedTime, setWatchedTime] = useState(0);
+  const lastSavedTimeRef = useRef(0);
+  const isCompletedRef = useRef(false);
 
   const [homeworkContent, setHomeworkContent] = useState("");
   const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
@@ -228,6 +230,10 @@ export default function LessonPlayerPage() {
   useEffect(() => {
     if (lesson?.progress?.watchedTime && lesson.type === "video") {
       setWatchedTime(lesson.progress.watchedTime);
+      lastSavedTimeRef.current = lesson.progress.watchedTime;
+    }
+    if (lesson?.progress?.status === "completed") {
+      isCompletedRef.current = true;
     }
   }, [lesson]);
 
@@ -236,25 +242,29 @@ export default function LessonPlayerPage() {
     const floorTime = Math.floor(currentTime);
     setWatchedTime(floorTime);
 
-    // Auto-save progress every 10 seconds
-    if (floorTime % 10 === 0) {
-      updateProgressMutation.mutate({
-        watchedTime: floorTime,
-        status: duration && floorTime / duration > 0.9 ? "completed" : "in_progress",
-      });
-    }
+    // Check if progress reached 90% for completion
+    const isNowCompleted = duration > 0 && floorTime / duration >= 0.9;
+    
+    // Save progress if 10 seconds have elapsed since last save, OR if just completed
+    const shouldSaveProgress = 
+      floorTime - lastSavedTimeRef.current >= 10 || 
+      (isNowCompleted && !isCompletedRef.current);
 
-    // Mark as completed at 90%
-    if (
-      duration &&
-      floorTime / duration >= 0.9 &&
-      lesson?.progress?.status !== "completed"
-    ) {
+    if (shouldSaveProgress) {
+      const newStatus = isNowCompleted ? "completed" : "in_progress";
+      
       updateProgressMutation.mutate({
         watchedTime: floorTime,
-        status: "completed",
+        status: newStatus,
       });
-      queryClient.invalidateQueries({ queryKey: ["lesson", lessonId] });
+      
+      lastSavedTimeRef.current = floorTime;
+      
+      if (isNowCompleted && !isCompletedRef.current) {
+        isCompletedRef.current = true;
+        // Optionally invalidate to refresh state immediately on completion
+        // But mutation onSuccess already does this, so we don't strictly need it here.
+      }
     }
   };
 
