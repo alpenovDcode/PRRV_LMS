@@ -239,6 +239,7 @@ export async function GET(
                 type: lesson.type,
                 orderIndex: lesson.orderIndex,
                 isAvailable,
+                hasHomework: !!(lesson.content as any)?.homework,
                 progress: lessonProgress ? { status: lessonProgress.status } : null,
               };
             })

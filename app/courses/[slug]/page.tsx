@@ -35,6 +35,7 @@ interface Lesson {
   orderIndex: number;
   isFree: boolean;
   isAvailable: boolean;
+  hasHomework?: boolean;
   availableDate?: string;
   progress?: {
     status: "completed" | "in_progress" | "not_started";
@@ -166,6 +167,11 @@ export default function CourseDetailPage() {
           {lesson.type === "video" && (
             <Badge variant="secondary" className="h-5 px-1.5 text-[10px] uppercase tracking-wider bg-gray-100 text-gray-500">
               Видео
+            </Badge>
+          )}
+          {lesson.hasHomework && (
+            <Badge variant="secondary" className="h-5 px-1.5 text-[10px] uppercase tracking-wider bg-indigo-50 text-indigo-600 border-indigo-100 hidden sm:inline-flex">
+              ДЗ
             </Badge>
           )}
         </div>

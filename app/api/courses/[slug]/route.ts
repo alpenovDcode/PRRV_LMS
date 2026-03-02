@@ -60,6 +60,7 @@ export async function GET(
             type: lesson.type,
             orderIndex: lesson.orderIndex,
             isFree: lesson.isFree,
+            hasHomework: !!lesson.content?.homework,
             isAvailable: false, // No access to lessons
           })),
           children: [],
@@ -253,6 +254,7 @@ export async function GET(
               return {
                 ...lesson,
                 isAvailable,
+                hasHomework: !!lesson.content?.homework,
                 availableDate: dripAvailability.availableDate?.toISOString(),
                 progress: lessonProgress ? {
                   status: lessonProgress.status,

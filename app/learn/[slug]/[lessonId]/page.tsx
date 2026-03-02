@@ -1006,6 +1006,11 @@ function ModuleItem({ module, slug, lessonId, setMobileMenuOpen }: any) {
                       <Play className="h-4 w-4 flex-shrink-0" />
                     )}
                     <span className="flex-1 truncate">{l.title}</span>
+                    {l.hasHomework && (
+                      <Badge variant="secondary" className="ml-2 flex-shrink-0 h-4 px-1 text-[9px] uppercase tracking-wider bg-indigo-50 text-indigo-600 border-indigo-100 hidden sm:inline-flex">
+                        ДЗ
+                      </Badge>
+                    )}
                   </Link>
                 );
               })}
