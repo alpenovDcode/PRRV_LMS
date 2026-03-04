@@ -1,6 +1,7 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { apiClient } from "@/lib/api-client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -70,6 +71,8 @@ export default function CourseDetailPage() {
   const params = useParams();
   const slug = params.slug as string;
 
+  const queryClient = useQueryClient();
+
   const { data: course, isLoading, error } = useQuery<CourseDetail>({
     queryKey: ["course", slug],
     queryFn: async () => {
@@ -78,6 +81,34 @@ export default function CourseDetailPage() {
     },
     retry: 1,
   });
+
+  // Auto-refresh: find the nearest upcoming unlock date and schedule a refetch
+  useEffect(() => {
+    if (!course) return;
+
+    const getAllLessonsFlat = (mods: Module[]): Lesson[] =>
+      mods.flatMap(m => [...m.lessons, ...(m.children ? getAllLessonsFlat(m.children) : [])]);
+
+    const now = Date.now();
+    const futureDates = getAllLessonsFlat(course.modules)
+      .filter(l => !l.isAvailable && l.availableDate)
+      .map(l => new Date(l.availableDate!).getTime())
+      .filter(t => t > now);
+
+    if (futureDates.length === 0) return;
+
+    const nearestMs = Math.min(...futureDates);
+    const msUntilUnlock = nearestMs - now;
+
+    // Cap at 1 hour to avoid long-lived timers stacking up across sessions
+    if (msUntilUnlock > 60 * 60 * 1000) return;
+
+    const timer = setTimeout(() => {
+      queryClient.invalidateQueries({ queryKey: ["course", slug] });
+    }, msUntilUnlock + 1500); // +1.5s buffer so the server-side is definitely in 'open' state
+
+    return () => clearTimeout(timer);
+  }, [course, slug, queryClient]);
 
   if (isLoading) {
     return (
