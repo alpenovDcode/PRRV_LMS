@@ -81,8 +81,8 @@ export function sanitizeUserInput(input: string): string {
   // Remove null bytes
   let sanitized = input.replace(/\0/g, "");
 
-  // Normalize whitespace
-  sanitized = sanitized.replace(/\s+/g, " ").trim();
+  // Trim leading/trailing whitespace but preserve internal formatting
+  sanitized = sanitized.trim();
 
   // Limit length
   const MAX_LENGTH = 10000;
