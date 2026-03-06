@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { QuizPlayer } from "@/components/learn/quiz-player";
 import { HLSVideoPlayer } from "@/components/learn/hls-video-player";
 import { TrackDefinitionViewer } from "@/components/learn/track-definition-viewer";
+import { IntermediateSurveyViewer } from "@/components/learn/intermediate-survey-viewer";
 
 interface LessonContentPlayerProps {
   lesson: {
@@ -215,8 +216,13 @@ export function LessonContentPlayer({ lesson, onTimeUpdate, onEnded, isPreview =
         <TrackDefinitionViewer lessonId={lesson.id} isCompleted={lesson.progress?.status === "completed"} isPreview={isPreview} />
       )}
 
+      {/* Intermediate Survey Type */}
+      {lesson.type === "intermediate_survey" && (
+        <IntermediateSurveyViewer lessonId={lesson.id} isCompleted={lesson.progress?.status === "completed"} isPreview={isPreview} />
+      )}
+
       {/* Unsupported Type */}
-      {lesson.type !== "video" && lesson.type !== "text" && lesson.type !== "quiz" && lesson.type !== "track_definition" && (
+      {lesson.type !== "video" && lesson.type !== "text" && lesson.type !== "quiz" && lesson.type !== "track_definition" && lesson.type !== "intermediate_survey" && (
         <Card className="mb-6 border-gray-200">
           <CardContent className="p-6">
             <p className="text-gray-500">Тип урока не поддерживается: {lesson.type}</p>

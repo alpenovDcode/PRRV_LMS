@@ -517,6 +517,7 @@ enum LessonType {
   text
   quiz
   track_definition
+  intermediate_survey
 }
 
 enum EnrollmentStatus {

@@ -40,7 +40,7 @@ import { LessonContentPlayer } from "@/components/learn/lesson-content-player";
 interface LessonDetail {
   id: string;
   title: string;
-  type: "video" | "text" | "quiz" | "track_definition";
+  type: "video" | "text" | "quiz" | "track_definition" | "intermediate_survey";
   content: any;
   videoId: string | null;
   videoDuration: number | null;
@@ -70,7 +70,7 @@ export default function LessonEditorPage() {
 
   // Форма
   const [title, setTitle] = useState("");
-  const [type, setType] = useState<"video" | "text" | "quiz" | "track_definition">("video");
+  const [type, setType] = useState<"video" | "text" | "quiz" | "track_definition" | "intermediate_survey">("video");
   const [content, setContent] = useState<any>(null);
   // Video state
   const [videos, setVideos] = useState<Array<{ videoId: string; title?: string; duration: number }>>([]);
@@ -463,7 +463,7 @@ export default function LessonEditorPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="type" className="text-gray-700">Тип урока</Label>
-                <Select value={type} onValueChange={(v) => setType(v as "video" | "text" | "quiz")}>
+                <Select value={type} onValueChange={(v) => setType(v as typeof type)}>
                   <SelectTrigger className="border-gray-300">
                     <SelectValue />
                   </SelectTrigger>
@@ -490,6 +490,12 @@ export default function LessonEditorPage() {
                       <div className="flex items-center gap-2">
                         <Check className="h-4 w-4" />
                         Определение трека
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="intermediate_survey">
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4" />
+                        Промежуточный опрос
                       </div>
                     </SelectItem>
                   </SelectContent>
