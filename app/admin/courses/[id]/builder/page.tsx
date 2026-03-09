@@ -20,7 +20,7 @@ import Link from "next/link";
 interface AdminLesson {
   id: string;
   title: string;
-  type: "video" | "text" | "quiz" | "track_definition";
+  type: "video" | "text" | "quiz" | "track_definition" | "intermediate_survey";
   orderIndex: number;
 }
 
@@ -554,7 +554,7 @@ export default function CourseBuilderPage() {
   const [editingLessonId, setEditingLessonId] = useState<string | null>(null);
   const [editingModuleTitle, setEditingModuleTitle] = useState("");
   const [editingLessonTitle, setEditingLessonTitle] = useState("");
-  const [editingLessonType, setEditingLessonType] = useState<"video" | "text" | "quiz" | "track_definition">("video");
+  const [editingLessonType, setEditingLessonType] = useState<"video" | "text" | "quiz" | "track_definition" | "intermediate_survey">("video");
   
   // Access Settings State
   const [accessSettingsModuleId, setAccessSettingsModuleId] = useState<string | null>(null);
@@ -677,7 +677,7 @@ export default function CourseBuilderPage() {
   });
 
   const createLessonMutation = useMutation({
-    mutationFn: async (payload: { moduleId: string; title: string; type: "video" | "text" | "quiz" | "track_definition" }) => {
+    mutationFn: async (payload: { moduleId: string; title: string; type: "video" | "text" | "quiz" | "track_definition" | "intermediate_survey" }) => {
       await apiClient.post("/admin/lessons", payload);
     },
     onSuccess: (_, variables) => {
@@ -695,7 +695,7 @@ export default function CourseBuilderPage() {
     }: {
       lessonId: string;
       title?: string;
-      type?: "video" | "text" | "quiz" | "track_definition";
+      type?: "video" | "text" | "quiz" | "track_definition" | "intermediate_survey";
     }) => {
       await apiClient.patch(`/admin/lessons/${lessonId}`, { title, type });
     },
@@ -939,13 +939,14 @@ export default function CourseBuilderPage() {
             ) : (
               sortedLessons.map((lesson, lessonIdx) => {
                 const isEditingLesson = editingLessonId === lesson.id;
-                const typeIcons = {
+                const typeIcons: Record<string, any> = {
                   video: Play,
                   text: FileText,
                   quiz: CircleHelp,
                   track_definition: Settings,
+                  intermediate_survey: FileText,
                 };
-                const TypeIcon = typeIcons[lesson.type];
+                const TypeIcon = typeIcons[lesson.type] || FileText;
 
                 return (
                   <div
@@ -965,7 +966,7 @@ export default function CourseBuilderPage() {
                         <Select
                           value={editingLessonType}
                           onValueChange={(v) =>
-                            setEditingLessonType(v as "video" | "text" | "quiz" | "track_definition")
+                            setEditingLessonType(v as "video" | "text" | "quiz" | "track_definition" | "intermediate_survey")
                           }
                         >
                           <SelectTrigger className="w-32 border-gray-300">
@@ -976,6 +977,7 @@ export default function CourseBuilderPage() {
                             <SelectItem value="text">Текст</SelectItem>
                             <SelectItem value="quiz">Тест</SelectItem>
                             <SelectItem value="track_definition">Настройка треков</SelectItem>
+                            <SelectItem value="intermediate_survey">Промежуточный опрос</SelectItem>
                           </SelectContent>
                         </Select>
                         <Button
