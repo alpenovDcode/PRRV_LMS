@@ -15,6 +15,7 @@ import {
   Settings,
   Shield,
   Calendar,
+  FileText,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { NotificationsPopover } from "@/components/notifications-popover";
@@ -24,6 +25,7 @@ const navigation = [
   { name: "Главная", href: "/dashboard", icon: Home },
   { name: "Мои материалы", href: "/courses", icon: BookOpen },
   { name: "Календарь", href: "/dashboard/calendar", icon: Calendar },
+  { name: "Домашнее задание", href: "/dashboard/homework", icon: FileText },
   { name: "Настройки профиля", href: "/profile", icon: Settings },
 ];
 
