@@ -199,27 +199,38 @@ export async function GET(
         // Normalize and merge activity
         const activity = [
           ...auditLogs.map((log) => {
-            let title = `Действие: ${log.action}`;
+            let title = "Системное действие";
             let description = JSON.stringify(log.details);
             let type = "system";
 
+            const actionMap: Record<string, string> = {
+              "LOGIN": "Вход в систему",
+              "SUSPICIOUS_LOGIN_FAILED": "Неудачная попытка входа",
+              "UPDATE_USER": "Обновление профиля",
+              "EMAIL_ERROR": "Ошибка отправки письма",
+              "USER_CREATED_BY_ADMIN": "Создание администратором",
+              "PASSWORD_RESET": "Сброс пароля",
+              "PASSWORD_RECOVER_REQUEST": "Запрос на восстановление пароля",
+              "REGISTER": "Регистрация пользователя",
+            };
+
+            title = actionMap[log.action] || `Действие: ${log.action}`;
+
             if (log.action === "LOGIN") {
               type = "login";
-              title = "Вход в систему";
               description = "Успешная авторизация";
             } else if (log.action === "SUSPICIOUS_LOGIN_FAILED") {
-              type = "system"; // Or 'alert' if we had it
-              title = "Неудачная попытка входа";
+              type = "system";
               const details = log.details as any;
               const reasonMap: Record<string, string> = {
                 invalid_password: "Неверный пароль",
                 user_not_found: "Пользователь не найден",
               };
               description = reasonMap[details?.reason] || details?.reason || "Подозрительная активность";
-            } else if (log.action === "UPDATE_USER") {
-              type = "system";
-              title = "Обновление профиля";
-              description = "Изменены данные пользователя";
+            } else if (log.action === "EMAIL_ERROR") {
+               type = "system";
+               const details = log.details as any;
+               description = `Не удалось отправить на ${details?.to || "?"}: ${details?.error || "Неизвестная ошибка"}`;
             }
 
             return {

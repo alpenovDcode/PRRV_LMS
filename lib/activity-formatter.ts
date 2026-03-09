@@ -3,7 +3,6 @@ export function formatActivityDetails(type: string, description: string): string
 
   try {
     // Audit logs usually store JSON in description (from our API transformation) or details
-    // The API route currently does `JSON.stringify(log.details)` into description
     const details = JSON.parse(description);
     
     // Format based on known keys/patterns
@@ -12,24 +11,29 @@ export function formatActivityDetails(type: string, description: string): string
     }
     
     if (details.targetRole && details.targetEmail) {
-        return `Вход под пользователем ${details.targetEmail} (${details.targetRole})`;
+        return `Вход под пользователем ${details.targetEmail} (${translateRole(details.targetRole)})`;
     }
     
     // User updates
-    if (details.email || details.role || details.isBlocked !== undefined) {
+    if (details.email || details.role || details.isBlocked !== undefined || details.passwordChanged) {
         const updates = [];
         if (details.email) updates.push(`Email изменен`);
-        if (details.role) updates.push(`Роль изменена на ${details.role}`);
-        if (details.isBlocked !== undefined) updates.push(details.isBlocked ? "Заблокирован" : "Разблокирован");
-        if (details.frozenUntil !== undefined) updates.push(details.frozenUntil ? "Заморожен" : "Разморожен");
+        if (details.role) updates.push(`Роль изменена на ${translateRole(details.role)}`);
+        if (details.isBlocked !== undefined) updates.push(details.isBlocked ? "Приостановлен доступ" : "Восстановлен доступ");
+        if (details.frozenUntil !== undefined) updates.push(details.frozenUntil ? "Доступ заморожен" : "Доступ разморожен");
         if (details.passwordChanged) updates.push("Пароль изменен");
         
         return updates.join(", ") || "Обновление профиля";
     }
 
+    // New user created by admin
+    if (details.createdEmail && details.createdRole) {
+        return `Создан аккаунт (${details.createdEmail}) с ролью ${translateRole(details.createdRole)}`;
+    }
+
     // Fallback for IP only (simple login)
     if (details.ip && Object.keys(details).length === 1) {
-        return `IP: ${details.ip}`;
+        return `Успешный вход (IP: ${details.ip})`;
     }
 
     // Default: return pretty JSON or simplified text
@@ -37,5 +41,14 @@ export function formatActivityDetails(type: string, description: string): string
   } catch (e) {
     // Not JSON, return as is
     return description;
+  }
+}
+
+function translateRole(role: string): string {
+  switch (role) {
+    case "admin": return "Администратор";
+    case "student": return "Студент";
+    case "curator": return "Куратор";
+    default: return role;
   }
 }
