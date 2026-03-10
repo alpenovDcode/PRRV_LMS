@@ -387,13 +387,13 @@ export function checkModuleAccess(
   }
 
   // 4.2 Relative date (Event-based)
-  if (module.openAfterEvent === "track_definition_completed") {
+  else if (module.openAfterEvent === "track_definition_completed") {
     if (!trackDefinitionCompletedAt) {
       // Event hasn't happened yet
       return { isAccessible: false, reason: "time_locked", unlockDate: null, details: "Waiting for track definition" };
     }
 
-    if (module.openAfterAmount && module.openAfterUnit) {
+    if (module.openAfterAmount !== null && module.openAfterAmount !== undefined && module.openAfterUnit) {
       const openDate = new Date(trackDefinitionCompletedAt);
       addTime(openDate, module.openAfterAmount, module.openAfterUnit);
 
@@ -414,11 +414,6 @@ export function checkModuleAccess(
          // Should have been caught by group check, but redundancy is fine
          return { isAccessible: false, reason: "group_mismatch", unlockDate: null };
     }
-
-    // We calculate the earliest possible unlock date that is MET
-    // Or if none are met, the earliest possible unlock date in the FUTURE?
-    // Actually, if ANY group grants access (start date + valid time), it's open.
-    // If multiple groups, we probably take the "best" one (earliest access).
     
     let bestUnlockDate: Date | null = null;
     let hasAccess = false;
@@ -428,7 +423,7 @@ export function checkModuleAccess(
         const startDate = userGroupsMap.get(groupId);
         if (!startDate) continue;
 
-        if (module.openAfterAmount && module.openAfterUnit) {
+        if (module.openAfterAmount !== null && module.openAfterAmount !== undefined && module.openAfterUnit) {
             const openDate = new Date(startDate);
             addTime(openDate, module.openAfterAmount, module.openAfterUnit);
 
@@ -443,10 +438,17 @@ export function checkModuleAccess(
                 }
             }
         } else {
-            // No delay, opens immediately with group start
-             hasAccess = true;
-             bestUnlockDate = startDate;
-             if (now >= startDate) break;
+             // No delay, opens immediately with group start
+             // BUG FIX: Must check if group has actually started!
+             if (now >= startDate) {
+                 hasAccess = true;
+                 bestUnlockDate = startDate;
+                 break;
+             } else {
+                 if (!bestUnlockDate || startDate < bestUnlockDate) {
+                     bestUnlockDate = startDate;
+                 }
+             }
         }
     }
 

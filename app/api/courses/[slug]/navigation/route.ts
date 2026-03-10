@@ -176,8 +176,14 @@ export async function GET(
         if (userTrack && module.trackSettings) {
              const settings = (module.trackSettings as Record<string, any>)[userTrack];
              if (settings) {
-                 if (settings.openAt) effectiveModule.openAt = settings.openAt;
-                 if (settings.openAfterEvent) {
+                 if (settings.openAt) {
+                     effectiveModule.openAt = settings.openAt;
+                     effectiveModule.openAfterEvent = null;
+                     effectiveModule.openAfterAmount = null;
+                     effectiveModule.openAfterUnit = null;
+                 }
+                 else if (settings.openAfterEvent) {
+                     effectiveModule.openAt = null;
                      effectiveModule.openAfterEvent = settings.openAfterEvent;
                      effectiveModule.openAfterAmount = settings.openAfterAmount;
                      effectiveModule.openAfterUnit = settings.openAfterUnit;
