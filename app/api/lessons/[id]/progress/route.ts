@@ -79,6 +79,8 @@ export async function POST(
         },
       });
 
+      const wasCompleted = existingProgress?.status === "completed";
+
       // Если оценка уже есть, мы не должны её менять
       // Если оценки нет, то можем записать новую (если она пришла)
       const ratingToSave = existingProgress?.rating ? undefined : rating;
@@ -96,7 +98,7 @@ export async function POST(
           status: status || "in_progress",
           // Если ratingToSave === undefined, Prisma просто не будет обновлять это поле
           rating: ratingToSave,
-          completedAt: status === "completed" ? new Date() : undefined,
+          completedAt: status === "completed" ? (existingProgress?.completedAt || new Date()) : undefined,
           lastUpdated: new Date(),
         },
         create: {
@@ -109,10 +111,12 @@ export async function POST(
         },
       });
 
-      // Если урок завершен, записываем в аудит
-      if (status === "completed" && progress.status === "completed") {
+      // Если урок завершен ТОЛЬКО ЧТО, записываем в аудит
+      if (status === "completed" && !wasCompleted) {
         await logAction(req.user!.userId, "LESSON_COMPLETED", "lesson", id, {
-          rating: ratingToSave
+          rating: ratingToSave,
+          lessonTitle: lesson.title,
+          courseTitle: lesson.module.course.title
         });
 
         // Проверяем и выдаем сертификат, если курс завершен

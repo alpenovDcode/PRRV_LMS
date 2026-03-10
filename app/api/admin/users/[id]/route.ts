@@ -126,7 +126,10 @@ export async function GET(
         const [auditLogs, homeworks, comments, completedLessons] = await Promise.all([
           // Audit Logs (Logins, updates)
           db.auditLog.findMany({
-            where: { userId: id },
+            where: { 
+              userId: id,
+              action: { not: "LESSON_COMPLETED" } 
+            },
             orderBy: { createdAt: "desc" },
             take: 10,
           }),
