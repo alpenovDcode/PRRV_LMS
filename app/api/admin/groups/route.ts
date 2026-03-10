@@ -23,7 +23,32 @@ export async function GET(request: NextRequest) {
           orderBy: { createdAt: "desc" },
         });
 
-        return NextResponse.json<ApiResponse>({ success: true, data: groups }, { status: 200 });
+        // For each group, fetch modules that have the group's ID in allowedGroups
+        const groupsWithModules = await Promise.all(
+          groups.map(async (group) => {
+            const allowedModules = await db.module.findMany({
+              where: {
+                allowedGroups: {
+                  has: group.id,
+                },
+              },
+              select: {
+                id: true,
+                title: true,
+                courseId: true,
+                course: {
+                  select: { title: true }
+                }
+              },
+            });
+            return {
+              ...group,
+              allowedModules,
+            };
+          })
+        );
+
+        return NextResponse.json<ApiResponse>({ success: true, data: groupsWithModules }, { status: 200 });
       } catch (error) {
         console.error("Admin groups error:", error);
         return NextResponse.json<ApiResponse>(

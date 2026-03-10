@@ -49,6 +49,14 @@ interface GroupDetail {
   course?: {
     title: string;
   } | null;
+  allowedModules?: {
+    id: string;
+    title: string;
+    courseId: string;
+    course: {
+      title: string;
+    };
+  }[];
 }
 
 interface GroupMember {
@@ -92,6 +100,8 @@ export default function AdminGroupDetailPage() {
   }, [searchTerm]);
   const [selectedUserId, setSelectedUserId] = React.useState<string>("");
   const [selectedCourseId, setSelectedCourseId] = React.useState<string>("");
+  const [selectedModuleCourseId, setSelectedModuleCourseId] = React.useState<string>("");
+  const [selectedModuleId, setSelectedModuleId] = React.useState<string>("");
 
   const { data: group, isLoading } = useQuery<GroupDetail>({
     queryKey: ["admin", "groups", groupId],
@@ -132,6 +142,15 @@ export default function AdminGroupDetailPage() {
     },
   });
 
+  const { data: routeCourseDetail } = useQuery({
+    queryKey: ["admin", "courses", selectedModuleCourseId],
+    queryFn: async () => {
+      const response = await apiClient.get(`/admin/courses/${selectedModuleCourseId}`);
+      return response.data.data;
+    },
+    enabled: !!selectedModuleCourseId,
+  });
+
   const addMemberMutation = useMutation({
     mutationFn: async (userId: string) => {
       await apiClient.post(`/admin/groups/${groupId}/members`, { userId });
@@ -158,6 +177,16 @@ export default function AdminGroupDetailPage() {
     },
     onSuccess: () => {
       // прогресс и зачисления видны в карточках пользователей
+    },
+  });
+
+  const moduleAccessMutation = useMutation({
+    mutationFn: async ({ moduleId, action }: { moduleId: string; action: "grant" | "revoke" }) => {
+      await apiClient.post(`/admin/groups/${groupId}/modules`, { moduleId, action });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "groups", groupId] });
+      setSelectedModuleId("");
     },
   });
 
@@ -457,6 +486,99 @@ export default function AdminGroupDetailPage() {
               >
                 Выдать курс всей группе
               </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Доступ к модулям курса</CardTitle>
+              <CardDescription>
+                Выдайте этой группе доступ к конкретному модулю курса.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-4 max-w-xl">
+                <div className="space-y-2">
+                  <Label>Курс</Label>
+                  <Select
+                    value={selectedModuleCourseId}
+                    onValueChange={(val) => {
+                      setSelectedModuleCourseId(val);
+                      setSelectedModuleId("");
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Выберите курс" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {courses?.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Модуль</Label>
+                  <Select
+                    value={selectedModuleId}
+                    onValueChange={setSelectedModuleId}
+                    disabled={!selectedModuleCourseId || !routeCourseDetail}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Выберите модуль" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {routeCourseDetail?.modules?.map((m: any) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          {m.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <Button
+                  disabled={!selectedModuleId || moduleAccessMutation.isPending}
+                  onClick={() =>
+                    selectedModuleId &&
+                    moduleAccessMutation.mutate({ moduleId: selectedModuleId, action: "grant" })
+                  }
+                >
+                  Выдать доступ к модулю
+                </Button>
+              </div>
+
+              {group.allowedModules && group.allowedModules.length > 0 && (
+                <div className="space-y-3 mt-8 pt-6 border-t">
+                  <h4 className="font-medium text-sm">Модули, доступные группе:</h4>
+                  <div className="grid gap-2">
+                    {group.allowedModules.map((mod) => (
+                      <div
+                        key={mod.id}
+                        className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2 text-sm"
+                      >
+                        <div>
+                          <div className="font-medium">{mod.title}</div>
+                          <div className="text-xs text-muted-foreground">
+                            Курс: {mod.course?.title}
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive h-8 px-2"
+                          onClick={() => moduleAccessMutation.mutate({ moduleId: mod.id, action: "revoke" })}
+                        >
+                          Забрать доступ
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </>
