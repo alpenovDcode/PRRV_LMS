@@ -6,9 +6,9 @@ import { apiClient } from "@/lib/api-client";
 
 export default function EditLandingPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const [initialBlocks, setInitialBlocks] = useState<any[]>([]);
+  const [initialBlocks, setInitialBlocks] = useState([]);
   const [isPublished, setIsPublished] = useState(false);
-  const [initialSettings, setInitialSettings] = useState<any>({});
+  const [initialSettings, setInitialSettings] = useState({});
   const [slug, setSlug] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
 
