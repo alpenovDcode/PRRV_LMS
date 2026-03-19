@@ -2,6 +2,20 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { verifyAccessTokenEdge } from "./lib/auth-edge";
 
+// Helper for constant-time comparison to prevent timing attacks
+function isTokenEqual(a: string | undefined, b: string): boolean {
+  if (!a) return false;
+  const encoder = new TextEncoder();
+  const aBytes = encoder.encode(a);
+  const bBytes = encoder.encode(b);
+  if (aBytes.length !== bBytes.length) return false;
+  let result = 0;
+  for (let i = 0; i < aBytes.length; i++) {
+    result |= aBytes[i] ^ bBytes[i];
+  }
+  return result === 0;
+}
+
 // Helper to safely construct absolute URLs
 function getSafeUrl(path: string, request: NextRequest): URL {
   const publicUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -45,23 +59,25 @@ export async function middleware(request: NextRequest) {
   ) {
     // 1. Try to get token from Authorization header or cookie
     const authHeader = request.headers.get("authorization");
-    let token = authHeader?.replace("Bearer ", "");
-    if (!token) {
-      token = request.cookies.get("accessToken")?.value;
+    let requestToken = authHeader?.startsWith("Bearer ")
+      ? authHeader.slice(7)
+      : undefined;
+    if (!requestToken) {
+      requestToken = request.cookies.get("accessToken")?.value;
     }
 
     const validKey = process.env.API_SECRET_KEY;
     
     // 2. Check if it's a valid API Key bypass
-    if (validKey && token === validKey) {
+    if (validKey && isTokenEqual(requestToken, validKey)) {
       // System access granted
     } else {
       // 3. Check if it's a valid session
       let isAuthorized = false;
 
-      if (token) {
+      if (requestToken) {
         try {
-          const payload = await verifyAccessTokenEdge(token);
+          const payload = await verifyAccessTokenEdge(requestToken);
           // Allow admins, curators, AND students to access API if they are logged in
           if (payload && (payload.role === "admin" || payload.role === "curator" || payload.role === "student")) {
             isAuthorized = true;

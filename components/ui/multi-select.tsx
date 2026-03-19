@@ -77,21 +77,28 @@ export function MultiSelect({
                     }}
                   >
                     {label}
-                    <button
-                      className="ml-1 ring-offset-background rounded-full outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      className="ml-1 ring-offset-background rounded-full outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 inline-flex items-center justify-center"
                       onKeyDown={(e) => {
-                        if (e.key === "Enter") {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
                           handleUnselect(selected[idx]);
                         }
-                      }}
+                      } }
                       onMouseDown={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                      }}
-                      onClick={() => handleUnselect(selected[idx])}
+                      } }
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleUnselect(selected[idx]);
+                      } }
                     >
                       <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
-                    </button>
+                    </span>
                   </Badge>
                ))
             )}
@@ -109,7 +116,7 @@ export function MultiSelect({
           <CommandInput placeholder="Поиск..." />
           <CommandList>
             <CommandEmpty>Ничего не найдено.</CommandEmpty>
-            <CommandGroup className="max-h-64 overflow-auto">
+            <CommandGroup className="p-1">
               {options.map((option) => (
                 <CommandItem
                   key={option.value}
@@ -123,6 +130,7 @@ export function MultiSelect({
                       onChange([...selected, option.value]);
                     }
                   }}
+                  className="cursor-pointer"
                 >
                   <Check
                     className={cn(
