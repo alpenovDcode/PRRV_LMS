@@ -320,16 +320,26 @@ const styles = {
 };
 
 export default function LandingConstructor({
-  lessons,
+  landingId,
+  initialBlocks = [],
+  initialIsPublished = false,
+  initialSettings = {},
+  slug,
+  onSave,
 }: {
-  lessons: any[];
+  landingId: string;
+  initialBlocks?: any[];
+  initialIsPublished?: boolean;
+  initialSettings?: any;
+  slug?: string;
+  onSave: (blocks: any[], published: boolean, settings: any) => Promise<void>;
 }) {
-  const [blocks, setBlocks] = useState<Block[]>(DEFAULT_BLOCKS);
-  const [isPublished, setIsPublished] = useState(false);
+  const [blocks, setBlocks] = useState<Block[]>(initialBlocks.length > 0 ? initialBlocks : DEFAULT_BLOCKS);
+  const [isPublished, setIsPublished] = useState(initialIsPublished);
   const [settings, setSettings] = useState<any>({
-    title: "",
-    slug: "",
-    bitrix: { enabled: false, targetStageId: "", globalAnswerFieldId: "" }
+    title: initialSettings.title || "",
+    slug: slug || "",
+    bitrix: initialSettings.bitrix || { enabled: false, targetStageId: "", globalAnswerFieldId: "" }
   });
 
   // Bitrix states
@@ -354,8 +364,7 @@ export default function LandingConstructor({
   }, []);
 
   const saveLanding = async () => {
-    // Logic to save landing
-    alert("Лендинг успешно сохранен!");
+    await onSave(blocks, isPublished, settings);
   };
 
   const addBlock = (type: string) => {
@@ -524,6 +533,15 @@ export default function LandingConstructor({
           <div className="flex-1 flex flex-col overflow-hidden p-8 animate-in slide-in-from-left duration-300">
             <h3 className="text-[20px] font-extrabold tracking-tight mb-8">Настройки лендинга</h3>
             <div className="space-y-10 overflow-y-auto pr-2 custom-scrollbar">
+              <div className="flex items-center justify-between p-6 bg-[#F5F4EE] rounded-3xl border border-[#E8E8E0]">
+                 <div>
+                    <div className="font-bold text-[15px]">Опубликовать страницу</div>
+                    <div className="text-[11px] text-[#888] mt-0.5">Сделать лендинг доступным по ссылке</div>
+                 </div>
+                 <button onClick={() => setIsPublished(!isPublished)} className={`w-14 h-8 rounded-full transition-all relative ${isPublished ? "bg-[#1A1A14]" : "bg-[#DDD]"}`}>
+                    <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all shadow-sm ${isPublished ? "left-7" : "left-1"}`} />
+                 </button>
+              </div>
               <div className="space-y-4">
                 <label style={styles.label}>Заголовок страницы (SEO)</label>
                 <input style={styles.input} value={settings?.title || ""} onChange={e => setSettings({...settings, title: e.target.value})} placeholder="Напр: Лучший курс по веб-дизайну" />
