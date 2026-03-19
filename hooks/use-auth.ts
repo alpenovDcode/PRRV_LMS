@@ -42,7 +42,8 @@ export function useAuth() {
     retry: false,
     // Токены теперь в httpOnly cookies, проверяем только публичные страницы
     enabled: typeof window !== "undefined" && 
-      !["/login", "/register", "/recover-password"].includes(window.location.pathname),
+      !["/login", "/register", "/recover-password", "/maintenance", "/no-access"].includes(window.location.pathname) &&
+      !window.location.pathname.startsWith("/l/"),
   });
 
   const loginMutation = useMutation({

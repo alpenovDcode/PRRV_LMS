@@ -42,8 +42,8 @@ class ApiClient {
 
         // Не обрабатываем 401 на публичных роутах
         const currentPath = typeof window !== "undefined" ? window.location.pathname : "";
-        const publicRoutes = ["/login", "/register", "/recover-password"];
-        const isPublicRoute = publicRoutes.some(route => currentPath.startsWith(route));
+        const publicRoutes = ["/login", "/register", "/recover-password", "/l/", "/legal", "/maintenance", "/no-access"];
+        const isPublicRoute = currentPath === "/" || publicRoutes.some(route => currentPath.startsWith(route));
         
         if (error.response?.status === 401 && !originalRequest._retry && !isPublicRoute) {
           originalRequest._retry = true;
