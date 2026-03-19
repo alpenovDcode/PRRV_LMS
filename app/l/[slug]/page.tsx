@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export default async function LandingPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const page = await prisma.landingPage.findUnique({
-    where: { slug: slug },
+    where: { slug: decodeURIComponent(slug) },
     include: { blocks: { orderBy: { orderIndex: "asc" } } }
   });
 

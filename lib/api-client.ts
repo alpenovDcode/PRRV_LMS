@@ -25,13 +25,8 @@ class ApiClient {
     // Не нужно добавлять Authorization header вручную, так как токены в cookies
     this.client.interceptors.request.use(
       (config: InternalAxiosRequestConfig) => {
-        // Appending URL-based API Key security check
-        if (process.env.NEXT_PUBLIC_API_SECRET_KEY) {
-          config.params = {
-            ...config.params,
-            apiKey: process.env.NEXT_PUBLIC_API_SECRET_KEY,
-          };
-        }
+        // Session-based authentication is handled via cookies (withCredentials: true)
+        // No need for manual Authorization header or apiKey parameter for browser requests
         return config;
       },
       (error) => Promise.reject(error)

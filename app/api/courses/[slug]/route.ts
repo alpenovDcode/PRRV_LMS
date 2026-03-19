@@ -12,7 +12,7 @@ export async function GET(
     try {
       const { slug } = await params;
         const course = await db.course.findUnique({
-        where: { slug },
+        where: { slug: decodeURIComponent(slug) },
         include: {
           modules: {
             include: {

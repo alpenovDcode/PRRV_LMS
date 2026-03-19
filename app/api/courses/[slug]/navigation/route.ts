@@ -28,7 +28,7 @@ export async function GET(
       }
 
       const course = await db.course.findUnique({
-        where: { slug },
+        where: { slug: decodeURIComponent(slug) },
         include: {
           modules: {
             include: {

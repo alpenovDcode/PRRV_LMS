@@ -53,22 +53,18 @@ export async function withAuth(
       }
     }
 
-    // 2. Если сессия не найдена или невалидна, проверяем API Key bypass
-    const url = new URL(request.url);
-    const apiKey = url.searchParams.get("apiKey");
+    // 2. Если сессия не найдена или невалидна, проверяем API Key bypass через Authorization header
     const serverSecret = process.env.API_SECRET_KEY;
-
-    if (serverSecret && apiKey === serverSecret) {
-      // Bypass session validation for valid API key
+    
+    // Если в заголовке Authorization передан API Key напрямую (не JWT)
+    if (serverSecret && token === serverSecret) {
       const authenticatedRequest = request as AuthenticatedRequest;
       authenticatedRequest.user = {
         userId: "system-api",
         email: "system@api.local",
-        role: "admin", // Grant admin role
+        role: "admin", // Grant admin role for system-level calls
         sessionId: "system-session",
       };
-      
-      // Allow request to proceed
       return handler(authenticatedRequest);
     }
 

@@ -40,7 +40,7 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_SECRET_KEY: ${NEXT_PUBLIC_API_SECRET_KEY}
+        # NEXT_PUBLIC_API_SECRET_KEY removed for security
     container_name: proryv_app
     restart: unless-stopped
     environment:
@@ -63,7 +63,7 @@ services:
       R2_PUBLIC_URL: /api/assets
       # API Protection
       API_SECRET_KEY: ${API_SECRET_KEY}
-      NEXT_PUBLIC_API_SECRET_KEY: ${NEXT_PUBLIC_API_SECRET_KEY}
+      # NEXT_PUBLIC_API_SECRET_KEY removed for security
       NODE_ENV: production
     ports:
       - "${APP_PORT:-3000}:3000"
