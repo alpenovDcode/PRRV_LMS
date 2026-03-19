@@ -32,22 +32,23 @@ export async function middleware(request: NextRequest) {
   const token = request.cookies.get("accessToken")?.value;
   const path = request.nextUrl.pathname;
 
-  // Публичные роуты
-  const publicRoutes = [
-    "/login",
-    "/register",
-    "/recover-password",
-    "/legal",
-    "/maintenance",
-    "/no-access",
-    "/api/auth",
-    "/api/health", // Allow health checks
-    "/l", // Public landing pages
-    "/api/landings/submit",
-    "/api/landings/check-status",
-  ];
-  const isPublicRoute = publicRoutes.some((route) => path.startsWith(route));
+  // Публичные роуты (точное совпадение или префикс)
+  const isPublicRoute = 
+    path === "/" ||
+    path.startsWith("/login") ||
+    path.startsWith("/register") ||
+    path.startsWith("/recover-password") ||
+    path.startsWith("/legal") ||
+    path.startsWith("/maintenance") ||
+    path.startsWith("/no-access") ||
+    path.startsWith("/api/auth") ||
+    path.startsWith("/api/health") ||
+    path.startsWith("/l/") ||          // Landing pages
+    path === "/l" ||                   // Landing root (if any)
+    path.startsWith("/api/landings/submit") ||
+    path.startsWith("/api/landings/check-status");
 
+  // --- API SECURITY CHECK START ---
   if (
      path.startsWith("/api") && 
      path !== "/api/health" && 
