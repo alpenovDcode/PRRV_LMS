@@ -34,11 +34,6 @@ export async function middleware(request: NextRequest) {
   ];
   const isPublicRoute = publicRoutes.some((route) => path.startsWith(route));
 
-  // --- API SECURITY CHECK START ---
-  // Проверка ключа API для всех /api роутов
-  // Исключаем webhook роуты (если будут) или public callback, но требование пользователя "строго ко всем"
-  // Пропускаем /api/health для Docker Healthcheck и /api/auth для аутентификации браузера
-  // и /api/video-proxy, так как видео-сегменты запрашиваются плеером без API ключа, но имеют свой JWT токен
   if (
      path.startsWith("/api") && 
      path !== "/api/health" && 
@@ -48,22 +43,27 @@ export async function middleware(request: NextRequest) {
      !path.startsWith("/api/landings/check-status") &&
      !path.match(/^\/api\/landings\/[^/]+\/view$/)
   ) {
-    const apiKey = request.nextUrl.searchParams.get("apiKey");
+    // 1. Try to get token from Authorization header or cookie
+    const authHeader = request.headers.get("authorization");
+    let token = authHeader?.replace("Bearer ", "");
+    if (!token) {
+      token = request.cookies.get("accessToken")?.value;
+    }
+
     const validKey = process.env.API_SECRET_KEY;
     
-    // Если ключ не задан в .env, пропускаем (режим разработки/отладки без ключа)
-    // Но если задан - проверяем строго
-    if (validKey && apiKey !== validKey) {
-      // PROPYV_UPDATE: Allow authenticated sessions (Cookie) to bypass API Key check
-      // This fixes issues where client-side env vars might be missing
-      const token = request.cookies.get("accessToken")?.value;
+    // 2. Check if it's a valid API Key bypass
+    if (validKey && token === validKey) {
+      // System access granted
+    } else {
+      // 3. Check if it's a valid session
       let isAuthorized = false;
 
       if (token) {
         try {
           const payload = await verifyAccessTokenEdge(token);
-          // Allow admins and curators to access API without key (since they are logged in)
-          if (payload && (payload.role === "admin" || payload.role === "curator")) {
+          // Allow admins, curators, AND students to access API if they are logged in
+          if (payload && (payload.role === "admin" || payload.role === "curator" || payload.role === "student")) {
             isAuthorized = true;
           }
         } catch (e) {
@@ -72,8 +72,7 @@ export async function middleware(request: NextRequest) {
       }
 
       if (!isAuthorized) {
-        // Для API возвращаем JSON
-        // Возвращаем 401, чтобы клиент мог попытаться обновить токен (refresh token)
+        // Return 401 for API routes to trigger refresh or login
         return NextResponse.json(
           { success: false, error: { code: "UNAUTHORIZED", message: "Invalid API Key or Session" } },
           { status: 401 }
