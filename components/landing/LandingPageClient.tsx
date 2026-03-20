@@ -5,15 +5,20 @@ import LandingForm from "./LandingForm";
 import HeroBlock from "./blocks/HeroBlock";
 import FeaturesBlock from "./blocks/FeaturesBlock";
 import ButtonBlock from "./blocks/ButtonBlock";
+import TimerBlock from "./blocks/TimerBlock";
+import ReviewsBlock from "./blocks/ReviewsBlock";
+import PricingBlock from "./blocks/PricingBlock";
+import DividerBlock from "./blocks/DividerBlock";
 import { trackLandingView } from "@/app/actions/landing";
 
 interface WrapperProps {
   slug: string;
   blocks: any[]; 
   initialSubmissions?: Record<string, any>;
+  settings?: any;
 }
 
-export default function LandingPageClient({ slug, blocks, initialSubmissions = {} }: WrapperProps) {
+export default function LandingPageClient({ slug, blocks, initialSubmissions = {}, settings = {} }: WrapperProps) {
   // Global state for answers from Text Blocks
   // Key: blockId, Value: text answer
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -35,12 +40,22 @@ export default function LandingPageClient({ slug, blocks, initialSubmissions = {
     setAnswers(prev => ({ ...prev, [blockId]: text }));
   };
 
+  // Global palette support
+  const palette = settings?.palette || { bg: "bg-white", textColor: "text-gray-900", accentColor: "#3B82F6" };
+
   return (
     <div className="w-full">
           {blocks.map((block) => {
              // Fallback for old blocks without design prop
-             const design = block.design || { 
-               bg: "bg-white", textColor: "text-gray-900", textSize: "base", padding: "py-12", container: "fixed", textAlign: "left"
+             const design = { 
+               bg: "bg-white", 
+               textColor: "text-gray-900", 
+               textSize: "base", 
+               padding: "py-12", 
+               container: "fixed", 
+               textAlign: "left" as const,
+               accentColor: palette.accentColor,
+               ...block.design
              };
 
              return (
@@ -51,6 +66,14 @@ export default function LandingPageClient({ slug, blocks, initialSubmissions = {
                   {block.type === 'features' && <FeaturesBlock content={block.content} design={design} />}
                   
                   {block.type === 'button' && <ButtonBlock content={block.content} design={design} />}
+
+                  {block.type === 'timer' && <TimerBlock content={block.content} design={design} />}
+
+                  {block.type === 'reviews' && <ReviewsBlock content={block.content} design={design} />}
+
+                  {block.type === 'pricing' && <PricingBlock content={block.content} design={design} />}
+
+                  {block.type === 'divider' && <DividerBlock content={block.content} design={design} />}
 
                   {block.type === "text" && (
                     <section className={`${design.bg} ${design.textColor} ${design.padding}`}>
@@ -98,9 +121,9 @@ export default function LandingPageClient({ slug, blocks, initialSubmissions = {
                        <div className={design.container === 'fluid' ? 'w-full px-4' : 'max-w-3xl mx-auto px-4'}>
                           <div className="bg-white border rounded-2xl p-6 md:p-8 shadow-sm">
                              <LandingForm 
-                               block={block} 
-                               answers={answers} 
-                               initialSubmission={initialSubmissions[block.id]}
+                                block={block} 
+                                answers={answers} 
+                                initialSubmission={initialSubmissions[block.id]}
                              />
                           </div>
                        </div>
