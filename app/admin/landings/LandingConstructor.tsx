@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, ElementType } from "react";
+import React, { useState, useEffect, ElementType, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Plus, Trash, ArrowUp, ArrowDown, Type, AlignJustify, Video, 
@@ -149,10 +149,40 @@ export default function LandingConstructor({
 
   const [blocks, setBlocks] = useState<Block[]>(normalizedBlocks);
   const [isPublished, setIsPublished] = useState(initialIsPublished);
-  const [settings, setSettings] = useState(initialSettings || { palette: PALETTES[0], layoutMode: 'full', pageBg: 'bg-white' });
+  const [settings, setSettings] = useState(initialSettings || { palette: PALETTES[0], layoutMode: 'cards', pageBg: 'bg-gray-50' });
   const [activeBlockId, setActiveBlockId] = useState<string | null>(null);
   const [activeNavTab, setActiveNavTab] = useState<"blocks" | "page" | "design">("blocks");
   const [activeInspectorTab, setActiveInspectorTab] = useState<"content" | "style">("content");
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeBlockId) return;
+
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch("/api/admin/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.success) {
+        updateContent(activeBlockId, { backgroundImage: data.data.url });
+      } else {
+        alert(data.error?.message || "Ошибка при загрузке");
+      }
+    } catch (error) {
+      console.error("Upload error:", error);
+      alert("Произошла ошибка при загрузке");
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
   
   const [lessons, setLessons] = useState<any[]>([]);
   const [bitrixFields, setBitrixFields] = useState<any[]>([]);
@@ -385,7 +415,7 @@ export default function LandingConstructor({
                      animate={{ opacity: 1, y: 0 }}
                      exit={{ opacity: 0, scale: 0.9 }}
                      onClick={() => setActiveBlockId(block.id)}
-                     className={`group relative bg-white rounded-[2.5rem] shadow-sm border-2 transition-all cursor-pointer overflow-hidden
+                     className={`group relative bg-white rounded-[4.1rem] shadow-sm border-2 transition-all cursor-pointer overflow-hidden
                        ${(block.width || 'full') === '1/2' ? 'w-[calc(50%-12px)]' : 'w-full'}
                        ${activeBlockId === block.id ? 'border-blue-500 ring-[12px] ring-blue-500/5 shadow-premium' : 'border-transparent hover:border-blue-200 hover:shadow-md'}`}
                   >
@@ -490,7 +520,25 @@ export default function LandingConstructor({
                                   <Input label="Текст кнопки" value={activeBlock.content.ctaText} onChange={v => updateContent(activeBlock.id, { ctaText: v })} />
                                   <Input label="Ссылка" value={activeBlock.content.ctaLink} onChange={v => updateContent(activeBlock.id, { ctaLink: v })} />
                                </div>
-                               <Input label="Фон (Image URL)" value={activeBlock.content.backgroundImage} onChange={v => updateContent(activeBlock.id, { backgroundImage: v })} />
+                                <div className="space-y-3">
+                                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Фоновое изображение</label>
+                                   <div className="flex gap-3">
+                                      <div className="flex-1">
+                                         <Input label="Ссылка на изображение" value={activeBlock.content.backgroundImage} onChange={v => updateContent(activeBlock.id, { backgroundImage: v })} placeholder="https://..." />
+                                      </div>
+                                      <div className="pt-6">
+                                         <button 
+                                           onClick={() => fileInputRef.current?.click()}
+                                           disabled={isUploading}
+                                           className={`h-[52px] px-6 rounded-2xl border-2 border-gray-100 font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 whitespace-nowrap
+                                             ${isUploading ? 'opacity-50 cursor-not-allowed bg-gray-50' : 'bg-white hover:bg-blue-50/10 hover:border-blue-200 hover:text-blue-600'}`}
+                                         >
+                                           {isUploading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
+                                           {isUploading ? '...' : 'Загрузить'}
+                                         </button>
+                                      </div>
+                                   </div>
+                                </div>
                                <div className="space-y-4">
                                   <div className="flex justify-between items-center">
                                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Overlay (Затемнение)</label>
@@ -784,6 +832,14 @@ export default function LandingConstructor({
             transform: scale(0.98);
          }
       `}</style>
+      
+       <input 
+         type="file" 
+         ref={fileInputRef} 
+         className="hidden" 
+         accept="image/*" 
+         onChange={handleImageUpload} 
+       />
     </div>
   );
 }

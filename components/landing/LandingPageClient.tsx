@@ -99,7 +99,7 @@ export default function LandingPageClient({ slug, blocks, initialSubmissions = {
                     viewport={{ once: true, margin: "-10%" }}
                     transition={{ duration: 0.8, delay: (groupIdx * 0.1) + (idx * 0.1), ease: "easeOut" }}
                     className={`landing-block relative ${isHalf ? 'flex-1' : 'w-full'} 
-                      ${layoutMode === 'cards' ? 'bg-white rounded-[3rem] shadow-premium overflow-hidden border border-gray-100 my-4' : ''}`}
+                      ${layoutMode === 'cards' ? 'bg-white rounded-[4.5rem] shadow-premium overflow-hidden border border-gray-100 my-6' : ''}`}
                   >
                       
                       {block.type === 'hero' && <HeroBlock content={block.content} design={design} />}
