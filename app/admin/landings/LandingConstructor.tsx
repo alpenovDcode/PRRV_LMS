@@ -238,7 +238,10 @@ export default function LandingConstructor({
   const activeBlock = blocks.find(b => b.id === activeBlockId);
 
   return (
-    <div className="flex bg-[#F8FAFC] h-[calc(100vh-120px)] border border-gray-100 rounded-[2.5rem] overflow-hidden shadow-2xl mx-auto max-w-[1700px] w-full">
+    <div className="flex bg-[#F8FAFC] h-[calc(100vh-64px)] overflow-hidden w-full fixed inset-x-0 bottom-0 lg:left-64 lg:w-[calc(100%-16rem)] z-10">
+      {/* Note: lg:left-64 and w-calc are to match AdminLayout sidebar. 
+          If sidebar is collapsed, we might need a different approach, 
+          but for now let's focus on fitting the viewport better. */}
       
       {/* 1. LEFT NAV (Icons only) */}
       <div className="w-24 bg-white border-r border-gray-50 flex flex-col items-center py-8 gap-4 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
@@ -404,8 +407,11 @@ export default function LandingConstructor({
       </div>
 
       {/* 3. CENTER: CANVAS */}
-      <div className="flex-1 overflow-y-auto bg-gray-50/50 p-12 thin-scrollbar relative">
-         <div className="max-w-5xl mx-auto flex flex-wrap gap-6 pb-[20rem]">
+      <div className="flex-1 overflow-y-auto bg-[#F1F5F9] p-12 thin-scrollbar relative shadow-inner">
+         <div className="max-w-5xl mx-auto min-h-full bg-white shadow-premium rounded-[3.5rem] overflow-hidden border border-gray-200/50 mb-20 relative ring-1 ring-black/5">
+            <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 z-20" />
+            <div className={settings.pageBg + " min-h-screen transition-colors duration-500"}>
+               <div className="flex flex-wrap gap-6 p-8">
             <AnimatePresence>
                {blocks.map((block, index) => (
                   <motion.div 
@@ -415,7 +421,7 @@ export default function LandingConstructor({
                      animate={{ opacity: 1, y: 0 }}
                      exit={{ opacity: 0, scale: 0.9 }}
                      onClick={() => setActiveBlockId(block.id)}
-                     className={`group relative bg-white rounded-[4.1rem] shadow-sm border-2 transition-all cursor-pointer overflow-hidden
+                     className={`group relative bg-white rounded-[4.5rem] shadow-sm border-2 transition-all cursor-pointer overflow-hidden
                        ${(block.width || 'full') === '1/2' ? 'w-[calc(50%-12px)]' : 'w-full'}
                        ${activeBlockId === block.id ? 'border-blue-500 ring-[12px] ring-blue-500/5 shadow-premium' : 'border-transparent hover:border-blue-200 hover:shadow-md'}`}
                   >
@@ -469,6 +475,8 @@ export default function LandingConstructor({
                   </motion.div>
                ))}
             </AnimatePresence>
+               </div>
+            </div>
          </div>
       </div>
 

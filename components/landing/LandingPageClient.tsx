@@ -43,8 +43,8 @@ export default function LandingPageClient({ slug, blocks, initialSubmissions = {
 
   // Global palette support
   const palette = settings?.palette || { bg: "bg-white", textColor: "text-gray-900", accentColor: "#3B82F6" };
-  const layoutMode = settings?.layoutMode || 'full';
-  const pageBg = settings?.pageBg || 'bg-white';
+  const layoutMode = settings?.layoutMode || 'cards';
+  const pageBg = settings?.pageBg || 'bg-gray-50';
 
   // Group blocks for 2-column support
   const groupedBlocks: any[][] = [];

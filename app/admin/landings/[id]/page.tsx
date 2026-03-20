@@ -51,10 +51,7 @@ export default function EditLandingPage({ params }: { params: Promise<{ id: stri
   if (loading) return <div>Загрузка...</div>;
 
   return (
-    <div className="p-8 bg-gray-50 min-h-screen">
-      <div className="mb-6 flex items-center justify-between">
-         <h1 className="text-2xl font-bold">Редактор лендинга</h1>
-      </div>
+    <div className="bg-gray-50 min-h-screen">
       <LandingConstructor 
         landingId={id} 
         initialBlocks={initialBlocks} 
