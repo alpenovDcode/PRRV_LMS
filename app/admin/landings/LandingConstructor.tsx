@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, ElementType } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { 
   Plus, Trash, ArrowUp, ArrowDown, Type, AlignJustify, Video, 
   LayoutTemplate, CheckSquare, MousePointerClick, Image as ImageIcon,
@@ -27,11 +28,12 @@ interface AddBtnProps {
 
 function AddBtn({ icon: Icon, label, onClick }: AddBtnProps) {
   return (
-    <button onClick={onClick} className="flex flex-col items-center justify-center p-4 bg-white border rounded-2xl shadow-sm hover:shadow-md hover:border-blue-300 transition-all gap-2 group">
-      <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-         <Icon size={20} />
+    <button onClick={onClick} className="flex flex-col items-center justify-center p-5 bg-white border border-gray-100 rounded-[2rem] shadow-sm hover:shadow-premium hover:border-blue-200 transition-all gap-3 group relative overflow-hidden">
+      <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center group-hover:scale-110 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300 shadow-inner">
+         <Icon size={24} />
       </div>
-      <span className="text-[11px] font-bold text-gray-500 uppercase tracking-tight">{label}</span>
+      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest group-hover:text-blue-600 transition-colors">{label}</span>
+      <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
     </button>
   )
 }
@@ -40,22 +42,30 @@ function TabBtn({ active, onClick, icon: Icon, label }: { active: boolean, onCli
    return (
       <button 
         onClick={onClick}
-        className={`flex flex-col items-center justify-center gap-1 w-full py-4 transition-all
-          ${active ? 'text-blue-600 border-r-4 border-blue-600 bg-blue-50/50' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
+        className={`flex flex-col items-center justify-center gap-1.5 w-full py-6 transition-all relative group
+          ${active ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
       >
-         <Icon size={22} />
-         <span className="text-[10px] font-bold uppercase">{label}</span>
+         <div className={`p-2 rounded-xl transition-all ${active ? 'bg-blue-50 shadow-inner' : 'group-hover:bg-gray-50'}`}>
+            <Icon size={24} strokeWidth={active ? 2.5 : 2} />
+         </div>
+         <span className="text-[9px] font-black uppercase tracking-tighter">{label}</span>
+         {active && (
+           <motion.div 
+             layoutId="tab-active"
+             className="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-12 bg-blue-600 rounded-l-full shadow-[0_0_15px_rgba(37,99,235,0.5)]" 
+           />
+         )}
       </button>
    )
 }
 
 function Input({ label, value, onChange, placeholder, type = "text" }: { label: string, value: string | number | undefined, onChange: (value: string) => void, placeholder?: string, type?: string }) {
    return (
-      <div>
-         <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-2">{label}</label>
+      <div className="space-y-2">
+         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block px-1">{label}</label>
          <input 
             type={type}
-            className="w-full p-3 border rounded-xl text-sm bg-gray-50 text-gray-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-gray-400"
+            className="w-full p-4 border border-gray-100 rounded-2xl text-sm bg-gray-50/50 text-gray-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 focus:bg-white outline-none transition-all placeholder:text-gray-300 shadow-sm font-medium"
             value={value || ""}
             onChange={e => onChange(e.target.value)}
             placeholder={placeholder}
@@ -64,12 +74,13 @@ function Input({ label, value, onChange, placeholder, type = "text" }: { label: 
    )
 }
 
-function TextArea({ label, value, onChange, placeholder }: { label: string, value: string | undefined, onChange: (value: string) => void, placeholder?: string }) {
+function TextArea({ label, value, onChange, placeholder, rows = 3 }: { label: string, value: string | undefined, onChange: (value: string) => void, placeholder?: string, rows?: number }) {
    return (
-      <div>
-         <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-2">{label}</label>
+      <div className="space-y-2">
+         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block px-1">{label}</label>
          <textarea 
-            className="w-full p-3 border rounded-xl text-sm bg-gray-50 text-gray-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all h-28 placeholder:text-gray-400"
+            rows={rows}
+            className="w-full p-4 border border-gray-100 rounded-2xl text-sm bg-gray-50/50 text-gray-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 focus:bg-white outline-none transition-all placeholder:text-gray-300 shadow-sm font-medium resize-none"
             value={value || ""}
             onChange={e => onChange(e.target.value)}
             placeholder={placeholder}
@@ -193,219 +204,290 @@ export default function LandingConstructor({
   const activeBlock = blocks.find(b => b.id === activeBlockId);
 
   return (
-    <div className="flex bg-[#F8FAFC] h-[calc(100vh-120px)] border rounded-3xl overflow-hidden shadow-2xl mx-auto max-w-[1700px] w-full">
+    <div className="flex bg-[#F8FAFC] h-[calc(100vh-120px)] border border-gray-100 rounded-[2.5rem] overflow-hidden shadow-2xl mx-auto max-w-[1700px] w-full">
       
       {/* 1. LEFT NAV (Icons only) */}
-      <div className="w-20 bg-white border-r flex flex-col items-center py-6 gap-2">
+      <div className="w-24 bg-white border-r border-gray-50 flex flex-col items-center py-8 gap-4 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
+         <div className="mb-6">
+            <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-blue-500/30 shadow-lg">
+               <LayoutTemplate size={24} strokeWidth={2.5} />
+            </div>
+         </div>
          <TabBtn active={activeNavTab === 'blocks'} onClick={() => setActiveNavTab('blocks')} icon={Plus} label="Блоки" />
          <TabBtn active={activeNavTab === 'page'} onClick={() => setActiveNavTab('page')} icon={Layout} label="Страница" />
          <TabBtn active={activeNavTab === 'design'} onClick={() => setActiveNavTab('design')} icon={Palette} label="Дизайн" />
-         <div className="mt-auto flex flex-col gap-4">
-            <button onClick={() => window.open(`/l/${slug}`, "_blank")} className="p-3 text-gray-400 hover:text-blue-600 transition-colors" title="Открыть страницу">
-               <ExternalLink size={20} />
+         
+         <div className="mt-auto flex flex-col gap-6 items-center w-full px-4">
+            <button 
+              onClick={() => window.open(`/l/${slug}`, "_blank")} 
+              className="w-12 h-12 flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-2xl transition-all" 
+              title="Предпросмотр"
+            >
+               <ExternalLink size={24} />
             </button>
-            <button onClick={() => onSave(blocks, isPublished, settings)} className="p-4 bg-blue-600 text-white rounded-2xl shadow-lg hover:bg-blue-700 transition-all mx-2 active:scale-95">
-               <ImageIcon size={20} />
+            <button 
+              onClick={() => onSave(blocks, isPublished, settings)} 
+              className="w-14 h-14 bg-blue-600 text-white rounded-[1.5rem] shadow-xl shadow-blue-500/40 hover:bg-blue-700 hover:scale-110 active:scale-95 transition-all flex items-center justify-center"
+              title="Сохранить изменения"
+            >
+               <RefreshCw size={24} strokeWidth={2.5} />
             </button>
          </div>
       </div>
 
       {/* 2. CONTEXT PANEL (Expanded options for active tab) */}
-      <div className="w-80 bg-white border-r flex flex-col">
-          <div className="p-6 border-b">
-             <h2 className="text-xl font-black text-gray-900 uppercase tracking-tighter">
-                {activeNavTab === 'blocks' && "Добавить Блок"}
-                {activeNavTab === 'page' && "Настройки"}
+      <div className="w-[22rem] bg-white border-r border-gray-50 flex flex-col shadow-[2px_0_12px_rgba(0,0,0,0.01)] transition-all z-20">
+          <div className="p-8 border-b border-gray-50">
+             <div className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] mb-2">Навигатор</div>
+             <h2 className="text-2xl font-black text-gray-900 tracking-tight">
+                {activeNavTab === 'blocks' && "Магазин блоков"}
+                {activeNavTab === 'page' && "Параметры"}
                 {activeNavTab === 'design' && "Стиль сайта"}
              </h2>
           </div>
           
-          <div className="flex-1 overflow-y-auto p-4 thin-scrollbar">
-             {activeNavTab === 'blocks' && (
-                <div className="grid grid-cols-2 gap-3">
-                   <AddBtn icon={LayoutTemplate} label="Hero" onClick={() => addBlock("hero")} />
-                   <AddBtn icon={Type} label="Текст" onClick={() => addBlock("text")} />
-                   <AddBtn icon={MessageSquare} label="Вопрос" onClick={() => addBlock("text_input")} />
-                   <AddBtn icon={CheckSquare} label="Фичи" onClick={() => addBlock("features")} />
-                   <AddBtn icon={AlignJustify} label="Форма" onClick={() => addBlock("form")} />
-                   <AddBtn icon={Video} label="Видео" onClick={() => addBlock("video")} />
-                   <AddBtn icon={Clock} label="Таймер" onClick={() => addBlock("timer")} />
-                   <AddBtn icon={StarIcon} label="Отзывы" onClick={() => addBlock("reviews")} />
-                   <AddBtn icon={CreditCard} label="Тарифы" onClick={() => addBlock("pricing")} />
-                   <AddBtn icon={Minus} label="Линия" onClick={() => addBlock("divider")} />
-                   <AddBtn icon={MousePointerClick} label="Кнопка" onClick={() => addBlock("button")} />
-                </div>
-             )}
-
-             {activeNavTab === 'page' && (
-                <div className="space-y-6">
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border">
-                        <div>
-                            <p className="text-sm font-bold">Публикация</p>
-                            <p className="text-[10px] text-gray-400">Виден ли лендинг всем</p>
-                        </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" className="sr-only peer" checked={isPublished} onChange={e => setIsPublished(e.target.checked)} />
-                            <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
-                        </label>
-                    </div>
-
-                    <div className="space-y-4">
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Интеграция Bitrix24</label>
-                        <Input label="Stage ID" value={settings?.bitrix?.targetStageId} onChange={v => setSettings({...settings, bitrix: {...settings.bitrix, targetStageId: v}})} placeholder="C14:NEW" />
-                        <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 italic text-[11px] text-blue-700">
-                           Автоматически создаем сделку и контакт при заполнении форм.
-                        </div>
-                    </div>
-                </div>
-             )}
-
-             {activeNavTab === 'design' && (
-                <div className="space-y-8">
-                   <div className="space-y-4">
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Цветовые палитры</label>
-                      <div className="space-y-3">
-                         {PALETTES.map(p => (
-                            <button 
-                              key={p.id} 
-                              onClick={() => applyPalette(p)}
-                              className={`w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all hover:scale-[1.02]
-                                ${settings?.palette?.id === p.id ? 'border-blue-500 bg-blue-50/50' : 'border-gray-100 hover:border-gray-200'}`}
-                            >
-                               <div className="w-10 h-10 rounded-xl shadow-inner border flex items-center justify-center" style={{ backgroundColor: p.preview }}>
-                                  <div className="w-4 h-4 rounded-full bg-white opacity-40" />
-                               </div>
-                               <div className="text-left">
-                                  <div className="text-sm font-bold text-gray-900">{p.name}</div>
-                                  <div className="text-[10px] text-gray-400">Global Theming</div>
-                               </div>
-                            </button>
-                         ))}
+          <div className="flex-1 overflow-y-auto p-6 thin-scrollbar bg-gray-50/30">
+             <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeNavTab}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 10 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  {activeNavTab === 'blocks' && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <AddBtn icon={LayoutTemplate} label="Hero" onClick={() => addBlock("hero")} />
+                        <AddBtn icon={Type} label="Текст" onClick={() => addBlock("text")} />
+                        <AddBtn icon={MessageSquare} label="Вопрос" onClick={() => addBlock("text_input")} />
+                        <AddBtn icon={CheckSquare} label="Фичи" onClick={() => addBlock("features")} />
+                        <AddBtn icon={AlignJustify} label="Форма" onClick={() => addBlock("form")} />
+                        <AddBtn icon={Video} label="Видео" onClick={() => addBlock("video")} />
+                        <AddBtn icon={Clock} label="Таймер" onClick={() => addBlock("timer")} />
+                        <AddBtn icon={StarIcon} label="Отзывы" onClick={() => addBlock("reviews")} />
+                        <AddBtn icon={CreditCard} label="Тарифы" onClick={() => addBlock("pricing")} />
+                        <AddBtn icon={Minus} label="Линия" onClick={() => addBlock("divider")} />
+                        <AddBtn icon={MousePointerClick} label="Кнопка" onClick={() => addBlock("button")} />
                       </div>
-                   </div>
-                </div>
-             )}
+                  )}
+
+                  {activeNavTab === 'page' && (
+                      <div className="space-y-6">
+                          <div className="p-6 bg-white rounded-[2rem] border border-gray-100 shadow-sm space-y-4">
+                              <div className="flex items-center justify-between">
+                                  <div>
+                                      <p className="text-sm font-black text-gray-900 uppercase tracking-tight">Статус страницы</p>
+                                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Опубликовано в сети</p>
+                                  </div>
+                                  <label className="relative inline-flex items-center cursor-pointer scale-110">
+                                      <input type="checkbox" className="sr-only peer" checked={isPublished} onChange={e => setIsPublished(e.target.checked)} />
+                                      <div className="w-12 h-6 bg-gray-100 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-6 shadow-inner"></div>
+                                  </label>
+                              </div>
+                          </div>
+
+                          <div className="p-6 bg-white rounded-[2rem] border border-gray-100 shadow-sm space-y-6">
+                              <label className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] block">Интеграция Bitrix24</label>
+                              <Input label="Target Stage ID" value={settings?.bitrix?.targetStageId} onChange={v => setSettings({...settings, bitrix: {...settings.bitrix, targetStageId: v}})} placeholder="C14:NEW" />
+                              <div className="p-5 bg-blue-50/50 rounded-2xl border border-blue-100 italic text-[11px] text-blue-700 leading-relaxed font-medium">
+                                 Сделки и контакты будут создаваться автоматически при заполнении форм.
+                              </div>
+                          </div>
+                      </div>
+                  )}
+
+                  {activeNavTab === 'design' && (
+                      <div className="space-y-8">
+                        <div className="space-y-6">
+                            <label className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] block">Глобальные темы</label>
+                            <div className="space-y-4">
+                              {PALETTES.map(p => (
+                                  <button 
+                                    key={p.id} 
+                                    onClick={() => applyPalette(p)}
+                                    className={`w-full flex items-center gap-5 p-5 rounded-[2rem] border-2 transition-all group relative overflow-hidden
+                                      ${settings?.palette?.id === p.id ? 'border-blue-600 bg-white shadow-premium' : 'border-transparent bg-white/50 hover:bg-white hover:border-gray-100 shadow-sm'}`}
+                                  >
+                                    <div className="w-14 h-14 rounded-2xl shadow-inner border border-gray-50 flex items-center justify-center transform transition-transform group-hover:scale-110" style={{ backgroundColor: p.preview }}>
+                                        <div className="w-5 h-5 rounded-full bg-white/30 backdrop-blur-sm" />
+                                    </div>
+                                    <div className="text-left">
+                                        <div className="text-base font-black text-gray-900 tracking-tight">{p.name}</div>
+                                        <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{p.id === 'onyx' ? 'Dark Mode' : 'Light Theme'}</div>
+                                    </div>
+                                    {settings?.palette?.id === p.id && (
+                                      <div className="absolute right-6 top-1/2 -translate-y-1/2 text-blue-600">
+                                          <ChevronRight size={20} strokeWidth={3} />
+                                      </div>
+                                    )}
+                                  </button>
+                              ))}
+                            </div>
+                        </div>
+                      </div>
+                  )}
+                </motion.div>
+             </AnimatePresence>
           </div>
       </div>
 
       {/* 3. CENTER: CANVAS */}
-      <div className="flex-1 overflow-y-auto bg-gray-100 p-12 thin-scrollbar">
-         <div className="max-w-4xl mx-auto space-y-4 pb-40">
-            {blocks.map((block, index) => (
-                <div 
-                   key={block.id} 
-                   onClick={() => setActiveBlockId(block.id)}
-                   className={`group relative bg-white rounded-3xl shadow-sm border-2 transition-all cursor-pointer overflow-hidden
-                     ${activeBlockId === block.id ? 'border-blue-500 ring-8 ring-blue-500/5' : 'border-transparent hover:border-blue-200'}`}
-                >
-                   {/* Preview Rendering */}
-                   <div className="pointer-events-none select-none origin-top transition-transform duration-500">
-                      {block.type === 'hero' && <HeroBlock content={block.content} design={block.design} />}
-                      {block.type === 'features' && <FeaturesBlock content={block.content} design={block.design} />}
-                      {block.type === 'button' && <ButtonBlock content={block.content} design={block.design} />}
-                      {block.type === 'timer' && <TimerBlock content={block.content} design={block.design} />}
-                      {block.type === 'reviews' && <ReviewsBlock content={block.content} design={block.design} />}
-                      {block.type === 'pricing' && <PricingBlock content={block.content} design={block.design} />}
-                      {block.type === 'divider' && <DividerBlock content={block.content} design={block.design} />}
-                      {block.type === 'text' && (
-                        <div className={`${block.design.bg} ${block.design.textColor} ${block.design.padding} text-${block.design.textAlign} prose max-w-none px-8`}>
-                           <div dangerouslySetInnerHTML={{ __html: block.content.html }} />
-                           {block.content.hasInput && (
-                              <div className="mt-8 p-6 bg-gray-50 rounded-3xl border-2 border-dashed text-gray-400 italic text-sm">
-                                 Поле: {block.content.inputLabel}
+      <div className="flex-1 overflow-y-auto bg-gray-50/50 p-12 thin-scrollbar relative">
+         <div className="max-w-4xl mx-auto space-y-6 pb-[20rem]">
+            <AnimatePresence>
+               {blocks.map((block, index) => (
+                  <motion.div 
+                     layout
+                     key={block.id} 
+                     initial={{ opacity: 0, y: 20 }}
+                     animate={{ opacity: 1, y: 0 }}
+                     exit={{ opacity: 0, scale: 0.9 }}
+                     onClick={() => setActiveBlockId(block.id)}
+                     className={`group relative bg-white rounded-[2.5rem] shadow-sm border-2 transition-all cursor-pointer overflow-hidden
+                       ${activeBlockId === block.id ? 'border-blue-500 ring-[12px] ring-blue-500/5 shadow-premium' : 'border-transparent hover:border-blue-200 hover:shadow-md'}`}
+                  >
+                     {/* Preview Rendering */}
+                     <div className="pointer-events-none select-none origin-top transition-transform duration-500">
+                        {block.type === 'hero' && <HeroBlock content={block.content} design={block.design} />}
+                        {block.type === 'features' && <FeaturesBlock content={block.content} design={block.design} />}
+                        {block.type === 'button' && <ButtonBlock content={block.content} design={block.design} />}
+                        {block.type === 'timer' && <TimerBlock content={block.content} design={block.design} />}
+                        {block.type === 'reviews' && <ReviewsBlock content={block.content} design={block.design} />}
+                        {block.type === 'pricing' && <PricingBlock content={block.content} design={block.design} />}
+                        {block.type === 'divider' && <DividerBlock content={block.content} design={block.design} />}
+                        {block.type === 'text' && (
+                          <div className={`${block.design.bg} ${block.design.textColor} ${block.design.padding} text-${block.design.textAlign} prose max-w-none px-12`}>
+                             <div dangerouslySetInnerHTML={{ __html: block.content.html }} />
+                             {block.content.hasInput && (
+                                <div className="mt-12 p-8 bg-gray-50/80 backdrop-blur-sm rounded-[2rem] border-2 border-dashed border-gray-200 text-gray-400 italic text-sm text-center">
+                                   Поле: {block.content.inputLabel}
+                                </div>
+                             )}
+                          </div>
+                        )}
+                        {block.type === 'video' && (
+                          <div className={`${block.design.bg} ${block.design.padding} flex items-center justify-center p-12`}>
+                             <div className="aspect-video w-full max-w-2xl bg-black rounded-[2.5rem] shadow-2xl flex items-center justify-center text-white/20 ring-1 ring-white/10">
+                                <Video size={64} />
+                             </div>
+                          </div>
+                        )}
+                        {block.type === 'form' && (
+                           <div className={`${block.design.bg} ${block.design.padding} flex items-center justify-center p-12`}>
+                              <div className="bg-white/50 backdrop-blur-md border-2 border-dashed border-gray-200 w-full max-w-md p-12 rounded-[2.5rem] text-center shadow-inner">
+                                 <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 mx-auto mb-6">
+                                    <AlignJustify size={32} />
+                                 </div>
+                                 <div className="text-sm font-black text-gray-900 uppercase tracking-[0.2em]">Форма регистрации</div>
+                                 <div className="text-[10px] text-gray-400 font-bold uppercase mt-2">Bitrix24 Lead Generation</div>
                               </div>
-                           )}
-                        </div>
-                      )}
-                      {block.type === 'video' && (
-                        <div className={`${block.design.bg} ${block.design.padding} flex items-center justify-center`}>
-                           <div className="aspect-video w-full max-w-2xl bg-black rounded-3xl shadow-2xl flex items-center justify-center text-white/20">
-                              <Video size={64} />
                            </div>
-                        </div>
-                      )}
-                      {block.type === 'form' && (
-                         <div className={`${block.design.bg} ${block.design.padding} flex items-center justify-center`}>
-                            <div className="bg-white border-2 border-dashed border-gray-200 w-full max-w-md p-10 rounded-3xl text-center">
-                               <AlignJustify size={32} className="mx-auto mb-4 text-gray-300" />
-                               <div className="text-sm font-bold text-gray-400 uppercase tracking-widest">Форма заявки</div>
-                            </div>
-                         </div>
-                      )}
-                   </div>
+                        )}
+                     </div>
 
-                   {/* Controls Overlay */}
-                   <div className={`absolute top-4 right-4 flex flex-col gap-2 transition-all duration-300 transform
-                      ${activeBlockId === block.id ? 'translate-x-0 opacity-100' : 'translate-x-10 opacity-0 group-hover:translate-x-0 group-hover:opacity-100'}`}>
-                      <button onClick={(e) => { e.stopPropagation(); setBlocks([...blocks, { ...block, id: uuidv4(), orderIndex: blocks.length }]); }} className="w-10 h-10 bg-white border rounded-xl shadow-lg flex items-center justify-center text-gray-400 hover:text-blue-600 hover:scale-110 transition-all"><Copy size={16}/></button>
-                      <button onClick={(e) => { e.stopPropagation(); if(index > 0){ const nb = [...blocks]; [nb[index], nb[index-1]] = [nb[index-1], nb[index]]; setBlocks(nb); } }} className="w-10 h-10 bg-white border rounded-xl shadow-lg flex items-center justify-center text-gray-400 hover:text-blue-600 hover:scale-110 transition-all"><ArrowUp size={16}/></button>
-                      <button onClick={(e) => { e.stopPropagation(); if(index < blocks.length-1){ const nb = [...blocks]; [nb[index], nb[index+1]] = [nb[index+1], nb[index]]; setBlocks(nb); } }} className="w-10 h-10 bg-white border rounded-xl shadow-lg flex items-center justify-center text-gray-400 hover:text-blue-600 hover:scale-110 transition-all"><ArrowDown size={16}/></button>
-                      <button onClick={(e) => { e.stopPropagation(); if(confirm("Del?")) setBlocks(blocks.filter(b => b.id !== block.id)); }} className="w-10 h-10 bg-red-50 border border-red-100 rounded-xl shadow-lg flex items-center justify-center text-red-400 hover:text-red-600 hover:scale-110 transition-all"><Trash size={16}/></button>
-                   </div>
-                </div>
-            ))}
-            
-            {blocks.length === 0 && (
-                <div className="h-96 border-4 border-dashed rounded-3xl flex flex-col items-center justify-center text-gray-300 gap-4">
-                   <div className="w-20 h-20 rounded-full bg-gray-50 flex items-center justify-center">
-                      <LayoutTemplate size={40} />
-                   </div>
-                   <p className="font-bold text-lg">Ваш лендинг пуст. Добавьте первый блок из меню слева.</p>
-                </div>
-            )}
+                     {/* Controls Overlay */}
+                     <div className={`absolute top-6 right-6 flex flex-col gap-3 transition-all duration-300 transform
+                        ${activeBlockId === block.id ? 'translate-x-0 opacity-100' : 'translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100'}`}>
+                        <button onClick={(e) => { e.stopPropagation(); setBlocks([...blocks, { ...block, id: uuidv4(), orderIndex: blocks.length }]); }} className="w-11 h-11 bg-white border border-gray-100 rounded-2xl shadow-premium flex items-center justify-center text-gray-400 hover:text-blue-600 hover:scale-110 active:scale-90 transition-all"><Copy size={18}/></button>
+                        <button onClick={(e) => { e.stopPropagation(); if(index > 0){ const nb = [...blocks]; [nb[index], nb[index-1]] = [nb[index-1], nb[index]]; setBlocks(nb); } }} className="w-11 h-11 bg-white border border-gray-100 rounded-2xl shadow-premium flex items-center justify-center text-gray-400 hover:text-blue-600 hover:scale-110 active:scale-90 transition-all"><ArrowUp size={18}/></button>
+                        <button onClick={(e) => { e.stopPropagation(); if(index < blocks.length-1){ const nb = [...blocks]; [nb[index], nb[index+1]] = [nb[index+1], nb[index]]; setBlocks(nb); } }} className="w-11 h-11 bg-white border border-gray-100 rounded-2xl shadow-premium flex items-center justify-center text-gray-400 hover:text-blue-600 hover:scale-110 active:scale-90 transition-all"><ArrowDown size={18}/></button>
+                        <button onClick={(e) => { e.stopPropagation(); if(confirm("Удалить блок?")) setBlocks(blocks.filter(b => b.id !== block.id)); }} className="w-11 h-11 bg-red-50 border border-red-100 rounded-2xl shadow-premium flex items-center justify-center text-red-400 hover:text-red-600 hover:scale-110 active:scale-90 transition-all"><Trash size={18}/></button>
+                     </div>
+                  </motion.div>
+               ))}
+            </AnimatePresence>
          </div>
       </div>
 
       {/* 4. RIGHT: INSPECTOR */}
-      <div className="w-96 bg-white border-l flex flex-col">
+      <div className="w-[26rem] bg-white border-l border-gray-50 flex flex-col shadow-[-4px_0_24px_rgba(0,0,0,0.02)] z-20">
          {activeBlock ? (
              <>
-                <div className="flex border-b p-2 gap-2 bg-gray-50/50">
-                   <button onClick={() => setActiveInspectorTab('content')} className={`flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${activeInspectorTab === 'content' ? 'bg-white shadow text-blue-600' : 'text-gray-400 hover:bg-gray-100'}`}>Контент</button>
-                   <button onClick={() => setActiveInspectorTab('style')} className={`flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${activeInspectorTab === 'style' ? 'bg-white shadow text-blue-600' : 'text-gray-400 hover:bg-gray-100'}`}>Дизайн</button>
+                <div className="p-4 flex gap-2 bg-gray-50/50 border-b border-gray-50">
+                   <button 
+                     onClick={() => setActiveInspectorTab('content')} 
+                     className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.15em] transition-all relative
+                       ${activeInspectorTab === 'content' ? 'bg-white shadow-premium text-blue-600 scale-105 z-10' : 'text-gray-400 hover:bg-gray-100'}`}
+                   >
+                     Контент
+                   </button>
+                   <button 
+                     onClick={() => setActiveInspectorTab('style')} 
+                     className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.15em] transition-all relative
+                       ${activeInspectorTab === 'style' ? 'bg-white shadow-premium text-blue-600 scale-105 z-10' : 'text-gray-400 hover:bg-gray-100'}`}
+                   >
+                     Дизайн
+                   </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-6 space-y-8 thin-scrollbar">
+                <div className="flex-1 overflow-y-auto p-8 space-y-10 thin-scrollbar">
+                   <AnimatePresence mode="wait">
+                   <motion.div
+                     key={`${activeBlock.id}-${activeInspectorTab}`}
+                     initial={{ opacity: 0, y: 10 }}
+                     animate={{ opacity: 1, y: 0 }}
+                     exit={{ opacity: 0, y: -10 }}
+                     transition={{ duration: 0.2 }}
+                   >
                    {activeInspectorTab === 'content' ? (
-                      <div className="space-y-6">
-                         <div className="pb-4 border-b flex justify-between items-center">
-                            <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">{activeBlock.type} ID</span>
-                            <span className="text-[10px] font-mono text-gray-300">{activeBlock.id.split('-')[0]}</span>
+                      <div className="space-y-8">
+                         <div className="pb-6 border-b border-gray-50 flex justify-between items-end">
+                            <div>
+                               <div className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] mb-1">Свойства блока</div>
+                               <div className="text-xl font-black text-gray-900 tracking-tight capitalize">{activeBlock.type}</div>
+                            </div>
+                            <span className="text-[10px] font-mono text-gray-300 bg-gray-50 px-3 py-1 rounded-full border border-gray-100">#{activeBlock.id.split('-')[0]}</span>
                          </div>
 
                          {activeBlock.type === 'hero' && (
-                            <>
+                            <div className="space-y-6">
                                <Input label="Заголовок" value={activeBlock.content.title} onChange={v => updateContent(activeBlock.id, { title: v })} />
                                <TextArea label="Подзаголовок" value={activeBlock.content.subtitle} onChange={v => updateContent(activeBlock.id, { subtitle: v })} />
                                <div className="grid grid-cols-2 gap-4">
-                                  <Input label="Кнопка" value={activeBlock.content.ctaText} onChange={v => updateContent(activeBlock.id, { ctaText: v })} />
+                                  <Input label="Текст кнопки" value={activeBlock.content.ctaText} onChange={v => updateContent(activeBlock.id, { ctaText: v })} />
                                   <Input label="Ссылка" value={activeBlock.content.ctaLink} onChange={v => updateContent(activeBlock.id, { ctaLink: v })} />
                                </div>
                                <Input label="Фон (Image URL)" value={activeBlock.content.backgroundImage} onChange={v => updateContent(activeBlock.id, { backgroundImage: v })} />
-                               <div>
-                                  <label className="text-[10px] font-bold text-gray-400 uppercase block mb-2">Overlay (Затемнение)</label>
-                                  <input type="range" min="0" max="1" step="0.1" className="w-full" value={activeBlock.content.bgOverlay || 0} onChange={e => updateContent(activeBlock.id, { bgOverlay: parseFloat(e.target.value) })} />
+                               <div className="space-y-4">
+                                  <div className="flex justify-between items-center">
+                                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Overlay (Затемнение)</label>
+                                      <span className="text-xs font-mono font-bold text-blue-600">{Math.round((activeBlock.content.bgOverlay || 0) * 100)}%</span>
+                                  </div>
+                                  <input type="range" min="0" max="1" step="0.1" className="w-full accent-blue-600" value={activeBlock.content.bgOverlay || 0} onChange={e => updateContent(activeBlock.id, { bgOverlay: parseFloat(e.target.value) })} />
                                </div>
-                            </>
+                            </div>
                          )}
 
                          {activeBlock.type === 'text' && (
-                            <div className="space-y-6">
+                            <div className="space-y-8">
                                <RichTextEditor content={activeBlock.content.html} onChange={html => updateContent(activeBlock.id, { html })} />
                                
-                               <div className="p-4 bg-gray-50 rounded-2xl border space-y-4">
-                                  <label className="flex items-center gap-3 cursor-pointer">
-                                     <input type="checkbox" checked={activeBlock.content.hasInput} onChange={e => updateContent(activeBlock.id, { hasInput: e.target.checked })} />
-                                     <span className="text-xs font-bold">Ожидать ответ студента</span>
+                               <div className="p-8 bg-gray-50/50 rounded-[2.5rem] border border-gray-100 space-y-6">
+                                  <label className="flex items-center justify-between cursor-pointer group">
+                                     <div>
+                                        <p className="text-sm font-black text-gray-900 uppercase tracking-tight">Режим ответа</p>
+                                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Ожидать ввод студента</p>
+                                     </div>
+                                     <div className="relative inline-flex items-center scale-110">
+                                          <input type="checkbox" className="sr-only peer" checked={activeBlock.content.hasInput} onChange={e => updateContent(activeBlock.id, { hasInput: e.target.checked })} />
+                                          <div className="w-12 h-6 bg-gray-200 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-6 shadow-inner"></div>
+                                     </div>
                                   </label>
                                   {activeBlock.content.hasInput && (
-                                     <>
+                                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-6 pt-6 border-t border-gray-100">
                                         <Input label="Заголовок поля" value={activeBlock.content.inputLabel} onChange={v => updateContent(activeBlock.id, { inputLabel: v })} />
-                                        <select className="w-full p-3 bg-white border rounded-xl text-sm" value={activeBlock.content.bitrixFieldId || ""} onChange={e => updateContent(activeBlock.id, { bitrixFieldId: e.target.value })}>
-                                           <option value="">Поле Bitrix24 (Default)</option>
-                                           {bitrixFields.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
-                                        </select>
-                                     </>
+                                        <div className="space-y-2">
+                                           <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block px-1">Поле Bitrix24</label>
+                                           <select 
+                                              className="w-full p-4 border border-gray-100 rounded-2xl text-sm bg-white text-gray-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 outline-none transition-all shadow-sm font-medium" 
+                                              value={activeBlock.content.bitrixFieldId || ""} 
+                                              onChange={e => updateContent(activeBlock.id, { bitrixFieldId: e.target.value })}
+                                           >
+                                              <option value="">Автоматически (Default)</option>
+                                              {bitrixFields.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
+                                           </select>
+                                        </div>
+                                     </motion.div>
                                   )}
                                </div>
                             </div>
@@ -421,148 +503,227 @@ export default function LandingConstructor({
                          {activeBlock.type === 'features' && (
                             <div className="space-y-6">
                                <Input label="Общий заголовок" value={activeBlock.content.title} onChange={v => updateContent(activeBlock.id, { title: v })} />
-                               {activeBlock.content.items.map((item: any, idx: number) => (
-                                  <div key={idx} className="p-4 bg-gray-50 rounded-2xl border space-y-4 relative group">
-                                     <button onClick={() => updateContent(activeBlock.id, { items: activeBlock.content.items.filter((_: any, i: number) => i !== idx) })} className="absolute top-2 right-2 text-red-300 opacity-0 group-hover:opacity-100 hover:text-red-500 transition-all"><X size={14}/></button>
-                                     <Input label="Заголовок" value={item.title} onChange={v => { const ni = [...activeBlock.content.items]; ni[idx].title = v; updateContent(activeBlock.id, { items: ni }); }} />
-                                     <TextArea label="Описание" value={item.desc} onChange={v => { const ni = [...activeBlock.content.items]; ni[idx].desc = v; updateContent(activeBlock.id, { items: ni }); }} />
-                                     <Input label="Иконка (emoji или lucide)" value={item.icon} onChange={v => { const ni = [...activeBlock.content.items]; ni[idx].icon = v; updateContent(activeBlock.id, { items: ni }); }} />
-                                  </div>
-                               ))}
-                               <button onClick={() => updateContent(activeBlock.id, { items: [...activeBlock.content.items, { title: "Новая фича", desc: "...", icon: "⚡" }] })} className="w-full py-4 border-2 border-dashed rounded-2xl text-blue-600 text-xs font-bold uppercase hover:bg-blue-50 transition-colors">+ Добавить преимущество</button>
+                               <div className="space-y-4">
+                                 {activeBlock.content.items.map((item: any, idx: number) => (
+                                    <div key={idx} className="p-6 bg-white rounded-[2rem] border border-gray-100 shadow-sm space-y-4 relative group hover:border-blue-200 transition-all">
+                                       <button onClick={() => updateContent(activeBlock.id, { items: activeBlock.content.items.filter((_: any, i: number) => i !== idx) })} className="absolute top-4 right-4 text-gray-300 hover:text-red-500 transition-all"><X size={16}/></button>
+                                       <Input label="Заголовок" value={item.title} onChange={v => { const ni = [...activeBlock.content.items]; ni[idx].title = v; updateContent(activeBlock.id, { items: ni }); }} />
+                                       <TextArea label="Описание" value={item.desc} onChange={v => { const ni = [...activeBlock.content.items]; ni[idx].desc = v; updateContent(activeBlock.id, { items: ni }); }} />
+                                       <Input label="Иконка (Emoji/Lucide)" value={item.icon} onChange={v => { const ni = [...activeBlock.content.items]; ni[idx].icon = v; updateContent(activeBlock.id, { items: ni }); }} />
+                                    </div>
+                                 ))}
+                               </div>
+                               <button onClick={() => updateContent(activeBlock.id, { items: [...activeBlock.content.items, { title: "Преимущество", desc: "Описание...", icon: "⚡" }] })} className="w-full py-6 border-2 border-dashed border-blue-100 rounded-[2rem] text-blue-600 text-[10px] font-black uppercase tracking-widest hover:bg-blue-50 hover:border-blue-200 transition-all">+ Добавить карточку</button>
                             </div>
                          )}
 
                          {activeBlock.type === 'reviews' && (
                             <div className="space-y-6">
                                <Input label="Заголовок секции" value={activeBlock.content.title} onChange={v => updateContent(activeBlock.id, { title: v })} />
-                               {activeBlock.content.items.map((item: any, idx: number) => (
-                                  <div key={idx} className="p-4 bg-gray-50 rounded-2xl border space-y-4">
-                                     <div className="flex gap-2">
-                                        <Input label="Имя" value={item.name} onChange={v => { const ni = [...activeBlock.content.items]; ni[idx].name = v; updateContent(activeBlock.id, { items: ni }); }} />
-                                        <Input label="Роль" value={item.role} onChange={v => { const ni = [...activeBlock.content.items]; ni[idx].role = v; updateContent(activeBlock.id, { items: ni }); }} />
-                                     </div>
-                                     <TextArea label="Отзыв" value={item.text} onChange={v => { const ni = [...activeBlock.content.items]; ni[idx].text = v; updateContent(activeBlock.id, { items: ni }); }} />
-                                  </div>
-                               ))}
-                               <button onClick={() => updateContent(activeBlock.id, { items: [...activeBlock.content.items, { name: "Иван Иванов", role: "Студент", text: "..." }] })} className="w-full py-4 border-2 border-dashed rounded-2xl text-blue-600 text-xs font-bold uppercase hover:bg-blue-50 transition-colors">+ Добавить отзыв</button>
+                               <div className="space-y-4">
+                                 {activeBlock.content.items.map((item: any, idx: number) => (
+                                    <div key={idx} className="p-6 bg-white rounded-[2rem] border border-gray-100 shadow-sm space-y-4 hover:border-blue-200 transition-all">
+                                       <div className="grid grid-cols-2 gap-4">
+                                          <Input label="Имя" value={item.name} onChange={v => { const ni = [...activeBlock.content.items]; ni[idx].name = v; updateContent(activeBlock.id, { items: ni }); }} />
+                                          <Input label="Роль" value={item.role} onChange={v => { const ni = [...activeBlock.content.items]; ni[idx].role = v; updateContent(activeBlock.id, { items: ni }); }} />
+                                       </div>
+                                       <TextArea label="Отзыв" value={item.text} onChange={v => { const ni = [...activeBlock.content.items]; ni[idx].text = v; updateContent(activeBlock.id, { items: ni }); }} />
+                                    </div>
+                                 ))}
+                               </div>
+                               <button onClick={() => updateContent(activeBlock.id, { items: [...activeBlock.content.items, { name: "Иван Иванов", role: "Студент", text: "..." }] })} className="w-full py-6 border-2 border-dashed border-blue-100 rounded-[2rem] text-blue-600 text-[10px] font-black uppercase tracking-widest hover:bg-blue-50 hover:border-blue-200 transition-all">+ Добавить отзыв</button>
                             </div>
                          )}
 
                          {activeBlock.type === 'pricing' && (
                             <div className="space-y-8">
                                {activeBlock.content.plans.map((plan: any, idx: number) => (
-                                  <div key={idx} className={`p-4 rounded-2xl border-2 space-y-4 relative ${plan.highlighted ? 'border-blue-500 bg-blue-50/20' : 'bg-gray-50'}`}>
+                                  <div key={idx} className={`p-8 rounded-[2.5rem] border-2 space-y-6 relative transition-all shadow-sm ${plan.highlighted ? 'border-blue-500 bg-blue-50/20' : 'bg-white border-gray-100'}`}>
                                      <div className="flex justify-between items-center">
-                                         <label className="flex items-center gap-2 cursor-pointer">
-                                            <input type="checkbox" checked={plan.highlighted} onChange={e => { const np = [...activeBlock.content.plans]; np[idx].highlighted = e.target.checked; updateContent(activeBlock.id, { plans: np }); }} />
-                                            <span className="text-[10px] font-black uppercase text-blue-700">Акцент</span>
+                                         <label className="flex items-center gap-3 cursor-pointer group">
+                                            <div className="relative inline-flex items-center scale-90">
+                                               <input type="checkbox" className="sr-only peer" checked={plan.highlighted} onChange={e => { const np = [...activeBlock.content.plans]; np[idx].highlighted = e.target.checked; updateContent(activeBlock.id, { plans: np }); }} />
+                                               <div className="w-10 h-5 bg-gray-200 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5 shadow-inner"></div>
+                                            </div>
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-blue-600">Акцент</span>
                                          </label>
-                                         <button onClick={() => { const np = activeBlock.content.plans.filter((_:any, i:number) => i !== idx); updateContent(activeBlock.id, { plans: np }); }} className="text-red-300 hover:text-red-500"><Trash size={14}/></button>
+                                         <button onClick={() => { const np = activeBlock.content.plans.filter((_:any, i:number) => i !== idx); updateContent(activeBlock.id, { plans: np }); }} className="text-gray-300 hover:text-red-500 transition-colors"><Trash size={16}/></button>
                                      </div>
-                                     <Input label="Название" value={plan.name} onChange={v => { const np = [...activeBlock.content.plans]; np[idx].name = v; updateContent(activeBlock.id, { plans: np }); }} />
-                                     <div className="flex gap-2">
+                                     <Input label="Название тарифа" value={plan.name} onChange={v => { const np = [...activeBlock.content.plans]; np[idx].name = v; updateContent(activeBlock.id, { plans: np }); }} />
+                                     <div className="grid grid-cols-2 gap-4">
                                         <Input label="Цена" value={plan.price} onChange={v => { const np = [...activeBlock.content.plans]; np[idx].price = v; updateContent(activeBlock.id, { plans: np }); }} />
                                         <Input label="Период" value={plan.period} onChange={v => { const np = [...activeBlock.content.plans]; np[idx].period = v; updateContent(activeBlock.id, { plans: np }); }} />
                                      </div>
-                                     <TextArea label="Фичи (через запятую)" value={plan.features?.join(', ')} onChange={v => { const np = [...activeBlock.content.plans]; np[idx].features = v.split(',').map(s => s.trim()); updateContent(activeBlock.id, { plans: np }); }} />
+                                     <TextArea label="Особенности (через запятую)" value={plan.features?.join(', ')} onChange={v => { const np = [...activeBlock.content.plans]; np[idx].features = v.split(',').map(s => s.trim()); updateContent(activeBlock.id, { plans: np }); }} />
                                   </div>
                                ))}
-                               <button onClick={() => updateContent(activeBlock.id, { plans: [...activeBlock.content.plans, { name: "Новый тариф", price: "0", period: "месяц", features: [] }] })} className="w-full py-4 border-2 border-dashed rounded-2xl text-blue-600 text-xs font-bold uppercase hover:bg-blue-50 transition-colors">+ Добавить тариф</button>
+                               <button onClick={() => updateContent(activeBlock.id, { plans: [...activeBlock.content.plans, { name: "Новый тариф", price: "0", period: "месяц", features: [] }] })} className="w-full py-6 border-2 border-dashed border-blue-100 rounded-[2rem] text-blue-600 text-[10px] font-black uppercase tracking-widest hover:bg-blue-50 transition-all">+ Добавить тариф</button>
                             </div>
                          )}
 
                          {activeBlock.type === 'divider' && (
                             <div className="space-y-6">
-                               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Стиль линии</label>
-                               <div className="flex gap-2">
+                               <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block px-1">Стиль линии</label>
+                               <div className="flex gap-4 p-2 bg-gray-50 rounded-[1.5rem] border border-gray-100">
                                   {['line', 'empty'].map(s => (
-                                     <button key={s} onClick={() => updateContent(activeBlock.id, { style: s })} className={`flex-1 py-3 rounded-xl border-2 text-xs font-bold uppercase transition-all ${activeBlock.content.style === s ? 'border-blue-500 bg-blue-50' : 'border-gray-100 hover:bg-gray-50'}`}>{s}</button>
+                                     <button 
+                                       key={s} 
+                                       onClick={() => updateContent(activeBlock.id, { style: s })} 
+                                       className={`flex-1 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all
+                                         ${activeBlock.content.style === s ? 'bg-white shadow-premium text-blue-600' : 'text-gray-400 hover:bg-gray-100'}`}
+                                     >
+                                       {s === 'line' ? 'Сплошная' : 'Отступ'}
+                                     </button>
                                   ))}
                                </div>
                             </div>
                          )}
                          
                          {activeBlock.type === 'form' && (
-                            <div className="space-y-6">
+                            <div className="space-y-8">
                                 <TextArea label="Текст кнопки" value={activeBlock.content.buttonText} onChange={v => updateContent(activeBlock.id, { buttonText: v })} />
-                                <div className="space-y-4">
-                                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Привязка к уроку</label>
-                                   <select className="w-full p-4 bg-gray-50 border rounded-2xl text-sm" value={activeBlock.lessonId || ""} onChange={e => updateBlock(activeBlock.id, { lessonId: e.target.value || null })}>
-                                      <option value="">Без привязки</option>
+                                <div className="space-y-2">
+                                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block px-1">Привязка к уроку LMS</label>
+                                   <select 
+                                      className="w-full p-4 border border-gray-100 rounded-2xl text-sm bg-white text-gray-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 outline-none transition-all shadow-sm font-medium" 
+                                      value={activeBlock.lessonId || ""} 
+                                      onChange={e => updateBlock(activeBlock.id, { lessonId: e.target.value || null })}
+                                   >
+                                      <option value="">Без привязки (Визитка)</option>
                                       {lessons.map(l => <option key={l.id} value={l.id}>{l.title}</option>)}
                                    </select>
+                                   <p className="text-[10px] text-blue-600 font-bold uppercase px-1">После оплаты студент получит доступ к уроку.</p>
                                 </div>
                             </div>
                          )}
 
                          {activeBlock.type === 'button' && (
-                            <>
-                               <Input label="Текст кнопки" value={activeBlock.content.text} onChange={v => updateContent(activeBlock.id, { text: v })} />
-                               <Input label="Ссылка" value={activeBlock.content.link} onChange={v => updateContent(activeBlock.id, { link: v })} />
-                            </>
+                            <div className="space-y-6">
+                               <Input label="Текст на кнопке" value={activeBlock.content.text} onChange={v => updateContent(activeBlock.id, { text: v })} />
+                               <Input label="Ссылка (URL)" value={activeBlock.content.link} onChange={v => updateContent(activeBlock.id, { link: v })} />
+                            </div>
                          )}
 
                          {activeBlock.type === 'video' && (
-                            <Input label="Video ID" value={activeBlock.content.videoId} onChange={v => updateContent(activeBlock.id, { videoId: v })} placeholder="Cloudflare Stream ID" />
+                            <Input label="Cloudflare Stream ID" value={activeBlock.content.videoId} onChange={v => updateContent(activeBlock.id, { videoId: v })} placeholder="Напр. f45f..." />
                          )}
                       </div>
                    ) : (
-                      <div className="space-y-8">
-                         <div>
-                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-4">Разметка секции</label>
-                            <div className="flex gap-2">
-                               {['py-0', 'py-10', 'py-20', 'py-40'].map(p => (
-                                  <button key={p} onClick={() => updateDesign(activeBlock.id, { padding: p })} className={`flex-1 py-3 border-2 rounded-xl text-[10px] font-black uppercase transition-all ${activeBlock.design.padding === p ? 'border-blue-500 bg-blue-50' : 'border-gray-50 hover:bg-white'}`}>{p.replace('py-', '')}</button>
+                      <div className="space-y-10">
+                         <div className="space-y-6">
+                            <label className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] block">Внутренние отступы</label>
+                            <div className="grid grid-cols-2 gap-4">
+                               {['py-0', 'py-12', 'py-24', 'py-40'].map(p => (
+                                  <button 
+                                    key={p} 
+                                    onClick={() => updateDesign(activeBlock.id, { padding: p })} 
+                                    className={`py-4 rounded-2xl border-2 text-[10px] font-black uppercase tracking-widest transition-all
+                                      ${activeBlock.design.padding === p ? 'border-blue-600 bg-blue-50/50 text-blue-600 shadow-sm' : 'border-gray-50 hover:bg-white hover:border-gray-200 text-gray-400'}`}
+                                  >
+                                    {p === 'py-0' ? 'None' : p.replace('py-', '') + 'px'}
+                                  </button>
                                ))}
                             </div>
                          </div>
 
-                         <div>
-                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-4">Выравнивание</label>
-                            <div className="flex gap-2">
+                         <div className="space-y-6">
+                            <label className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] block">Выравнивание контента</label>
+                            <div className="flex gap-4 p-2 bg-gray-50/50 rounded-[1.5rem] border border-gray-100">
                                {['left', 'center', 'right'].map(a => (
-                                  <button key={a} onClick={() => updateDesign(activeBlock.id, { textAlign: a })} className={`flex-1 py-3 border-2 rounded-xl text-[10px] font-black uppercase transition-all ${activeBlock.design.textAlign === a ? 'border-blue-500 bg-blue-50' : 'border-gray-50 hover:bg-white'}`}>{a}</button>
+                                  <button 
+                                    key={a} 
+                                    onClick={() => updateDesign(activeBlock.id, { textAlign: a })} 
+                                    className={`flex-1 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all
+                                      ${activeBlock.design.textAlign === a ? 'bg-white shadow-premium text-blue-600 scale-105' : 'text-gray-400 hover:bg-white/50'}`}
+                                  >
+                                    {a === 'left' ? 'Слева' : a === 'center' ? 'Центр' : 'Справа'}
+                                  </button>
                                ))}
                             </div>
                          </div>
 
-                         <div>
-                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-4">Цвет секции</label>
-                            <div className="grid grid-cols-5 gap-2">
+                         <div className="space-y-6">
+                            <label className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] block">Цветовая схема</label>
+                            <div className="grid grid-cols-3 gap-4">
                                {BG_OPTIONS.map(opt => (
-                                  <button key={opt.value} onClick={() => updateDesign(activeBlock.id, { bg: opt.value, textColor: opt.value.includes('white') || opt.value.includes('50') ? 'text-gray-900' : 'text-white' })} className={`w-10 h-10 rounded-full border-2 transition-all ${opt.class} ${activeBlock.design.bg === opt.value ? 'ring-4 ring-blue-500/30 border-blue-500' : 'border-transparent hover:scale-110'}`} />
+                                  <button 
+                                    key={opt.value} 
+                                    onClick={() => updateDesign(activeBlock.id, { bg: opt.value, textColor: opt.value.includes('white') || opt.value.includes('50') ? 'text-gray-900' : 'text-white' })} 
+                                    className={`h-16 rounded-[1.5rem] border-2 transition-all relative group overflow-hidden ${opt.class}
+                                      ${activeBlock.design.bg === opt.value ? 'border-blue-600 ring-4 ring-blue-500/10' : 'border-transparent hover:scale-105 shadow-sm'}`}
+                                  >
+                                     <div className={`absolute bottom-2 left-2 text-[8px] font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity ${opt.value.includes('900') || opt.value.includes('950') ? 'text-white/50' : 'text-gray-400'}`}>
+                                        {opt.label}
+                                     </div>
+                                  </button>
                                ))}
                             </div>
                          </div>
                          
-                         <div>
-                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Акцентный цвет</label>
-                            <div className="flex gap-4 items-center">
-                               <input type="color" className="w-12 h-12 rounded-xl p-1 bg-white border cursor-pointer" value={activeBlock.design.accentColor || "#3B82F6"} onChange={e => updateDesign(activeBlock.id, { accentColor: e.target.value })} />
-                               <span className="text-xs font-mono text-gray-400 uppercase">{activeBlock.design.accentColor}</span>
+                         <div className="space-y-6 pt-6 border-t border-gray-50">
+                            <label className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] block">Пользовательский акцент</label>
+                            <div className="flex gap-6 items-center p-6 bg-white rounded-[2rem] border border-gray-100 shadow-sm">
+                               <div className="relative">
+                                  <input type="color" className="w-14 h-14 rounded-2xl p-1 bg-white border cursor-pointer shadow-inner" value={activeBlock.design.accentColor || "#3B82F6"} onChange={e => updateDesign(activeBlock.id, { accentColor: e.target.value })} />
+                                  <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-blue-600 shadow-lg ring-2 ring-white" />
+                               </div>
+                               <div>
+                                  <span className="text-xs font-mono font-black text-gray-900 uppercase tracking-widest">{activeBlock.design.accentColor}</span>
+                                  <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">HEX Code</p>
+                               </div>
                             </div>
                          </div>
                       </div>
                    )}
+                   </motion.div>
+                   </AnimatePresence>
                 </div>
                 
-                <div className="p-6 border-t bg-gray-50/30">
-                   <button onClick={() => setActiveBlockId(null)} className="w-full py-4 text-xs font-black uppercase tracking-widest text-gray-400 hover:text-gray-600 transition-colors">Снять выделение</button>
+                <div className="p-8 border-t border-gray-50 bg-gray-50/20">
+                   <button 
+                     onClick={() => setActiveBlockId(null)} 
+                     className="w-full py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 hover:text-blue-600 hover:bg-white hover:shadow-premium rounded-2xl transition-all"
+                   >
+                     Завершить редактирование
+                   </button>
                 </div>
              </>
          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center p-12 text-center text-gray-400 gap-4">
-               <div className="w-20 h-20 rounded-full bg-gray-50 flex items-center justify-center opacity-40">
-                  <MousePointerClick size={32} />
+            <div className="flex-1 flex flex-col items-center justify-center p-12 text-center text-gray-400 gap-6 bg-gray-50/10">
+               <div className="w-24 h-24 rounded-[2.5rem] bg-white shadow-premium flex items-center justify-center text-blue-100 relative">
+                  <MousePointerClick size={48} />
+                  <div className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-blue-500 shadow-lg border-4 border-white animate-pulse" />
                </div>
-               <p className="text-sm font-medium leading-relaxed">Выберите блок на холсте, чтобы изменить его контент или стиль.</p>
+               <div>
+                  <p className="text-sm font-black text-gray-900 uppercase tracking-tight">Инспектор готов</p>
+                  <p className="text-xs font-medium text-gray-400 mt-2 leading-relaxed">Выберите любой блок на холсте,<br/>чтобы настроить его параметры.</p>
+               </div>
             </div>
          )}
       </div>
 
       <style jsx global>{`
-         .zoom-[0.8] { zoom: 0.8; }
+         .thin-scrollbar::-webkit-scrollbar {
+           width: 4px;
+         }
+         .thin-scrollbar::-webkit-scrollbar-track {
+           background: transparent;
+         }
+         .thin-scrollbar::-webkit-scrollbar-thumb {
+           background: #E2E8F0;
+           border-radius: 20px;
+         }
+         .thin-scrollbar::-webkit-scrollbar-thumb:hover {
+           background: #CBD5E0;
+         }
+         
+         .shadow-premium {
+            box-shadow: 0 10px 40px -10px rgba(0,0,0,0.08);
+         }
+         
+         button:active {
+            transform: scale(0.98);
+         }
       `}</style>
     </div>
   );

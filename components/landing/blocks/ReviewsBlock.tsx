@@ -1,4 +1,8 @@
+"use client";
+
 import React from 'react';
+import { motion } from 'framer-motion';
+import { Quote } from 'lucide-react';
 
 interface Review {
   name: string;
@@ -22,48 +26,88 @@ interface ReviewsBlockProps {
 }
 
 export default function ReviewsBlock({ content, design }: ReviewsBlockProps) {
-  const containerClass = design.container === "fluid" ? "w-full px-4" : "max-w-7xl mx-auto px-4";
+  const containerClass = design.container === "fluid" ? "w-full px-6 md:px-12" : "max-w-7xl mx-auto px-6 md:px-12";
   const accent = design.accentColor || "#3B82F6";
+  const isDark = design.bg === 'bg-gray-900' || design.bg === 'bg-blue-900';
 
   return (
-    <section className={`${design.bg} ${design.textColor} ${design.padding}`}>
+    <section className={`${design.bg} ${design.padding} relative overflow-hidden`}>
       <div className={containerClass}>
         {content.title && (
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">
+          <motion.h2 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-4xl md:text-5xl font-black text-center mb-16 tracking-tight heading-premium"
+          >
             {content.title}
-          </h2>
+          </motion.h2>
         )}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-6xl mx-auto">
           {content.items.map((review, i) => (
-            <div 
+            <motion.div 
               key={i} 
-              className="bg-white/5 backdrop-blur-sm border border-current/10 rounded-3xl p-8 relative overflow-hidden group hover:shadow-xl transition-all"
-              style={{ background: design.bg === 'bg-white' ? '#fff' : undefined }}
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: i * 0.1 }}
+              whileHover={{ y: -5 }}
+              className={cn(
+                "p-10 rounded-[2.5rem] relative overflow-hidden group transition-all",
+                isDark 
+                  ? "bg-white/5 border border-white/10 hover:bg-white/10" 
+                  : "bg-white border border-gray-100 shadow-bento hover:shadow-premium"
+              )}
             >
-              <div 
-                className="absolute top-0 left-0 w-1 h-full" 
-                style={{ background: accent }}
-              />
-              <div className="text-4xl opacity-20 mb-4 font-serif">“</div>
-              <p className="text-lg leading-relaxed mb-8 opacity-90">
-                {review.text}
-              </p>
-              <div className="flex items-center gap-4">
-                <div 
-                  className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-white shadow-inner"
-                  style={{ background: accent }}
-                >
-                  {review.avatar || review.name[0]}
-                </div>
-                <div>
-                  <div className="font-bold">{review.name}</div>
-                  <div className="text-sm opacity-60">{review.role}</div>
+              {/* Decorative Quote Icon */}
+              <div className="absolute top-8 right-8 text-blue-500/10 group-hover:text-blue-500/20 transition-colors">
+                <Quote size={64} fill="currentColor" />
+              </div>
+
+              <div className="relative z-10">
+                <p className={cn(
+                  "text-xl leading-relaxed mb-10 font-medium italic",
+                  isDark ? "text-white/90" : "text-gray-700"
+                )}>
+                  "{review.text}"
+                </p>
+                
+                <div className="flex items-center gap-5">
+                  <div 
+                    className="w-16 h-16 rounded-2xl flex items-center justify-center font-black text-2xl text-white shadow-xl transform group-hover:rotate-3 transition-transform"
+                    style={{ background: `linear-gradient(135deg, ${accent}, #7EADFF)` }}
+                  >
+                    {review.avatar?.startsWith('http') ? (
+                       <img src={review.avatar} alt={review.name} className="w-full h-full object-cover rounded-2xl" />
+                    ) : (
+                       review.avatar || review.name[0]
+                    )}
+                  </div>
+                  <div>
+                    <div className={cn(
+                      "font-black text-lg tracking-tight",
+                      isDark ? "text-white" : "text-gray-900"
+                    )}>
+                      {review.name}
+                    </div>
+                    <div className={cn(
+                      "text-sm font-bold opacity-50 tracking-wide uppercase",
+                      isDark ? "text-white" : "text-gray-500"
+                    )}>
+                      {review.role}
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
+            </motion.div>
           ))}
         </div>
       </div>
     </section>
   );
+}
+
+function cn(...classes: (string | boolean | undefined)[]) {
+  return classes.filter(Boolean).join(' ');
 }

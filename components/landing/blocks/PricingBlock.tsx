@@ -1,5 +1,9 @@
+"use client";
+
 import React from 'react';
 import Link from 'next/link';
+import { motion } from 'framer-motion';
+import { Check } from 'lucide-react';
 
 interface Plan {
   name: string;
@@ -26,65 +30,120 @@ interface PricingBlockProps {
 }
 
 export default function PricingBlock({ content, design }: PricingBlockProps) {
-  const containerClass = design.container === "fluid" ? "w-full px-4" : "max-w-7xl mx-auto px-4";
+  const containerClass = design.container === "fluid" ? "w-full px-6 md:px-12" : "max-w-7xl mx-auto px-6 md:px-12";
   const accent = design.accentColor || "#3B82F6";
+  const isDark = design.bg === 'bg-gray-900' || design.bg === 'bg-blue-900';
 
   return (
-    <section className={`${design.bg} ${design.textColor} ${design.padding}`}>
+    <section className={`${design.bg} ${design.padding} relative overflow-hidden`}>
       <div className={containerClass}>
         {content.title && (
-          <h2 className="text-3xl md:text-5xl font-extrabold text-center mb-16">
+          <motion.h2 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-4xl md:text-5xl font-black text-center mb-20 tracking-tight heading-premium"
+          >
             {content.title}
-          </h2>
+          </motion.h2>
         )}
-        <div className="flex flex-wrap justify-center gap-8">
+        
+        <div className="flex flex-wrap justify-center gap-8 md:gap-12 items-stretch">
           {content.plans.map((plan, i) => (
-            <div 
+            <motion.div 
               key={i} 
-              className={`flex-1 min-w-[300px] max-w-[400px] rounded-3xl p-8 transition-transform hover:-translate-y-2 border
-                ${plan.highlighted 
-                  ? 'ring-4 ring-offset-4 shadow-2xl scale-105 z-10' 
-                  : 'bg-white/5 border-current/10 shadow-lg'}`}
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: i * 0.1 }}
+              whileHover={{ y: -10 }}
+              className={cn(
+                "flex-1 min-w-[320px] max-w-[420px] rounded-[3rem] p-10 transition-all relative flex flex-col",
+                plan.highlighted 
+                  ? "shadow-premium z-10 scale-105 border-2" 
+                  : cn("border", isDark ? "bg-white/5 border-white/10" : "bg-white border-gray-100 shadow-bento")
+              )}
               style={{ 
-                backgroundColor: plan.highlighted ? accent : (design.bg === 'bg-white' ? '#fff' : undefined),
-                color: plan.highlighted ? '#fff' : undefined,
                 borderColor: plan.highlighted ? accent : undefined,
-                boxShadow: plan.highlighted ? `0 20px 50px ${accent}40` : undefined
+                backgroundColor: plan.highlighted ? (isDark ? 'rgba(255,255,255,0.08)' : '#fff') : undefined
               }}
             >
-              <div className={`text-sm font-bold uppercase tracking-widest mb-4 ${plan.highlighted ? 'opacity-90' : 'opacity-50'}`}>
-                {plan.name}
-              </div>
-              <div className="flex items-baseline gap-2 mb-2">
-                <span className="text-5xl font-black">{plan.price} ₽</span>
-                <span className={`text-sm ${plan.highlighted ? 'opacity-80' : 'opacity-50'}`}>/ {plan.period}</span>
+              {plan.highlighted && (
+                <div 
+                  className="absolute -top-5 left-1/2 -translate-x-1/2 px-6 py-2 rounded-full text-xs font-black uppercase tracking-widest text-white shadow-xl"
+                  style={{ background: `linear-gradient(135deg, ${accent}, #7EADFF)` }}
+                >
+                  Популярный выбор
+                </div>
+              )}
+
+              <div className="mb-8">
+                <div className={cn(
+                  "text-xs font-black uppercase tracking-[0.2em] mb-4 opacity-50",
+                  isDark ? "text-white" : "text-gray-900"
+                )}>
+                  {plan.name}
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className={cn(
+                    "text-6xl font-black tracking-tighter",
+                    isDark ? "text-white" : "text-gray-900"
+                  )}>
+                    {plan.price}
+                  </span>
+                  <span className={cn(
+                    "text-lg font-bold opacity-40",
+                    isDark ? "text-white" : "text-gray-500"
+                  )}>
+                    ₽ / {plan.period}
+                  </span>
+                </div>
               </div>
               
-              <div className="space-y-4 my-8">
+              <div className="space-y-5 mb-12 flex-1">
                 {plan.features.map((feat, j) => (
-                  <div key={j} className="flex items-start gap-3">
-                    <span className={plan.highlighted ? 'text-white' : 'text-blue-500'}>✓</span>
-                    <span className="text-sm font-medium">{feat}</span>
+                  <div key={j} className="flex items-start gap-4 group/item">
+                    <div className={cn(
+                      "w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 transition-colors",
+                      plan.highlighted ? "bg-blue-500 text-white" : "bg-blue-50 text-blue-500"
+                    )}>
+                      <Check size={14} strokeWidth={3} />
+                    </div>
+                    <span className={cn(
+                      "text-base font-semibold transition-colors",
+                      isDark ? "text-white/80" : "text-gray-600",
+                      "group-hover/item:text-blue-500"
+                    )}>
+                      {feat}
+                    </span>
                   </div>
                 ))}
               </div>
 
               <Link 
                 href={plan.ctaLink || "#form"}
-                className={`block w-full py-4 rounded-xl text-center font-bold transition-all
-                  ${plan.highlighted 
-                    ? 'bg-white text-gray-900 hover:bg-gray-100 shadow-lg' 
-                    : 'bg-blue-600 text-white hover:bg-blue-700 shadow-md'}`}
+                className={cn(
+                  "block w-full py-5 rounded-2xl text-center font-black tracking-tight text-lg transition-all shadow-xl hover:shadow-2xl active:scale-95 group overflow-hidden relative",
+                  plan.highlighted ? "text-white" : "text-white"
+                )}
                 style={{
-                    backgroundColor: !plan.highlighted ? accent : undefined
+                    background: plan.highlighted ? `linear-gradient(135deg, ${accent}, #7EADFF)` : accent
                 }}
               >
-                {plan.cta}
+                <span className="relative z-10">{plan.cta}</span>
+                <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
               </Link>
-            </div>
+            </motion.div>
           ))}
         </div>
       </div>
+
+      {/* Background decoration for highlighted state */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full pointer-events-none -z-10 bg-gradient-to-br from-blue-500/5 via-transparent to-transparent opacity-50" />
     </section>
   );
+}
+
+function cn(...classes: (string | boolean | undefined)[]) {
+  return classes.filter(Boolean).join(' ');
 }

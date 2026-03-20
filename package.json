@@ -73,6 +73,7 @@
     "date-fns": "^3.0.6",
     "dotenv": "^17.2.3",
     "fontkit": "^2.0.4",
+    "framer-motion": "^12.38.0",
     "hls.js": "^1.6.15",
     "isomorphic-dompurify": "^2.33.0",
     "jose": "^6.1.3",

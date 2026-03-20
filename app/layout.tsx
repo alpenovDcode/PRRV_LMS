@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
-// import { Inter } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 
-// const inter = Inter({ subsets: ["latin", "cyrillic"] });
-const inter = { className: "font-sans" }; // Use system font fallback
+const inter = Inter({ subsets: ["latin", "cyrillic"] });
 
 export const metadata: Metadata = {
   title: "PRRV",
