@@ -193,7 +193,7 @@ export default function LandingConstructor({
   const activeBlock = blocks.find(b => b.id === activeBlockId);
 
   return (
-    <div className="flex bg-[#F8FAFC] h-[calc(100vh-120px)] border rounded-3xl overflow-hidden shadow-2xl">
+    <div className="flex bg-[#F8FAFC] h-[calc(100vh-120px)] border rounded-3xl overflow-hidden shadow-2xl mx-auto max-w-[1700px] w-full">
       
       {/* 1. LEFT NAV (Icons only) */}
       <div className="w-20 bg-white border-r flex flex-col items-center py-6 gap-2">
