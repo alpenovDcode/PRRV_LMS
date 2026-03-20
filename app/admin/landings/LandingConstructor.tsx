@@ -126,6 +126,7 @@ interface Block {
   settings: any;
   orderIndex: number;
   lessonId?: string | null;
+  width?: "full" | "1/2";
 }
 
 export default function LandingConstructor({ 
@@ -139,14 +140,16 @@ export default function LandingConstructor({
   // Migration logic
   const normalizedBlocks = initialBlocks.map((b: any) => ({
     ...b,
+    ...b,
     id: b.id || uuidv4(),
+    width: b.width || "full",
     design: b.design || { ...DEFAULT_DESIGN },
     settings: b.settings || { utm: "", openAt: null }
   }));
 
   const [blocks, setBlocks] = useState<Block[]>(normalizedBlocks);
   const [isPublished, setIsPublished] = useState(initialIsPublished);
-  const [settings, setSettings] = useState(initialSettings || { palette: PALETTES[0] });
+  const [settings, setSettings] = useState(initialSettings || { palette: PALETTES[0], layoutMode: 'full', pageBg: 'bg-white' });
   const [activeBlockId, setActiveBlockId] = useState<string | null>(null);
   const [activeNavTab, setActiveNavTab] = useState<"blocks" | "page" | "design">("blocks");
   const [activeInspectorTab, setActiveInspectorTab] = useState<"content" | "style">("content");
@@ -167,7 +170,8 @@ export default function LandingConstructor({
       content: getInitialContent(type),
       design: { ...DEFAULT_DESIGN, bg: settings.palette?.bg || 'bg-white', textColor: settings.palette?.textColor || 'text-gray-900', accentColor: settings.palette?.accent || '#3B82F6' },
       settings: { openAt: null },
-      orderIndex: blocks.length
+      orderIndex: blocks.length,
+      width: "full"
     };
     setBlocks([...blocks, newBlock]);
     setActiveBlockId(newBlock.id);
@@ -324,6 +328,44 @@ export default function LandingConstructor({
                               ))}
                             </div>
                         </div>
+
+                        <div className="space-y-6 pt-6 border-t border-gray-100">
+                             <label className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] block">Тип разметки</label>
+                             <div className="flex gap-4 p-2 bg-gray-50 rounded-[1.5rem] border border-gray-100">
+                                <button 
+                                  onClick={() => setSettings({...settings, layoutMode: 'full'})}
+                                  className={`flex-1 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all
+                                    ${settings.layoutMode === 'full' ? 'bg-white shadow-premium text-blue-600 scale-105' : 'text-gray-400 hover:bg-white/50'}`}
+                                >
+                                  Стандарт
+                                </button>
+                                <button 
+                                  onClick={() => setSettings({...settings, layoutMode: 'cards'})}
+                                  className={`flex-1 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all
+                                    ${settings.layoutMode === 'cards' ? 'bg-white shadow-premium text-blue-600 scale-105' : 'text-gray-400 hover:bg-white/50'}`}
+                                >
+                                  Блочный
+                                </button>
+                             </div>
+                        </div>
+
+                        <div className="space-y-6 pt-6 border-t border-gray-100">
+                             <label className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] block">Фон страницы</label>
+                             <div className="grid grid-cols-3 gap-4">
+                                {BG_OPTIONS.map(opt => (
+                                   <button 
+                                     key={opt.value} 
+                                     onClick={() => setSettings({...settings, pageBg: opt.value})} 
+                                     className={`h-16 rounded-[1.5rem] border-2 transition-all relative group overflow-hidden ${opt.class}
+                                       ${settings.pageBg === opt.value ? 'border-blue-600 ring-4 ring-blue-500/10' : 'border-transparent hover:scale-105 shadow-sm'}`}
+                                   >
+                                      <div className={`absolute bottom-2 left-2 text-[8px] font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity ${opt.value.includes('900') || opt.value.includes('950') ? 'text-white/50' : 'text-gray-400'}`}>
+                                         {opt.label}
+                                      </div>
+                                   </button>
+                                ))}
+                             </div>
+                        </div>
                       </div>
                   )}
                 </motion.div>
@@ -333,7 +375,7 @@ export default function LandingConstructor({
 
       {/* 3. CENTER: CANVAS */}
       <div className="flex-1 overflow-y-auto bg-gray-50/50 p-12 thin-scrollbar relative">
-         <div className="max-w-4xl mx-auto space-y-6 pb-[20rem]">
+         <div className="max-w-5xl mx-auto flex flex-wrap gap-6 pb-[20rem]">
             <AnimatePresence>
                {blocks.map((block, index) => (
                   <motion.div 
@@ -344,6 +386,7 @@ export default function LandingConstructor({
                      exit={{ opacity: 0, scale: 0.9 }}
                      onClick={() => setActiveBlockId(block.id)}
                      className={`group relative bg-white rounded-[2.5rem] shadow-sm border-2 transition-all cursor-pointer overflow-hidden
+                       ${(block.width || 'full') === '1/2' ? 'w-[calc(50%-12px)]' : 'w-full'}
                        ${activeBlockId === block.id ? 'border-blue-500 ring-[12px] ring-blue-500/5 shadow-premium' : 'border-transparent hover:border-blue-200 hover:shadow-md'}`}
                   >
                      {/* Preview Rendering */}
@@ -627,7 +670,7 @@ export default function LandingConstructor({
                          </div>
 
                          <div className="space-y-6">
-                            <label className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] block">Выравнивание контента</label>
+                             <label className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] block">Выравнивание контента</label>
                             <div className="flex gap-4 p-2 bg-gray-50/50 rounded-[1.5rem] border border-gray-100">
                                {['left', 'center', 'right'].map(a => (
                                   <button 
@@ -641,6 +684,22 @@ export default function LandingConstructor({
                                ))}
                             </div>
                          </div>
+
+                          <div className="space-y-6 pt-6 border-t border-gray-50">
+                             <label className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] block">Ширина блока</label>
+                             <div className="flex gap-4 p-2 bg-gray-50/50 rounded-[1.5rem] border border-gray-100">
+                                {(['full', '1/2'] as const).map(w => (
+                                   <button 
+                                     key={w} 
+                                     onClick={() => updateBlock(activeBlock.id, { width: w })} 
+                                     className={`flex-1 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all
+                                       ${(activeBlock.width || 'full') === w ? 'bg-white shadow-premium text-blue-600 scale-105' : 'text-gray-400 hover:bg-white/50'}`}
+                                   >
+                                     {w === 'full' ? '100%' : '50%'}
+                                   </button>
+                                ))}
+                             </div>
+                          </div>
 
                          <div className="space-y-6">
                             <label className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] block">Цветовая схема</label>
