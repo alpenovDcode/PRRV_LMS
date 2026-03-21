@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Hls from "hls.js";
 import { Loader2, Settings, Check } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
+import { VideoWatermark } from "./video-watermark";
 
 interface HLSVideoPlayerProps {
   videoId: string;
@@ -297,6 +298,9 @@ export function HLSVideoPlayer({
         poster={posterUrl}
         playsInline
       />
+      
+      {/* Anti-vandalism watermark */}
+      <VideoWatermark />
     </div>
   );
 }

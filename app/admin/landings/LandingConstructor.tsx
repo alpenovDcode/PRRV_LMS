@@ -17,6 +17,7 @@ import TimerBlock from "@/components/landing/blocks/TimerBlock";
 import ReviewsBlock from "@/components/landing/blocks/ReviewsBlock";
 import PricingBlock from "@/components/landing/blocks/PricingBlock";
 import DividerBlock from "@/components/landing/blocks/DividerBlock";
+import { CloudflarePlayer } from "@/components/learn/cloudflare-player";
 
 // --- SUBCOMPONENTS ---
 
@@ -446,8 +447,8 @@ export default function LandingConstructor({
                         )}
                         {block.type === 'video' && (
                           <div className={`${block.design.bg} ${block.design.padding} flex items-center justify-center p-12`}>
-                             <div className="aspect-video w-full max-w-2xl bg-black rounded-[2.5rem] shadow-2xl flex items-center justify-center text-white/20 ring-1 ring-white/10">
-                                <Video size={64} />
+                             <div className="aspect-video w-full max-w-2xl bg-black rounded-[2.5rem] shadow-2xl overflow-hidden ring-1 ring-white/10">
+                                <CloudflarePlayer videoId={block.content.videoId} />
                              </div>
                           </div>
                         )}

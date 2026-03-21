@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Stream } from "@cloudflare/stream-react";
+import { VideoWatermark } from "./video-watermark";
 
 interface CloudflarePlayerProps {
   videoId: string;
@@ -43,7 +44,7 @@ export function CloudflarePlayer({
   }, [isReady, initialTime]);
 
   return (
-    <div className="relative w-full aspect-video bg-black">
+    <div className="relative w-full aspect-video bg-black group/player">
       <Stream
         streamRef={playerRef}
         src={videoId}
@@ -74,6 +75,9 @@ export function CloudflarePlayer({
         // @ts-ignore - onReady exists in runtime but might be missing in types
         onReady={() => setIsReady(true)}
       />
+      
+      {/* Anti-vandalism watermark */}
+      <VideoWatermark />
     </div>
   );
 }

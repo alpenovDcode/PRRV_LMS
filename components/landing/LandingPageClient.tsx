@@ -11,6 +11,7 @@ import ReviewsBlock from "./blocks/ReviewsBlock";
 import PricingBlock from "./blocks/PricingBlock";
 import DividerBlock from "./blocks/DividerBlock";
 import { trackLandingView } from "@/app/actions/landing";
+import { CloudflarePlayer } from "@/components/learn/cloudflare-player";
 
 interface WrapperProps {
   slug: string;
@@ -123,14 +124,9 @@ export default function LandingPageClient({ slug, blocks, initialSubmissions = {
                     {block.type === "video" && (
                       <section className={`${layoutMode === 'cards' ? '' : design.bg} ${design.padding}`}>
                          <div className="w-full px-6 md:px-12">
-                             <div className="aspect-video bg-black rounded-[3rem] overflow-hidden shadow-2xl max-w-5xl mx-auto ring-8 ring-white/5 relative">
-                                <iframe
-                                   src={`https://iframe.videodelivery.net/${(block.content as any).videoId}`}
-                                   className="absolute inset-0 w-full h-full"
-                                   allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
-                                   allowFullScreen={true}
-                                ></iframe>
-                             </div>
+                           <div className="aspect-video bg-black rounded-[3rem] overflow-hidden shadow-2xl max-w-5xl mx-auto ring-8 ring-white/5">
+                              <CloudflarePlayer videoId={(block.content as any).videoId} />
+                           </div>
                          </div>
                       </section>
                     )}
