@@ -156,3 +156,5 @@ $RECYCLE.BIN/
 
 # Dynamic Nginx Config
 nginx/conf.d/upstream.conf
+# Temporary Debug Files
+_debug/

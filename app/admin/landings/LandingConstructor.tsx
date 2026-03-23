@@ -29,11 +29,11 @@ interface AddBtnProps {
 
 function AddBtn({ icon: Icon, label, onClick }: AddBtnProps) {
   return (
-    <button onClick={onClick} className="flex flex-col items-center justify-center p-5 bg-white border border-gray-100 rounded-[2rem] shadow-sm hover:shadow-premium hover:border-blue-200 transition-all gap-3 group relative overflow-hidden">
-      <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center group-hover:scale-110 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300 shadow-inner">
-         <Icon size={24} />
+    <button onClick={onClick} className="flex flex-col items-center justify-center p-3.5 bg-white border border-gray-100 rounded-[1.5rem] shadow-sm hover:shadow-premium hover:border-blue-200 transition-all gap-2 group relative overflow-hidden">
+      <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center group-hover:scale-110 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300 shadow-inner">
+         <Icon size={20} />
       </div>
-      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest group-hover:text-blue-600 transition-colors">{label}</span>
+      <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest group-hover:text-blue-600 transition-colors">{label}</span>
       <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
     </button>
   )
@@ -46,10 +46,10 @@ function TabBtn({ active, onClick, icon: Icon, label }: { active: boolean, onCli
         className={`flex flex-col items-center justify-center gap-1.5 w-full py-6 transition-all relative group
           ${active ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
       >
-         <div className={`p-2 rounded-xl transition-all ${active ? 'bg-blue-50 shadow-inner' : 'group-hover:bg-gray-50'}`}>
-            <Icon size={24} strokeWidth={active ? 2.5 : 2} />
+         <div className={`p-1.5 rounded-lg transition-all ${active ? 'bg-blue-50 shadow-inner' : 'group-hover:bg-gray-50'}`}>
+            <Icon size={20} strokeWidth={active ? 2.5 : 2} />
          </div>
-         <span className="text-[9px] font-black uppercase tracking-tighter">{label}</span>
+         <span className="text-[8px] font-black uppercase tracking-tighter">{label}</span>
          {active && (
            <motion.div 
              layoutId="tab-active"
@@ -239,13 +239,11 @@ export default function LandingConstructor({
   const activeBlock = blocks.find(b => b.id === activeBlockId);
 
   return (
-    <div className="flex bg-[#F8FAFC] h-[calc(100vh-64px)] overflow-hidden w-full fixed inset-x-0 bottom-0 lg:left-64 lg:w-[calc(100%-16rem)] z-10">
-      {/* Note: lg:left-64 and w-calc are to match AdminLayout sidebar. 
-          If sidebar is collapsed, we might need a different approach, 
-          but for now let's focus on fitting the viewport better. */}
+    <div className="flex bg-[#F8FAFC] h-screen overflow-hidden w-full fixed inset-0 z-[100]">
+      {/* FULL SCREEN STUDIO MODE */}
       
       {/* 1. LEFT NAV (Icons only) */}
-      <div className="w-24 bg-white border-r border-gray-50 flex flex-col items-center py-8 gap-4 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
+      <div className="w-20 bg-white border-r border-gray-50 flex flex-col items-center py-6 gap-3 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
          <div className="mb-6">
             <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-blue-500/30 shadow-lg">
                <LayoutTemplate size={24} strokeWidth={2.5} />
@@ -274,10 +272,10 @@ export default function LandingConstructor({
       </div>
 
       {/* 2. CONTEXT PANEL (Expanded options for active tab) */}
-      <div className="w-[22rem] bg-white border-r border-gray-50 flex flex-col shadow-[2px_0_12px_rgba(0,0,0,0.01)] transition-all z-20">
-          <div className="p-8 border-b border-gray-50">
-             <div className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] mb-2">Навигатор</div>
-             <h2 className="text-2xl font-black text-gray-900 tracking-tight">
+      <div className="w-72 bg-white border-r border-gray-50 flex flex-col shadow-[2px_0_12px_rgba(0,0,0,0.01)] transition-all z-20">
+          <div className="p-6 border-b border-gray-50">
+             <div className="text-[9px] font-black text-blue-600 uppercase tracking-[0.2em] mb-1.5">Навигатор</div>
+             <h2 className="text-xl font-black text-gray-900 tracking-tight">
                 {activeNavTab === 'blocks' && "Магазин блоков"}
                 {activeNavTab === 'page' && "Параметры"}
                 {activeNavTab === 'design' && "Стиль сайта"}
@@ -408,7 +406,7 @@ export default function LandingConstructor({
       </div>
 
       {/* 3. CENTER: CANVAS */}
-      <div className="flex-1 overflow-y-auto bg-[#F1F5F9] p-12 thin-scrollbar relative shadow-inner">
+      <div className="flex-1 overflow-y-auto bg-[#F1F5F9] p-8 thin-scrollbar relative shadow-inner">
          <div className="max-w-5xl mx-auto min-h-full bg-white shadow-premium rounded-[3.5rem] overflow-hidden border border-gray-200/50 mb-20 relative ring-1 ring-black/5">
             <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 z-20" />
             <div className={settings.pageBg + " min-h-screen transition-colors duration-500"}>
@@ -482,27 +480,27 @@ export default function LandingConstructor({
       </div>
 
       {/* 4. RIGHT: INSPECTOR */}
-      <div className="w-[26rem] bg-white border-l border-gray-50 flex flex-col shadow-[-4px_0_24px_rgba(0,0,0,0.02)] z-20">
+      <div className="w-80 bg-white border-l border-gray-50 flex flex-col shadow-[-4px_0_24px_rgba(0,0,0,0.02)] z-20">
          {activeBlock ? (
              <>
                 <div className="p-4 flex gap-2 bg-gray-50/50 border-b border-gray-50">
                    <button 
                      onClick={() => setActiveInspectorTab('content')} 
-                     className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.15em] transition-all relative
+                     className={`flex-1 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-[0.15em] transition-all relative
                        ${activeInspectorTab === 'content' ? 'bg-white shadow-premium text-blue-600 scale-105 z-10' : 'text-gray-400 hover:bg-gray-100'}`}
                    >
                      Контент
                    </button>
                    <button 
                      onClick={() => setActiveInspectorTab('style')} 
-                     className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.15em] transition-all relative
+                     className={`flex-1 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-[0.15em] transition-all relative
                        ${activeInspectorTab === 'style' ? 'bg-white shadow-premium text-blue-600 scale-105 z-10' : 'text-gray-400 hover:bg-gray-100'}`}
                    >
                      Дизайн
                    </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-8 space-y-10 thin-scrollbar">
+                <div className="flex-1 overflow-y-auto p-6 space-y-6 thin-scrollbar">
                    <AnimatePresence mode="wait">
                    <motion.div
                      key={`${activeBlock.id}-${activeInspectorTab}`}
@@ -515,8 +513,8 @@ export default function LandingConstructor({
                       <div className="space-y-8">
                          <div className="pb-6 border-b border-gray-50 flex justify-between items-end">
                             <div>
-                               <div className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] mb-1">Свойства блока</div>
-                               <div className="text-xl font-black text-gray-900 tracking-tight capitalize">{activeBlock.type}</div>
+                               <div className="text-[9px] font-black text-blue-600 uppercase tracking-[0.2em] mb-1">Свойства блока</div>
+                               <div className="text-lg font-black text-gray-900 tracking-tight capitalize">{activeBlock.type}</div>
                             </div>
                             <span className="text-[10px] font-mono text-gray-300 bg-gray-50 px-3 py-1 rounded-full border border-gray-100">#{activeBlock.id.split('-')[0]}</span>
                          </div>
