@@ -160,6 +160,7 @@ services:
       OLLAMA_URL: http://ollama:11434
     volumes:
       - ./public/uploads:/app/public/uploads
+      - ./data:/app/data
     depends_on:
       postgres:
         condition: service_healthy
