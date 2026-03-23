@@ -7,7 +7,7 @@ const replicate = new Replicate({
 });
 
 const EMBEDDING_MODEL = "ibm-granite/granite-embedding-278m-multilingual";
-const LLM_MODEL = "meta/llama-2-70b-chat";
+const LLM_MODEL = "meta/llama-3.1-8b-instruct";
 
 function cosineSimilarity(vecA: number[], vecB: number[]) {
   if (!vecA || !vecB || vecA.length !== vecB.length) return 0;

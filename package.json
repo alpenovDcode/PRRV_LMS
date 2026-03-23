@@ -34,6 +34,7 @@
     ]
   },
   "dependencies": {
+    "@ai-sdk/react": "^3.0.136",
     "@aws-sdk/client-s3": "^3.948.0",
     "@cloudflare/stream-react": "^1.9.3",
     "@hookform/resolvers": "^3.3.2",
@@ -64,6 +65,7 @@
     "@types/bcrypt": "^6.0.0",
     "@types/nodemailer": "^7.0.9",
     "@types/sanitize-html": "^2.16.0",
+    "ai": "^6.0.134",
     "axios": "^1.6.2",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^2.4.3",
