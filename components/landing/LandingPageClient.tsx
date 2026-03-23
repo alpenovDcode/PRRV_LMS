@@ -11,7 +11,7 @@ import ReviewsBlock from "./blocks/ReviewsBlock";
 import PricingBlock from "./blocks/PricingBlock";
 import DividerBlock from "./blocks/DividerBlock";
 import { trackLandingView } from "@/app/actions/landing";
-import { CloudflarePlayer } from "@/components/learn/cloudflare-player";
+import { HLSVideoPlayer } from "@/components/learn/hls-video-player";
 
 interface WrapperProps {
   slug: string;
@@ -125,7 +125,10 @@ export default function LandingPageClient({ slug, blocks, initialSubmissions = {
                       <section className={`${layoutMode === 'cards' ? '' : design.bg} ${design.padding}`}>
                          <div className="w-full px-6 md:px-12">
                            <div className="aspect-video bg-black rounded-[3rem] overflow-hidden shadow-2xl max-w-5xl mx-auto ring-8 ring-white/5">
-                              <CloudflarePlayer videoId={(block.content as any).videoId} />
+                              <HLSVideoPlayer 
+                                videoId={(block.content as any).videoId} 
+                                landingSlug={slug}
+                              />
                            </div>
                          </div>
                       </section>

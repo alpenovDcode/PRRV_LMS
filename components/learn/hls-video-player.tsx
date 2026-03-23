@@ -9,6 +9,7 @@ import { VideoWatermark } from "./video-watermark";
 interface HLSVideoPlayerProps {
   videoId: string;
   lessonId?: string;
+  landingSlug?: string;
   posterUrl?: string;
   initialTime?: number;
   onTimeUpdate?: (currentTime: number, duration: number) => void;
@@ -19,6 +20,7 @@ interface HLSVideoPlayerProps {
 export function HLSVideoPlayer({
   videoId,
   lessonId,
+  landingSlug,
   posterUrl,
   initialTime = 0,
   onTimeUpdate,
@@ -48,10 +50,15 @@ export function HLSVideoPlayer({
 
     async function generateToken() {
       try {
-        const response = await apiClient.post("/video/token", {
-          videoId,
-          lessonId,
-        });
+        const endpoint = landingSlug 
+          ? "/video/token/public" 
+          : "/video/token";
+        
+        const payload = landingSlug 
+          ? { videoId, landingSlug } 
+          : { videoId, lessonId };
+
+        const response = await apiClient.post(endpoint, payload);
 
         setToken(response.data.data.token);
       } catch (err: any) {
@@ -61,7 +68,7 @@ export function HLSVideoPlayer({
     }
 
     generateToken();
-  }, [videoId, lessonId]);
+  }, [videoId, lessonId, landingSlug]);
 
   // Инициализация плеера
   useEffect(() => {
