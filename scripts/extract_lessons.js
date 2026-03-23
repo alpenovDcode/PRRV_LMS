@@ -2,14 +2,10 @@ const { PrismaClient } = require("@prisma/client");
 const fs = require("fs");
 const path = require("path");
 
-// В Docker-контейнере переменные обычно уже в process.env, поэтому dotenv опционален
-try {
-  require("dotenv").config();
-} catch (e) {
-  // Игнорируем, если dotenv не установлен
-}
-
+// Инициализируем Prisma. DATABASE_URL берется из системного окружения (process.env)
 const prisma = new PrismaClient();
+
+// Домен берется из переменных окружения или ставится по умолчанию
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://prrv.tech";
 
 async function main() {
@@ -59,10 +55,10 @@ async function main() {
     console.log(`Processed Course: ${course.title}`);
   }
 
-  // Save to JSON
+  // Путь для сохранения JSON
   const outputPath = path.join(process.cwd(), "data", "lessons_links.json");
   
-  // Ensure directory exists
+  // Создаем папку data, если её нет
   if (!fs.existsSync(path.dirname(outputPath))) {
     fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   }
