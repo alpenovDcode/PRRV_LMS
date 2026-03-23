@@ -128,6 +128,7 @@ interface Block {
   orderIndex: number;
   lessonId?: string | null;
   width?: "full" | "1/2";
+  column?: "left" | "right";
 }
 
 export default function LandingConstructor({ 
@@ -144,6 +145,7 @@ export default function LandingConstructor({
     ...b,
     id: b.id || uuidv4(),
     width: b.width || "full",
+    column: b.column || "left",
     design: b.design || { ...DEFAULT_DESIGN },
     settings: b.settings || { utm: "", openAt: null }
   }));
@@ -202,7 +204,8 @@ export default function LandingConstructor({
       design: { ...DEFAULT_DESIGN, bg: settings.palette?.bg || 'bg-white', textColor: settings.palette?.textColor || 'text-gray-900', accentColor: settings.palette?.accent || '#3B82F6' },
       settings: { openAt: null },
       orderIndex: blocks.length,
-      width: "full"
+      width: "full",
+      column: "left"
     };
     setBlocks([...blocks, newBlock]);
     setActiveBlockId(newBlock.id);
@@ -410,70 +413,186 @@ export default function LandingConstructor({
          <div className="max-w-5xl mx-auto min-h-full bg-white shadow-premium rounded-[3.5rem] overflow-hidden border border-gray-200/50 mb-20 relative ring-1 ring-black/5">
             <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 z-20" />
             <div className={settings.pageBg + " min-h-screen transition-colors duration-500"}>
-               <div className="flex flex-wrap gap-6 p-8">
-            <AnimatePresence>
-               {blocks.map((block, index) => (
-                  <motion.div 
-                     layout
-                     key={block.id} 
-                     initial={{ opacity: 0, y: 20 }}
-                     animate={{ opacity: 1, y: 0 }}
-                     exit={{ opacity: 0, scale: 0.9 }}
-                     onClick={() => setActiveBlockId(block.id)}
-                     className={`group relative bg-white rounded-[4.5rem] shadow-sm border-2 transition-all cursor-pointer overflow-hidden
-                       ${(block.width || 'full') === '1/2' ? 'w-[calc(50%-12px)]' : 'w-full'}
-                       ${activeBlockId === block.id ? 'border-blue-500 ring-[12px] ring-blue-500/5 shadow-premium' : 'border-transparent hover:border-blue-200 hover:shadow-md'}`}
-                  >
-                     {/* Preview Rendering */}
-                     <div className="pointer-events-none select-none origin-top transition-transform duration-500">
-                        {block.type === 'hero' && <HeroBlock content={block.content} design={block.design} />}
-                        {block.type === 'features' && <FeaturesBlock content={block.content} design={block.design} />}
-                        {block.type === 'button' && <ButtonBlock content={block.content} design={block.design} />}
-                        {block.type === 'timer' && <TimerBlock content={block.content} design={block.design} />}
-                        {block.type === 'reviews' && <ReviewsBlock content={block.content} design={block.design} />}
-                        {block.type === 'pricing' && <PricingBlock content={block.content} design={block.design} />}
-                        {block.type === 'divider' && <DividerBlock content={block.content} design={block.design} />}
-                        {block.type === 'text' && (
-                          <div className={`${block.design.bg} ${block.design.textColor} ${block.design.padding} text-${block.design.textAlign} prose max-w-none px-12`}>
-                             <div dangerouslySetInnerHTML={{ __html: block.content.html }} />
-                             {block.content.hasInput && (
-                                <div className="mt-12 p-8 bg-gray-50/80 backdrop-blur-sm rounded-[2rem] border-2 border-dashed border-gray-200 text-gray-400 italic text-sm text-center">
-                                   Поле: {block.content.inputLabel}
-                                </div>
-                             )}
-                          </div>
-                        )}
-                        {block.type === 'video' && (
-                          <div className={`${block.design.bg} ${block.design.padding} flex items-center justify-center p-12`}>
-                             <div className="aspect-video w-full max-w-2xl bg-black rounded-[2.5rem] shadow-2xl overflow-hidden ring-1 ring-white/10">
-                                <CloudflarePlayer videoId={block.content.videoId} />
-                             </div>
-                          </div>
-                        )}
-                        {block.type === 'form' && (
-                           <div className={`${block.design.bg} ${block.design.padding} flex items-center justify-center p-12`}>
-                              <div className="bg-white/50 backdrop-blur-md border-2 border-dashed border-gray-200 w-full max-w-md p-12 rounded-[2.5rem] text-center shadow-inner">
-                                 <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 mx-auto mb-6">
-                                    <AlignJustify size={32} />
-                                 </div>
-                                 <div className="text-sm font-black text-gray-900 uppercase tracking-[0.2em]">Форма регистрации</div>
-                                 <div className="text-[10px] text-gray-400 font-bold uppercase mt-2">Bitrix24 Lead Generation</div>
-                              </div>
-                           </div>
-                        )}
-                     </div>
+                <div className="p-8">
+                  {(() => {
+                    const groups: any[] = [];
+                    let currentGroup: any = null;
 
-                     {/* Controls Overlay */}
-                     <div className={`absolute top-6 right-6 flex flex-col gap-3 transition-all duration-300 transform
-                        ${activeBlockId === block.id ? 'translate-x-0 opacity-100' : 'translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100'}`}>
-                        <button onClick={(e) => { e.stopPropagation(); setBlocks([...blocks, { ...block, id: uuidv4(), orderIndex: blocks.length }]); }} className="w-11 h-11 bg-white border border-gray-100 rounded-2xl shadow-premium flex items-center justify-center text-gray-400 hover:text-blue-600 hover:scale-110 active:scale-90 transition-all"><Copy size={18}/></button>
-                        <button onClick={(e) => { e.stopPropagation(); if(index > 0){ const nb = [...blocks]; [nb[index], nb[index-1]] = [nb[index-1], nb[index]]; setBlocks(nb); } }} className="w-11 h-11 bg-white border border-gray-100 rounded-2xl shadow-premium flex items-center justify-center text-gray-400 hover:text-blue-600 hover:scale-110 active:scale-90 transition-all"><ArrowUp size={18}/></button>
-                        <button onClick={(e) => { e.stopPropagation(); if(index < blocks.length-1){ const nb = [...blocks]; [nb[index], nb[index+1]] = [nb[index+1], nb[index]]; setBlocks(nb); } }} className="w-11 h-11 bg-white border border-gray-100 rounded-2xl shadow-premium flex items-center justify-center text-gray-400 hover:text-blue-600 hover:scale-110 active:scale-90 transition-all"><ArrowDown size={18}/></button>
-                        <button onClick={(e) => { e.stopPropagation(); if(confirm("Удалить блок?")) setBlocks(blocks.filter(b => b.id !== block.id)); }} className="w-11 h-11 bg-red-50 border border-red-100 rounded-2xl shadow-premium flex items-center justify-center text-red-400 hover:text-red-600 hover:scale-110 active:scale-90 transition-all"><Trash size={18}/></button>
-                     </div>
-                  </motion.div>
-               ))}
-            </AnimatePresence>
+                    blocks.forEach(block => {
+                      if ((block.width || 'full') === 'full') {
+                        groups.push({ type: 'full', block });
+                        currentGroup = null;
+                      } else {
+                        if (!currentGroup) {
+                          currentGroup = { type: 'grid', left: [], right: [] };
+                          groups.push(currentGroup);
+                        }
+                        if (block.column === 'right') {
+                          currentGroup.right.push(block);
+                        } else {
+                          currentGroup.left.push(block);
+                        }
+                      }
+                    });
+
+                    return groups.map((group, gIdx) => {
+                      if (group.type === 'full') {
+                        const block = group.block;
+                        const index = blocks.findIndex(b => b.id === block.id);
+                        return (
+                          <motion.div 
+                            layout
+                            key={block.id} 
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            onClick={() => setActiveBlockId(block.id)}
+                            className={`group relative bg-white rounded-[4.5rem] shadow-sm border-2 transition-all cursor-pointer overflow-hidden w-full mb-6
+                              ${activeBlockId === block.id ? 'border-blue-500 ring-[12px] ring-blue-500/5 shadow-premium' : 'border-transparent hover:border-blue-200 hover:shadow-md'}`}
+                          >
+                             {/* Preview Rendering */}
+                             <div className="pointer-events-none select-none origin-top transition-transform duration-500">
+                                {block.type === 'hero' && <HeroBlock content={block.content} design={block.design} />}
+                                {block.type === 'features' && <FeaturesBlock content={block.content} design={block.design} />}
+                                {block.type === 'button' && <ButtonBlock content={block.content} design={block.design} />}
+                                {block.type === 'timer' && <TimerBlock content={block.content} design={block.design} />}
+                                {block.type === 'reviews' && <ReviewsBlock content={block.content} design={block.design} />}
+                                {block.type === 'pricing' && <PricingBlock content={block.content} design={block.design} />}
+                                {block.type === 'divider' && <DividerBlock content={block.content} design={block.design} />}
+                                {block.type === 'text' && (
+                                  <div className={`${block.design.bg} ${block.design.textColor} ${block.design.padding} text-${block.design.textAlign} prose max-w-none px-12`}>
+                                     <div dangerouslySetInnerHTML={{ __html: block.content.html }} />
+                                     {block.content.hasInput && (
+                                        <div className="mt-12 p-8 bg-gray-50/80 backdrop-blur-sm rounded-[2rem] border-2 border-dashed border-gray-200 text-gray-400 italic text-sm text-center">
+                                           Поле: {block.content.inputLabel}
+                                        </div>
+                                     )}
+                                  </div>
+                                )}
+                                {block.type === 'video' && (
+                                  <div className={`${block.design.bg} ${block.design.padding} flex items-center justify-center p-12`}>
+                                     <div className="aspect-video w-full max-w-2xl bg-black rounded-[2.5rem] shadow-2xl overflow-hidden ring-1 ring-white/10">
+                                        <CloudflarePlayer videoId={block.content.videoId} />
+                                     </div>
+                                  </div>
+                                )}
+                                {block.type === 'form' && (
+                                   <div className={`${block.design.bg} ${block.design.padding} flex items-center justify-center p-12`}>
+                                      <div className="bg-white/50 backdrop-blur-md border-2 border-dashed border-gray-200 w-full max-w-md p-12 rounded-[2.5rem] text-center shadow-inner">
+                                         <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 mx-auto mb-6">
+                                            <AlignJustify size={32} />
+                                         </div>
+                                         <div className="text-sm font-black text-gray-900 uppercase tracking-[0.2em]">Форма регистрации</div>
+                                         <div className="text-[10px] text-gray-400 font-bold uppercase mt-2">Bitrix24 Lead Generation</div>
+                                      </div>
+                                   </div>
+                                )}
+                             </div>
+
+                             {/* Controls Overlay */}
+                             <div className={`absolute top-6 right-6 flex flex-col gap-3 transition-all duration-300 transform
+                                ${activeBlockId === block.id ? 'translate-x-0 opacity-100' : 'translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100'}`}>
+                                <button onClick={(e) => { e.stopPropagation(); setBlocks([...blocks, { ...block, id: uuidv4(), orderIndex: blocks.length }]); }} className="w-11 h-11 bg-white border border-gray-100 rounded-2xl shadow-premium flex items-center justify-center text-gray-400 hover:text-blue-600 hover:scale-110 active:scale-90 transition-all"><Copy size={18}/></button>
+                                <button onClick={(e) => { e.stopPropagation(); if(index > 0){ const nb = [...blocks]; [nb[index], nb[index-1]] = [nb[index-1], nb[index]]; setBlocks(nb); } }} className="w-11 h-11 bg-white border border-gray-100 rounded-2xl shadow-premium flex items-center justify-center text-gray-400 hover:text-blue-600 hover:scale-110 active:scale-90 transition-all"><ArrowUp size={18}/></button>
+                                <button onClick={(e) => { e.stopPropagation(); if(index < blocks.length-1){ const nb = [...blocks]; [nb[index], nb[index+1]] = [nb[index+1], nb[index]]; setBlocks(nb); } }} className="w-11 h-11 bg-white border border-gray-100 rounded-2xl shadow-premium flex items-center justify-center text-gray-400 hover:text-blue-600 hover:scale-110 active:scale-90 transition-all"><ArrowDown size={18}/></button>
+                                <button onClick={(e) => { e.stopPropagation(); if(confirm("Удалить блок?")) setBlocks(blocks.filter(b => b.id !== block.id)); }} className="w-11 h-11 bg-red-50 border border-red-100 rounded-2xl shadow-premium flex items-center justify-center text-red-400 hover:text-red-600 hover:scale-110 active:scale-90 transition-all"><Trash size={18}/></button>
+                             </div>
+                          </motion.div>
+                        );
+                      } else {
+                        return (
+                          <div key={gIdx} className="flex gap-6 w-full mb-6 items-start">
+                            {/* LEFT COLUMN */}
+                            <div className="flex-1 flex flex-col gap-6">
+                              {group.left.map((block: any) => {
+                                const index = blocks.findIndex(b => b.id === block.id);
+                                return (
+                                  <motion.div 
+                                    layout
+                                    key={block.id} 
+                                    onClick={() => setActiveBlockId(block.id)}
+                                    className={`group relative bg-white rounded-[3.5rem] shadow-sm border-2 transition-all cursor-pointer overflow-hidden w-full
+                                      ${activeBlockId === block.id ? 'border-blue-500 ring-[8px] ring-blue-500/5 shadow-premium' : 'border-transparent hover:border-blue-200 hover:shadow-md'}`}
+                                  >
+                                    <div className="pointer-events-none select-none origin-top transition-transform duration-500 scale-[0.85] -m-[7.5%]">
+                                      {block.type === 'text' && (
+                                        <div className={`${block.design.bg} ${block.design.textColor} ${block.design.padding} text-${block.design.textAlign} prose max-w-none px-12`}>
+                                           <div dangerouslySetInnerHTML={{ __html: block.content.html }} />
+                                        </div>
+                                      )}
+                                      {block.type === 'video' && (
+                                        <div className={`${block.design.bg} ${block.design.padding} flex items-center justify-center p-6`}>
+                                          <div className="aspect-video w-full bg-black rounded-[2rem] shadow-2xl overflow-hidden">
+                                            <div className="w-full h-full flex items-center justify-center text-white text-xs">Video Placeholder</div>
+                                          </div>
+                                        </div>
+                                      )}
+                                      {block.type === 'hero' && <HeroBlock content={block.content} design={block.design} />}
+                                      {block.type === 'features' && <FeaturesBlock content={block.content} design={block.design} />}
+                                      {block.type === 'button' && <ButtonBlock content={block.content} design={block.design} />}
+                                      {block.type === 'timer' && <TimerBlock content={block.content} design={block.design} />}
+                                      {block.type === 'reviews' && <ReviewsBlock content={block.content} design={block.design} />}
+                                      {block.type === 'pricing' && <PricingBlock content={block.content} design={block.design} />}
+                                      {block.type === 'divider' && <DividerBlock content={block.content} design={block.design} />}
+                                    </div>
+                                    {/* Controls overlay for 1/2 blocks */}
+                                    <div className={`absolute top-4 right-4 flex flex-col gap-2 transition-all duration-300 transform
+                                      ${activeBlockId === block.id ? 'translate-x-0 opacity-100' : 'translate-x-8 opacity-0 group-hover:translate-x-0 group-hover:opacity-100'}`}>
+                                      <button onClick={(e) => { e.stopPropagation(); setBlocks([...blocks, { ...block, id: uuidv4() }]); }} className="w-8 h-8 bg-white border border-gray-100 rounded-xl shadow-premium flex items-center justify-center text-gray-400 hover:text-blue-600"><Copy size={14}/></button>
+                                      <button onClick={(e) => { e.stopPropagation(); if(confirm("Удалить?")) setBlocks(blocks.filter(b => b.id !== block.id)); }} className="w-8 h-8 bg-red-50 border border-red-100 rounded-xl shadow-premium flex items-center justify-center text-red-400 hover:text-red-600"><Trash size={14}/></button>
+                                    </div>
+                                  </motion.div>
+                                );
+                              })}
+                            </div>
+                            
+                            {/* RIGHT COLUMN */}
+                            <div className="flex-1 flex flex-col gap-6">
+                              {group.right.map((block: any) => {
+                                const index = blocks.findIndex(b => b.id === block.id);
+                                return (
+                                  <motion.div 
+                                    layout
+                                    key={block.id} 
+                                    onClick={() => setActiveBlockId(block.id)}
+                                    className={`group relative bg-white rounded-[3.5rem] shadow-sm border-2 transition-all cursor-pointer overflow-hidden w-full
+                                      ${activeBlockId === block.id ? 'border-blue-500 ring-[8px] ring-blue-500/5 shadow-premium' : 'border-transparent hover:border-blue-200 hover:shadow-md'}`}
+                                  >
+                                    <div className="pointer-events-none select-none origin-top transition-transform duration-500 scale-[0.85] -m-[7.5%]">
+                                      {block.type === 'text' && (
+                                        <div className={`${block.design.bg} ${block.design.textColor} ${block.design.padding} text-${block.design.textAlign} prose max-w-none px-12`}>
+                                           <div dangerouslySetInnerHTML={{ __html: block.content.html }} />
+                                        </div>
+                                      )}
+                                      {block.type === 'video' && (
+                                        <div className={`${block.design.bg} ${block.design.padding} flex items-center justify-center p-6`}>
+                                          <div className="aspect-video w-full bg-black rounded-[2rem] shadow-2xl overflow-hidden">
+                                            <div className="w-full h-full flex items-center justify-center text-white text-xs">Video Placeholder</div>
+                                          </div>
+                                        </div>
+                                      )}
+                                      {block.type === 'hero' && <HeroBlock content={block.content} design={block.design} />}
+                                      {block.type === 'features' && <FeaturesBlock content={block.content} design={block.design} />}
+                                      {block.type === 'button' && <ButtonBlock content={block.content} design={block.design} />}
+                                      {block.type === 'timer' && <TimerBlock content={block.content} design={block.design} />}
+                                      {block.type === 'reviews' && <ReviewsBlock content={block.content} design={block.design} />}
+                                      {block.type === 'pricing' && <PricingBlock content={block.content} design={block.design} />}
+                                      {block.type === 'divider' && <DividerBlock content={block.content} design={block.design} />}
+                                    </div>
+                                    <div className={`absolute top-4 right-4 flex flex-col gap-2 transition-all duration-300 transform
+                                      ${activeBlockId === block.id ? 'translate-x-0 opacity-100' : 'translate-x-8 opacity-0 group-hover:translate-x-0 group-hover:opacity-100'}`}>
+                                      <button onClick={(e) => { e.stopPropagation(); setBlocks([...blocks, { ...block, id: uuidv4() }]); }} className="w-8 h-8 bg-white border border-gray-100 rounded-xl shadow-premium flex items-center justify-center text-gray-400 hover:text-blue-600"><Copy size={14}/></button>
+                                      <button onClick={(e) => { e.stopPropagation(); if(confirm("Удалить?")) setBlocks(blocks.filter(b => b.id !== block.id)); }} className="w-8 h-8 bg-red-50 border border-red-100 rounded-xl shadow-premium flex items-center justify-center text-red-400 hover:text-red-600"><Trash size={14}/></button>
+                                    </div>
+                                  </motion.div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      }
+                    });
+                  })()}
                </div>
             </div>
          </div>
@@ -720,25 +839,58 @@ export default function LandingConstructor({
                                   >
                                     {p === 'py-0' ? 'None' : p.replace('py-', '') + 'px'}
                                   </button>
-                               ))}
-                            </div>
-                         </div>
+                                ))}
+                             </div>
+                          </div>
 
-                         <div className="space-y-6">
-                             <label className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] block">Выравнивание контента</label>
-                            <div className="flex gap-4 p-2 bg-gray-50/50 rounded-[1.5rem] border border-gray-100">
-                               {['left', 'center', 'right'].map(a => (
-                                  <button 
-                                    key={a} 
-                                    onClick={() => updateDesign(activeBlock.id, { textAlign: a })} 
-                                    className={`flex-1 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all
-                                      ${activeBlock.design.textAlign === a ? 'bg-white shadow-premium text-blue-600 scale-105' : 'text-gray-400 hover:bg-white/50'}`}
-                                  >
-                                    {a === 'left' ? 'Слева' : a === 'center' ? 'Центр' : 'Справа'}
-                                  </button>
-                               ))}
-                            </div>
-                         </div>
+                          <div className="space-y-6">
+                              <label className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] block">Выравнивание контента</label>
+                             <div className="flex gap-4 p-2 bg-gray-50/50 rounded-[1.5rem] border border-gray-100">
+                                {['left', 'center', 'right'].map(a => (
+                                   <button 
+                                     key={a} 
+                                     onClick={() => updateDesign(activeBlock.id, { textAlign: a })} 
+                                     className={`flex-1 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all
+                                       ${activeBlock.design.textAlign === a ? 'bg-white shadow-premium text-blue-600 scale-105' : 'text-gray-400 hover:bg-white/50'}`}
+                                   >
+                                     {a === 'left' ? 'Слева' : a === 'center' ? 'Центр' : 'Справа'}
+                                   </button>
+                                ))}
+                             </div>
+                          </div>
+
+                          <div className="space-y-6 pt-6 border-t border-gray-50">
+                             <label className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] block">Размер и Позиция</label>
+                             <div className="space-y-4">
+                               <div className="flex gap-4 p-2 bg-gray-50/50 rounded-[1.5rem] border border-gray-100">
+                                  {(['full', '1/2'] as const).map(w => (
+                                     <button 
+                                       key={w} 
+                                       onClick={() => updateBlock(activeBlock.id, { width: w })} 
+                                       className={`flex-1 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all
+                                         ${(activeBlock.width || 'full') === w ? 'bg-white shadow-premium text-blue-600 scale-105' : 'text-gray-400 hover:bg-white/50'}`}
+                                     >
+                                       {w === 'full' ? '100%' : '50%'}
+                                     </button>
+                                  ))}
+                               </div>
+                               
+                               {(activeBlock.width || 'full') === '1/2' && (
+                                 <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex gap-4 p-2 bg-blue-50/30 rounded-[1.5rem] border border-blue-100">
+                                   {(['left', 'right'] as const).map(c => (
+                                      <button 
+                                        key={c} 
+                                        onClick={() => updateBlock(activeBlock.id, { column: c })} 
+                                        className={`flex-1 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all
+                                          ${(activeBlock.column || 'left') === c ? 'bg-white shadow-premium text-blue-600 scale-105' : 'text-gray-400 hover:bg-white/50'}`}
+                                      >
+                                        {c === 'left' ? 'Лево' : 'Право'}
+                                      </button>
+                                   ))}
+                                 </motion.div>
+                               )}
+                             </div>
+                          </div>
 
                           <div className="space-y-6 pt-6 border-t border-gray-50">
                              <label className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] block">Ширина блока</label>
