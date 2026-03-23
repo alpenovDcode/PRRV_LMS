@@ -7,7 +7,7 @@ const replicate = new Replicate({
 
 // --- Model Configuration ---
 export const EMBEDDING_MODEL = "ibm-granite/granite-embedding-278m-multilingual";
-export const LLM_MODEL = "meta/meta-llama-3-8b-instruct";
+export const LLM_MODEL = "google/gemini-3-flash";
 
 // --- Types ---
 export interface KBChunk {
