@@ -1,7 +1,8 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { v4 as uuidv4 } from 'uuid';
+import crypto from 'crypto';
 
+const uuidv4 = () => crypto.randomUUID();
 const EMBEDDING_MODEL = "bge-m3";
 
 async function createEmbedding(text: string | string[]) {
