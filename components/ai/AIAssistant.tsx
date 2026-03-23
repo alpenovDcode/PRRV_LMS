@@ -183,7 +183,7 @@ export default function AIAssistant() {
                   animate={{ opacity: 1, x: 0 }}
                   className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
-                  <div className={`max-w-[85%] flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                  <div className={`max-w-[75%] flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse ml-auto' : 'flex-row mr-auto'}`}>
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm
                       ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-white text-gray-400 border border-gray-100'}`}
                     >
