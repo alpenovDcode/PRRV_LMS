@@ -158,5 +158,3 @@ $RECYCLE.BIN/
 nginx/conf.d/upstream.conf
 # Temporary Debug Files
 _debug/
-cloudflare_videos.json
-videos_to_upload.json
