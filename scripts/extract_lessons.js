@@ -1,7 +1,13 @@
 const { PrismaClient } = require("@prisma/client");
 const fs = require("fs");
 const path = require("path");
-require("dotenv").config();
+
+// В Docker-контейнере переменные обычно уже в process.env, поэтому dotenv опционален
+try {
+  require("dotenv").config();
+} catch (e) {
+  // Игнорируем, если dotenv не установлен
+}
 
 const prisma = new PrismaClient();
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://prrv.tech";
