@@ -53,6 +53,11 @@ echo "🟢 Deploying to: $NEW_COLOR"
 # echo "📥 Pulling latest images..."
 # $DOCKER_COMPOSE_CMD -f $DOCKER_COMPOSE_FILE pull app-$NEW_COLOR
 
+# 2.5 Ensure infrastructure services are running (including Ollama)
+echo "🛠 Starting infrastructure services (postgres, redis, ollama)..."
+$DOCKER_COMPOSE_CMD -f $DOCKER_COMPOSE_FILE up -d postgres redis ollama ollama-pull
+
+
 # 3. Build and Start new container
 echo "🏗 Building and starting $NEW_COLOR container..."
 $DOCKER_COMPOSE_CMD -f $DOCKER_COMPOSE_FILE up -d --build --remove-orphans app-$NEW_COLOR
