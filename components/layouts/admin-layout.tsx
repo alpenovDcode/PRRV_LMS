@@ -49,8 +49,7 @@ const adminNavigation = [
 
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
-
-// ... existing imports
+import AIAssistant from "@/components/ai/AIAssistant";
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -233,6 +232,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
            {children}
         </main>
       </div>
+      <AIAssistant />
     </div>
   );
 }
