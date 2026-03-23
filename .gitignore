@@ -158,3 +158,5 @@ $RECYCLE.BIN/
 nginx/conf.d/upstream.conf
 # Temporary Debug Files
 _debug/
+
+data/knowledge_base.json

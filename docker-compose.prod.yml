@@ -61,6 +61,33 @@ services:
           cpus: '0.25'
           memory: 128M
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: proryv_ollama
+    restart: always
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - proryv_network
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 3G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+
+  ollama-pull:
+    image: curlimages/curl:latest
+    container_name: proryv_ollama_pull
+    depends_on:
+      - ollama
+    networks:
+      - proryv_network
+    command: >
+      sh -c "while ! curl -s http://ollama:11434/api/tags >/dev/null; do sleep 2; done; curl -X POST http://ollama:11434/api/pull -d '{\"name\": \"bge-m3\"}'"
+
   x-app-defaults: &app-defaults
     build:
       context: .
@@ -128,8 +155,9 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD}
       SMTP_FROM: ${SMTP_FROM}
 
-      # AI (Replicate)
+      # AI (Replicate & Ollama)
       REPLICATE_API_TOKEN: ${REPLICATE_API_TOKEN}
+      OLLAMA_URL: http://ollama:11434
     volumes:
       - ./public/uploads:/app/public/uploads
     depends_on:
@@ -208,6 +236,8 @@ volumes:
   redis_data:
     driver: local
   nginx_cache:
+    driver: local
+  ollama_data:
     driver: local
 
 networks:

@@ -5,6 +5,8 @@ import {
   createEmbedding,
   streamLLMResponse,
   cosineSimilarity,
+  replicate,
+  LLM_MODEL,
   type KBChunk,
   type ScoredChunk,
 } from "@/lib/ai/replicate";
@@ -40,9 +42,40 @@ export async function POST(req: NextRequest) {
     const { messages } = await req.json();
     const lastMessage: string = messages[messages.length - 1].content;
 
+    // --- Step 1: Query Refinement (Smart RAG) ---
+    // Expand the user's query into a better search query using the LLM
+    let searchContext = lastMessage; // Changed from lastUserMessage to lastMessage for consistency with original code
+
+    try {
+      const refinementPrompt = `
+        Ты — эксперт по поиску информации. Твоя задача — превратить вопрос пользователя в идеальный поисковый запрос для базы знаний.
+        Используй контекст предыдущих сообщений, если это необходимо.
+
+        История диалога:
+        ${messages.slice(-3, -1).map((m: { role: string; content: string }) => `${m.role}: ${m.content}`).join("\n")}
+
+        Вопрос пользователя: ${lastMessage}
+
+        Выдай ТОЛЬКО уточненный поисковый запрос на русском языке, без лишних слов.
+      `;
+
+      const refinedOutput: any = await replicate.run(LLM_MODEL, {
+        input: { prompt: refinementPrompt, max_new_tokens: 100, temperature: 0.1 }
+      });
+
+      if (refinedOutput) {
+        // Handle both string and array outputs from Replicate
+        searchContext = Array.isArray(refinedOutput) ? refinedOutput.join("") : refinedOutput;
+        console.log("Refined Query:", searchContext);
+      }
+    } catch (err) {
+      console.error("Query refinement failed, falling back to original query:", err);
+    }
+
+    // --- Step 2: Vector Search ---
     // 1. Generate query embedding
-    const queryEmbeddings = await createEmbedding(lastMessage);
-    const queryVector = queryEmbeddings[0];
+    const userEmbedding = await createEmbedding(searchContext.trim());
+    const queryVector = userEmbedding[0]; // Corrected to use userEmbedding
 
     // 2. Load KB from cache
     const kbData = await getKnowledgeBase();

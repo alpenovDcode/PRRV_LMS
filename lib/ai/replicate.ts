@@ -6,7 +6,7 @@ const replicate = new Replicate({
 });
 
 // --- Model Configuration ---
-export const EMBEDDING_MODEL = "ibm-granite/granite-embedding-278m-multilingual";
+export const EMBEDDING_MODEL = "bge-m3";
 export const LLM_MODEL = "google/gemini-3-flash";
 
 // --- Types ---
@@ -39,10 +39,23 @@ export function cosineSimilarity(vecA: number[], vecB: number[]): number {
 // --- Embedding ---
 export async function createEmbedding(text: string | string[]): Promise<number[][]> {
   const texts = Array.isArray(text) ? text : [text];
-  const output = await replicate.run(EMBEDDING_MODEL, {
-    input: { texts },
+  const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+  
+  const response = await fetch(`${ollamaUrl}/api/embed`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: EMBEDDING_MODEL,
+      input: texts,
+    }),
   });
-  return output as number[][];
+
+  if (!response.ok) {
+    throw new Error(`Ollama API error: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  return data.embeddings as number[][];
 }
 
 // --- LLM Streaming ---

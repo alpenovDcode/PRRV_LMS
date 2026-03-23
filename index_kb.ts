@@ -7,14 +7,27 @@ const replicate = new Replicate({
   auth: process.env.REPLICATE_API_TOKEN,
 });
 
-const EMBEDDING_MODEL = "ibm-granite/granite-embedding-278m-multilingual";
+const EMBEDDING_MODEL = "bge-m3";
 
 async function createEmbedding(text: string | string[]) {
   const texts = Array.isArray(text) ? text : [text];
-  const output: any = await replicate.run(EMBEDDING_MODEL, {
-    input: { texts },
+  const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+  
+  const response = await fetch(`${ollamaUrl}/api/embed`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: EMBEDDING_MODEL,
+      input: texts,
+    }),
   });
-  return output as number[][];
+
+  if (!response.ok) {
+    throw new Error(`Ollama API error: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  return data.embeddings as number[][];
 }
 
 async function run() {
@@ -35,23 +48,31 @@ async function run() {
         const lines = section.split("\n").filter(l => l.trim().length > 0);
         const title = lines[0]?.trim().replace(/\*\*/g, "") || "Без названия";
         
-        // Split section if too long
-        const maxChunkLen = 500;
+        // Split section if too long with overlap for better context
+        const maxChunkLen = 600;
+        const overlap = 150;
+        
         if (section.length > maxChunkLen) {
           let currentPos = 0;
           let chunkIndex = 0;
           while (currentPos < section.length) {
-            let nextPos = currentPos + maxChunkLen;
-            if (nextPos < section.length) {
-              // Try to find a good split point (newline or space)
-              const lastNewline = section.lastIndexOf("\n", nextPos);
-              if (lastNewline > currentPos + maxChunkLen / 2) {
-                nextPos = lastNewline;
+            let endPos = currentPos + maxChunkLen;
+            
+            // Try to find a good split point (newline or period) within the last 20% of the chunk
+            if (endPos < section.length) {
+              const searchRange = Math.floor(maxChunkLen * 0.2);
+              const lastNewline = section.lastIndexOf("\n", endPos);
+              const lastPeriod = section.lastIndexOf(". ", endPos);
+              
+              if (lastNewline > endPos - searchRange) {
+                endPos = lastNewline + 1;
+              } else if (lastPeriod > endPos - searchRange) {
+                endPos = lastPeriod + 2;
               }
             }
             
-            const chunkContent = section.substring(currentPos, nextPos).trim();
-            if (chunkContent.length > 0) {
+            const chunkContent = section.substring(currentPos, endPos).trim();
+            if (chunkContent.length > 50) { // Avoid tiny chunks
               allChunks.push({
                 id: uuidv4(),
                 content: "## Урок " + chunkContent,
@@ -64,7 +85,9 @@ async function run() {
               });
               chunkIndex++;
             }
-            currentPos = nextPos;
+            
+            if (endPos >= section.length) break;
+            currentPos = endPos - overlap;
           }
         } else {
           allChunks.push({
@@ -82,7 +105,7 @@ async function run() {
 
     console.log(`Found ${allChunks.length} chunks. Generating embeddings...`);
 
-    const batchSize = 1; 
+    const batchSize = 25; 
     const finalData: any[] = [];
     const kbPath = path.join(process.cwd(), "data/knowledge_base.json");
     await fs.mkdir(path.join(process.cwd(), "data"), { recursive: true });
@@ -97,9 +120,11 @@ async function run() {
         const embeddings = await createEmbedding(texts);
         
         batch.forEach((chunk, index) => {
+          // Round embeddings to 4 decimal places to save space in JSON
+          const compactEmbedding = embeddings[index].map(n => Math.round(n * 10000) / 10000);
           finalData.push({
             ...chunk,
-            embedding: embeddings[index]
+            embedding: compactEmbedding
           });
         });
         
