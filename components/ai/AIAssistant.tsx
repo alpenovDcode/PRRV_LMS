@@ -1,35 +1,39 @@
 "use client";
 
-import { useRef, useEffect, useState } from "react";
-import { useChat } from "@ai-sdk/react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Bot, Send, X, Loader2, User, Sparkles, RotateCcw } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 
+interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+}
+
+let msgCounter = 0;
+function nextId() {
+  return `msg-${++msgCounter}-${Date.now()}`;
+}
+
 export default function AIAssistant() {
   const [isOpen, setIsOpen] = useState(false);
+  const [input, setInput] = useState("");
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      id: "welcome",
+      role: "assistant",
+      content: "Привет! Я твой ИИ-ассистент. Задай мне любой вопрос по базе знаний Прорыва.",
+    },
+  ]);
+  const [status, setStatus] = useState<"ready" | "submitted" | "streaming">("ready");
+  const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
-  const {
-    messages,
-    input,
-    handleInputChange,
-    handleSubmit,
-    isLoading,
-    error,
-    reload,
-  } = useChat({
-    api: "/api/ai/chat",
-    initialMessages: [
-      {
-        id: "welcome",
-        role: "assistant",
-        content: "Привет! Я твой ИИ-ассистент. Задай мне любой вопрос по базе знаний Прорыва.",
-      },
-    ],
-  });
+  const isLoading = status !== "ready";
 
   // Auto-scroll on new content
   useEffect(() => {
@@ -37,6 +41,91 @@ export default function AIAssistant() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  const handleSend = useCallback(async (retryMessages?: ChatMessage[]) => {
+    const messagesToSend = retryMessages || messages;
+    const userText = retryMessages ? undefined : input.trim();
+
+    if (!retryMessages && !userText) return;
+    if (isLoading) return;
+
+    setError(null);
+
+    // Add user message if not retrying
+    let allMessages = messagesToSend;
+    if (userText) {
+      const userMsg: ChatMessage = { id: nextId(), role: "user", content: userText };
+      allMessages = [...messagesToSend, userMsg];
+      setMessages(allMessages);
+      setInput("");
+    }
+
+    setStatus("submitted");
+
+    try {
+      abortRef.current = new AbortController();
+
+      const response = await fetch("/api/ai/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: allMessages.map((m) => ({ role: m.role, content: m.content })),
+        }),
+        signal: abortRef.current.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Ошибка сервера: ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) throw new Error("Не удалось получить поток ответа");
+
+      // Create an empty assistant message
+      const assistantId = nextId();
+      setMessages((prev) => [...prev, { id: assistantId, role: "assistant", content: "" }]);
+      setStatus("streaming");
+
+      let fullContent = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        fullContent += chunk;
+
+        setMessages((prev) => {
+          const updated = [...prev];
+          const lastMsg = updated[updated.length - 1];
+          if (lastMsg.id === assistantId) {
+            updated[updated.length - 1] = { ...lastMsg, content: fullContent };
+          }
+          return updated;
+        });
+      }
+
+      setStatus("ready");
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setStatus("ready");
+        return;
+      }
+      console.error("[AIAssistant] Error:", err);
+      setError(err instanceof Error ? err.message : "Неизвестная ошибка");
+      setStatus("ready");
+    }
+  }, [input, messages, isLoading]);
+
+  const handleRetry = useCallback(() => {
+    // Remove the last (failed/empty) assistant message and retry
+    const cleaned = messages.filter((m, i) => {
+      if (i === messages.length - 1 && m.role === "assistant" && !m.content.trim()) return false;
+      return true;
+    });
+    handleSend(cleaned);
+  }, [messages, handleSend]);
 
   return (
     <div className="fixed bottom-8 right-8 z-[9999]">
@@ -116,8 +205,8 @@ export default function AIAssistant() {
                 </motion.div>
               ))}
 
-              {/* Loading indicator */}
-              {isLoading && messages[messages.length - 1]?.role === "user" && (
+              {/* Loading indicator (waiting for first token) */}
+              {status === "submitted" && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-white border border-gray-100 flex items-center justify-center text-blue-500 shadow-sm">
                     <Loader2 size={18} className="animate-spin" />
@@ -136,10 +225,10 @@ export default function AIAssistant() {
               {error && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
                   <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-center gap-3 max-w-[85%]">
-                    <span className="text-sm text-red-700">Ошибка при получении ответа.</span>
+                    <span className="text-sm text-red-700">Ошибка: {error}</span>
                     <button
-                      onClick={() => reload()}
-                      className="p-2 bg-red-100 hover:bg-red-200 rounded-xl transition-all text-red-600"
+                      onClick={handleRetry}
+                      className="p-2 bg-red-100 hover:bg-red-200 rounded-xl transition-all text-red-600 flex-shrink-0"
                       title="Повторить"
                     >
                       <RotateCcw size={14} />
@@ -151,22 +240,24 @@ export default function AIAssistant() {
 
             {/* Input Area */}
             <div className="p-6 bg-white border-t border-gray-50">
-              <form onSubmit={handleSubmit} className="relative flex items-center gap-3">
+              <div className="relative flex items-center gap-3">
                 <input
                   type="text"
                   placeholder="Ваш вопрос..."
                   value={input}
-                  onChange={handleInputChange}
-                  className="w-full pl-6 pr-14 py-5 bg-gray-50 border border-gray-100 rounded-[2rem] text-sm focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:bg-white focus:border-blue-200 transition-all shadow-inner"
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
+                  disabled={isLoading}
+                  className="w-full pl-6 pr-14 py-5 bg-gray-50 border border-gray-100 rounded-[2rem] text-sm focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:bg-white focus:border-blue-200 transition-all shadow-inner disabled:opacity-60"
                 />
                 <button
-                  type="submit"
+                  onClick={() => handleSend()}
                   disabled={isLoading || !input.trim()}
                   className="absolute right-2 p-4 bg-gradient-to-tr from-blue-600 to-indigo-600 text-white rounded-2xl hover:scale-105 active:scale-95 disabled:opacity-50 disabled:scale-100 transition-all shadow-lg shadow-blue-600/20"
                 >
                   <Send size={20} />
                 </button>
-              </form>
+              </div>
             </div>
           </motion.div>
         )}
