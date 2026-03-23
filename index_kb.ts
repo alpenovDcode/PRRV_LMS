@@ -1,11 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
-import Replicate from 'replicate';
 import { v4 as uuidv4 } from 'uuid';
-
-const replicate = new Replicate({
-  auth: process.env.REPLICATE_API_TOKEN,
-});
 
 const EMBEDDING_MODEL = "bge-m3";
 
