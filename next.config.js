@@ -101,8 +101,11 @@ const nextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://embed.cloudflarestream.com https://*.cloudflarestream.com", // 'unsafe-eval' для Next.js в dev
-              "style-src 'self' 'unsafe-inline'", // 'unsafe-inline' для Tailwind
+              // 'unsafe-eval' нужен Next.js в dev, в production убираем
+              process.env.NODE_ENV === "production"
+                ? "script-src 'self' 'unsafe-inline' https://embed.cloudflarestream.com https://*.cloudflarestream.com"
+                : "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://embed.cloudflarestream.com https://*.cloudflarestream.com",
+              "style-src 'self' 'unsafe-inline'", // 'unsafe-inline' needed for Tailwind/CSS-in-JS
               "img-src 'self' data: https: blob:",
               "font-src 'self' data:",
               "connect-src 'self' https://*.cloudflarestream.com https://cloudflarestream.com https://imagedelivery.net https://prrv.tech https://www.prrv.tech",
@@ -129,7 +132,16 @@ const nextConfig = {
             key: "Permissions-Policy",
             value: "camera=(), microphone=*, geolocation=(), encrypted-media=*, autoplay=*",
           },
-
+          {
+            // Препятствует downgrade-атакам и cookie-перехвату по HTTP
+            key: "Strict-Transport-Security",
+            value: "max-age=63072000; includeSubDomains; preload",
+          },
+          {
+            // Предотвращает утечку URL на сторонние сайты
+            key: "Referrer-Policy",
+            value: "strict-origin-when-cross-origin",
+          },
         ],
       },
     ];

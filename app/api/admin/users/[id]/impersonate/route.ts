@@ -121,7 +121,7 @@ export async function POST(
           response.cookies.set("originalAdminToken", originalAdminToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
-            sameSite: "lax", // Изменено с strict на lax для лучшей совместимости
+            sameSite: "strict",
             maxAge: 60 * 60 * 24, // 24 часа (достаточно для сессии impersonation)
             path: "/",
           });
@@ -134,7 +134,7 @@ export async function POST(
         response.cookies.set("accessToken", accessToken, {
           httpOnly: true,
           secure: process.env.NODE_ENV === "production",
-          sameSite: "lax", // Изменено для лучшей совместимости
+          sameSite: "strict",
           maxAge: 30 * 60, // 30 минут
           path: "/",
         });
@@ -142,7 +142,7 @@ export async function POST(
         response.cookies.set("refreshToken", refreshToken, {
           httpOnly: true,
           secure: process.env.NODE_ENV === "production",
-          sameSite: "lax", // Изменено для лучшей совместимости
+          sameSite: "strict",
           maxAge: 7 * 24 * 60 * 60, // 7 дней
           path: "/",
         });
