@@ -12,7 +12,10 @@ export const LLM_MODEL = "google/gemini-3-flash";
 // --- Types ---
 export interface KBChunk {
   id: string;
-  content: string;
+  type?: "child" | "parent" | "standalone"; // Этап 6: Parent-Child
+  parentId?: string;
+  parentContent?: string; // полный родительский блок для LLM
+  content: string;        // дочерний чанк для поиска
   source: string;
   metadata: {
     index: number;

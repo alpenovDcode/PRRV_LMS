@@ -86,7 +86,12 @@ services:
     networks:
       - proryv_network
     command: >
-      sh -c "while ! curl -s http://ollama:11434/api/tags >/dev/null; do sleep 2; done; curl -X POST http://ollama:11434/api/pull -d '{\"name\": \"bge-m3\"}'"
+      sh -c "while ! curl -s http://ollama:11434/api/tags >/dev/null; do sleep 2; done;
+             echo '[ollama-pull] Pulling bge-m3...';
+             curl -X POST http://ollama:11434/api/pull -d '{\"name\": \"bge-m3\"}';
+             echo '[ollama-pull] Pulling bge-reranker-v2-m3...';
+             curl -X POST http://ollama:11434/api/pull -d '{\"name\": \"bge-reranker-v2-m3\"}';
+             echo '[ollama-pull] Done.'"
 
   x-app-defaults: &app-defaults
     build:
@@ -118,6 +123,7 @@ services:
       NODE_ENV: production
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
       ALLOWED_ORIGIN: ${ALLOWED_ORIGIN}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
       
       # Cloudflare Stream
       CLOUDFLARE_ACCOUNT_ID: ${CLOUDFLARE_ACCOUNT_ID:-}

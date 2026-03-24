@@ -10,31 +10,34 @@ import {
   type KBChunk,
   type ScoredChunk,
 } from "@/lib/ai/replicate";
+import { bm25Search, buildBM25Index, rrfFusion, rerankChunks } from "@/lib/ai/search";
 
-// --- In-Memory KB Cache (Lazy Loading — reads file only once) ---
+// --- In-Memory KB Cache ---
 let kbCache: KBChunk[] | null = null;
 
 async function getKnowledgeBase(): Promise<KBChunk[]> {
   if (kbCache) return kbCache;
-
   console.log("[AI] Loading knowledge base into memory (first request)...");
   const kbPath = path.join(process.cwd(), "data/knowledge_base.json");
   const raw = await fs.readFile(kbPath, "utf-8");
   kbCache = JSON.parse(raw) as KBChunk[];
-  console.log(`[AI] Loaded ${kbCache.length} chunks into memory.`);
+  console.log(`[AI] Loaded ${kbCache.length} chunks. Building BM25 index...`);
+  buildBM25Index(kbCache); // Строим BM25-индекс при первой загрузке
+  console.log("[AI] BM25 index built.");
   return kbCache;
 }
 
-// --- System Prompt (strict RAG) ---
-const SYSTEM_PROMPT = `Ты — ИИ-ассистент платформы «Прорыв» (LMS).
+// --- System Prompt (hardened) ---
+const SYSTEM_PROMPT = `Ты — ИИ-ассистент учебной платформы «Прорыв».
 
-ПРАВИЛА:
-1. Отвечай ТОЛЬКО на основе предоставленного ниже контекста из базы знаний.
-2. Если информации нет в контексте — честно скажи: «К сожалению, в базе знаний нет информации по этому вопросу.»
-3. НЕ выдумывай факты, цифры и инструкции, которых нет в контексте.
-4. Отвечай на русском языке.
-5. Форматируй ответ в чистом Markdown (списки, заголовки, жирный текст).
-6. Будь дружелюбным и профессиональным.`;
+СТРОГИЕ ПРАВИЛА:
+1. Отвечай ТОЛЬКО на основе предоставленного ниже контекста.
+2. Если ответа нет в контексте — честно скажи: «Я не нашел информации об этом в базе знаний курса. Попробуй задать вопрос по-другому или обратись к куратору.»
+3. НЕ выдумывай факты, цифры, примеры и инструкции, которых нет в контексте.
+4. При цитировании источника указывай его: «Как сказано в [Название урока]...»
+5. Отвечай на русском языке.
+6. Форматируй ответ в чистом Markdown (списки, заголовки, жирный текст).
+7. Будь дружелюбным и профессиональным.`;
 
 // --- POST Handler ---
 export async function POST(req: NextRequest) {
@@ -42,60 +45,69 @@ export async function POST(req: NextRequest) {
     const { messages } = await req.json();
     const lastMessage: string = messages[messages.length - 1].content;
 
-    // --- Step 1: Query Refinement (Smart RAG) ---
-    // Expand the user's query into a better search query using the LLM
-    let searchContext = lastMessage; // Changed from lastUserMessage to lastMessage for consistency with original code
-
+    // ─── Step 1: Query Refinement ───
+    let searchQuery = lastMessage;
     try {
       const refinementPrompt = `
-        Ты — эксперт по поиску информации. Твоя задача — превратить вопрос пользователя в идеальный поисковый запрос для базы знаний.
-        Используй контекст предыдущих сообщений, если это необходимо.
+Ты — эксперт по поиску информации. Твоя задача — превратить вопрос пользователя в идеальный поисковый запрос.
+Используй контекст предыдущих сообщений, если необходимо.
 
-        История диалога:
-        ${messages.slice(-3, -1).map((m: { role: string; content: string }) => `${m.role}: ${m.content}`).join("\n")}
+История диалога:
+${messages.slice(-3, -1).map((m: { role: string; content: string }) => `${m.role}: ${m.content}`).join("\n")}
 
-        Вопрос пользователя: ${lastMessage}
+Вопрос пользователя: ${lastMessage}
 
-        Выдай ТОЛЬКО уточненный поисковый запрос на русском языке, без лишних слов.
+Выдай ТОЛЬКО уточненный поисковый запрос на русском языке, без лишних слов.
       `;
-
       const refinedOutput: any = await replicate.run(LLM_MODEL, {
         input: { prompt: refinementPrompt, max_new_tokens: 100, temperature: 0.1 }
       });
-
       if (refinedOutput) {
-        // Handle both string and array outputs from Replicate
-        searchContext = Array.isArray(refinedOutput) ? refinedOutput.join("") : refinedOutput;
-        console.log("Refined Query:", searchContext);
+        searchQuery = Array.isArray(refinedOutput) ? refinedOutput.join("") : refinedOutput;
+        console.log("[AI] Refined Query:", searchQuery.trim());
       }
     } catch (err) {
-      console.error("Query refinement failed, falling back to original query:", err);
+      console.error("[AI] Query refinement failed, using original query:", err);
     }
 
-    // --- Step 2: Vector Search ---
-    // 1. Generate query embedding
-    const userEmbedding = await createEmbedding(searchContext.trim());
-    const queryVector = userEmbedding[0]; // Corrected to use userEmbedding
-
-    // 2. Load KB from cache
+    // ─── Step 2: Load KB ───
     const kbData = await getKnowledgeBase();
 
-    // 3. Find top-5 relevant chunks
-    const scoredChunks: ScoredChunk[] = kbData
-      .filter((chunk) => chunk.embedding && Array.isArray(chunk.embedding))
-      .map((chunk) => ({
-        ...chunk,
-        score: cosineSimilarity(queryVector, chunk.embedding),
-      }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 5);
+    // ─── Step 3: Vector Search (Dense) — Top-15 ───
+    const queryEmbedding = await createEmbedding(searchQuery.trim());
+    const queryVector = queryEmbedding[0];
 
-    // 4. Build context string
-    const context = scoredChunks
-      .map((c) => `[Источник: ${c.source}, Раздел: ${c.metadata.title}]\n${c.content}`)
+    const vectorResults: ScoredChunk[] = kbData
+      .filter(c => c.embedding && Array.isArray(c.embedding))
+      .map(c => ({ ...c, score: cosineSimilarity(queryVector, c.embedding) }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 15);
+
+    // ─── Step 4: BM25 Search (Sparse) — Top-15 ───
+    const bm25Results = bm25Search(searchQuery.trim(), kbData, 15);
+
+    // ─── Step 5: RRF Fusion → Top-15 merged ───
+    const fusedResults = rrfFusion(vectorResults, bm25Results, 15);
+
+    // ─── Step 6: Reranking → Top-5 ───
+    const topChunks = await rerankChunks(searchQuery.trim(), fusedResults, 5);
+
+    // ─── Step 7: Build context (Parent-Child: use parentContent for LLM) ───
+    const seen = new Set<string>();
+    const context = topChunks
+      .map(c => {
+        // Берём parentContent если есть (полный урок), иначе content
+        const text = c.parentContent || c.content;
+        // Дедупликация: если этот parentContent уже использован — пропускаем
+        const key = c.parentId || c.id;
+        if (seen.has(key)) return null;
+        seen.add(key);
+        return `[Источник: ${c.source}, Раздел: ${c.metadata.title}]\n${text}`;
+      })
+      .filter(Boolean)
       .join("\n\n---\n\n");
 
-    // 5. Build full prompt
+    // ─── Step 8: Build full prompt ───
     const conversationHistory = messages
       .map((m: { role: string; content: string }) =>
         `${m.role === "user" ? "user" : "assistant"}: ${m.content}`
@@ -104,10 +116,8 @@ export async function POST(req: NextRequest) {
 
     const fullPrompt = `system: ${SYSTEM_PROMPT}\n\nКонтекст базы знаний:\n${context}\n\n${conversationHistory}\nassistant:`;
 
-    // 6. Stream LLM response
+    // ─── Step 9: Stream LLM response ───
     const replicateStream = streamLLMResponse(fullPrompt);
-
-    // 7. Create a ReadableStream with TextEncoder for useChat compatibility
     const encoder = new TextEncoder();
     const readableStream = new ReadableStream({
       async start(controller) {
