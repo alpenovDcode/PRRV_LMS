@@ -24,6 +24,7 @@ import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
 import { apiClient } from "@/lib/api-client";
+import { translateErrorMessage } from "@/lib/error-translations";
 
 interface ErrorGroup {
   id: string;
@@ -239,9 +240,9 @@ export default function ErrorsPage() {
                   </TableCell>
                   <TableCell>
                     <div className="max-w-md">
-                      <div className="font-medium">{error.title}</div>
+                      <div className="font-medium">{translateErrorMessage(error.title)}</div>
                       <div className="text-sm text-muted-foreground truncate">
-                        {error.message}
+                        {translateErrorMessage(error.message)}
                       </div>
                     </div>
                   </TableCell>

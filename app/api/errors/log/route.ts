@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { logError } from "@/lib/error-tracking";
+import { verifyAccessToken } from "@/lib/auth";
 import { z } from "zod";
 
 const errorLogSchema = z.object({
@@ -26,6 +27,21 @@ export async function POST(request: NextRequest) {
     // Добавляем user agent из headers если не передан
     if (!data.userAgent) {
       data.userAgent = request.headers.get("user-agent") || undefined;
+    }
+
+    // Достаем пользователя из токена если он не передан
+    if (!data.userId) {
+      let token = request.cookies.get("accessToken")?.value;
+      if (!token) {
+        const authHeader = request.headers.get("authorization");
+        token = authHeader?.replace("Bearer ", "");
+      }
+      if (token) {
+        const payload = verifyAccessToken(token);
+        if (payload && payload.userId !== "system-api") {
+          data.userId = payload.userId;
+        }
+      }
     }
 
     const errorId = await logError(data);

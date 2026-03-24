@@ -128,16 +128,16 @@ export default function AIAssistant() {
   }, [messages, handleSend]);
 
   return (
-    <div className="fixed bottom-8 right-8 z-[9999]">
+    <div className="fixed bottom-4 right-4 sm:bottom-8 sm:right-8 z-[9999]">
       {/* Floating Button */}
       <motion.button
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-16 h-16 rounded-full flex items-center justify-center shadow-2xl transition-all duration-500
+        className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center shadow-2xl transition-all duration-500
           ${isOpen ? 'bg-white text-blue-600 rotate-90 shadow-blue-500/20' : 'bg-gradient-to-tr from-blue-600 to-indigo-600 text-white shadow-blue-600/40'}`}
       >
-        {isOpen ? <X size={32} /> : <Sparkles size={32} />}
+        {isOpen ? <X size={28} /> : <Sparkles size={28} />}
       </motion.button>
 
       {/* Chat Window */}
@@ -147,7 +147,7 @@ export default function AIAssistant() {
             initial={{ opacity: 0, scale: 0.9, y: 20, transformOrigin: "bottom right" }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="absolute bottom-20 right-0 w-[400px] h-[600px] bg-white rounded-[3rem] shadow-[0_32px_80px_-20px_rgba(0,0,0,0.15)] flex flex-col overflow-hidden border border-gray-100 backdrop-blur-3xl"
+            className="absolute bottom-16 sm:bottom-20 right-0 w-[calc(100vw-2rem)] sm:w-[420px] h-[calc(100vh-8rem)] sm:h-[650px] max-h-[800px] bg-white rounded-3xl sm:rounded-[2.5rem] shadow-[0_32px_80px_-20px_rgba(0,0,0,0.2)] flex flex-col overflow-hidden border border-gray-200/60 backdrop-blur-3xl"
           >
             {/* Header */}
             <div className="p-8 bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-between shadow-lg relative z-10">
@@ -174,7 +174,7 @@ export default function AIAssistant() {
             {/* Messages Area */}
             <div
               ref={scrollRef}
-              className="flex-1 overflow-y-auto p-8 space-y-6 bg-gray-50/30 thin-scrollbar"
+              className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 bg-slate-50/50 thin-scrollbar"
             >
               {messages.map((msg) => (
                 <motion.div
@@ -183,23 +183,27 @@ export default function AIAssistant() {
                   animate={{ opacity: 1, x: 0 }}
                   className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
-                  <div className={`max-w-[75%] flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse ml-auto' : 'flex-row mr-auto'}`}>
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm
-                      ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-white text-gray-400 border border-gray-100'}`}
+                  <div className={`max-w-[85%] sm:max-w-[80%] flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse ml-auto' : 'flex-row mr-auto'}`}>
+                    <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full sm:rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm
+                      ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gradient-to-br from-indigo-50 to-blue-50 text-blue-600 border border-blue-100/50'}`}
                     >
-                      {msg.role === 'user' ? <User size={18} /> : <Bot size={18} />}
+                      {msg.role === 'user' ? <User size={16} /> : <Bot size={18} />}
                     </div>
-                    <div className={`p-5 rounded-[2rem] text-sm leading-relaxed shadow-sm
+                    <div className={`p-4 sm:p-5 rounded-2xl sm:rounded-[1.5rem] text-sm leading-relaxed shadow-sm
                       ${msg.role === 'user'
-                        ? 'bg-white text-gray-900 rounded-tr-none border border-blue-50/50'
-                        : 'bg-white text-gray-800 rounded-tl-none border border-gray-100'}`}
+                        ? 'bg-blue-600 text-white rounded-tr-none'
+                        : 'bg-white text-gray-800 rounded-tl-none border border-gray-200'}`}
                     >
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm, remarkBreaks]}
-                        className="prose prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-gray-900 prose-pre:text-white prose-pre:p-4 prose-pre:rounded-2xl"
-                      >
-                        {msg.content}
-                      </ReactMarkdown>
+                      {msg.role === 'user' ? (
+                        <div className="whitespace-pre-wrap">{msg.content}</div>
+                      ) : (
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm, remarkBreaks]}
+                          className="prose prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-gray-900 prose-pre:text-white prose-pre:p-4 prose-pre:rounded-2xl prose-h2:text-lg prose-h2:mt-4 prose-h2:mb-2 prose-h3:text-base prose-h3:mt-3 prose-h3:mb-1 prose-p:my-1.5 prose-ul:my-1.5 prose-li:my-0.5 first:prose-p:mt-0 first:prose-h2:mt-0 last:prose-p:mb-0 text-gray-800"
+                        >
+                          {msg.content}
+                        </ReactMarkdown>
+                      )}
                     </div>
                   </div>
                 </motion.div>
@@ -239,23 +243,23 @@ export default function AIAssistant() {
             </div>
 
             {/* Input Area */}
-            <div className="p-6 bg-white border-t border-gray-50">
-              <div className="relative flex items-center gap-3">
+            <div className="p-4 sm:p-5 bg-white border-t border-gray-100 rounded-b-3xl sm:rounded-b-[2.5rem]">
+              <div className="relative flex items-center gap-2 sm:gap-3">
                 <input
                   type="text"
-                  placeholder="Ваш вопрос..."
+                  placeholder="Задайте ваш вопрос..."
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
                   disabled={isLoading}
-                  className="w-full pl-6 pr-14 py-5 bg-gray-50 border border-gray-100 rounded-[2rem] text-sm focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:bg-white focus:border-blue-200 transition-all shadow-inner disabled:opacity-60"
+                  className="w-full pl-5 pr-14 py-3.5 sm:py-4 bg-gray-50 border border-gray-200 rounded-2xl sm:rounded-[1.5rem] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:bg-white focus:border-blue-400 transition-all disabled:opacity-60 placeholder-gray-400"
                 />
                 <button
                   onClick={() => handleSend()}
                   disabled={isLoading || !input.trim()}
-                  className="absolute right-2 p-4 bg-gradient-to-tr from-blue-600 to-indigo-600 text-white rounded-2xl hover:scale-105 active:scale-95 disabled:opacity-50 disabled:scale-100 transition-all shadow-lg shadow-blue-600/20"
+                  className="absolute right-1.5 p-2.5 sm:p-3 bg-gradient-to-tr from-blue-600 to-indigo-600 text-white rounded-xl sm:rounded-2xl hover:scale-105 active:scale-95 disabled:opacity-50 disabled:scale-100 transition-all shadow-md mt-[1px]"
                 >
-                  <Send size={20} />
+                  <Send size={18} />
                 </button>
               </div>
             </div>

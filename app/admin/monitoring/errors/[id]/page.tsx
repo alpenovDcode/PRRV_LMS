@@ -18,6 +18,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { apiClient } from "@/lib/api-client";
+import { translateErrorMessage } from "@/lib/error-translations";
 
 interface ErrorDetails {
   id: string;
@@ -157,8 +158,8 @@ export default function ErrorDetailsPage() {
               </span>
             </Badge>
             <div className="flex-1">
-              <h2 className="text-xl font-semibold">{error.title}</h2>
-              <p className="mt-1 text-muted-foreground">{error.message}</p>
+              <h2 className="text-xl font-semibold">{translateErrorMessage(error.title)}</h2>
+              <p className="mt-1 text-muted-foreground">{translateErrorMessage(error.message)}</p>
             </div>
             <div className="text-right">
               <div className="text-sm text-muted-foreground">Повторений</div>
@@ -226,7 +227,7 @@ export default function ErrorDetailsPage() {
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <div className="font-medium">{occurrence.message}</div>
+                    <div className="font-medium">{translateErrorMessage(occurrence.message)}</div>
                     {occurrence.url && (
                       <div className="text-sm text-muted-foreground">
                         URL: {occurrence.url}
@@ -238,12 +239,17 @@ export default function ErrorDetailsPage() {
                   </div>
                 </div>
 
-                {occurrence.user && (
-                  <div className="flex items-center gap-2 text-sm">
+                {occurrence.user ? (
+                  <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 w-fit px-2 py-1 rounded-md">
                     <User className="h-4 w-4" />
-                    <span>
+                    <span className="font-medium">
                       {occurrence.user.fullName || occurrence.user.email}
                     </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-50 w-fit px-2 py-1 rounded-md">
+                    <User className="h-4 w-4" />
+                    <span>Гость (не авторизован)</span>
                   </div>
                 )}
 
