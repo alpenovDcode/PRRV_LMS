@@ -51,6 +51,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Возвращаем сырой поток (Stream) прямо на фронтенд (Vercel AI SDK сам его распарсит)
+        console.log(`[AI] OpenClaw response OK, starting stream...`);
         return new Response(response.body, {
           headers: {
             "Content-Type": "text/event-stream",
@@ -60,11 +61,14 @@ export async function POST(req: NextRequest) {
         });
 
       } catch (error: any) {
-        console.error("[AI] Chat error (OpenClaw):", error.message);
+        console.error("[AI] Chat error (OpenClaw):", error);
         return NextResponse.json<ApiResponse>(
           { 
             success: false, 
-            error: { code: "AI_ERROR", message: "Ошибка при обращении к ИИ-ассистенту" } 
+            error: { 
+              code: "AI_ERROR", 
+              message: `Ошибка: ${error.message || "Неизвестная ошибка ИИ"}` 
+            } 
           }, 
           { status: 500 }
         );
