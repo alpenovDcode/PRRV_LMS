@@ -160,3 +160,5 @@ nginx/conf.d/upstream.conf
 _debug/
 
 data/knowledge_base.json
+
+.env.example
