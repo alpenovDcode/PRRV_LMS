@@ -14,7 +14,7 @@ export interface AuthenticatedRequest extends NextRequest {
 
 export async function withAuth(
   request: NextRequest,
-  handler: (req: AuthenticatedRequest) => Promise<NextResponse>,
+  handler: (req: AuthenticatedRequest) => Promise<Response>,
   options?: {
     roles?: UserRole[];
   }

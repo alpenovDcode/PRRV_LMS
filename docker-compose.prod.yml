@@ -164,6 +164,11 @@ services:
       # AI (Replicate & Ollama)
       REPLICATE_API_TOKEN: ${REPLICATE_API_TOKEN}
       OLLAMA_URL: http://ollama:11434
+      
+      # OpenClaw
+      OPENCLAW_API_URL: ${OPENCLAW_API_URL:-http://host.docker.internal:18789/v1/responses}
+      OPENCLAW_API_KEY: ${OPENCLAW_API_KEY}
+      OPENCLAW_AGENT_ID: ${OPENCLAW_AGENT_ID:-main}
     volumes:
       - ./public/uploads:/app/public/uploads
       - ./data:/app/data
