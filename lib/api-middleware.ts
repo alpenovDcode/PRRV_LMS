@@ -82,7 +82,7 @@ export async function withAuth(
 
 
   } catch (error) {
-
+    console.error("[Middleware] Auth error:", error);
     return NextResponse.json<ApiResponse>(
       {
         success: false,

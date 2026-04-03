@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import LandingForm from "@/components/landing/LandingForm";
 import LandingPageClient from "@/components/landing/LandingPageClient";
@@ -15,6 +15,10 @@ export default async function LandingPage({ params }: { params: Promise<{ slug: 
 
   if (!page || !page.isPublished) {
     notFound();
+  }
+
+  if ((page.settings as any)?.htmlTemplate?.enabled) {
+    redirect(`/api/landings/html/${encodeURIComponent(slug)}`);
   }
 
   // Restore State from Cookie

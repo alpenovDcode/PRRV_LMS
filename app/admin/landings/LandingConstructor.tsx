@@ -332,6 +332,65 @@ export default function LandingConstructor({
                                  Сделки и контакты будут создаваться автоматически при заполнении форм.
                               </div>
                           </div>
+
+                          <div className="p-6 bg-white rounded-[2rem] border border-gray-100 shadow-sm space-y-4">
+                              <div className="flex items-center justify-between">
+                                  <div>
+                                      <p className="text-sm font-black text-gray-900 uppercase tracking-tight">HTML Шаблон</p>
+                                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Готовый дизайн страницы</p>
+                                  </div>
+                                  <label className="relative inline-flex items-center cursor-pointer scale-110">
+                                      <input type="checkbox" className="sr-only peer" checked={!!settings?.htmlTemplate?.enabled} onChange={e => setSettings({...settings, htmlTemplate: {...(settings.htmlTemplate || {}), enabled: e.target.checked}})} />
+                                      <div className="w-12 h-6 bg-gray-100 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-6 shadow-inner"></div>
+                                  </label>
+                              </div>
+                              {settings?.htmlTemplate?.enabled && (
+                                  <div className="space-y-4 pt-2 border-t border-gray-100">
+                                      <div className="p-4 bg-orange-50 rounded-2xl border border-orange-100 text-[11px] text-orange-700 font-medium italic">
+                                          Шаблон: Антикризисный план 2026.<br/>Блоки конструктора скрыты — страница отображается как HTML.
+                                      </div>
+                                      {([
+                                          { key: 'heroCta', label: 'Кнопка Hero' },
+                                          { key: 'sprintCta1', label: 'Кнопка Спринт (1)' },
+                                          { key: 'sprintCta2', label: 'Кнопка Спринт (2)' },
+                                          { key: 'finalCta', label: 'Кнопка Финальная' },
+                                      ] as const).map(btn => (
+                                          <div key={btn.key} className="space-y-2 p-4 bg-gray-50 rounded-2xl">
+                                              <p className="text-[10px] font-black text-gray-500 uppercase tracking-wider">{btn.label}</p>
+                                              <Input
+                                                  label="Текст"
+                                                  value={settings?.htmlTemplate?.buttons?.[btn.key]?.text || ''}
+                                                  onChange={v => setSettings({
+                                                      ...settings,
+                                                      htmlTemplate: {
+                                                          ...settings.htmlTemplate,
+                                                          buttons: {
+                                                              ...(settings.htmlTemplate?.buttons || {}),
+                                                              [btn.key]: { ...(settings.htmlTemplate?.buttons?.[btn.key] || {}), text: v }
+                                                          }
+                                                      }
+                                                  })}
+                                              />
+                                              <Input
+                                                  label="Ссылка (URL)"
+                                                  value={settings?.htmlTemplate?.buttons?.[btn.key]?.href || ''}
+                                                  onChange={v => setSettings({
+                                                      ...settings,
+                                                      htmlTemplate: {
+                                                          ...settings.htmlTemplate,
+                                                          buttons: {
+                                                              ...(settings.htmlTemplate?.buttons || {}),
+                                                              [btn.key]: { ...(settings.htmlTemplate?.buttons?.[btn.key] || {}), href: v }
+                                                          }
+                                                      }
+                                                  })}
+                                                  placeholder="https://..."
+                                              />
+                                          </div>
+                                      ))}
+                                  </div>
+                              )}
+                          </div>
                       </div>
                   )}
 
