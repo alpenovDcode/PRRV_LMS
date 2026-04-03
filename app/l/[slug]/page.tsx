@@ -1,6 +1,5 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import LandingForm from "@/components/landing/LandingForm";
 import LandingPageClient from "@/components/landing/LandingPageClient";
 import { cookies } from "next/headers";
 
@@ -18,7 +17,13 @@ export default async function LandingPage({ params }: { params: Promise<{ slug: 
   }
 
   if ((page.settings as any)?.htmlTemplate?.enabled) {
-    redirect(`/api/landings/html/${encodeURIComponent(slug)}`);
+    return (
+      <iframe
+        src={`/api/landings/html/${encodeURIComponent(slug)}`}
+        style={{ position: "fixed", inset: 0, width: "100%", height: "100%", border: "none", zIndex: 9999 }}
+        title={page.title}
+      />
+    );
   }
 
   // Restore State from Cookie
