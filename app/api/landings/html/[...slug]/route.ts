@@ -5,9 +5,10 @@ import path from "path";
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: Promise<{ slug: string }> }
+  { params }: { params: Promise<{ slug: string[] }> }
 ) {
-  const { slug } = await params;
+  const { slug: slugArray } = await params;
+  const slug = slugArray.join("/");
 
   const page = await prisma.landingPage.findUnique({
     where: { slug: decodeURIComponent(slug) },

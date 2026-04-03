@@ -1,12 +1,14 @@
-import { notFound } from "next/navigation";
+import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import LandingPageClient from "@/components/landing/LandingPageClient";
 import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
-export default async function LandingPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
+export default async function LandingPage({ params }: { params: Promise<{ slug: string[] }> }) {
+  const { slug: slugArray } = await params;
+  const slug = slugArray.join("/");
+  
   const page = await prisma.landingPage.findUnique({
     where: { slug: decodeURIComponent(slug) },
     include: { blocks: { orderBy: { orderIndex: "asc" } } }
@@ -14,6 +16,19 @@ export default async function LandingPage({ params }: { params: Promise<{ slug: 
 
   if (!page || !page.isPublished) {
     notFound();
+  }
+
+  // Handle immediate redirect if configured
+  const settings = (page.settings as any) || {};
+  if (settings.htmlTemplate?.redirectUrl) {
+    let url = settings.htmlTemplate.redirectUrl;
+    // Add protocol if missing
+    if (url && !url.startsWith("http://") && !url.startsWith("https://") && !url.startsWith("/")) {
+      url = "https://" + url;
+    }
+    if (url) {
+       redirect(url);
+    }
   }
 
   if ((page.settings as any)?.htmlTemplate?.enabled) {

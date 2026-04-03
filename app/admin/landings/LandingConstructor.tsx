@@ -349,6 +349,16 @@ export default function LandingConstructor({
                                       <div className="p-4 bg-orange-50 rounded-2xl border border-orange-100 text-[11px] text-orange-700 font-medium italic">
                                           Шаблон: Антикризисный план 2026.<br/>Блоки конструктора скрыты — страница отображается как HTML.
                                       </div>
+                                      <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 space-y-2">
+                                          <p className="text-[10px] font-black text-blue-600 uppercase tracking-wider">Прямой Редирект</p>
+                                          <Input 
+                                              label="URL для переадресации" 
+                                              value={settings?.htmlTemplate?.redirectUrl || ''} 
+                                              onChange={v => setSettings({...settings, htmlTemplate: {...(settings.htmlTemplate || {}), redirectUrl: v}})}
+                                              placeholder="https://..."
+                                          />
+                                          <p className="text-[9px] text-blue-400 font-medium italic">При заходе на лендинг пользователь будет мгновенно перенаправлен по этой ссылке.</p>
+                                      </div>
                                       {([
                                           { key: 'heroCta', label: 'Кнопка Hero' },
                                           { key: 'sprintCta1', label: 'Кнопка Спринт (1)' },
