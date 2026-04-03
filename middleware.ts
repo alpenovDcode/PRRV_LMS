@@ -55,6 +55,8 @@ export async function middleware(request: NextRequest) {
      !path.startsWith("/api/auth") && 
      !path.startsWith("/api/video-proxy") &&
      !path.startsWith("/api/landings/submit") &&
+     !path.startsWith("/api/landings/html") &&
+     !path.startsWith("/api/video/token/public") &&
      !path.startsWith("/api/landings/check-status") &&
      !path.match(/^\/api\/landings\/[^/]+\/view$/)
   ) {
