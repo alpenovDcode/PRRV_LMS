@@ -46,6 +46,8 @@ export async function middleware(request: NextRequest) {
     path.startsWith("/l/") ||          // Landing pages
     path === "/l" ||                   // Landing root (if any)
     path.startsWith("/api/landings/submit") ||
+    path.startsWith("/api/landings/html") ||
+    path.startsWith("/api/video/token/public") ||
     path.startsWith("/api/landings/check-status");
 
   // --- API SECURITY CHECK START ---
