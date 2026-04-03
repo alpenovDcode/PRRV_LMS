@@ -111,7 +111,7 @@ const nextConfig = {
               "connect-src 'self' https://*.cloudflarestream.com https://cloudflarestream.com https://imagedelivery.net https://prrv.tech https://www.prrv.tech",
               "frame-src 'self' https://*.cloudflarestream.com",
               "media-src 'self' https://*.cloudflarestream.com blob:",
-              "frame-ancestors 'none'",
+              "frame-ancestors 'self'",
               "base-uri 'self'",
               "form-action 'self'",
             ].join("; "),
@@ -122,7 +122,7 @@ const nextConfig = {
           },
           {
             key: "X-Frame-Options",
-            value: "DENY",
+            value: "SAMEORIGIN",
           },
           {
             key: "X-XSS-Protection",
@@ -146,7 +146,7 @@ const nextConfig = {
       },
       {
         // Переопределяем CSP для HTML-шаблонов лендингов: нужен iframe + Google Fonts
-        source: "/api/landings/html/:slug*",
+        source: "/api/landings/html/:path*",
         headers: [
           {
             key: "Content-Security-Policy",
