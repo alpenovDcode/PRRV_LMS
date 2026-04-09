@@ -5,6 +5,7 @@ import { ApiResponse } from "@/types";
 import { UserRole } from "@prisma/client";
 import { hashPassword, generateSessionId } from "@/lib/auth";
 import { sendEmail } from "@/lib/email-service";
+import { getRedisClient } from "@/lib/redis";
 import { randomBytes } from "crypto";
 import { z } from "zod";
 
@@ -16,6 +17,7 @@ const importSchema = z.object({
 });
 
 const LOGIN_URL = `${process.env.NEXT_PUBLIC_APP_URL || "https://prrv.tech"}/login`;
+const JOB_TTL = 60 * 60 * 2; // 2 часа — потом Redis сам удалит
 
 function generatePassword(length = 12): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
@@ -68,6 +70,100 @@ function buildWelcomeEmail(email: string, password: string): string {
 </html>`;
 }
 
+// Ключи в Redis
+const jobKey = (id: string) => `import_job:${id}`;
+const jobResultsKey = (id: string) => `import_job:${id}:results`;
+
+async function saveJobState(jobId: string, state: object) {
+  const redis = await getRedisClient();
+  await redis.set(jobKey(jobId), JSON.stringify(state), { EX: JOB_TTL });
+}
+
+async function appendJobResult(
+  jobId: string,
+  result: { email: string; status: string; emailSent: boolean; error?: string }
+) {
+  const redis = await getRedisClient();
+  await redis.rPush(jobResultsKey(jobId), JSON.stringify(result));
+  await redis.expire(jobResultsKey(jobId), JOB_TTL);
+}
+
+// Фоновая обработка — запускается после возврата ответа
+async function processImportJob(
+  jobId: string,
+  emails: string[],
+  courseId: string,
+  tariff: "VR" | "LR" | "SR" | null | undefined,
+  track: string | null | undefined
+) {
+  const total = emails.length;
+  let processed = 0;
+
+  await saveJobState(jobId, { status: "running", total, processed });
+
+  for (const rawEmail of emails) {
+    const email = rawEmail.trim().toLowerCase();
+    if (!email) continue;
+
+    try {
+      const existing = await db.user.findUnique({ where: { email } });
+
+      let userId: string;
+      let emailSent = false;
+
+      if (existing) {
+        userId = existing.id;
+        await appendJobResult(jobId, { email, status: "exists", emailSent: false });
+      } else {
+        const password = generatePassword();
+        const passwordHash = await hashPassword(password);
+        const sessionId = generateSessionId();
+
+        const user = await db.user.create({
+          data: {
+            email,
+            passwordHash,
+            sessionId,
+            role: UserRole.student,
+            tariff: tariff ?? null,
+            track: track ?? null,
+          },
+        });
+
+        userId = user.id;
+
+        try {
+          await sendEmail({
+            to: email,
+            subject: "Ваш доступ к образовательной платформе Прорыв",
+            html: buildWelcomeEmail(email, password),
+          });
+          emailSent = true;
+        } catch {
+          // аккаунт создан, письмо не дошло
+        }
+
+        await appendJobResult(jobId, { email, status: "created", emailSent });
+      }
+
+      await db.enrollment.upsert({
+        where: { userId_courseId: { userId, courseId } },
+        update: { status: "active" },
+        create: { userId, courseId, status: "active", startDate: new Date() },
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      await appendJobResult(jobId, { email, status: "error", emailSent: false, error: message });
+    }
+
+    processed++;
+    await saveJobState(jobId, { status: "running", total, processed });
+  }
+
+  await saveJobState(jobId, { status: "done", total, processed: total });
+}
+
+// POST — создать задачу и вернуть jobId сразу
 export async function POST(request: NextRequest) {
   return withAuth(
     request,
@@ -78,7 +174,7 @@ export async function POST(request: NextRequest) {
 
         const course = await db.course.findUnique({
           where: { id: courseId },
-          select: { id: true, title: true },
+          select: { id: true },
         });
 
         if (!course) {
@@ -88,87 +184,21 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        const results: {
-          email: string;
-          status: "created" | "exists" | "error";
-          emailSent: boolean;
-          error?: string;
-        }[] = [];
+        const jobId = randomBytes(16).toString("hex");
+        const cleanEmails = emails.map((e) => e.trim().toLowerCase()).filter(Boolean);
 
-        for (const rawEmail of emails) {
-          const email = rawEmail.trim().toLowerCase();
-          if (!email) continue;
+        // Сохраняем начальное состояние в Redis
+        await saveJobState(jobId, { status: "running", total: cleanEmails.length, processed: 0 });
 
-          try {
-            const existing = await db.user.findUnique({ where: { email } });
-
-            let userId: string;
-            let emailSent = false;
-
-            if (existing) {
-              userId = existing.id;
-              results.push({ email, status: "exists", emailSent: false });
-            } else {
-              const password = generatePassword();
-              const passwordHash = await hashPassword(password);
-              const sessionId = generateSessionId();
-
-              const user = await db.user.create({
-                data: {
-                  email,
-                  passwordHash,
-                  sessionId,
-                  role: UserRole.student,
-                  tariff: tariff ?? null,
-                  track: track ?? null,
-                },
-              });
-
-              userId = user.id;
-
-              try {
-                await sendEmail({
-                  to: email,
-                  subject: "Ваш доступ к образовательной платформе Прорыв",
-                  html: buildWelcomeEmail(email, password),
-                });
-                emailSent = true;
-              } catch {
-                // аккаунт создан, но письмо не отправлено
-              }
-
-              results.push({ email, status: "created", emailSent });
-            }
-
-            await db.enrollment.upsert({
-              where: { userId_courseId: { userId, courseId } },
-              update: { status: "active" },
-              create: {
-                userId,
-                courseId,
-                status: "active",
-                startDate: new Date(),
-              },
-            });
-          } catch (err) {
-            const message = err instanceof Error ? err.message : "Unknown error";
-            results.push({ email, status: "error", emailSent: false, error: message });
-          }
-        }
-
-        const created = results.filter((r) => r.status === "created").length;
-        const exists = results.filter((r) => r.status === "exists").length;
-        const errors = results.filter((r) => r.status === "error").length;
+        // Запускаем обработку в фоне — не await
+        processImportJob(jobId, cleanEmails, courseId, tariff, track).catch(async (err) => {
+          console.error("Import job failed:", err);
+          await saveJobState(jobId, { status: "error", total: cleanEmails.length, processed: 0 });
+        });
 
         return NextResponse.json<ApiResponse>(
-          {
-            success: true,
-            data: {
-              summary: { total: results.length, created, exists, errors },
-              results,
-            },
-          },
-          { status: 200 }
+          { success: true, data: { jobId, total: cleanEmails.length } },
+          { status: 202 }
         );
       } catch (error) {
         if (error instanceof z.ZodError) {
@@ -184,6 +214,69 @@ export async function POST(request: NextRequest) {
           { status: 500 }
         );
       }
+    },
+    { roles: [UserRole.admin] }
+  );
+}
+
+// GET — статус задачи по jobId
+export async function GET(request: NextRequest) {
+  return withAuth(
+    request,
+    async () => {
+      const { searchParams } = new URL(request.url);
+      const jobId = searchParams.get("jobId");
+
+      if (!jobId) {
+        return NextResponse.json<ApiResponse>(
+          { success: false, error: { code: "VALIDATION_ERROR", message: "jobId обязателен" } },
+          { status: 400 }
+        );
+      }
+
+      const redis = await getRedisClient();
+
+      const stateRaw = await redis.get(jobKey(jobId));
+      if (!stateRaw) {
+        return NextResponse.json<ApiResponse>(
+          { success: false, error: { code: "NOT_FOUND", message: "Задача не найдена" } },
+          { status: 404 }
+        );
+      }
+
+      const state = JSON.parse(stateRaw) as {
+        status: "running" | "done" | "error";
+        total: number;
+        processed: number;
+      };
+
+      // Результаты читаем только когда задача завершена
+      let results: any[] = [];
+      if (state.status === "done" || state.status === "error") {
+        const raw = await redis.lRange(jobResultsKey(jobId), 0, -1);
+        results = raw.map((r) => JSON.parse(r));
+      }
+
+      const created = results.filter((r) => r.status === "created").length;
+      const exists = results.filter((r) => r.status === "exists").length;
+      const errors = results.filter((r) => r.status === "error").length;
+
+      return NextResponse.json<ApiResponse>(
+        {
+          success: true,
+          data: {
+            jobId,
+            status: state.status,
+            total: state.total,
+            processed: state.processed,
+            ...(state.status === "done" && {
+              summary: { total: results.length, created, exists, errors },
+              results,
+            }),
+          },
+        },
+        { status: 200 }
+      );
     },
     { roles: [UserRole.admin] }
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -70,10 +70,15 @@ export default function AdminUsersPage() {
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [importEmails, setImportEmails] = useState("");
   const [importCourseId, setImportCourseId] = useState("");
-  const [importResults, setImportResults] = useState<null | {
-    summary: { total: number; created: number; exists: number; errors: number };
-    results: { email: string; status: string; emailSent: boolean; error?: string }[];
+  const [importJob, setImportJob] = useState<null | {
+    jobId: string;
+    total: number;
+    processed: number;
+    status: "running" | "done" | "error";
+    summary?: { total: number; created: number; exists: number; errors: number };
+    results?: { email: string; status: string; emailSent: boolean; error?: string }[];
   }>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     email: "",
@@ -157,17 +162,39 @@ export default function AdminUsersPage() {
   const importUsersMutation = useMutation({
     mutationFn: async ({ emails, courseId }: { emails: string[]; courseId: string }) => {
       const response = await apiClient.post("/admin/users/import", { emails, courseId });
-      return response.data.data;
+      return response.data.data as { jobId: string; total: number };
     },
-    onSuccess: (data) => {
-      setImportResults(data);
-      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+    onSuccess: ({ jobId, total }) => {
+      setImportJob({ jobId, total, processed: 0, status: "running" });
+
+      // Запускаем polling каждые 1.5 сек
+      pollRef.current = setInterval(async () => {
+        try {
+          const res = await apiClient.get(`/admin/users/import?jobId=${jobId}`);
+          const job = res.data.data;
+          setImportJob(job);
+
+          if (job.status === "done" || job.status === "error") {
+            clearInterval(pollRef.current!);
+            pollRef.current = null;
+            queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+          }
+        } catch {
+          clearInterval(pollRef.current!);
+          pollRef.current = null;
+        }
+      }, 1500);
     },
     onError: (error: any) => {
       const message = error.response?.data?.error?.message || "Ошибка импорта";
       toast.error(message);
     },
   });
+
+  // Чистим интервал при размонтировании
+  useEffect(() => {
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, []);
 
   const handleImportSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -188,10 +215,11 @@ export default function AdminUsersPage() {
   };
 
   const handleImportClose = () => {
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     setIsImportDialogOpen(false);
     setImportEmails("");
     setImportCourseId("");
-    setImportResults(null);
+    setImportJob(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -252,50 +280,65 @@ export default function AdminUsersPage() {
                 </DialogDescription>
               </DialogHeader>
 
-              {importResults ? (
+              {importJob ? (
                 <div className="space-y-4 py-2">
-                  <div className="grid grid-cols-4 gap-2 text-center">
-                    <div className="rounded-lg bg-muted p-3">
-                      <div className="text-2xl font-bold">{importResults.summary.total}</div>
-                      <div className="text-xs text-muted-foreground mt-1">Всего</div>
+                  {/* Прогресс-бар */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm text-muted-foreground">
+                      <span>{importJob.status === "running" ? "Обработка..." : importJob.status === "done" ? "Готово" : "Ошибка"}</span>
+                      <span>{importJob.processed} / {importJob.total}</span>
                     </div>
-                    <div className="rounded-lg bg-green-50 p-3">
-                      <div className="text-2xl font-bold text-green-700">{importResults.summary.created}</div>
-                      <div className="text-xs text-green-600 mt-1">Создано</div>
-                    </div>
-                    <div className="rounded-lg bg-yellow-50 p-3">
-                      <div className="text-2xl font-bold text-yellow-700">{importResults.summary.exists}</div>
-                      <div className="text-xs text-yellow-600 mt-1">Уже были</div>
-                    </div>
-                    <div className="rounded-lg bg-red-50 p-3">
-                      <div className="text-2xl font-bold text-red-700">{importResults.summary.errors}</div>
-                      <div className="text-xs text-red-600 mt-1">Ошибок</div>
+                    <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${importJob.status === "error" ? "bg-red-500" : "bg-primary"}`}
+                        style={{ width: `${importJob.total > 0 ? Math.round((importJob.processed / importJob.total) * 100) : 0}%` }}
+                      />
                     </div>
                   </div>
 
-                  {importResults.results.length > 0 && (
-                    <div className="max-h-60 overflow-y-auto rounded-md border text-sm">
-                      {importResults.results.map((r) => (
-                        <div key={r.email} className="flex items-center justify-between px-3 py-2 border-b last:border-0">
-                          <span className="text-muted-foreground truncate max-w-[260px]">{r.email}</span>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            {r.status === "created" && (
-                              <CheckCircle className="h-4 w-4 text-green-500" />
-                            )}
-                            {r.status === "exists" && (
-                              <span className="text-xs text-yellow-600">уже есть</span>
-                            )}
-                            {r.status === "error" && (
-                              <AlertCircle className="h-4 w-4 text-red-500" />
-                            )}
-                          </div>
+                  {/* Итоги после завершения */}
+                  {importJob.status === "done" && importJob.summary && (
+                    <>
+                      <div className="grid grid-cols-4 gap-2 text-center">
+                        <div className="rounded-lg bg-muted p-3">
+                          <div className="text-2xl font-bold">{importJob.summary.total}</div>
+                          <div className="text-xs text-muted-foreground mt-1">Всего</div>
                         </div>
-                      ))}
-                    </div>
+                        <div className="rounded-lg bg-green-50 p-3">
+                          <div className="text-2xl font-bold text-green-700">{importJob.summary.created}</div>
+                          <div className="text-xs text-green-600 mt-1">Создано</div>
+                        </div>
+                        <div className="rounded-lg bg-yellow-50 p-3">
+                          <div className="text-2xl font-bold text-yellow-700">{importJob.summary.exists}</div>
+                          <div className="text-xs text-yellow-600 mt-1">Уже были</div>
+                        </div>
+                        <div className="rounded-lg bg-red-50 p-3">
+                          <div className="text-2xl font-bold text-red-700">{importJob.summary.errors}</div>
+                          <div className="text-xs text-red-600 mt-1">Ошибок</div>
+                        </div>
+                      </div>
+
+                      {importJob.results && importJob.results.length > 0 && (
+                        <div className="max-h-52 overflow-y-auto rounded-md border text-sm">
+                          {importJob.results.map((r) => (
+                            <div key={r.email} className="flex items-center justify-between px-3 py-2 border-b last:border-0">
+                              <span className="text-muted-foreground truncate max-w-[260px]">{r.email}</span>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {r.status === "created" && <CheckCircle className="h-4 w-4 text-green-500" />}
+                                {r.status === "exists" && <span className="text-xs text-yellow-600">уже есть</span>}
+                                {r.status === "error" && <AlertCircle className="h-4 w-4 text-red-500" />}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
                   )}
 
                   <DialogFooter>
-                    <Button onClick={handleImportClose}>Закрыть</Button>
+                    <Button onClick={handleImportClose} disabled={importJob.status === "running"}>
+                      {importJob.status === "running" ? "Подождите..." : "Закрыть"}
+                    </Button>
                   </DialogFooter>
                 </div>
               ) : (
