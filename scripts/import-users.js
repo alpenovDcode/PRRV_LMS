@@ -11,8 +11,6 @@
  * Результат (email + пароль + статус) сохраняется в scripts/import-users-result.csv
  */
 
-require('dotenv').config();
-
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
