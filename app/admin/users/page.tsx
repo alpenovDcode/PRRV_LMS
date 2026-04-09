@@ -26,7 +26,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import Link from "next/link";
-import { Plus, Search, X, Wand2, Eye, EyeOff } from "lucide-react";
+import { Plus, Search, X, Wand2, Eye, EyeOff, Upload, CheckCircle, AlertCircle } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { MultiSelect, Option } from "@/components/ui/multi-select";
 
@@ -66,6 +67,13 @@ export default function AdminUsersPage() {
   const [page, setPage] = useState(1);
   const [limit] = useState(20);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [importEmails, setImportEmails] = useState("");
+  const [importCourseId, setImportCourseId] = useState("");
+  const [importResults, setImportResults] = useState<null | {
+    summary: { total: number; created: number; exists: number; errors: number };
+    results: { email: string; status: string; emailSent: boolean; error?: string }[];
+  }>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     email: "",
@@ -146,6 +154,46 @@ export default function AdminUsersPage() {
     },
   });
 
+  const importUsersMutation = useMutation({
+    mutationFn: async ({ emails, courseId }: { emails: string[]; courseId: string }) => {
+      const response = await apiClient.post("/admin/users/import", { emails, courseId });
+      return response.data.data;
+    },
+    onSuccess: (data) => {
+      setImportResults(data);
+      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+    },
+    onError: (error: any) => {
+      const message = error.response?.data?.error?.message || "Ошибка импорта";
+      toast.error(message);
+    },
+  });
+
+  const handleImportSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const emails = importEmails
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s.includes("@"));
+
+    if (emails.length === 0) {
+      toast.error("Введите хотя бы один email");
+      return;
+    }
+    if (!importCourseId) {
+      toast.error("Выберите курс");
+      return;
+    }
+    importUsersMutation.mutate({ emails, courseId: importCourseId });
+  };
+
+  const handleImportClose = () => {
+    setIsImportDialogOpen(false);
+    setImportEmails("");
+    setImportCourseId("");
+    setImportResults(null);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     createUserMutation.mutate(formData);
@@ -187,7 +235,115 @@ export default function AdminUsersPage() {
             Список всех аккаунтов на платформе.
           </p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <div className="flex gap-2">
+          {/* Диалог массового импорта */}
+          <Dialog open={isImportDialogOpen} onOpenChange={(open) => { if (!open) handleImportClose(); else setIsImportDialogOpen(true); }}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Upload className="h-4 w-4 mr-2" />
+                Массовый импорт
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Массовый импорт студентов</DialogTitle>
+                <DialogDescription>
+                  Вставьте список email-адресов (по одному на строку). Аккаунты будут созданы автоматически, пароли отправлены на почту.
+                </DialogDescription>
+              </DialogHeader>
+
+              {importResults ? (
+                <div className="space-y-4 py-2">
+                  <div className="grid grid-cols-4 gap-2 text-center">
+                    <div className="rounded-lg bg-muted p-3">
+                      <div className="text-2xl font-bold">{importResults.summary.total}</div>
+                      <div className="text-xs text-muted-foreground mt-1">Всего</div>
+                    </div>
+                    <div className="rounded-lg bg-green-50 p-3">
+                      <div className="text-2xl font-bold text-green-700">{importResults.summary.created}</div>
+                      <div className="text-xs text-green-600 mt-1">Создано</div>
+                    </div>
+                    <div className="rounded-lg bg-yellow-50 p-3">
+                      <div className="text-2xl font-bold text-yellow-700">{importResults.summary.exists}</div>
+                      <div className="text-xs text-yellow-600 mt-1">Уже были</div>
+                    </div>
+                    <div className="rounded-lg bg-red-50 p-3">
+                      <div className="text-2xl font-bold text-red-700">{importResults.summary.errors}</div>
+                      <div className="text-xs text-red-600 mt-1">Ошибок</div>
+                    </div>
+                  </div>
+
+                  {importResults.results.length > 0 && (
+                    <div className="max-h-60 overflow-y-auto rounded-md border text-sm">
+                      {importResults.results.map((r) => (
+                        <div key={r.email} className="flex items-center justify-between px-3 py-2 border-b last:border-0">
+                          <span className="text-muted-foreground truncate max-w-[260px]">{r.email}</span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {r.status === "created" && (
+                              <CheckCircle className="h-4 w-4 text-green-500" />
+                            )}
+                            {r.status === "exists" && (
+                              <span className="text-xs text-yellow-600">уже есть</span>
+                            )}
+                            {r.status === "error" && (
+                              <AlertCircle className="h-4 w-4 text-red-500" />
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <DialogFooter>
+                    <Button onClick={handleImportClose}>Закрыть</Button>
+                  </DialogFooter>
+                </div>
+              ) : (
+                <form onSubmit={handleImportSubmit}>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="import-emails">Email-адреса *</Label>
+                      <Textarea
+                        id="import-emails"
+                        placeholder="user1@example.com, user2@example.com, user3@example.com"
+                        value={importEmails}
+                        onChange={(e) => setImportEmails(e.target.value)}
+                        rows={4}
+                        required
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Через запятую. Найдено:{" "}
+                        {importEmails.split(",").map((s) => s.trim()).filter((s) => s.includes("@")).length} email
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="import-course">Курс *</Label>
+                      <Select value={importCourseId} onValueChange={setImportCourseId} required>
+                        <SelectTrigger id="import-course">
+                          <SelectValue placeholder="Выберите курс для доступа" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(coursesData || []).map((c: { value: string; label: string }) => (
+                            <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button type="button" variant="outline" onClick={handleImportClose}>
+                      Отмена
+                    </Button>
+                    <Button type="submit" disabled={importUsersMutation.isPending}>
+                      {importUsersMutation.isPending ? "Импорт..." : "Импортировать"}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              )}
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="h-4 w-4 mr-2" />
@@ -346,6 +502,7 @@ export default function AdminUsersPage() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <Card>
