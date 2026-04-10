@@ -148,6 +148,7 @@ model Lesson {
   quizRequiresReview Boolean              @default(false) @map("quiz_requires_review")
   quizTimeLimit      Int?                 @map("quiz_time_limit")
   aiPrompt           String?              @db.Text @map("ai_prompt")
+  aiContext          String?              @db.Text @map("ai_context")
   homework           HomeworkSubmission[]
   comments           LessonComment[]
   LessonMedia        LessonMedia[]

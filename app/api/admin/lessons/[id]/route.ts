@@ -23,6 +23,7 @@ const lessonUpdateSchema = z.object({
   quizTimeLimit: z.number().int().min(0).nullable().optional(), // В секундах
   quizRequiresReview: z.boolean().optional(),
   aiPrompt: z.string().nullable().optional(),
+  aiContext: z.string().nullable().optional(),
 });
 
 export async function GET(
@@ -119,8 +120,9 @@ export async function PATCH(
         if (data.quizTimeLimit !== undefined) updateData.quizTimeLimit = data.quizTimeLimit;
         if (data.quizRequiresReview !== undefined) updateData.quizRequiresReview = data.quizRequiresReview;
         
-        // AI Prompt
+        // AI settings
         if (data.aiPrompt !== undefined) updateData.aiPrompt = data.aiPrompt;
+        if (data.aiContext !== undefined) updateData.aiContext = data.aiContext;
 
         const lesson = await db.lesson.update({
           where: { id },

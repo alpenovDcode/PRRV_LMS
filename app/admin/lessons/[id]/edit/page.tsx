@@ -50,6 +50,7 @@ interface LessonDetail {
   dripRule: any;
   settings: any;
   aiPrompt: string | null;
+  aiContext: string | null;
   module: {
     id: string;
     title: string;
@@ -85,6 +86,7 @@ export default function LessonEditorPage() {
   const [settings, setSettings] = useState<any>(null);
   const [homeworkDeadline, setHomeworkDeadline] = useState("");
   const [aiPrompt, setAiPrompt] = useState("");
+  const [aiContext, setAiContext] = useState("");
 
   const { data: lesson, isLoading } = useQuery<LessonDetail>({
     queryKey: ["admin", "lesson", lessonId],
@@ -152,6 +154,7 @@ export default function LessonEditorPage() {
       setDripRule(lesson.dripRule);
     setSettings(lesson.settings || {});
       setAiPrompt(lesson.aiPrompt || "");
+      setAiContext(lesson.aiContext || "");
       setHomeworkDeadline(
         (function() {
           try {
@@ -250,6 +253,7 @@ export default function LessonEditorPage() {
         homeworkDeadline: homeworkDeadline ? new Date(homeworkDeadline).toISOString() : undefined,
       },
       aiPrompt: aiPrompt || null,
+      aiContext: aiContext || null,
     };
 
     updateMutation.mutate(updateData);
@@ -1440,14 +1444,30 @@ export default function LessonEditorPage() {
                 <div className="space-y-2">
                     <Label className="text-gray-700">ИИ Промпт для проверки ДЗ</Label>
                     <p className="text-xs text-gray-500">
-                        Если заполнено, ИИ будет автоматически проверять ответы на формы, привязанные к этому уроку.
+                        Инструкция для ИИ: как проверять ответ, что считать зачётом, на что обратить внимание.
+                        Если заполнено — ИИ автоматически проверяет ответы студентов.
                     </p>
-                    <Textarea 
+                    <Textarea
                         value={aiPrompt}
                         onChange={(e) => setAiPrompt(e.target.value)}
-                        placeholder="Например: Ты проверяешь отчет об инвентаризации. Ответ должен содержать фото и список..."
-                        rows={6}
+                        placeholder="Например: Ты — куратор курса. Засчитай ответ если студент упомянул не менее 3 конкретных шагов и привёл пример из своей практики. Отклони если ответ слишком общий или скопирован."
+                        rows={5}
                         className="font-mono text-sm border-gray-300"
+                    />
+                </div>
+
+                <div className="space-y-2">
+                    <Label className="text-gray-700">Контекст урока для ИИ</Label>
+                    <p className="text-xs text-gray-500">
+                        Материал урока, эталонный ответ или критерии оценки. ИИ использует этот текст как опорный при проверке.
+                        Можно вставить конспект, ключевые тезисы или пример правильного ответа.
+                    </p>
+                    <Textarea
+                        value={aiContext}
+                        onChange={(e) => setAiContext(e.target.value)}
+                        placeholder="Например: В этом уроке студент изучил 5 шагов работы с возражениями: 1) Выслушать... 2) Уточнить... Правильный ответ должен содержать..."
+                        rows={8}
+                        className="text-sm border-gray-300"
                     />
                 </div>
             </CardContent>

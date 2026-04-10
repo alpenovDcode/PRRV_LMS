@@ -42,6 +42,8 @@ export async function POST(
           id: true,
           title: true,
           moduleId: true,
+          aiPrompt: true,
+          aiContext: true,
           module: {
             select: {
               courseId: true,
@@ -206,6 +208,19 @@ export async function POST(
             watchedTime: 0,
           },
         });
+      }
+
+      // Запускаем AI-проверку в фоне, если у урока задан промпт
+      if (lesson.aiPrompt && sanitizedContent) {
+        const { checkHomeworkWithAI } = await import("@/lib/ai/homework-checker");
+        checkHomeworkWithAI(
+          submission.id,
+          sanitizedContent,
+          lesson.aiPrompt,
+          lesson.aiContext ?? null
+        ).catch((err) =>
+          console.error("AI homework check failed:", err)
+        );
       }
 
       // Notify curators
