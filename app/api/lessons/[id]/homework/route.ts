@@ -44,6 +44,7 @@ export async function POST(
           moduleId: true,
           aiPrompt: true,
           aiContext: true,
+          autoResponse: true,
           module: {
             select: {
               courseId: true,
@@ -210,8 +211,18 @@ export async function POST(
         });
       }
 
-      // Запускаем AI-проверку в фоне, если у урока задан промпт
-      if (lesson.aiPrompt && sanitizedContent) {
+      // Авто-ответ: сразу одобряем ДЗ с шаблонным комментарием
+      if (lesson.autoResponse) {
+        await db.homeworkSubmission.update({
+          where: { id: submission.id },
+          data: {
+            status: "approved",
+            curatorComment: lesson.autoResponse,
+            reviewedAt: new Date(),
+          },
+        });
+      // Запускаем AI-проверку только если авто-ответ не задан
+      } else if (lesson.aiPrompt && sanitizedContent) {
         const { checkHomeworkWithAI } = await import("@/lib/ai/homework-checker");
         checkHomeworkWithAI(
           submission.id,

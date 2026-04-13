@@ -149,6 +149,7 @@ model Lesson {
   quizTimeLimit      Int?                 @map("quiz_time_limit")
   aiPrompt           String?              @db.Text @map("ai_prompt")
   aiContext          String?              @db.Text @map("ai_context")
+  autoResponse       String?              @db.Text @map("auto_response")
   homework           HomeworkSubmission[]
   comments           LessonComment[]
   LessonMedia        LessonMedia[]

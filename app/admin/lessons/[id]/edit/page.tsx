@@ -51,6 +51,7 @@ interface LessonDetail {
   settings: any;
   aiPrompt: string | null;
   aiContext: string | null;
+  autoResponse: string | null;
   module: {
     id: string;
     title: string;
@@ -87,6 +88,7 @@ export default function LessonEditorPage() {
   const [homeworkDeadline, setHomeworkDeadline] = useState("");
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiContext, setAiContext] = useState("");
+  const [autoResponse, setAutoResponse] = useState("");
 
   const { data: lesson, isLoading } = useQuery<LessonDetail>({
     queryKey: ["admin", "lesson", lessonId],
@@ -155,6 +157,7 @@ export default function LessonEditorPage() {
     setSettings(lesson.settings || {});
       setAiPrompt(lesson.aiPrompt || "");
       setAiContext(lesson.aiContext || "");
+      setAutoResponse(lesson.autoResponse || "");
       setHomeworkDeadline(
         (function() {
           try {
@@ -254,6 +257,7 @@ export default function LessonEditorPage() {
       },
       aiPrompt: aiPrompt || null,
       aiContext: aiContext || null,
+      autoResponse: autoResponse || null,
     };
 
     updateMutation.mutate(updateData);
@@ -1441,6 +1445,20 @@ export default function LessonEditorPage() {
                <CardTitle className="text-gray-900">Настройки урока</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
+                <div className="space-y-2">
+                    <Label className="text-gray-700">Авто-ответ на ДЗ</Label>
+                    <p className="text-xs text-gray-500">
+                        Если заполнено — ДЗ будет автоматически принято сразу после отправки, а студент получит этот текст как комментарий куратора. ИИ-проверка в этом случае не запускается.
+                    </p>
+                    <Textarea
+                        value={autoResponse}
+                        onChange={(e) => setAutoResponse(e.target.value)}
+                        placeholder="Например: Отлично, задание выполнено! Переходи к следующему уроку."
+                        rows={4}
+                        className="text-sm border-gray-300"
+                    />
+                </div>
+
                 <div className="space-y-2">
                     <Label className="text-gray-700">ИИ Промпт для проверки ДЗ</Label>
                     <p className="text-xs text-gray-500">

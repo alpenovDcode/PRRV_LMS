@@ -24,6 +24,7 @@ const lessonUpdateSchema = z.object({
   quizRequiresReview: z.boolean().optional(),
   aiPrompt: z.string().nullable().optional(),
   aiContext: z.string().nullable().optional(),
+  autoResponse: z.string().nullable().optional(),
 });
 
 export async function GET(
@@ -123,6 +124,7 @@ export async function PATCH(
         // AI settings
         if (data.aiPrompt !== undefined) updateData.aiPrompt = data.aiPrompt;
         if (data.aiContext !== undefined) updateData.aiContext = data.aiContext;
+        if (data.autoResponse !== undefined) updateData.autoResponse = data.autoResponse;
 
         const lesson = await db.lesson.update({
           where: { id },
