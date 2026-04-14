@@ -12,22 +12,28 @@ export interface HomeworkCheckResult {
 
 /**
  * Вызывает Gemini Flash через Replicate для проверки ответа студента.
- * Возвращает вердикт и комментарий куратора.
+ * Использует stream() — единственный поддерживаемый способ для этой модели.
  */
 async function callGemini(prompt: string): Promise<string> {
-  // replicate.run возвращает строку или массив строк в зависимости от модели
-  const output = await replicate.run("google/gemini-flash-1.5" as any, {
+  const chunks: string[] = [];
+
+  const stream = replicate.stream("google/gemini-3-flash", {
     input: {
       prompt,
       max_tokens: 1024,
-      temperature: 0.3, // Низкая температура для стабильного JSON
+      temperature: 0.3,
     },
   });
 
-  if (Array.isArray(output)) {
-    return output.join("");
+  for await (const event of stream) {
+    if (typeof event === "string") {
+      chunks.push(event);
+    } else if (event?.data) {
+      chunks.push(String(event.data));
+    }
   }
-  return String(output);
+
+  return chunks.join("");
 }
 
 /**
