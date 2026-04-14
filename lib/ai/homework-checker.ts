@@ -38,25 +38,42 @@ async function callGemini(prompt: string): Promise<string> {
 
 /**
  * Извлекает JSON из ответа модели.
- * Модель может обернуть JSON в markdown-блок ```json ... ```
+ * Ищет первый валидный JSON-объект методом поиска сбалансированных скобок.
  */
 function parseVerdict(raw: string): HomeworkCheckResult {
+  console.log("[AI homework] raw response:", raw.slice(0, 500));
+
   // Убираем markdown-обёртку если есть
   const cleaned = raw
     .replace(/```json\s*/gi, "")
     .replace(/```\s*/g, "")
     .trim();
 
-  // Ищем первый JSON-объект в тексте
-  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    throw new Error(`Не удалось найти JSON в ответе модели: ${raw}`);
+  // Ищем первый валидный JSON-объект по балансу скобок
+  const start = cleaned.indexOf("{");
+  if (start === -1) {
+    throw new Error(`JSON-объект не найден в ответе: ${cleaned.slice(0, 200)}`);
   }
 
-  const parsed = JSON.parse(jsonMatch[0]);
+  let depth = 0;
+  let end = -1;
+  for (let i = start; i < cleaned.length; i++) {
+    if (cleaned[i] === "{") depth++;
+    else if (cleaned[i] === "}") {
+      depth--;
+      if (depth === 0) { end = i; break; }
+    }
+  }
+
+  if (end === -1) {
+    throw new Error(`Незакрытый JSON-объект в ответе: ${cleaned.slice(0, 200)}`);
+  }
+
+  const jsonStr = cleaned.slice(start, end + 1);
+  const parsed = JSON.parse(jsonStr);
 
   if (!parsed.verdict || !["approved", "rejected"].includes(parsed.verdict)) {
-    throw new Error(`Некорректный verdict в ответе: ${parsed.verdict}`);
+    throw new Error(`Некорректный verdict: "${parsed.verdict}". Полный ответ: ${jsonStr}`);
   }
 
   return {
