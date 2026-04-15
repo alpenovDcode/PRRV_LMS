@@ -66,6 +66,7 @@ export function HLSVideoPlayer({
 
         setToken(response.data.data.token);
       } catch (err: any) {
+        console.error("[VideoToken] Error:", err.response?.data || err.message);
         setError("Не удалось получить доступ к видео");
         setIsLoading(false);
       }

@@ -29,44 +29,50 @@ function validateToken(token: string | null): TokenPayload | null {
 }
 
 function rewriteManifestUrls(manifest: string, videoId: string, token: string): string {
-  // Заменяем все URL Cloudflare на наши прокси URL
-  const cloudflarePattern = new RegExp(
-    `https://customer-${CUSTOMER_CODE}\\.cloudflarestream\\.com/${videoId}/`,
-    'g'
-  );
+  let replacementsCount = 0;
   
-  let content = manifest.replace(
-    cloudflarePattern,
-    `/api/video-proxy/${videoId}/`
+  // 1. Заменяем абсолютные ссылки (videodelivery.net или cloudflarestream.com) на наш прокси
+  let result = manifest.replace(
+    /https?:\/\/(?:videodelivery\.net|customer-[a-z0-9]+\.cloudflarestream\.com)\/[a-z0-9-]+\/manifest\/video\/([^\s?"']+)(?:\?[^\s"']*)?/g,
+    (match, segment) => {
+        replacementsCount++;
+        return `/api/video-proxy/${videoId}/manifest/${segment}?token=${token}`;
+    }
   );
 
-  // Добавляем токен ко всем типам сегментов и плейлистов
-  const extensions = ['.m3u8', '.ts', '.m4s', '.mp4', '.vtt'];
-  
-  extensions.forEach(ext => {
-    // Escaping dot for regex
-    // Ищем расширение, за которым следует либо конец строки, либо ? (параметры), либо перевод строки
-    const regex = new RegExp(`\\${ext}(?=[\\?\\n\\r])`, 'g');
-    
-    // Если дальше идет ?, значит параметры уже есть - добавляем токен через &
-    // Если дальше нет ?, значит параметров нет - добавляем через ?
-    
-    // Но так как regex lookahead не захватывает символ, нам нужно хитрее.
-    // Проще сделать две замены:
-    
-    // 1. Если есть параметры (знак вопроса сразу после расширения)
-    // Заменяем .ext? на .ext?token=XXX&
-    const regexWithParams = new RegExp(`\\${ext}\\?`, 'g');
-    content = content.replace(regexWithParams, `${ext}?token=${token}&`);
-    
-    // 2. Если параметров нет (конец строки или white space)
-    // Заменяем .ext(конец) на .ext?token=XXX
-    // Используем негативный lookahead: если за расширением НЕ следует ?token (чтобы не заменить то, что только что заменили)
-    const regexNoParams = new RegExp(`\\${ext}(?!\\?token)`, 'g');
-    content = content.replace(regexNoParams, `${ext}?token=${token}`);
-  });
+  // 2. Заменяем относительные ссылки на сегменты (.ts)
+  // Ищем строки, которые заканчиваются на .ts (или имеют его как расширение) и не начинаются с http
+  result = result.replace(
+    /^(?!https?:\/\/)(.*\.ts(?:\?[^\s]*)?)$/gm,
+    (match, path) => {
+        replacementsCount++;
+        return `/api/video-proxy/${videoId}/manifest/${path}${path.includes('?') ? '&' : '?'}token=${token}`;
+    }
+  );
 
-  return content;
+  // 3. Заменяем ссылки на вложенные плейлисты (если мы в master.m3u8)
+  result = result.replace(
+    /^(?!https?:\/\/)(.*\.m3u8(?:\?[^\s]*)?)$/gm,
+    (match, path) => {
+        replacementsCount++;
+        return `/api/video-proxy/${videoId}/manifest/${path}${path.includes('?') ? '&' : '?'}token=${token}`;
+    }
+  );
+
+  // 4. Обрабатываем URI в тегах (например, для ключей шифрования или субтитров)
+  result = result.replace(
+    /URI=["']([^"']+\.[a-z0-9]+)(?:\?[^"']*)?["']/gi,
+    (match, path) => {
+        if (!path.startsWith('http') && !path.startsWith('/')) {
+            replacementsCount++;
+            return `URI="/api/video-proxy/${videoId}/manifest/${path}?token=${token}"`;
+        }
+        return match;
+    }
+  );
+
+  console.log(`[Video Proxy] Manifest rewritten: ${replacementsCount} replacements made`);
+  return result;
 }
 
 export async function GET(
@@ -109,23 +115,26 @@ export async function GET(
       }
     });
 
-    console.log(`[Video Proxy] Fetching: ${cloudflareUrl.toString()}`);
+    console.log(`[Video Proxy] Request for: ${path.join('/')}`);
+    console.log(`[Video Proxy] Forwarding to: ${cloudflareUrl.toString()}`);
 
     // Получаем Range из входящего запроса
     const range = request.headers.get("range");
 
     // Запрашиваем ресурс у Cloudflare
-    const fetchHeaders: Record<string, string> = {
+    const proxyHeaders: Record<string, string> = {
       "User-Agent": "Mozilla/5.0",
     };
     
     if (range) {
-      fetchHeaders["Range"] = range;
+      proxyHeaders["Range"] = range;
     }
 
     const response = await fetch(cloudflareUrl.toString(), { 
-      headers: fetchHeaders 
+      headers: proxyHeaders 
     });
+
+    console.log(`[Video Proxy] Cloudflare response status: ${response.status}`);
 
     if (!response.ok) {
       console.error(`[Video Proxy] Cloudflare error: ${response.status}`);
