@@ -30,10 +30,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Проверяем, существует ли лендинг и содержит ли он это видео
+    // Проверяем, существует ли лендинг и содержит ли он это видео (выбираем только нужные поля)
     const landing = await db.landingPage.findUnique({
       where: { slug: landingSlug },
-      include: { blocks: true },
+      select: { 
+        id: true, 
+        blocks: {
+          select: {
+            type: true,
+            content: true
+          }
+        } 
+      },
     });
 
     if (!landing) {
@@ -51,9 +59,9 @@ export async function POST(request: NextRequest) {
 
     // Проверяем наличие видео в блоках лендинга
     const hasVideo = landing.blocks.some(b => {
+      if (b.type !== 'video' && b.type !== 'hero') return false;
       const content = b.content as any;
-      return (b.type === 'video' && content?.videoId === videoId) || 
-             (b.type === 'hero' && content?.videoId === videoId);
+      return content?.videoId === videoId;
     });
 
     if (!hasVideo) {

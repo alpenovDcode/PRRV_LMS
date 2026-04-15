@@ -106,28 +106,9 @@ export function HLSVideoPlayer({
         })).sort((a, b) => b.height - a.height); // Sort high to low
         setLevels(videoLevels);
 
-        // Настройка качества: 720p для мобильных, 1080p для десктопа
-        const targetHeight = isMobile ? 720 : 1080;
-        const targetLevel = hls.levels.findIndex(
-          (level) => level.height === targetHeight
-        );
-
-        if (targetLevel !== -1) {
-          hls.currentLevel = targetLevel;
-          setCurrentLevel(targetLevel);
-        } else {
-          // Fallback: минимум 720p
-          const fallbackLevel = hls.levels.findIndex(
-            (level) => level.height >= 720
-          );
-          if (fallbackLevel !== -1) {
-            hls.currentLevel = fallbackLevel;
-            setCurrentLevel(fallbackLevel);
-          } else {
-             // If no suitable level found, stay on Auto (-1)
-             setCurrentLevel(-1);
-          }
-        }
+        // Quality will be determined automatically by HLS.js at start for faster loading.
+        // We just initialize the levels list for the menu.
+        setCurrentLevel(-1); // Start with 'Auto' quality
 
         if (autoPlay) {
           video.play().catch(() => {});
