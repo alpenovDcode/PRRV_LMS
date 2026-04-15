@@ -31,48 +31,41 @@ function validateToken(token: string | null): TokenPayload | null {
 function rewriteManifestUrls(manifest: string, videoId: string, token: string): string {
   let replacementsCount = 0;
   
-  // 1. Заменяем абсолютные ссылки (videodelivery.net или cloudflarestream.com) на наш прокси
-  let result = manifest.replace(
-    /https?:\/\/(?:videodelivery\.net|customer-[a-z0-9]+\.cloudflarestream\.com)\/[a-z0-9-]+\/manifest\/video\/([^\s?"']+)(?:\?[^\s"']*)?/g,
-    (match, segment) => {
+  // 1. Заменяем абсолютные ссылки Cloudflare на наш прокси
+  // Мы заменяем всю доменную часть до ID видео на наш прокси
+  const result = manifest.replace(
+    /https?:\/\/(?:videodelivery\.net|customer-[a-z0-9]+\.cloudflarestream\.com)\/([a-z0-9-]+)\/(.+?)(?=["'\s]|$)/g,
+    (match, vid, rest) => {
         replacementsCount++;
-        return `/api/video-proxy/${videoId}/manifest/${segment}?token=${token}`;
+        return `/api/video-proxy/${vid}/${rest}${rest.includes('?') ? '&' : '?'}token=${token}`;
     }
   );
 
-  // 2. Заменяем относительные ссылки на сегменты (.ts)
-  // Ищем строки, которые заканчиваются на .ts (или имеют его как расширение) и не начинаются с http
-  result = result.replace(
-    /^(?!https?:\/\/)(.*\.ts(?:\?[^\s]*)?)$/gm,
+  // 2. Для относительных путей (сегменты, вложенные манифесты) просто добавляем токен.
+  // Мы не трогаем сам путь, позволяя браузеру разрешить его относительно текущего URL манифеста.
+  // Ищем строки, которые выглядят как пути к файлам и не начинаются с http или /
+  const finalResult = result.replace(
+    /^(?!https?:\/\/|\/)(.*(?:\.ts|\.m3u8|\.m4s|\.mp4|\.vtt)(?:\?[^\s]*)?)$/gm,
     (match, path) => {
         replacementsCount++;
-        return `/api/video-proxy/${videoId}/manifest/${path}${path.includes('?') ? '&' : '?'}token=${token}`;
+        return `${path}${path.includes('?') ? '&' : '?'}token=${token}`;
     }
   );
 
-  // 3. Заменяем ссылки на вложенные плейлисты (если мы в master.m3u8)
-  result = result.replace(
-    /^(?!https?:\/\/)(.*\.m3u8(?:\?[^\s]*)?)$/gm,
-    (match, path) => {
-        replacementsCount++;
-        return `/api/video-proxy/${videoId}/manifest/${path}${path.includes('?') ? '&' : '?'}token=${token}`;
-    }
-  );
-
-  // 4. Обрабатываем URI в тегах (например, для ключей шифрования или субтитров)
-  result = result.replace(
+  // 3. Обрабатываем URI в тегах (например, для ключей шифрования)
+  const finalWithUri = finalResult.replace(
     /URI=["']([^"']+\.[a-z0-9]+)(?:\?[^"']*)?["']/gi,
     (match, path) => {
         if (!path.startsWith('http') && !path.startsWith('/')) {
             replacementsCount++;
-            return `URI="/api/video-proxy/${videoId}/manifest/${path}?token=${token}"`;
+            return `URI="${path}${path.includes('?') ? '&' : '?'}token=${token}"`;
         }
         return match;
     }
   );
 
   console.log(`[Video Proxy] Manifest rewritten: ${replacementsCount} replacements made`);
-  return result;
+  return finalWithUri;
 }
 
 export async function GET(
@@ -106,11 +99,12 @@ export async function GET(
     }
 
     // Формируем URL к Cloudflare
+    // Путь уже содержит videoId как первый сегмент (проверено выше)
     const cloudflareUrl = new URL(`https://customer-${CUSTOMER_CODE}.cloudflarestream.com/${resourcePath}`);
     
-    // Передаем оригинальные параметры запроса (кроме нашего токена)
+    // Передаем все параметры запроса кроме токена безопасности
     searchParams.forEach((value, key) => {
-      if (key !== 'token' && key !== 'apiKey') {
+      if (key !== 'token' && key !== 'apiKey' && !cloudflareUrl.searchParams.has(key)) {
         cloudflareUrl.searchParams.append(key, value);
       }
     });
