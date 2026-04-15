@@ -14,16 +14,23 @@ interface TokenPayload {
 }
 
 function validateToken(token: string | null): TokenPayload | null {
-  if (!token) return null;
+  if (!token) {
+    console.warn("[Video Proxy] No token provided in request");
+    return null;
+  }
 
-  // Если токен содержит лишние параметры (например из-за двойного ?), отрезаем их
-  const cleanToken = token.split('?')[0];
+  // Очищаем токен от возможных параметров, если они прилипли
+  const cleanToken = token.split(/[?&]/)[0];
 
   try {
     const payload = jwt.verify(cleanToken, JWT_SECRET) as TokenPayload;
     return payload;
-  } catch (error) {
-    console.error("Token validation error. Token:", cleanToken, "Original:", token, "Error:", error);
+  } catch (error: any) {
+    console.error("[Video Proxy] Token validation failed:", {
+      message: error.message,
+      expiredAt: error.expiredAt,
+      tokenPrefix: cleanToken.substring(0, 10) + "..."
+    });
     return null;
   }
 }
@@ -31,34 +38,36 @@ function validateToken(token: string | null): TokenPayload | null {
 function rewriteManifestUrls(manifest: string, videoId: string, token: string): string {
   let replacementsCount = 0;
   
+  const encodedToken = encodeURIComponent(token);
+  
   // 1. Заменяем абсолютные ссылки Cloudflare на наш прокси
-  // Мы заменяем всю доменную часть до ID видео на наш прокси
   const result = manifest.replace(
-    /https?:\/\/(?:videodelivery\.net|customer-[a-z0-9]+\.cloudflarestream\.com)\/([a-z0-9-]+)\/(.+?)(?=["'\s]|$)/g,
+    /https?:\/\/(?:videodelivery\.net|customer-[a-z0-9]+\.cloudflarestream\.com)\/([a-z0-9-]+)\/([^\s?"']+)(?:\?[^\s"']*)?/g,
     (match, vid, rest) => {
         replacementsCount++;
-        return `/api/video-proxy/${vid}/${rest}${rest.includes('?') ? '&' : '?'}token=${token}`;
+        const connector = rest.includes('?') ? '&' : '?';
+        return `/api/video-proxy/${vid}/${rest}${connector}token=${encodedToken}`;
     }
   );
 
-  // 2. Для относительных путей (сегменты, вложенные манифесты) просто добавляем токен.
-  // Мы не трогаем сам путь, позволяя браузеру разрешить его относительно текущего URL манифеста.
-  // Ищем строки, которые выглядят как пути к файлам и не начинаются с http или /
+  // 2. Для относительных путей просто добавляем токен.
   const finalResult = result.replace(
-    /^(?!https?:\/\/|\/)(.*(?:\.ts|\.m3u8|\.m4s|\.mp4|\.vtt)(?:\?[^\s]*)?)$/gm,
+    /^(?!https?:\/\/|\/)(.*(?:\.ts|\.m3u8|\.m4s|\.mp4|\.vtt)(?:\?[^\s"']*)?)$/gm,
     (match, path) => {
         replacementsCount++;
-        return `${path}${path.includes('?') ? '&' : '?'}token=${token}`;
+        const connector = path.includes('?') ? '&' : '?';
+        return `${path}${connector}token=${encodedToken}`;
     }
   );
 
-  // 3. Обрабатываем URI в тегах (например, для ключей шифрования)
+  // 3. Обрабатываем URI в тегах
   const finalWithUri = finalResult.replace(
     /URI=["']([^"']+\.[a-z0-9]+)(?:\?[^"']*)?["']/gi,
     (match, path) => {
         if (!path.startsWith('http') && !path.startsWith('/')) {
             replacementsCount++;
-            return `URI="${path}${path.includes('?') ? '&' : '?'}token=${token}"`;
+            const connector = path.includes('?') ? '&' : '?';
+            return `URI="${path}${connector}token=${encodedToken}"`;
         }
         return match;
     }
