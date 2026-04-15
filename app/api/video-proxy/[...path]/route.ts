@@ -18,7 +18,7 @@ function validateToken(token: string | null): TokenPayload | null {
     console.warn("[Video Proxy] No token provided in request");
     return null;
   }
-
+ 
   // Очищаем токен от возможных параметров, если они прилипли
   const cleanToken = token.split(/[?&]/)[0];
 
@@ -46,7 +46,7 @@ function rewriteManifestUrls(manifest: string, videoId: string, token: string): 
     (match, vid, rest) => {
         replacementsCount++;
         const connector = rest.includes('?') ? '&' : '?';
-        return `/api/video-proxy/${vid}/${rest}${connector}token=${encodedToken}`;
+        return `/api/video-proxy/${vid}/${rest}${connector}ptoken=${encodedToken}`;
     }
   );
 
@@ -56,7 +56,7 @@ function rewriteManifestUrls(manifest: string, videoId: string, token: string): 
     (match, path) => {
         replacementsCount++;
         const connector = path.includes('?') ? '&' : '?';
-        return `${path}${connector}token=${encodedToken}`;
+        return `${path}${connector}ptoken=${encodedToken}`;
     }
   );
 
@@ -67,7 +67,7 @@ function rewriteManifestUrls(manifest: string, videoId: string, token: string): 
         if (!path.startsWith('http') && !path.startsWith('/')) {
             replacementsCount++;
             const connector = path.includes('?') ? '&' : '?';
-            return `URI="${path}${connector}token=${encodedToken}"`;
+            return `URI="${path}${connector}ptoken=${encodedToken}"`;
         }
         return match;
     }
@@ -84,7 +84,8 @@ export async function GET(
   try {
     const { path } = await params;
     const { searchParams } = request.nextUrl;
-    const token = searchParams.get("token");
+    // Используем ptoken для избежания конфликтов с нативными токенами Cloudflare
+    const token = searchParams.get("ptoken") || searchParams.get("token");
 
     // Валидация токена
     const payload = validateToken(token);
@@ -111,9 +112,10 @@ export async function GET(
     // Путь уже содержит videoId как первый сегмент (проверено выше)
     const cloudflareUrl = new URL(`https://customer-${CUSTOMER_CODE}.cloudflarestream.com/${resourcePath}`);
     
-    // Передаем все параметры запроса кроме токена безопасности
+    // Передаем все оригинальные параметры запроса (кроме нашего ptoken)
+    // Это важно для сохранения Cloudflare-подписей (параметр token)
     searchParams.forEach((value, key) => {
-      if (key !== 'token' && key !== 'apiKey' && !cloudflareUrl.searchParams.has(key)) {
+      if (key !== 'ptoken' && key !== 'apiKey' && !cloudflareUrl.searchParams.has(key)) {
         cloudflareUrl.searchParams.append(key, value);
       }
     });

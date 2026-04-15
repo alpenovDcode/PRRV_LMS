@@ -80,7 +80,7 @@ export function HLSVideoPlayer({
     if (!token || !videoRef.current) return;
 
     const video = videoRef.current;
-    const manifestUrl = `/api/video-proxy/${videoId}/manifest/video.m3u8?token=${token}`;
+    const manifestUrl = `/api/video-proxy/${videoId}/manifest/video.m3u8?ptoken=${token}`;
 
     if (Hls.isSupported()) {
       const hls = new Hls({
