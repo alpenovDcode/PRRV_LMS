@@ -51,18 +51,20 @@ export async function middleware(request: NextRequest) {
     path.startsWith("/api/video-proxy") ||
     path.startsWith("/api/landings/check-status");
 
+  // 1. ПУБЛИЧНЫЕ РОУТЫ И ВИДЕО-ПРОКСИ (РАННИЙ ВЫХОД)
+  if (isPublicRoute) {
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set("x-pathname", path);
+    return NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    });
+  }
+
   // --- API SECURITY CHECK START ---
-  if (
-     path.startsWith("/api") && 
-     path !== "/api/health" && 
-     !path.startsWith("/api/auth") && 
-     !path.startsWith("/api/video-proxy") &&
-     !path.startsWith("/api/landings/submit") &&
-     !path.startsWith("/api/landings/html") &&
-     !path.startsWith("/api/video/token/public") &&
-     !path.startsWith("/api/landings/check-status") &&
-     !path.match(/^\/api\/landings\/[^/]+\/view$/)
-  ) {
+  // Проверяем все API роуты, кроме базовых публичных (уже обработаны выше)
+  if (path.startsWith("/api") && !path.startsWith("/api/auth") && path !== "/api/health") {
     // 1. Try to get token from Authorization header or cookie
     const authHeader = request.headers.get("authorization");
     let requestToken = authHeader?.startsWith("Bearer ")
@@ -105,7 +107,7 @@ export async function middleware(request: NextRequest) {
   // --- API SECURITY CHECK END ---
 
   // Если пользователь не авторизован и пытается зайти на защищенный роут
-  if (!token && !isPublicRoute) {
+  if (!token) {
     const refreshToken = request.cookies.get("refreshToken")?.value;
     
     // Если есть refreshToken, пробуем обновить сессию
