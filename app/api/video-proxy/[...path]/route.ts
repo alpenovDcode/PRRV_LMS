@@ -51,8 +51,11 @@ function rewriteManifestUrls(manifest: string, videoId: string, token: string): 
   );
 
   // 2. Для относительных путей просто добавляем токен.
+  // Любая непустая строка, не начинающаяся с '#' и не с '/' или 'http', — это URI ресурса
+  // (стандарт HLS). Не ограничиваемся расширениями, т.к. CF Stream может возвращать
+  // варианты/аудио-треки без привычных расширений.
   const finalResult = result.replace(
-    /^(?!https?:\/\/|\/)(.*(?:\.ts|\.m3u8|\.m4s|\.mp4|\.vtt)(?:\?[^\s"']*)?)$/gm,
+    /^(?!#)(?!\s*$)(?!https?:\/\/)(?!\/)([^\r\n]+)$/gm,
     (match, path) => {
         replacementsCount++;
         const connector = path.includes('?') ? '&' : '?';
@@ -60,16 +63,17 @@ function rewriteManifestUrls(manifest: string, videoId: string, token: string): 
     }
   );
 
-  // 3. Обрабатываем URI в тегах
+  // 3. Обрабатываем URI в тегах (#EXT-X-MEDIA, #EXT-X-MAP, #EXT-X-KEY и т.п.)
   const finalWithUri = finalResult.replace(
-    /URI=["']([^"']+\.[a-z0-9]+)(?:\?[^"']*)?["']/gi,
+    /URI="([^"]+)"/g,
     (match, path) => {
-        if (!path.startsWith('http') && !path.startsWith('/')) {
-            replacementsCount++;
-            const connector = path.includes('?') ? '&' : '?';
-            return `URI="${path}${connector}ptoken=${encodedToken}"`;
-        }
-        return match;
+        // Абсолютные Cloudflare-URL уже переписаны шагом 1; пропускаем только
+        // те, что уже указывают на наш прокси или на внешний http(s).
+        if (path.startsWith('http')) return match;
+        if (path.includes('ptoken=')) return match;
+        replacementsCount++;
+        const connector = path.includes('?') ? '&' : '?';
+        return `URI="${path}${connector}ptoken=${encodedToken}"`;
     }
   );
 
