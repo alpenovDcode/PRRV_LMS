@@ -39,8 +39,12 @@ export function HLSVideoPlayer({
   const [currentLevel, setCurrentLevel] = useState<number>(-1); // -1 = Auto
   const [showQualityMenu, setShowQualityMenu] = useState(false);
 
-  // Определяем устройство для выбора качества
-  const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
+  // Определяем устройство для выбора качества (только на клиенте)
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    setIsMobile(/iPhone|iPad|Android/i.test(navigator.userAgent));
+  }, []);
 
   // Генерация токена
   useEffect(() => {
