@@ -134,18 +134,29 @@ export function HLSVideoPlayer({
         }
       });
 
+      let networkErrorRetries = 0;
+      const maxNetworkRetries = 3;
+
       hls.on(Hls.Events.ERROR, function (event, data) {
         if (data.fatal) {
+          console.warn(`[HLS] Fatal error: ${data.type} - ${data.details}`, data);
+          
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              setError("Ошибка загрузки видео. Проверьте интернет-соединение.");
-              hls.startLoad();
+              if (networkErrorRetries < maxNetworkRetries) {
+                networkErrorRetries++;
+                console.log(`[HLS] Attempting to recover from network error (${networkErrorRetries}/${maxNetworkRetries})...`);
+                hls.startLoad();
+              } else {
+                setError("Ошибка загрузки видео. Проверьте интернет-соединение.");
+              }
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
-              setError("Ошибка воспроизведения видео.");
+              console.log("[HLS] Attempting to recover from media error...");
               hls.recoverMediaError();
               break;
             default:
+              console.error("[HLS] Unrecoverable error, destroying instance");
               setError("Произошла критическая ошибка воспроизведения.");
               hls.destroy();
               break;

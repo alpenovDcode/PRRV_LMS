@@ -111,11 +111,20 @@ export async function GET(
 
     console.log(`[Video Proxy] Fetching: ${cloudflareUrl.toString()}`);
 
+    // Получаем Range из входящего запроса
+    const range = request.headers.get("range");
+
     // Запрашиваем ресурс у Cloudflare
-    const response = await fetch(cloudflareUrl.toString(), {
-      headers: {
-        "User-Agent": "Mozilla/5.0",
-      },
+    const fetchHeaders: Record<string, string> = {
+      "User-Agent": "Mozilla/5.0",
+    };
+    
+    if (range) {
+      fetchHeaders["Range"] = range;
+    }
+
+    const response = await fetch(cloudflareUrl.toString(), { 
+      headers: fetchHeaders 
     });
 
     if (!response.ok) {
@@ -143,14 +152,32 @@ export async function GET(
       });
     }
 
-    // Для video segments (.ts), просто проксируем
+    // Для video segments (.ts, .m4s и т.д.), проксируем с поддержкой Range
+    const responseHeaders = new Headers();
+    responseHeaders.set("Content-Type", contentType);
+    responseHeaders.set("Access-Control-Allow-Origin", "*");
+    
+    // Передаем важные заголовки от Cloudflare для поддержки перемотки и кэширования
+    const headersToForward = [
+      "Cache-Control",
+      "Content-Length",
+      "Content-Range",
+      "Accept-Ranges",
+    ];
+
+    headersToForward.forEach(h => {
+      const val = response.headers.get(h);
+      if (val) responseHeaders.set(h, val);
+    });
+
+    // Если Cache-Control не пришел, ставим свой (24 часа для сегментов)
+    if (!responseHeaders.has("Cache-Control")) {
+      responseHeaders.set("Cache-Control", "public, max-age=86400");
+    }
+
     return new NextResponse(response.body, {
-      status: 200,
-      headers: {
-        "Content-Type": contentType,
-        "Cache-Control": "public, max-age=86400", // 24 часа для сегментов
-        "Access-Control-Allow-Origin": "*",
-      },
+      status: response.status, // Может быть 200 или 206
+      headers: responseHeaders,
     });
   } catch (error) {
     console.error("[Video Proxy] Error:", error);
