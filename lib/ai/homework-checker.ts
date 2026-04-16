@@ -37,49 +37,41 @@ async function callGemini(prompt: string): Promise<string> {
 
 /**
  * Вызывает GPT-4o через Replicate для проверки ответа студента с картинками.
- * Использует HTTP-запрос с заголовком Prefer: wait для синхронного ответа.
+ * Создаёт prediction через SDK и ждёт завершения с полингом.
  */
 async function callGPT4o(
   prompt: string,
   systemPrompt: string,
   imageUrls: string[]
 ): Promise<string> {
-  const response = await fetch(
-    "https://api.replicate.com/v1/models/openai/gpt-4o/predictions",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.REPLICATE_API_TOKEN}`,
-        "Content-Type": "application/json",
-        Prefer: "wait",
-      },
-      body: JSON.stringify({
-        input: {
-          prompt,
-          system_prompt: systemPrompt,
-          image_input: imageUrls,
-          max_completion_tokens: 4096,
-          temperature: 1,
-          top_p: 1,
-          frequency_penalty: 0,
-          presence_penalty: 0,
-          messages: [],
-        },
-      }),
-    }
-  );
+  const prediction = await replicate.predictions.create({
+    model: "openai/gpt-4o",
+    input: {
+      prompt,
+      system_prompt: systemPrompt,
+      image_input: imageUrls,
+      max_completion_tokens: 4096,
+      temperature: 1,
+      top_p: 1,
+      frequency_penalty: 0,
+      presence_penalty: 0,
+      messages: [],
+    },
+  });
 
-  const data = await response.json();
+  const completed = await replicate.wait(prediction);
 
-  if (data.error) {
-    throw new Error(`GPT-4o error: ${data.error}`);
+  if (completed.error) {
+    throw new Error(`GPT-4o error: ${completed.error}`);
   }
 
-  if (Array.isArray(data.output)) {
-    return data.output.join("");
+  console.log("[AI homework] GPT-4o raw output:", JSON.stringify(completed.output)?.slice(0, 500));
+
+  if (Array.isArray(completed.output)) {
+    return completed.output.join("");
   }
 
-  return String(data.output || "");
+  return String(completed.output || "");
 }
 
 /**
@@ -155,6 +147,7 @@ export async function checkHomeworkWithAI(
     const systemPrompt = `Ты — куратор онлайн-курса. Проверь домашнее задание студента и верни ответ СТРОГО в формате JSON без лишнего текста.\n\n## Инструкция для проверки:\n${aiPrompt}${contextBlock}`;
 
     raw = await callGPT4o(userPrompt, systemPrompt, imageFiles);
+    console.log("[AI homework] GPT-4o response length:", raw.length);
   } else {
     // Текстовая проверка через Gemini
     const prompt = `Ты — куратор онлайн-курса. Проверь домашнее задание студента и верни ответ СТРОГО в формате JSON без лишнего текста.
