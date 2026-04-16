@@ -1,18 +1,18 @@
 import Replicate from "replicate";
 import { db } from "@/lib/db";
 
-const CF_ACCOUNT_HASH =
-  process.env.NEXT_PUBLIC_CLOUDFLARE_IMAGES_ACCOUNT_HASH || "LDTNFDrUnJY_bFTI66y-jw";
+const APP_BASE_URL = (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
 
 /**
- * Конвертирует Cloudflare Image ID в полный https-URL.
- * Если уже полный URL — возвращает как есть.
+ * Конвертирует путь файла в полный https-URL, доступный для внешних сервисов.
+ * - Если уже полный https-URL — возвращает как есть (R2 или CDN).
+ * - Если начинается с "/" (локальное хранилище) — достраивает базовый URL приложения.
  */
-function toImageUrl(fileId: string): string {
-  if (fileId.startsWith("http://") || fileId.startsWith("https://")) {
-    return fileId;
+function toImageUrl(filePath: string): string {
+  if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
+    return filePath;
   }
-  return `https://imagedelivery.net/${CF_ACCOUNT_HASH}/${fileId}/public`;
+  return `${APP_BASE_URL}${filePath.startsWith("/") ? "" : "/"}${filePath}`;
 }
 
 const replicate = new Replicate({
