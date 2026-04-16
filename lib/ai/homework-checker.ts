@@ -1,6 +1,20 @@
 import Replicate from "replicate";
 import { db } from "@/lib/db";
 
+const CF_ACCOUNT_HASH =
+  process.env.NEXT_PUBLIC_CLOUDFLARE_IMAGES_ACCOUNT_HASH || "LDTNFDrUnJY_bFTI66y-jw";
+
+/**
+ * Конвертирует Cloudflare Image ID в полный https-URL.
+ * Если уже полный URL — возвращает как есть.
+ */
+function toImageUrl(fileId: string): string {
+  if (fileId.startsWith("http://") || fileId.startsWith("https://")) {
+    return fileId;
+  }
+  return `https://imagedelivery.net/${CF_ACCOUNT_HASH}/${fileId}/public`;
+}
+
 const replicate = new Replicate({
   auth: process.env.REPLICATE_API_TOKEN,
 });
@@ -146,7 +160,7 @@ export async function checkHomeworkWithAI(
 
     const systemPrompt = `Ты — куратор онлайн-курса. Проверь домашнее задание студента и верни ответ СТРОГО в формате JSON без лишнего текста.\n\n## Инструкция для проверки:\n${aiPrompt}${contextBlock}`;
 
-    raw = await callGPT4o(userPrompt, systemPrompt, imageFiles);
+    raw = await callGPT4o(userPrompt, systemPrompt, imageFiles.map(toImageUrl));
     console.log("[AI homework] GPT-4o response length:", raw.length);
   } else {
     // Текстовая проверка через Gemini
