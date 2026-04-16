@@ -10,8 +10,9 @@ const nextConfig = {
   output: "standalone",
   experimental: {
     serverActions: {
-      bodySizeLimit: '2mb',
+      bodySizeLimit: '80mb',
     },
+    middlewareClientMaxBodySize: 83886080, // 80MB в байтах
   },
   // Turbopack configuration (required for Next.js 16)
   turbopack: {},

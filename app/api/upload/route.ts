@@ -1,4 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+
+export const maxDuration = 60; // секунды — даём время на загрузку больших файлов
+
+// Увеличиваем лимит тела запроса для Route Handler
+export const dynamic = "force-dynamic";
 import { saveFile } from "@/lib/storage";
 import { verifyAccessTokenEdge } from "@/lib/auth-edge";
 import { ApiResponse } from "@/types";
