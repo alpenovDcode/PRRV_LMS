@@ -150,6 +150,7 @@ model Lesson {
   aiPrompt           String?              @db.Text @map("ai_prompt")
   aiContext          String?              @db.Text @map("ai_context")
   autoResponse       String?              @db.Text @map("auto_response")
+  hasImageAnalysis   Boolean              @default(false) @map("has_image_analysis")
   homework           HomeworkSubmission[]
   comments           LessonComment[]
   LessonMedia        LessonMedia[]

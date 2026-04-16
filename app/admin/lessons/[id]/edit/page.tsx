@@ -52,6 +52,7 @@ interface LessonDetail {
   aiPrompt: string | null;
   aiContext: string | null;
   autoResponse: string | null;
+  hasImageAnalysis: boolean;
   module: {
     id: string;
     title: string;
@@ -89,6 +90,7 @@ export default function LessonEditorPage() {
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiContext, setAiContext] = useState("");
   const [autoResponse, setAutoResponse] = useState("");
+  const [hasImageAnalysis, setHasImageAnalysis] = useState(false);
 
   const { data: lesson, isLoading } = useQuery<LessonDetail>({
     queryKey: ["admin", "lesson", lessonId],
@@ -158,6 +160,7 @@ export default function LessonEditorPage() {
       setAiPrompt(lesson.aiPrompt || "");
       setAiContext(lesson.aiContext || "");
       setAutoResponse(lesson.autoResponse || "");
+      setHasImageAnalysis(lesson.hasImageAnalysis ?? false);
       setHomeworkDeadline(
         (function() {
           try {
@@ -258,6 +261,7 @@ export default function LessonEditorPage() {
       aiPrompt: aiPrompt || null,
       aiContext: aiContext || null,
       autoResponse: autoResponse || null,
+      hasImageAnalysis,
     };
 
     updateMutation.mutate(updateData);
@@ -1487,6 +1491,22 @@ export default function LessonEditorPage() {
                         rows={8}
                         className="text-sm border-gray-300"
                     />
+                </div>
+
+                <div className="flex items-start gap-3 pt-2">
+                    <Checkbox
+                        id="hasImageAnalysis"
+                        checked={hasImageAnalysis}
+                        onCheckedChange={(checked) => setHasImageAnalysis(checked === true)}
+                    />
+                    <div className="space-y-1">
+                        <Label htmlFor="hasImageAnalysis" className="text-gray-700 cursor-pointer">
+                            Есть анализ картинок
+                        </Label>
+                        <p className="text-xs text-gray-500">
+                            Если включено — при проверке ДЗ ИИ будет анализировать прикреплённые студентом изображения с помощью GPT-4o.
+                        </p>
+                    </div>
                 </div>
             </CardContent>
           </Card>

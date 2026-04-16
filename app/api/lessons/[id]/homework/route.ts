@@ -45,6 +45,7 @@ export async function POST(
           aiPrompt: true,
           aiContext: true,
           autoResponse: true,
+          hasImageAnalysis: true,
           module: {
             select: {
               courseId: true,
@@ -222,13 +223,14 @@ export async function POST(
           },
         });
       // Запускаем AI-проверку только если авто-ответ не задан
-      } else if (lesson.aiPrompt && sanitizedContent) {
+      } else if (lesson.aiPrompt) {
         const { checkHomeworkWithAI } = await import("@/lib/ai/homework-checker");
         checkHomeworkWithAI(
           submission.id,
           sanitizedContent,
           lesson.aiPrompt,
-          lesson.aiContext ?? null
+          lesson.aiContext ?? null,
+          lesson.hasImageAnalysis ? (files || []) : []
         ).catch((err) =>
           console.error("AI homework check failed:", err)
         );

@@ -25,6 +25,7 @@ const lessonUpdateSchema = z.object({
   aiPrompt: z.string().nullable().optional(),
   aiContext: z.string().nullable().optional(),
   autoResponse: z.string().nullable().optional(),
+  hasImageAnalysis: z.boolean().optional(),
 });
 
 export async function GET(
@@ -125,6 +126,7 @@ export async function PATCH(
         if (data.aiPrompt !== undefined) updateData.aiPrompt = data.aiPrompt;
         if (data.aiContext !== undefined) updateData.aiContext = data.aiContext;
         if (data.autoResponse !== undefined) updateData.autoResponse = data.autoResponse;
+        if (data.hasImageAnalysis !== undefined) updateData.hasImageAnalysis = data.hasImageAnalysis;
 
         const lesson = await db.lesson.update({
           where: { id },

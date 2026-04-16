@@ -11,8 +11,7 @@ export interface HomeworkCheckResult {
 }
 
 /**
- * Вызывает Gemini Flash через Replicate для проверки ответа студента.
- * Использует stream() — единственный поддерживаемый способ для этой модели.
+ * Вызывает Gemini Flash через Replicate для проверки текстового ответа студента.
  */
 async function callGemini(prompt: string): Promise<string> {
   const chunks: string[] = [];
@@ -34,6 +33,53 @@ async function callGemini(prompt: string): Promise<string> {
   }
 
   return chunks.join("");
+}
+
+/**
+ * Вызывает GPT-4o через Replicate для проверки ответа студента с картинками.
+ * Использует HTTP-запрос с заголовком Prefer: wait для синхронного ответа.
+ */
+async function callGPT4o(
+  prompt: string,
+  systemPrompt: string,
+  imageUrls: string[]
+): Promise<string> {
+  const response = await fetch(
+    "https://api.replicate.com/v1/models/openai/gpt-4o/predictions",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.REPLICATE_API_TOKEN}`,
+        "Content-Type": "application/json",
+        Prefer: "wait",
+      },
+      body: JSON.stringify({
+        input: {
+          prompt,
+          system_prompt: systemPrompt,
+          image_input: imageUrls,
+          max_completion_tokens: 4096,
+          temperature: 1,
+          top_p: 1,
+          frequency_penalty: 0,
+          presence_penalty: 0,
+          messages: [],
+        },
+      }),
+    }
+  );
+
+  const data = await response.json();
+
+  if (data.error) {
+    throw new Error(`GPT-4o error: ${data.error}`);
+  }
+
+  if (Array.isArray(data.output)) {
+    return data.output.join("");
+  }
+
+  return String(data.output || "");
 }
 
 /**
@@ -84,19 +130,34 @@ function parseVerdict(raw: string): HomeworkCheckResult {
 
 /**
  * Проверяет ответ студента с помощью AI и обновляет submission в БД.
+ * Если переданы imageFiles — использует GPT-4o с анализом картинок.
  * Предназначена для вызова в фоне (без await).
  */
 export async function checkHomeworkWithAI(
   submissionId: string,
   studentAnswer: string,
   aiPrompt: string,
-  aiContext: string | null
+  aiContext: string | null,
+  imageFiles: string[] = []
 ): Promise<void> {
   const contextBlock = aiContext
     ? `\n\n## Материал урока / Эталон:\n${aiContext}`
     : "";
 
-  const prompt = `Ты — куратор онлайн-курса. Проверь домашнее задание студента и верни ответ СТРОГО в формате JSON без лишнего текста.
+  let raw: string;
+
+  if (imageFiles.length > 0) {
+    // Анализ с картинками через GPT-4o
+    const userPrompt = studentAnswer
+      ? `## Ответ студента:\n${studentAnswer}\n\nВерни ТОЛЬКО JSON в следующем формате:\n{\n  "verdict": "approved" или "rejected",\n  "comment": "Твой комментарий для студента на русском языке (2-5 предложений)"\n}`
+      : `Проанализируй прикреплённые изображения и вынеси вердикт.\n\nВерни ТОЛЬКО JSON в следующем формате:\n{\n  "verdict": "approved" или "rejected",\n  "comment": "Твой комментарий для студента на русском языке (2-5 предложений)"\n}`;
+
+    const systemPrompt = `Ты — куратор онлайн-курса. Проверь домашнее задание студента и верни ответ СТРОГО в формате JSON без лишнего текста.\n\n## Инструкция для проверки:\n${aiPrompt}${contextBlock}`;
+
+    raw = await callGPT4o(userPrompt, systemPrompt, imageFiles);
+  } else {
+    // Текстовая проверка через Gemini
+    const prompt = `Ты — куратор онлайн-курса. Проверь домашнее задание студента и верни ответ СТРОГО в формате JSON без лишнего текста.
 
 ## Инструкция для проверки:
 ${aiPrompt}${contextBlock}
@@ -110,7 +171,9 @@ ${studentAnswer}
   "comment": "Твой комментарий для студента на русском языке (2-5 предложений)"
 }`;
 
-  const raw = await callGemini(prompt);
+    raw = await callGemini(prompt);
+  }
+
   const result = parseVerdict(raw);
 
   await db.homeworkSubmission.update({
