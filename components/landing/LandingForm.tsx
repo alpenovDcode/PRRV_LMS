@@ -164,13 +164,22 @@ export default function LandingForm({ block, answers, initialSubmission }: { blo
             <label className="block text-sm font-medium text-gray-900 mb-1">
                {field.label} {field.required && <span className="text-red-500">*</span>}
             </label>
-            <input
-               type={field.type}
-               required={field.required}
-               className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-black bg-white placeholder-gray-400 transition-all"
-               placeholder={field.type === "tel" ? "+7 (___) ___-__-__" : ""}
-               onChange={(e) => setFormData({ ...formData, [field.label]: e.target.value })} 
-            />
+            {field.type === "textarea" ? (
+               <textarea
+                  required={field.required}
+                  rows={4}
+                  className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-black bg-white placeholder-gray-400 transition-all resize-none"
+                  onChange={(e) => setFormData({ ...formData, [field.label]: e.target.value })}
+               />
+            ) : (
+               <input
+                  type={field.type}
+                  required={field.required}
+                  className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-black bg-white placeholder-gray-400 transition-all"
+                  placeholder={field.type === "tel" ? "+7 (___) ___-__-__" : ""}
+                  onChange={(e) => setFormData({ ...formData, [field.label]: e.target.value })}
+               />
+            )}
          </div>
       ))}
 

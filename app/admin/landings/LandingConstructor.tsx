@@ -867,12 +867,63 @@ export default function LandingConstructor({
                          
                          {activeBlock.type === 'form' && (
                             <div className="space-y-8">
+                               <div className="space-y-3">
+                                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block px-1">Поля формы</label>
+                                  <div className="space-y-3">
+                                     {(activeBlock.content.fields || []).map((field: any, idx: number) => {
+                                        const fields = activeBlock.content.fields;
+                                        const update = (patch: any) => {
+                                           const nf = [...fields]; nf[idx] = { ...nf[idx], ...patch }; updateContent(activeBlock.id, { fields: nf });
+                                        };
+                                        return (
+                                           <div key={idx} className="p-4 bg-white rounded-2xl border border-gray-100 shadow-sm space-y-3 hover:border-blue-200 transition-all">
+                                              <div className="flex items-center gap-2">
+                                                 <input
+                                                    className="flex-1 px-3 py-2 border border-gray-100 rounded-xl text-sm font-medium text-gray-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none transition-all"
+                                                    value={field.label}
+                                                    placeholder="Название поля"
+                                                    onChange={e => update({ label: e.target.value })}
+                                                 />
+                                                 <button
+                                                    onClick={() => updateContent(activeBlock.id, { fields: fields.filter((_: any, i: number) => i !== idx) })}
+                                                    className="text-gray-300 hover:text-red-500 transition-colors p-1 flex-shrink-0"
+                                                 ><X size={16}/></button>
+                                              </div>
+                                              <div className="flex items-center gap-3">
+                                                 <select
+                                                    className="flex-1 px-3 py-2 border border-gray-100 rounded-xl text-xs font-medium text-gray-700 bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none transition-all"
+                                                    value={field.type}
+                                                    onChange={e => update({ type: e.target.value })}
+                                                 >
+                                                    <option value="text">Текст</option>
+                                                    <option value="tel">Телефон</option>
+                                                    <option value="email">Email</option>
+                                                    <option value="number">Число</option>
+                                                    <option value="textarea">Большой текст</option>
+                                                 </select>
+                                                 <label className="flex items-center gap-2 cursor-pointer flex-shrink-0">
+                                                    <div className="relative inline-flex items-center">
+                                                       <input type="checkbox" className="sr-only peer" checked={!!field.required} onChange={e => update({ required: e.target.checked })} />
+                                                       <div className="w-8 h-4 bg-gray-200 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-4 shadow-inner"></div>
+                                                    </div>
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Обяз.</span>
+                                                 </label>
+                                              </div>
+                                           </div>
+                                        );
+                                     })}
+                                  </div>
+                                  <button
+                                     onClick={() => updateContent(activeBlock.id, { fields: [...(activeBlock.content.fields || []), { type: "text", label: "Новое поле", required: false }] })}
+                                     className="w-full py-4 border-2 border-dashed border-blue-100 rounded-2xl text-blue-600 text-[10px] font-black uppercase tracking-widest hover:bg-blue-50 hover:border-blue-200 transition-all"
+                                  >+ Добавить поле</button>
+                               </div>
                                 <TextArea label="Текст кнопки" value={activeBlock.content.buttonText} onChange={v => updateContent(activeBlock.id, { buttonText: v })} />
                                 <div className="space-y-2">
                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block px-1">Привязка к уроку LMS</label>
-                                   <select 
-                                      className="w-full p-4 border border-gray-100 rounded-2xl text-sm bg-white text-gray-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 outline-none transition-all shadow-sm font-medium" 
-                                      value={activeBlock.lessonId || ""} 
+                                   <select
+                                      className="w-full p-4 border border-gray-100 rounded-2xl text-sm bg-white text-gray-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 outline-none transition-all shadow-sm font-medium"
+                                      value={activeBlock.lessonId || ""}
                                       onChange={e => updateBlock(activeBlock.id, { lessonId: e.target.value || null })}
                                    >
                                       <option value="">Без привязки (Визитка)</option>
