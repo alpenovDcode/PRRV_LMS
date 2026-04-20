@@ -11,7 +11,7 @@ export async function POST(req: Request) {
     const { blockId, data, answers } = await req.json();
     
     // Mapping: keys from LandingForm are labels ("Email", "Имя", "Телефон")
-    const emailKey = Object.keys(data).find(k => k.toLowerCase() === "email");
+    const emailKey = Object.keys(data).find(k => ["email", "почта", "e-mail", "эл. почта", "электронная почта"].includes(k.toLowerCase()));
     const nameKey = Object.keys(data).find(k => k.toLowerCase() === "имя" || k.toLowerCase() === "name");
 
     const email = (emailKey ? data[emailKey] : data.email)?.toLowerCase().trim();
