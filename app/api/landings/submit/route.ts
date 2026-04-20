@@ -447,11 +447,16 @@ export async function POST(req: Request) {
                 // Fetch Stage Order for Funnel (to use Right-Hand Logic)
                 let stageSortMap: Record<string, number> = {};
                 try {
-                    const stagesRes = await fetch(`${bitrixUrl}crm.dealcategory.stage.list?id=${funnelId}`);
+                    const isDefaultFunnel = String(funnelId) === "0";
+                    const stagesUrl = isDefaultFunnel
+                        ? `${bitrixUrl}crm.status.list?filter[ENTITY_ID]=DEAL_STAGE`
+                        : `${bitrixUrl}crm.dealcategory.stage.list?id=${funnelId}`;
+                    const stagesRes = await fetch(stagesUrl);
                     const stagesData = await stagesRes.json();
                     const stages = stagesData.result || [];
                     stages.forEach((s: any) => {
-                        stageSortMap[s.STATUS_ID] = parseInt(s.SORT);
+                        const key = s.STATUS_ID || s.ID;
+                        stageSortMap[key] = parseInt(s.SORT);
                     });
                 } catch (e) { debugLog(`Error fetching stages: ${e}`); }
 
@@ -568,11 +573,6 @@ export async function POST(req: Request) {
                         debugLog("Could not fetch Master Deal details, skipping deep merge.");
                     }
 
-                    // Add current submission data (Highest Priority for this specific field)
-                    // Always overwrite this specific integration field
-                    // Always overwrite this specific integration field
-                    mergedFields["UF_CRM_1770370876447"] = qaString;
-
                     // Global Field Mapping (User Selected)
                     if (pageSettings?.bitrix?.globalAnswerFieldId) {
                         mergedFields[pageSettings.bitrix.globalAnswerFieldId] = qaString;
@@ -688,18 +688,17 @@ export async function POST(req: Request) {
                 } else {
                     // CREATE NEW DEAL
                     debugLog("No active deal found. Creating NEW deal...");
-                    const dealFields = {
+                    const dealFields: any = {
                        TITLE: dealTitle,
                        CATEGORY_ID: funnelId,
                        STAGE_ID: stageId,
                        CONTACT_ID: contactId,
                        OPENED: "Y",
-                       UF_CRM_1770370876447: qaString
                     };
 
                     // Global Field Mapping (User Selected)
                     if (pageSettings?.bitrix?.globalAnswerFieldId) {
-                       (dealFields as any)[pageSettings.bitrix.globalAnswerFieldId] = qaString;
+                       dealFields[pageSettings.bitrix.globalAnswerFieldId] = qaString;
                     }
 
                     // --- NEW: Map Specific Bitrix Fields (For New Deal) ---
