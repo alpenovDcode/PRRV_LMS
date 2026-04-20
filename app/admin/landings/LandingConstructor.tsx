@@ -189,11 +189,13 @@ export default function LandingConstructor({
   
   const [lessons, setLessons] = useState<any[]>([]);
   const [bitrixFields, setBitrixFields] = useState<any[]>([]);
+  const [bitrixFunnels, setBitrixFunnels] = useState<any[]>([]);
   const [loadingFields, setLoadingFields] = useState(false);
 
   useEffect(() => {
     fetch('/api/admin/lessons/all').then(r => r.json()).then(d => setLessons(Array.isArray(d) ? d : []));
     fetch('/api/bitrix/fields').then(r => r.json()).then(d => { if (Array.isArray(d)) setBitrixFields(d); });
+    fetch('/api/bitrix/funnels').then(r => r.json()).then(d => { if (Array.isArray(d)) setBitrixFunnels(d); });
   }, []);
 
   const addBlock = (type: string) => {
@@ -325,9 +327,46 @@ export default function LandingConstructor({
                               </div>
                           </div>
 
-                          <div className="p-6 bg-white rounded-[2rem] border border-gray-100 shadow-sm space-y-6">
+                          <div className="p-6 bg-white rounded-[2rem] border border-gray-100 shadow-sm space-y-5">
                               <label className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] block">Интеграция Bitrix24</label>
-                              <Input label="Target Stage ID" value={settings?.bitrix?.targetStageId} onChange={v => setSettings({...settings, bitrix: {...settings.bitrix, targetStageId: v}})} placeholder="C14:NEW" />
+
+                              <div className="space-y-2">
+                                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block px-1">Воронка</label>
+                                 <select
+                                    className="w-full p-4 border border-gray-100 rounded-2xl text-sm bg-white text-gray-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 outline-none transition-all shadow-sm font-medium"
+                                    value={settings?.bitrix?.funnelId ?? ""}
+                                    onChange={e => {
+                                       const funnelId = e.target.value;
+                                       setSettings({ ...settings, bitrix: { ...settings.bitrix, funnelId, targetStageId: "" } });
+                                    }}
+                                 >
+                                    <option value="">— Выберите воронку —</option>
+                                    {bitrixFunnels.map((f: any) => (
+                                       <option key={f.id} value={f.id}>{f.name}</option>
+                                    ))}
+                                 </select>
+                              </div>
+
+                              {settings?.bitrix?.funnelId !== undefined && settings?.bitrix?.funnelId !== "" && (
+                                 <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block px-1">Стадия сделки</label>
+                                    <select
+                                       className="w-full p-4 border border-gray-100 rounded-2xl text-sm bg-white text-gray-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 outline-none transition-all shadow-sm font-medium"
+                                       value={settings?.bitrix?.targetStageId ?? ""}
+                                       onChange={e => setSettings({ ...settings, bitrix: { ...settings.bitrix, targetStageId: e.target.value } })}
+                                    >
+                                       <option value="">— Выберите стадию —</option>
+                                       {(bitrixFunnels.find((f: any) => String(f.id) === String(settings?.bitrix?.funnelId))?.stages || []).map((s: any) => (
+                                          <option key={s.id} value={s.id}>{s.name}</option>
+                                       ))}
+                                    </select>
+                                 </div>
+                              )}
+
+                              {!bitrixFunnels.length && (
+                                 <p className="text-[10px] text-gray-400 px-1">Загрузка воронок...</p>
+                              )}
+
                               <div className="p-5 bg-blue-50/50 rounded-2xl border border-blue-100 italic text-[11px] text-blue-700 leading-relaxed font-medium">
                                  Сделки и контакты будут создаваться автоматически при заполнении форм.
                               </div>
@@ -909,6 +948,21 @@ export default function LandingConstructor({
                                                     <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Обяз.</span>
                                                  </label>
                                               </div>
+                                              {bitrixFields.length > 0 && (
+                                                 <div className="space-y-1">
+                                                    <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-1">Поле в сделке Bitrix24</label>
+                                                    <select
+                                                       className="w-full px-3 py-2 border border-gray-100 rounded-xl text-xs font-medium text-gray-700 bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none transition-all"
+                                                       value={field.bitrixFieldId || ""}
+                                                       onChange={e => update({ bitrixFieldId: e.target.value || undefined })}
+                                                    >
+                                                       <option value="">— Не привязывать —</option>
+                                                       {bitrixFields.map((f: any) => (
+                                                          <option key={f.id} value={f.id}>{f.label}</option>
+                                                       ))}
+                                                    </select>
+                                                 </div>
+                                              )}
                                            </div>
                                         );
                                      })}
