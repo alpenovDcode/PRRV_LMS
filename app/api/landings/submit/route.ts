@@ -366,7 +366,7 @@ export async function POST(req: Request) {
              };
 
              debugLog("Starting Bitrix integration...");
-             const funnelId = process.env.BITRIX_FUNNEL_ID || "14";
+             const funnelId = pageSettings?.bitrix?.funnelId || process.env.BITRIX_FUNNEL_ID || "14";
              
              // Use Stage ID from settings OR Env
              const stageId = pageSettings?.bitrix?.targetStageId || process.env.BITRIX_SOURCE_STAGE_ID || "C14:PREPAYMENT_INVOIC";
@@ -378,6 +378,14 @@ export async function POST(req: Request) {
              });
 
              let qaString = "";
+             // Include form field values
+             Object.entries(data || {}).forEach(([label, value]) => {
+                if (typeof value === 'string' && value.trim()) {
+                   qaString += `${label}: ${value}\n`;
+                }
+             });
+             if (qaString) qaString += "\n";
+             // Include question block answers
              Object.entries(answers || {}).forEach(([blkId, answer]) => {
                  const questionBlock = allBlocks.find(b => b.id === blkId);
                  if (questionBlock && (questionBlock.content as any).html) {

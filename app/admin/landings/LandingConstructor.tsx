@@ -367,6 +367,21 @@ export default function LandingConstructor({
                                  <p className="text-[10px] text-gray-400 px-1">Загрузка воронок...</p>
                               )}
 
+                              <div className="space-y-2">
+                                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block px-1">Поле сделки для ответов</label>
+                                 <select
+                                    className="w-full p-4 border border-gray-100 rounded-2xl text-sm bg-white text-gray-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 outline-none transition-all shadow-sm font-medium"
+                                    value={settings?.bitrix?.globalAnswerFieldId ?? ""}
+                                    onChange={e => setSettings({ ...settings, bitrix: { ...settings.bitrix, globalAnswerFieldId: e.target.value || undefined } })}
+                                 >
+                                    <option value="">— Не записывать —</option>
+                                    {bitrixFields.map((f: any) => (
+                                       <option key={f.id} value={f.id}>{f.label}</option>
+                                    ))}
+                                 </select>
+                                 <p className="text-[10px] text-gray-400 px-1">Все ответы из форм лендинга запишутся в это поле сделки одним текстом.</p>
+                              </div>
+
                               <div className="p-5 bg-blue-50/50 rounded-2xl border border-blue-100 italic text-[11px] text-blue-700 leading-relaxed font-medium">
                                  Сделки и контакты будут создаваться автоматически при заполнении форм.
                               </div>
