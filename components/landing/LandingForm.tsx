@@ -105,7 +105,7 @@ export default function LandingForm({ block, answers, initialSubmission }: { blo
 
       if (res.ok) {
          setSubmissionId(data.submissionId);
-         setResult("Спасибо за выполненное задание! Результат проверки придет вам на Email.");
+         setResult("Спасибо за выполненное задание!");
          setStatus("completed");
          setShowSuccessPopup(true);
          localStorage.removeItem(`landing_submission_${block.id}`);
