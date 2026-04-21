@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Loader2, AlertTriangle, CheckCircle } from "lucide-react";
+import { Loader2, CheckCircle, X } from "lucide-react";
 
 export default function LandingForm({ block, answers, initialSubmission }: { block: any, answers?: Record<string, string>, initialSubmission?: any }) {
   const [formData, setFormData] = useState<any>({});
@@ -9,6 +9,7 @@ export default function LandingForm({ block, answers, initialSubmission }: { blo
   const [submissionId, setSubmissionId] = useState<string | null>(null);
   const [result, setResult] = useState<string>("");
   const [showWarning, setShowWarning] = useState(false);
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
 
   // Load saved state from local storage or initialSubmission (cookie)
   useEffect(() => {
@@ -21,7 +22,6 @@ export default function LandingForm({ block, answers, initialSubmission }: { blo
            return;
         } else {
            setStatus("waiting");
-           // Don't return, let polling start
         }
      }
 
@@ -41,7 +41,6 @@ export default function LandingForm({ block, answers, initialSubmission }: { blo
     let interval: NodeJS.Timeout;
 
     if (status === "waiting" && submissionId) {
-      // Poll every 30 seconds
       interval = setInterval(async () => {
         try {
           const res = await fetch("/api/landings/check-status", {
@@ -50,7 +49,7 @@ export default function LandingForm({ block, answers, initialSubmission }: { blo
             body: JSON.stringify({ submissionId }),
           });
           const data = await res.json();
-          
+
           if (data.status === "completed") {
              setResult(data.comment);
              setStatus("completed");
@@ -59,10 +58,9 @@ export default function LandingForm({ block, answers, initialSubmission }: { blo
         } catch (e) {
            console.error("Poll error", e);
         }
-      }, 30000); 
+      }, 30000);
     }
 
-    // Warn before closing
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
        if (status === "waiting") {
           e.preventDefault();
@@ -77,10 +75,15 @@ export default function LandingForm({ block, answers, initialSubmission }: { blo
     };
   }, [status, submissionId, block.id]);
 
+  // Auto-dismiss success popup after 5 seconds
+  useEffect(() => {
+    if (!showSuccessPopup) return;
+    const timer = setTimeout(() => setShowSuccessPopup(false), 5000);
+    return () => clearTimeout(timer);
+  }, [showSuccessPopup]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Basic validation if needed, but 'required' attr handles most
     setShowWarning(true);
   };
 
@@ -92,22 +95,20 @@ export default function LandingForm({ block, answers, initialSubmission }: { blo
       const res = await fetch("/api/landings/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
            blockId: block.id,
            data: formData,
-           answers: answers || {} 
+           answers: answers || {}
         }),
       });
       const data = await res.json();
 
       if (res.ok) {
          setSubmissionId(data.submissionId);
-         setStatus("waiting");
-         // Save to LS
-         localStorage.setItem(`landing_submission_${block.id}`, JSON.stringify({ 
-            id: data.submissionId, 
-            state: "waiting" 
-         }));
+         setResult("Спасибо за выполненное задание! Результат проверки придет вам на Email.");
+         setStatus("completed");
+         setShowSuccessPopup(true);
+         localStorage.removeItem(`landing_submission_${block.id}`);
       } else {
          alert("Ошибка: " + data.error);
          setStatus("idle");
@@ -120,11 +121,39 @@ export default function LandingForm({ block, answers, initialSubmission }: { blo
 
   if (status === "completed") {
      return (
-        <div className="p-8 bg-green-50 border border-green-200 rounded-xl text-center shadow-sm">
-           <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-           <h3 className="text-xl font-bold text-green-800 mb-2">Ответ получен!</h3>
-           <p className="text-gray-700 whitespace-pre-wrap">{result}</p>
-        </div>
+        <>
+          <div className="p-8 bg-green-50 border border-green-200 rounded-xl text-center shadow-sm">
+             <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
+             <h3 className="text-xl font-bold text-green-800 mb-2">Задание принято!</h3>
+             <p className="text-gray-700 whitespace-pre-wrap">{result}</p>
+          </div>
+
+          {showSuccessPopup && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+              <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 text-center relative animate-in fade-in zoom-in-95 duration-300">
+                <button
+                  onClick={() => setShowSuccessPopup(false)}
+                  className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X size={20} />
+                </button>
+
+                <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-5">
+                  <CheckCircle className="w-10 h-10 text-green-500" />
+                </div>
+
+                <h2 className="text-2xl font-black text-gray-900 mb-6">Задание принято!</h2>
+
+                <button
+                  onClick={() => setShowSuccessPopup(false)}
+                  className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl transition-colors"
+                >
+                  Отлично!
+                </button>
+              </div>
+            </div>
+          )}
+        </>
      );
   }
 
@@ -140,8 +169,8 @@ export default function LandingForm({ block, answers, initialSubmission }: { blo
             <p className="text-sm text-gray-500 mb-6">
                Вы можете подождать результат здесь (страница обновляется автоматически) или закрыть вкладку.
             </p>
-            
-            <button 
+
+            <button
                 onClick={() => {
                    setStatus("idle");
                    setSubmissionId(null);
@@ -198,7 +227,7 @@ export default function LandingForm({ block, answers, initialSubmission }: { blo
          )}
       </button>
     </form>
-    
+
       {/* Modal Confirmation */}
       {showWarning && (
          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
@@ -209,13 +238,13 @@ export default function LandingForm({ block, answers, initialSubmission }: { blo
                   Результат придет на указанный Email.
                </p>
                <div className="flex gap-2 justify-center">
-                  <button 
+                  <button
                      onClick={() => setShowWarning(false)}
                      className="px-4 py-2 border rounded-lg hover:bg-gray-50 text-sm"
                   >
                      Отмена
                   </button>
-                  <button 
+                  <button
                      onClick={handleConfirmSubmit}
                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
                   >
