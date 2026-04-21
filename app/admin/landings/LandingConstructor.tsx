@@ -219,7 +219,7 @@ export default function LandingConstructor({
     if (type === "text") return { html: "<h2>Заголовок секции</h2><p>Ваш текст здесь...</p>", hasInput: false };
     if (type === "text_input") return { html: "<h2>Вопрос</h2><p>Опишите ваш опыт...</p>", hasInput: true, inputLabel: "Ваш ответ" };
     if (type === "features") return { title: "Наши преимущества", columns: 3, items: [{ title: "Скорость", desc: "Быстрый результат", icon: "zap" }, { title: "Качество", desc: "Проверено временем", icon: "star" }, { title: "Поддержка", desc: "Мы всегда рядом", icon: "shield" }] };
-    if (type === "button") return { text: "Начать обучение", link: "#form", variant: "primary", size: "lg" };
+    if (type === "button") return { text: "Начать обучение", link: "#form", variant: "primary", size: "lg", isExternal: false };
     if (type === "video") return { videoId: "", title: "" };
     if (type === "form") return { fields: [{ type: "text", label: "Имя", required: true }, { type: "tel", label: "Телефон", required: true }], buttonText: "Отправить заявку" };
     if (type === "timer") return { title: "До конца акции осталось:", deadline: new Date(Date.now() + 86400000).toISOString() };
@@ -1007,6 +1007,16 @@ export default function LandingConstructor({
                             <div className="space-y-6">
                                <Input label="Текст на кнопке" value={activeBlock.content.text} onChange={v => updateContent(activeBlock.id, { text: v })} />
                                <Input label="Ссылка (URL)" value={activeBlock.content.link} onChange={v => updateContent(activeBlock.id, { link: v })} />
+                               <div className="flex items-center justify-between">
+                                  <span className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em]">Открывать в новой вкладке</span>
+                                  <button
+                                     type="button"
+                                     onClick={() => updateContent(activeBlock.id, { isExternal: !activeBlock.content.isExternal })}
+                                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none ${activeBlock.content.isExternal ? 'bg-blue-600' : 'bg-gray-200'}`}
+                                  >
+                                     <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${activeBlock.content.isExternal ? 'translate-x-6' : 'translate-x-1'}`} />
+                                  </button>
+                               </div>
                             </div>
                          )}
 
