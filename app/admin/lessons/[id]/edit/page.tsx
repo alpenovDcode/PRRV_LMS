@@ -40,7 +40,7 @@ import { LessonContentPlayer } from "@/components/learn/lesson-content-player";
 interface LessonDetail {
   id: string;
   title: string;
-  type: "video" | "text" | "quiz" | "track_definition" | "intermediate_survey";
+  type: "video" | "text" | "quiz" | "track_definition" | "intermediate_survey" | "certification_form";
   content: any;
   videoId: string | null;
   videoDuration: number | null;
@@ -73,7 +73,7 @@ export default function LessonEditorPage() {
 
   // Форма
   const [title, setTitle] = useState("");
-  const [type, setType] = useState<"video" | "text" | "quiz" | "track_definition" | "intermediate_survey">("video");
+  const [type, setType] = useState<"video" | "text" | "quiz" | "track_definition" | "intermediate_survey" | "certification_form">("video");
   const [content, setContent] = useState<any>(null);
   // Video state
   const [videos, setVideos] = useState<Array<{ videoId: string; title?: string; duration: number }>>([]);
@@ -221,7 +221,13 @@ export default function LessonEditorPage() {
             }
           }
           // Проверяем, что выбран правильный ответ
-          if (
+          if (qType === "multiple_choice") {
+            const ca = question.correctAnswer;
+            if (!Array.isArray(ca) || ca.length === 0) {
+              toast.error(`Вопрос ${i + 1}: укажите правильные ответы (correctAnswer)`);
+              return;
+            }
+          } else if (
             question.correct === undefined ||
             question.correct === null ||
             question.correct < 0 ||
@@ -508,6 +514,12 @@ export default function LessonEditorPage() {
                       <div className="flex items-center gap-2">
                         <FileText className="h-4 w-4" />
                         Промежуточный опрос
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="certification_form">
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4" />
+                        Сертификация Анкета
                       </div>
                     </SelectItem>
                   </SelectContent>

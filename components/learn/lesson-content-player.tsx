@@ -15,6 +15,7 @@ import { QuizPlayer } from "@/components/learn/quiz-player";
 import { HLSVideoPlayer } from "@/components/learn/hls-video-player";
 import { TrackDefinitionViewer } from "@/components/learn/track-definition-viewer";
 import { IntermediateSurveyViewer } from "@/components/learn/intermediate-survey-viewer";
+import { CertificationFormViewer } from "@/components/learn/certification-form-viewer";
 
 interface LessonContentPlayerProps {
   lesson: {
@@ -221,8 +222,13 @@ export function LessonContentPlayer({ lesson, onTimeUpdate, onEnded, isPreview =
         <IntermediateSurveyViewer lessonId={lesson.id} isCompleted={lesson.progress?.status === "completed"} isPreview={isPreview} />
       )}
 
+      {/* Certification Form Type */}
+      {lesson.type === "certification_form" && (
+        <CertificationFormViewer lessonId={lesson.id} isCompleted={lesson.progress?.status === "completed"} isPreview={isPreview} />
+      )}
+
       {/* Unsupported Type */}
-      {lesson.type !== "video" && lesson.type !== "text" && lesson.type !== "quiz" && lesson.type !== "track_definition" && lesson.type !== "intermediate_survey" && (
+      {lesson.type !== "video" && lesson.type !== "text" && lesson.type !== "quiz" && lesson.type !== "track_definition" && lesson.type !== "intermediate_survey" && lesson.type !== "certification_form" && (
         <Card className="mb-6 border-gray-200">
           <CardContent className="p-6">
             <p className="text-gray-500">Тип урока не поддерживается: {lesson.type}</p>

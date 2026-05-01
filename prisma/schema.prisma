@@ -521,6 +521,7 @@ enum LessonType {
   quiz
   track_definition
   intermediate_survey
+  certification_form
 }
 
 enum EnrollmentStatus {

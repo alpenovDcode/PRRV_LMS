@@ -90,6 +90,8 @@ export default function AdminTrainingDetailPage() {
       case "text": return <FileText className="h-4 w-4 text-gray-500" />;
       case "quiz": return <HelpCircle className="h-4 w-4 text-orange-500" />;
       case "track_definition": return <Layout className="h-4 w-4 text-purple-500" />;
+      case "intermediate_survey": return <FileText className="h-4 w-4 text-emerald-500" />;
+      case "certification_form": return <FileText className="h-4 w-4 text-rose-500" />;
       default: return <FileText className="h-4 w-4 text-gray-400" />;
     }
   };
@@ -100,6 +102,8 @@ export default function AdminTrainingDetailPage() {
       case "text": return "Текст";
       case "quiz": return "Тест";
       case "track_definition": return "Выбор трека";
+      case "intermediate_survey": return "Промежуточный опрос";
+      case "certification_form": return "Сертификация Анкета";
       default: return type;
     }
   };

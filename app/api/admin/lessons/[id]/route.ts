@@ -8,7 +8,7 @@ import { z } from "zod";
 
 const lessonUpdateSchema = z.object({
   title: z.string().min(1, "Название урока обязательно").optional(),
-  type: z.enum(["video", "text", "quiz", "track_definition", "intermediate_survey"]).optional(),
+  type: z.enum(["video", "text", "quiz", "track_definition", "intermediate_survey", "certification_form"]).optional(),
   content: z.any().optional(),
   videoId: z.string().nullable().optional(),
   videoDuration: z.number().int().min(0).nullable().optional(),
