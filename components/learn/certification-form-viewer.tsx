@@ -8,10 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { CircleCheck } from "lucide-react";
+import { CircleCheck, CheckCircle2, XCircle, Trophy } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 type QuestionType =
   | "text"
@@ -28,7 +29,9 @@ interface Question {
   options?: string[];
   required?: boolean;
   placeholder?: string;
-  sectionTitle?: string;
+  // Только для тестовых вопросов (часть 2):
+  correct?: number; // index option-а — для single_radio
+  correctAnswer?: string[]; // массив правильных option-строк — для multi_checkbox
 }
 
 const SCALE_1_10 = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
@@ -63,8 +66,8 @@ const MENTORS = [
   "Нет наставника",
 ];
 
-const QUESTIONS: Question[] = [
-  // Базовая информация
+// ===== Часть 1. Анкета сертификации =====
+const PART1_QUESTIONS: Question[] = [
   { id: "telegram_nick", text: "Напишите свой ник в Telegram", type: "text", required: true },
   { id: "city", text: "В каком городе вы проживаете?", type: "textarea", required: true },
   { id: "age", text: "Сколько вам лет?", type: "number", required: true },
@@ -311,11 +314,12 @@ const QUESTIONS: Question[] = [
     type: "scale_1_10",
     required: true,
   },
+];
 
-  // ===== Часть 2: Тестирование =====
+// ===== Часть 2. Тестирование (с проверкой правильных ответов) =====
+const PART2_QUESTIONS: Question[] = [
   {
     id: "test_otzyvy_optimal",
-    sectionTitle: "Часть 2. Тестирование",
     text: "Какой вариант сбора отзывов наиболее оптимальный?",
     type: "single_radio",
     options: [
@@ -323,6 +327,7 @@ const QUESTIONS: Question[] = [
       "Мария, оставьте, пожалуйста, отзыв о наших занятиях на Профи, это поможет мне в работе",
       "Мария, для меня очень важна обратная связь и повышение качества моей работы — оставьте, пожалуйста, отзыв",
     ],
+    correct: 2,
     required: true,
   },
   {
@@ -333,6 +338,7 @@ const QUESTIONS: Question[] = [
       "Дать чёткое описание пути достижения результата со стороны ученика",
       "Замена отзыву (используем их, если не можем получить отзыв от человека)",
     ],
+    correct: 0,
     required: true,
   },
   {
@@ -344,6 +350,11 @@ const QUESTIONS: Question[] = [
       "Где взгляд в камеру и хорошо видно лицо",
       "Содержащие яркие элементы",
       "Где у вас сдержанное выражение лица, не улыбаться (демонстрация серьёзности)",
+      "Где вы за работой",
+    ],
+    correctAnswer: [
+      "Где взгляд в камеру и хорошо видно лицо",
+      "Содержащие яркие элементы",
       "Где вы за работой",
     ],
     required: true,
@@ -359,6 +370,10 @@ const QUESTIONS: Question[] = [
       '"Профессионально споёшь свою любимую песню уже на 3 занятии"',
       '"Учу чтению, письму и счёту детей 5–6 лет"',
     ],
+    correctAnswer: [
+      '"Подготовка к ЕГЭ на 90+ с экспертом"',
+      '"Профессионально споёшь свою любимую песню уже на 3 занятии"',
+    ],
     required: true,
   },
   {
@@ -372,6 +387,7 @@ const QUESTIONS: Question[] = [
       "Перечень услуг",
       'Рассказать про сложность вашего предмета (например: "у меня учатся только избранные")',
     ],
+    correctAnswer: ["Результаты учеников", "Образование и опыт"],
     required: true,
   },
   {
@@ -388,6 +404,11 @@ const QUESTIONS: Question[] = [
       "Оплатить комиссии",
       "Отказы от заказов (где ученик не согласился заниматься) вместо архива",
     ],
+    correctAnswer: [
+      "Откликаться даже на дешёвые заказы, получить любой заказ любой ценой",
+      "Просить оставить отзыв за пробный урок",
+      "Оплатить комиссии",
+    ],
     required: true,
   },
   {
@@ -396,6 +417,11 @@ const QUESTIONS: Question[] = [
     type: "multi_checkbox",
     options: [
       "Интерактивные задания",
+      "Оффер (ограниченное предложение)",
+      "Рассказ о результатах учеников",
+      "Обратная связь для ученика о его уровне подготовки",
+    ],
+    correctAnswer: [
       "Оффер (ограниченное предложение)",
       "Рассказ о результатах учеников",
       "Обратная связь для ученика о его уровне подготовки",
@@ -411,6 +437,7 @@ const QUESTIONS: Question[] = [
       "Не делать подростку оффер, а созвониться с родителем, дать обратную связь и сделать оффер ему",
       "Не делать подростку оффер, а обсудить условия с родителем в переписке",
     ],
+    correct: 1,
     required: true,
   },
   {
@@ -422,6 +449,7 @@ const QUESTIONS: Question[] = [
       "Нет, это значит, что этот человек не склонен к импульсивным покупкам и подумает сам",
       "Нет, нужно задать дополнительные вопросы, чтобы понять, что конкретно смущает",
     ],
+    correct: 2,
     required: true,
   },
   {
@@ -431,6 +459,11 @@ const QUESTIONS: Question[] = [
     options: [
       '"А вам нужен результат или индивидуальные занятия?"',
       '"Да, я вас понимаю, но зато группы гораздо дешевле, может попробуете?"',
+      '"Я понимаю ваше беспокойство, что в группе будет меньше внимания, но…"',
+      '"Подскажите, а что конкретно смущает в группах? У вас уже был опыт?"',
+    ],
+    correctAnswer: [
+      '"А вам нужен результат или индивидуальные занятия?"',
       '"Я понимаю ваше беспокойство, что в группе будет меньше внимания, но…"',
       '"Подскажите, а что конкретно смущает в группах? У вас уже был опыт?"',
     ],
@@ -446,6 +479,10 @@ const QUESTIONS: Question[] = [
       "Скрыть телефон человека",
       "Добавить рамки, смайлики, посторонние объекты на текст отзыва",
     ],
+    correctAnswer: [
+      "Скрыть телефон человека",
+      "Добавить рамки, смайлики, посторонние объекты на текст отзыва",
+    ],
     required: true,
   },
   {
@@ -453,6 +490,7 @@ const QUESTIONS: Question[] = [
     text: "Куда лучше выложить первое объявление на Авито для теста?",
     type: "single_radio",
     options: ["Маленький город", "Москва или Питер"],
+    correct: 1,
     required: true,
   },
   {
@@ -460,6 +498,7 @@ const QUESTIONS: Question[] = [
     text: "Как долго нужно тестировать платные объявления на Авито?",
     type: "single_radio",
     options: ["1–2 дня", "От 7 дней"],
+    correct: 1,
     required: true,
   },
   {
@@ -467,6 +506,7 @@ const QUESTIONS: Question[] = [
     text: "Где лучше выкладывать тестовые объявления на Авито?",
     type: "single_radio",
     options: ["Только Мск и Спб", "Мск/Спб и регионы", "Только регионы"],
+    correct: 1,
     required: true,
   },
   {
@@ -480,6 +520,7 @@ const QUESTIONS: Question[] = [
       "В стоимости занятий",
       "Нужно вложить больше денег в продвижение (взять больше делений)",
     ],
+    correctAnswer: ["В фото и/или названии", "В описании анкеты"],
     required: true,
   },
   {
@@ -491,6 +532,7 @@ const QUESTIONS: Question[] = [
       "Сколько раз наше объявление открыли и прочитали",
       "Сколько раз нам написали по объявлению",
     ],
+    correct: 1,
     required: true,
   },
   {
@@ -502,6 +544,7 @@ const QUESTIONS: Question[] = [
       "Человек, который добавил наше объявление в избранное",
       "Человек, который посмотрел наше объявление",
     ],
+    correct: 0,
     required: true,
   },
 ];
@@ -513,10 +556,13 @@ interface CertificationFormViewerProps {
 }
 
 type AnswerValue = string | string[];
+type Phase = "form" | "test" | "results";
 
 export function CertificationFormViewer({ lessonId, isCompleted, isPreview = false }: CertificationFormViewerProps) {
+  const [phase, setPhase] = useState<Phase>("form");
   const [answers, setAnswers] = useState<Record<string, AnswerValue>>({});
   const [submitted, setSubmitted] = useState(false);
+  const [testScore, setTestScore] = useState<number | null>(null);
   const queryClient = useQueryClient();
 
   const submitMutation = useMutation({
@@ -531,10 +577,10 @@ export function CertificationFormViewer({ lessonId, isCompleted, isPreview = fal
     onSuccess: () => {
       setSubmitted(true);
       queryClient.invalidateQueries({ queryKey: ["lesson", lessonId] });
-      toast.success("Анкета отправлена");
+      toast.success("Сертификация отправлена");
     },
     onError: (error: any) => {
-      const msg = error?.response?.data?.error?.message || "Ошибка при отправке анкеты";
+      const msg = error?.response?.data?.error?.message || "Ошибка при отправке";
       toast.error(msg);
     },
   });
@@ -558,157 +604,308 @@ export function CertificationFormViewer({ lessonId, isCompleted, isPreview = fal
     return v.toString().trim() !== "";
   };
 
-  const handleSubmit = () => {
-    const missing = QUESTIONS.filter((q) => q.required && !isAnswered(q));
+  const isOptionCorrect = (q: Question, option: string): boolean => {
+    if (q.type === "single_radio" && q.options && q.correct !== undefined) {
+      return q.options[q.correct] === option;
+    }
+    if (q.type === "multi_checkbox" && q.correctAnswer) {
+      return q.correctAnswer.includes(option);
+    }
+    return false;
+  };
+
+  const isOptionSelected = (q: Question, option: string): boolean => {
+    const v = answers[q.id];
+    if (q.type === "single_radio") return v === option;
+    if (q.type === "multi_checkbox") return Array.isArray(v) && v.includes(option);
+    return false;
+  };
+
+  const isQuestionCorrect = (q: Question): boolean => {
+    if (q.type === "single_radio") {
+      if (q.correct === undefined || !q.options) return false;
+      return answers[q.id] === q.options[q.correct];
+    }
+    if (q.type === "multi_checkbox") {
+      if (!q.correctAnswer) return false;
+      const selected = (answers[q.id] as string[] | undefined) ?? [];
+      if (selected.length !== q.correctAnswer.length) return false;
+      return q.correctAnswer.every((c) => selected.includes(c));
+    }
+    return false;
+  };
+
+  const handleNextToTest = () => {
+    const missing = PART1_QUESTIONS.filter((q) => q.required && !isAnswered(q));
     if (missing.length > 0) {
       toast.error("Пожалуйста, ответьте на все обязательные вопросы со звёздочкой");
       return;
     }
+    setPhase("test");
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleSubmitAll = () => {
+    const missing = PART2_QUESTIONS.filter((q) => q.required && !isAnswered(q));
+    if (missing.length > 0) {
+      toast.error("Пожалуйста, ответьте на все вопросы тестирования");
+      return;
+    }
+
+    const correctCount = PART2_QUESTIONS.filter((q) => isQuestionCorrect(q)).length;
+    const total = PART2_QUESTIONS.length;
+    setTestScore(correctCount);
 
     const formatted: Record<string, string> = {};
-    QUESTIONS.forEach((q) => {
+    [...PART1_QUESTIONS, ...PART2_QUESTIONS].forEach((q) => {
       const v = answers[q.id];
       if (v === undefined) return;
       formatted[q.text] = Array.isArray(v) ? v.join(", ") : String(v);
     });
+    formatted["Тестирование: правильных ответов"] = `${correctCount} из ${total}`;
 
-    submitMutation.mutate({ content: JSON.stringify({ _answers: formatted }) });
+    submitMutation.mutate({
+      content: JSON.stringify({
+        _answers: formatted,
+        _test_score: correctCount,
+        _test_total: total,
+      }),
+    });
+
+    setPhase("results");
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  if (submitted || isCompleted) {
+  // Если урок уже пройден — показываем плашку
+  if ((submitted || isCompleted) && phase !== "results") {
     return (
       <Card className="max-w-3xl mx-auto border-blue-100 shadow-lg">
         <CardHeader className="text-center pb-2">
           <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
             <CircleCheck className="w-8 h-8 text-blue-600" />
           </div>
-          <CardTitle className="text-2xl">Анкета сертификации отправлена!</CardTitle>
+          <CardTitle className="text-2xl">Сертификация пройдена!</CardTitle>
         </CardHeader>
         <CardContent className="text-center space-y-6 pt-4 p-4 sm:p-6">
           <div className="bg-gray-50 p-4 sm:p-6 rounded-xl border border-gray-200">
-            <p className="text-gray-600">Спасибо за подробные ответы. Мы используем их при оценке сертификации.</p>
+            <p className="text-gray-600">Спасибо за прохождение анкеты и тестирования.</p>
           </div>
         </CardContent>
       </Card>
     );
   }
 
+  // ===== PHASE: RESULTS =====
+  if (phase === "results") {
+    const total = PART2_QUESTIONS.length;
+    const score = testScore ?? 0;
+    const percent = Math.round((score / total) * 100);
+    return (
+      <div className="max-w-3xl mx-auto space-y-6 pb-12 px-2 sm:px-0">
+        <Card className="border-blue-100 shadow-lg">
+          <CardHeader className="text-center pb-2">
+            <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+              <Trophy className="w-8 h-8 text-blue-600" />
+            </div>
+            <CardTitle className="text-2xl">Сертификация завершена!</CardTitle>
+          </CardHeader>
+          <CardContent className="text-center space-y-6 pt-4 p-4 sm:p-6">
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl border border-blue-200">
+              <p className="text-gray-600 mb-2">Ваш результат тестирования</p>
+              <p className="text-5xl font-bold text-blue-700">
+                {score} <span className="text-2xl text-gray-500">из {total}</span>
+              </p>
+              <p className="text-lg text-gray-700 mt-2">{percent}% правильных ответов</p>
+            </div>
+            <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 text-left space-y-3">
+              <p className="font-semibold text-gray-900 text-center">Разбор ответов:</p>
+              {PART2_QUESTIONS.map((q, idx) => {
+                const correct = isQuestionCorrect(q);
+                return (
+                  <div key={q.id} className="flex items-start gap-2">
+                    {correct ? (
+                      <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    ) : (
+                      <XCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                    )}
+                    <span className="text-sm text-gray-700">
+                      <span className="font-medium">{idx + 1}.</span> {q.text}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            {submitMutation.isPending && (
+              <p className="text-sm text-gray-500">Отправка результатов…</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const currentQuestions = phase === "form" ? PART1_QUESTIONS : PART2_QUESTIONS;
+  const isTestPhase = phase === "test";
+
   return (
     <div className="max-w-3xl mx-auto space-y-8 pb-12 px-2 sm:px-0">
       <div className="text-center space-y-2">
-        <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">Анкета сертификации «Прорыв»</h2>
+        <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">
+          {isTestPhase ? "Часть 2. Тестирование" : "Анкета сертификации «Прорыв»"}
+        </h2>
         <p className="text-gray-600">
-          Заполните анкету по итогам обучения. Это поможет нам оценить ваш прогресс и улучшить программу.
+          {isTestPhase
+            ? "Ответьте на 17 вопросов. Правильные и неправильные ответы будут подсвечиваться сразу."
+            : "Часть 1: Анкета. После заполнения откроется тестирование."}
         </p>
       </div>
 
       <div className="bg-gray-50/50 rounded-2xl p-6 sm:p-8 space-y-8 border border-gray-100 shadow-sm">
-        {QUESTIONS.map((q) => (
-          <div key={q.id} className="space-y-3">
-            {q.sectionTitle && (
-              <div className="pt-4 pb-2 border-t border-gray-200">
-                <h3 className="text-xl font-bold text-gray-900">{q.sectionTitle}</h3>
-              </div>
-            )}
-            <Label className="text-base font-medium text-gray-900 leading-snug block">
-              {q.text} {q.required && <span className="text-red-500">*</span>}
-            </Label>
+        {currentQuestions.map((q, idx) => {
+          const answered = isAnswered(q);
+          return (
+            <div key={q.id} className="space-y-3">
+              <Label className="text-base font-medium text-gray-900 leading-snug block">
+                {isTestPhase && <span className="text-gray-500 mr-1">{idx + 1}.</span>}
+                {q.text} {q.required && <span className="text-red-500">*</span>}
+              </Label>
 
-            {q.type === "text" && (
-              <Input
-                value={(answers[q.id] as string) || ""}
-                onChange={(e) => setSingle(q.id, e.target.value)}
-                placeholder={q.placeholder}
-                className="bg-white max-w-xl border-gray-300"
-              />
-            )}
+              {q.type === "text" && (
+                <Input
+                  value={(answers[q.id] as string) || ""}
+                  onChange={(e) => setSingle(q.id, e.target.value)}
+                  placeholder={q.placeholder}
+                  className="bg-white max-w-xl border-gray-300"
+                />
+              )}
 
-            {q.type === "number" && (
-              <Input
-                type="number"
-                inputMode="numeric"
-                value={(answers[q.id] as string) || ""}
-                onChange={(e) => setSingle(q.id, e.target.value)}
-                placeholder={q.placeholder}
-                className="bg-white max-w-xs border-gray-300"
-              />
-            )}
+              {q.type === "number" && (
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  value={(answers[q.id] as string) || ""}
+                  onChange={(e) => setSingle(q.id, e.target.value)}
+                  placeholder={q.placeholder}
+                  className="bg-white max-w-xs border-gray-300"
+                />
+              )}
 
-            {q.type === "textarea" && (
-              <Textarea
-                value={(answers[q.id] as string) || ""}
-                onChange={(e) => setSingle(q.id, e.target.value)}
-                placeholder={q.placeholder}
-                rows={3}
-                className="bg-white border-gray-300"
-              />
-            )}
+              {q.type === "textarea" && (
+                <Textarea
+                  value={(answers[q.id] as string) || ""}
+                  onChange={(e) => setSingle(q.id, e.target.value)}
+                  placeholder={q.placeholder}
+                  rows={3}
+                  className="bg-white border-gray-300"
+                />
+              )}
 
-            {q.type === "scale_1_10" && (
-              <RadioGroup
-                value={(answers[q.id] as string) || ""}
-                onValueChange={(val) => setSingle(q.id, val)}
-                className="flex flex-wrap gap-x-4 gap-y-3 pt-1"
-              >
-                {SCALE_1_10.map((num) => (
-                  <div key={num} className="flex flex-row items-center space-x-2">
-                    <RadioGroupItem value={num} id={`q-${q.id}-${num}`} className="text-blue-600" />
-                    <Label htmlFor={`q-${q.id}-${num}`} className="font-normal text-gray-700 cursor-pointer">
-                      {num}
-                    </Label>
-                  </div>
-                ))}
-              </RadioGroup>
-            )}
-
-            {q.type === "single_radio" && q.options && (
-              <RadioGroup
-                value={(answers[q.id] as string) || ""}
-                onValueChange={(val) => setSingle(q.id, val)}
-                className="flex flex-col gap-2 pt-1"
-              >
-                {q.options.map((option) => (
-                  <div key={option} className="flex items-center space-x-2">
-                    <RadioGroupItem value={option} id={`q-${q.id}-${option}`} className="text-blue-600" />
-                    <Label htmlFor={`q-${q.id}-${option}`} className="font-normal text-gray-700 cursor-pointer">
-                      {option}
-                    </Label>
-                  </div>
-                ))}
-              </RadioGroup>
-            )}
-
-            {q.type === "multi_checkbox" && q.options && (
-              <div className="flex flex-col gap-2 pt-1">
-                {q.options.map((option) => {
-                  const checked = ((answers[q.id] as string[] | undefined) ?? []).includes(option);
-                  return (
-                    <div key={option} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`q-${q.id}-${option}`}
-                        checked={checked}
-                        onCheckedChange={() => toggleMulti(q.id, option)}
-                      />
-                      <Label htmlFor={`q-${q.id}-${option}`} className="font-normal text-gray-700 cursor-pointer">
-                        {option}
+              {q.type === "scale_1_10" && (
+                <RadioGroup
+                  value={(answers[q.id] as string) || ""}
+                  onValueChange={(val) => setSingle(q.id, val)}
+                  className="flex flex-wrap gap-x-4 gap-y-3 pt-1"
+                >
+                  {SCALE_1_10.map((num) => (
+                    <div key={num} className="flex flex-row items-center space-x-2">
+                      <RadioGroupItem value={num} id={`q-${q.id}-${num}`} className="text-blue-600" />
+                      <Label htmlFor={`q-${q.id}-${num}`} className="font-normal text-gray-700 cursor-pointer">
+                        {num}
                       </Label>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        ))}
+                  ))}
+                </RadioGroup>
+              )}
+
+              {q.type === "single_radio" && q.options && (
+                <RadioGroup
+                  value={(answers[q.id] as string) || ""}
+                  onValueChange={(val) => setSingle(q.id, val)}
+                  className="flex flex-col gap-2 pt-1"
+                >
+                  {q.options.map((option) => {
+                    const showFeedback = isTestPhase && answered;
+                    const correct = isOptionCorrect(q, option);
+                    const selected = isOptionSelected(q, option);
+                    const optionClass = cn(
+                      "flex items-center space-x-2 px-3 py-2 rounded-lg border transition-colors",
+                      !showFeedback && "border-transparent hover:bg-gray-100",
+                      showFeedback && correct && "border-green-400 bg-green-50",
+                      showFeedback && selected && !correct && "border-red-400 bg-red-50",
+                      showFeedback && !correct && !selected && "border-transparent"
+                    );
+                    return (
+                      <div key={option} className={optionClass}>
+                        <RadioGroupItem value={option} id={`q-${q.id}-${option}`} className="text-blue-600" />
+                        <Label htmlFor={`q-${q.id}-${option}`} className="font-normal text-gray-700 cursor-pointer flex-1">
+                          {option}
+                        </Label>
+                        {showFeedback && correct && <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />}
+                        {showFeedback && selected && !correct && (
+                          <XCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                        )}
+                      </div>
+                    );
+                  })}
+                </RadioGroup>
+              )}
+
+              {q.type === "multi_checkbox" && q.options && (
+                <div className="flex flex-col gap-2 pt-1">
+                  {q.options.map((option) => {
+                    const showFeedback = isTestPhase && answered;
+                    const correct = isOptionCorrect(q, option);
+                    const selected = isOptionSelected(q, option);
+                    const optionClass = cn(
+                      "flex items-center space-x-2 px-3 py-2 rounded-lg border transition-colors",
+                      !showFeedback && "border-transparent hover:bg-gray-100",
+                      showFeedback && correct && "border-green-400 bg-green-50",
+                      showFeedback && selected && !correct && "border-red-400 bg-red-50",
+                      showFeedback && !correct && !selected && "border-transparent"
+                    );
+                    return (
+                      <div key={option} className={optionClass}>
+                        <Checkbox
+                          id={`q-${q.id}-${option}`}
+                          checked={selected}
+                          onCheckedChange={() => toggleMulti(q.id, option)}
+                        />
+                        <Label htmlFor={`q-${q.id}-${option}`} className="font-normal text-gray-700 cursor-pointer flex-1">
+                          {option}
+                        </Label>
+                        {showFeedback && correct && <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />}
+                        {showFeedback && selected && !correct && (
+                          <XCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
 
         <div className="flex justify-center pt-8">
-          <Button
-            size="lg"
-            onClick={handleSubmit}
-            disabled={submitMutation.isPending}
-            className="bg-[#f05a28] hover:bg-[#d94a1d] text-white min-w-[240px] h-12 text-base rounded-full"
-          >
-            {submitMutation.isPending ? "Отправка..." : "Отправить анкету"}
-          </Button>
+          {phase === "form" && (
+            <Button
+              size="lg"
+              onClick={handleNextToTest}
+              className="bg-[#f05a28] hover:bg-[#d94a1d] text-white min-w-[240px] h-12 text-base rounded-full"
+            >
+              Перейти к тестированию
+            </Button>
+          )}
+          {phase === "test" && (
+            <Button
+              size="lg"
+              onClick={handleSubmitAll}
+              disabled={submitMutation.isPending}
+              className="bg-[#f05a28] hover:bg-[#d94a1d] text-white min-w-[240px] h-12 text-base rounded-full"
+            >
+              {submitMutation.isPending ? "Отправка…" : "Завершить тестирование"}
+            </Button>
+          )}
         </div>
       </div>
     </div>
