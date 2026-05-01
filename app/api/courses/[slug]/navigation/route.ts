@@ -156,12 +156,27 @@ export async function GET(
           trackDefinitionCompletedAt = new Date(trackDefProgress.completedAt);
       }
 
+      // Find user's certification completion date
+      let certificationCompletedAt: Date | null = null;
+      const certificationProgress = await db.lessonProgress.findFirst({
+        where: {
+          userId: req.user!.userId,
+          status: "completed",
+          lesson: { type: "certification_form" }
+        },
+        orderBy: { completedAt: 'desc' }
+      });
+      if (certificationProgress && certificationProgress.completedAt) {
+          certificationCompletedAt = new Date(certificationProgress.completedAt);
+      }
+
       const context: ModuleAccessContext = {
           userTariff: userTariff || null,
           userTrack: userTrack || null,
           userGroupIds,
           userGroupsMap,
           trackDefinitionCompletedAt,
+          certificationCompletedAt,
           // @ts-ignore
           forcedModules: enrollment.forcedModules as string[] || []
       };

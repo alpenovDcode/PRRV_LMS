@@ -239,6 +239,7 @@ function AccessSettingsDialog({ module, open, onOpenChange, onSave }: AccessSett
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="track_definition_completed">После определения трека</SelectItem>
+                                <SelectItem value="certification_completed">После прохождения сертификации</SelectItem>
                                 <SelectItem value="group_start_date">С даты старта Группы</SelectItem>
                             </SelectContent>
                         </Select>
@@ -432,6 +433,7 @@ function AccessSettingsDialog({ module, open, onOpenChange, onSave }: AccessSett
                                             </SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="track_definition_completed">После определения трека</SelectItem>
+                                                <SelectItem value="certification_completed">После прохождения сертификации</SelectItem>
                                                 <SelectItem value="group_start_date">С даты старта Группы</SelectItem>
                                             </SelectContent>
                                         </Select>

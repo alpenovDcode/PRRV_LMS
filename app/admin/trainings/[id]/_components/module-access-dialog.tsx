@@ -306,6 +306,7 @@ export function ModuleAccessDialog({ courseId, modules }: ModuleAccessDialogProp
                                          {selectedModule.openAfterAmount || 0} {selectedModule.openAfterUnit} после: <br/>
                                          <span className="font-medium">
                                             {selectedModule.openAfterEvent === 'track_definition_completed' ? 'Определения трека' :
+                                             selectedModule.openAfterEvent === 'certification_completed' ? 'Прохождения сертификации' :
                                              selectedModule.openAfterEvent === 'group_start_date' ? 'Старта группы' : selectedModule.openAfterEvent}
                                          </span>
                                        </div>

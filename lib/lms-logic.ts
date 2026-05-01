@@ -58,6 +58,17 @@ export async function checkLessonAvailability(userId: string, lessonId: string):
       select: { completedAt: true }
   });
 
+  // Fetch certification status
+  const certificationProgress = await db.lessonProgress.findFirst({
+      where: {
+          userId: userId,
+          status: "completed",
+          lesson: { type: "certification_form" }
+      },
+      orderBy: { completedAt: 'desc' },
+      select: { completedAt: true }
+  });
+
 
   // 2. Fetch lesson with module access settings
   const lesson = await db.lesson.findUnique({
@@ -116,6 +127,7 @@ export async function checkLessonAvailability(userId: string, lessonId: string):
       userGroupIds,
       userGroupsMap,
       trackDefinitionCompletedAt: trackDefProgress?.completedAt ? new Date(trackDefProgress.completedAt) : null,
+      certificationCompletedAt: certificationProgress?.completedAt ? new Date(certificationProgress.completedAt) : null,
       forcedModules
   };
   // Apply track specific logic if exists
@@ -298,6 +310,7 @@ export interface ModuleAccessContext {
   userGroupIds: string[];
   userGroupsMap: Map<string, Date | null>;
   trackDefinitionCompletedAt: Date | null;
+  certificationCompletedAt?: Date | null;
   now?: Date;
   forcedModules?: string[];
 }
@@ -324,7 +337,7 @@ export function checkModuleAccess(
   context: ModuleAccessContext,
   restrictedModules: string[] = []
 ): ModuleAccessResult {
-  const { userTariff, userTrack, userGroupIds, userGroupsMap, trackDefinitionCompletedAt, forcedModules } = context;
+  const { userTariff, userTrack, userGroupIds, userGroupsMap, trackDefinitionCompletedAt, certificationCompletedAt, forcedModules } = context;
   const now = context.now || new Date();
 
   // -1. Check Forced Access
@@ -395,6 +408,19 @@ export function checkModuleAccess(
 
     if (module.openAfterAmount !== null && module.openAfterAmount !== undefined && module.openAfterUnit) {
       const openDate = new Date(trackDefinitionCompletedAt);
+      addTime(openDate, module.openAfterAmount, module.openAfterUnit);
+
+      if (now < openDate) {
+        return { isAccessible: false, reason: "time_locked", unlockDate: openDate };
+      }
+    }
+  } else if (module.openAfterEvent === "certification_completed") {
+    if (!certificationCompletedAt) {
+      return { isAccessible: false, reason: "time_locked", unlockDate: null, details: "Waiting for certification" };
+    }
+
+    if (module.openAfterAmount !== null && module.openAfterAmount !== undefined && module.openAfterUnit) {
+      const openDate = new Date(certificationCompletedAt);
       addTime(openDate, module.openAfterAmount, module.openAfterUnit);
 
       if (now < openDate) {

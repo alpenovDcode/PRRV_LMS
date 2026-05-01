@@ -71,14 +71,14 @@ export async function GET(
                             }
                         }
                     },
-                    // Fetch LAST completed track definition lesson
+                    // Fetch LAST completed track definition + certification lessons
                     progress: {
                         where: {
-                            lesson: { type: "track_definition" },
+                            lesson: { type: { in: ["track_definition", "certification_form"] } },
                             status: "completed"
                         },
                         orderBy: { completedAt: "desc" },
-                        take: 1
+                        include: { lesson: { select: { type: true } } }
                     }
                 }
             }
@@ -95,7 +95,10 @@ export async function GET(
             userGroupsMap.set(gm.groupId, gm.group.startDate ? new Date(gm.group.startDate) : null);
           });
           
-          const trackDefinitionCompletedAt = user.progress?.[0]?.completedAt ? new Date(user.progress[0].completedAt) : null;
+          const trackDefP = user.progress?.find((p: any) => p.lesson?.type === "track_definition");
+          const certP = user.progress?.find((p: any) => p.lesson?.type === "certification_form");
+          const trackDefinitionCompletedAt = trackDefP?.completedAt ? new Date(trackDefP.completedAt) : null;
+          const certificationCompletedAt = certP?.completedAt ? new Date(certP.completedAt) : null;
 
           // @ts-ignore
           const restrictedModules = enrollment.restrictedModules as string[] || [];
@@ -108,6 +111,7 @@ export async function GET(
               userGroupIds,
               userGroupsMap,
               trackDefinitionCompletedAt,
+              certificationCompletedAt,
               forcedModules
           };
 
