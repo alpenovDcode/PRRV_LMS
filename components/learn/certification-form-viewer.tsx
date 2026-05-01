@@ -563,6 +563,7 @@ export function CertificationFormViewer({ lessonId, isCompleted, isPreview = fal
   const [answers, setAnswers] = useState<Record<string, AnswerValue>>({});
   const [submitted, setSubmitted] = useState(false);
   const [testScore, setTestScore] = useState<number | null>(null);
+  const [revealAnswers, setRevealAnswers] = useState(false);
   const queryClient = useQueryClient();
 
   const submitMutation = useMutation({
@@ -645,16 +646,21 @@ export function CertificationFormViewer({ lessonId, isCompleted, isPreview = fal
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleSubmitAll = () => {
+  const handleFinishTest = () => {
     const missing = PART2_QUESTIONS.filter((q) => q.required && !isAnswered(q));
     if (missing.length > 0) {
       toast.error("Пожалуйста, ответьте на все вопросы тестирования");
       return;
     }
-
     const correctCount = PART2_QUESTIONS.filter((q) => isQuestionCorrect(q)).length;
-    const total = PART2_QUESTIONS.length;
     setTestScore(correctCount);
+    setRevealAnswers(true);
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleViewResults = () => {
+    const correctCount = testScore ?? PART2_QUESTIONS.filter((q) => isQuestionCorrect(q)).length;
+    const total = PART2_QUESTIONS.length;
 
     const formatted: Record<string, string> = {};
     [...PART1_QUESTIONS, ...PART2_QUESTIONS].forEach((q) => {
@@ -760,9 +766,16 @@ export function CertificationFormViewer({ lessonId, isCompleted, isPreview = fal
         </p>
       </div>
 
+      {isTestPhase && revealAnswers && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-blue-900 text-sm">
+          Тестирование завершено. Правильные ответы подсвечены зелёным, неправильные — красным.
+          Ответы заблокированы. Нажмите «Посмотреть итоги», чтобы отправить результат.
+        </div>
+      )}
+
       <div className="bg-gray-50/50 rounded-2xl p-6 sm:p-8 space-y-8 border border-gray-100 shadow-sm">
         {currentQuestions.map((q, idx) => {
-          const answered = isAnswered(q);
+          const locked = isTestPhase && revealAnswers;
           return (
             <div key={q.id} className="space-y-3">
               <Label className="text-base font-medium text-gray-900 leading-snug block">
@@ -824,7 +837,7 @@ export function CertificationFormViewer({ lessonId, isCompleted, isPreview = fal
                   className="flex flex-col gap-2 pt-1"
                 >
                   {q.options.map((option) => {
-                    const showFeedback = isTestPhase && answered;
+                    const showFeedback = isTestPhase && revealAnswers;
                     const correct = isOptionCorrect(q, option);
                     const selected = isOptionSelected(q, option);
                     const optionClass = cn(
@@ -836,7 +849,7 @@ export function CertificationFormViewer({ lessonId, isCompleted, isPreview = fal
                     );
                     return (
                       <div key={option} className={optionClass}>
-                        <RadioGroupItem value={option} id={`q-${q.id}-${option}`} className="text-blue-600" />
+                        <RadioGroupItem value={option} id={`q-${q.id}-${option}`} className="text-blue-600" disabled={locked} />
                         <Label htmlFor={`q-${q.id}-${option}`} className="font-normal text-gray-700 cursor-pointer flex-1">
                           {option}
                         </Label>
@@ -853,7 +866,7 @@ export function CertificationFormViewer({ lessonId, isCompleted, isPreview = fal
               {q.type === "multi_checkbox" && q.options && (
                 <div className="flex flex-col gap-2 pt-1">
                   {q.options.map((option) => {
-                    const showFeedback = isTestPhase && answered;
+                    const showFeedback = isTestPhase && revealAnswers;
                     const correct = isOptionCorrect(q, option);
                     const selected = isOptionSelected(q, option);
                     const optionClass = cn(
@@ -868,6 +881,7 @@ export function CertificationFormViewer({ lessonId, isCompleted, isPreview = fal
                         <Checkbox
                           id={`q-${q.id}-${option}`}
                           checked={selected}
+                          disabled={locked}
                           onCheckedChange={() => toggleMulti(q.id, option)}
                         />
                         <Label htmlFor={`q-${q.id}-${option}`} className="font-normal text-gray-700 cursor-pointer flex-1">
@@ -896,14 +910,23 @@ export function CertificationFormViewer({ lessonId, isCompleted, isPreview = fal
               Перейти к тестированию
             </Button>
           )}
-          {phase === "test" && (
+          {phase === "test" && !revealAnswers && (
             <Button
               size="lg"
-              onClick={handleSubmitAll}
+              onClick={handleFinishTest}
+              className="bg-[#f05a28] hover:bg-[#d94a1d] text-white min-w-[240px] h-12 text-base rounded-full"
+            >
+              Завершить тестирование
+            </Button>
+          )}
+          {phase === "test" && revealAnswers && (
+            <Button
+              size="lg"
+              onClick={handleViewResults}
               disabled={submitMutation.isPending}
               className="bg-[#f05a28] hover:bg-[#d94a1d] text-white min-w-[240px] h-12 text-base rounded-full"
             >
-              {submitMutation.isPending ? "Отправка…" : "Завершить тестирование"}
+              {submitMutation.isPending ? "Отправка…" : "Посмотреть итоги"}
             </Button>
           )}
         </div>
