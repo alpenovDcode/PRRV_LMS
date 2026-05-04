@@ -6,10 +6,11 @@ import { ApiResponse } from "@/types";
 import { createNotification } from "@/lib/notifications";
 import { sendEmail, emailTemplates } from "@/lib/email-service";
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   return withAuth(request, async (req) => {
     try {
       const me = req.user!;
+      const { id } = await context.params;
       const { content } = await request.json();
       if (!content || !String(content).trim()) {
         return NextResponse.json<ApiResponse>(
@@ -19,7 +20,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       }
 
       const question = await db.question.findUnique({
-        where: { id: params.id },
+        where: { id },
         include: {
           student: { select: { id: true, fullName: true, email: true } },
           curator: { select: { id: true, fullName: true, email: true } },
@@ -49,7 +50,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
       const message = await db.questionMessage.create({
         data: {
-          questionId: question.id,
+          questionId: id,
           authorId: me.userId,
           content: String(content).trim(),
         },
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         if (!question.firstResponseAt) updates.firstResponseAt = new Date();
         if (question.status === "open") updates.status = "in_progress";
       }
-      await db.question.update({ where: { id: question.id }, data: updates });
+      await db.question.update({ where: { id }, data: updates });
 
       // Notify the other side
       const subjectShort = question.subject.length > 60 ? question.subject.slice(0, 60) + "…" : question.subject;
@@ -76,14 +77,14 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
           "question_reply",
           `Ответ от наставника: ${subjectShort}`,
           preview,
-          `/dashboard/questions/${question.id}`
+          `/dashboard/questions/${id}`
         );
         if (question.student.email) {
           const fromName = (message.author.fullName as string) || "Наставник";
           sendEmail({
             to: question.student.email,
             subject: `Ответ наставника: ${subjectShort}`,
-            html: emailTemplates.newQuestionMessage(question.subject, fromName, preview, question.id),
+            html: emailTemplates.newQuestionMessage(question.subject, fromName, preview, id),
           }).catch((e) => console.error("Question reply email failed", e));
         }
       } else if (isStudent) {
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
             "question_reply",
             `Сообщение в диалоге: ${subjectShort}`,
             preview,
-            `/curator/questions/${question.id}`
+            `/curator/questions/${id}`
           );
         } else {
           const curators = await db.user.findMany({
@@ -109,7 +110,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
                 "question_reply",
                 `Сообщение в открытом вопросе: ${subjectShort}`,
                 preview,
-                `/curator/questions/${question.id}`
+                `/curator/questions/${id}`
               )
             )
           );

@@ -4,10 +4,11 @@ import { db } from "@/lib/db";
 import { UserRole } from "@prisma/client";
 import { ApiResponse } from "@/types";
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   return withAuth(request, async (req) => {
     const me = req.user!;
-    const question = await db.question.findUnique({ where: { id: params.id } });
+    const { id } = await context.params;
+    const question = await db.question.findUnique({ where: { id } });
     if (!question) {
       return NextResponse.json<ApiResponse>(
         { success: false, error: { code: "NOT_FOUND", message: "Вопрос не найден" } },
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       );
     }
     const updated = await db.question.update({
-      where: { id: question.id },
+      where: { id },
       data: { status: "closed", closedAt: new Date() },
     });
     return NextResponse.json<ApiResponse>({ success: true, data: { question: updated } });

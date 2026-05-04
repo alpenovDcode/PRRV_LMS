@@ -5,12 +5,13 @@ import { UserRole } from "@prisma/client";
 import { ApiResponse } from "@/types";
 import { createNotification } from "@/lib/notifications";
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   return withAuth(
     request,
     async (req) => {
       try {
         const me = req.user!;
+        const { id } = await context.params;
         const { rating, comment } = await request.json();
         const r = Number(rating);
         if (!Number.isInteger(r) || r < 1 || r > 10) {
@@ -19,7 +20,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
             { status: 400 }
           );
         }
-        const question = await db.question.findUnique({ where: { id: params.id } });
+        const question = await db.question.findUnique({ where: { id } });
         if (!question) {
           return NextResponse.json<ApiResponse>(
             { success: false, error: { code: "NOT_FOUND", message: "Вопрос не найден" } },
@@ -33,7 +34,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
           );
         }
         const updated = await db.question.update({
-          where: { id: question.id },
+          where: { id },
           data: {
             rating: r,
             ratingComment: comment ? String(comment).trim().slice(0, 2000) : null,
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
             "question_rated",
             `Студент оценил ваш ответ: ${r}/10`,
             question.subject,
-            `/curator/questions/${question.id}`
+            `/curator/questions/${id}`
           );
         }
         return NextResponse.json<ApiResponse>({ success: true, data: { question: updated } });

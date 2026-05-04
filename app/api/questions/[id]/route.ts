@@ -4,11 +4,12 @@ import { db } from "@/lib/db";
 import { UserRole } from "@prisma/client";
 import { ApiResponse } from "@/types";
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   return withAuth(request, async (req) => {
     const me = req.user!;
+    const { id } = await context.params;
     const question = await db.question.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         student: { select: { id: true, fullName: true, email: true, avatarUrl: true } },
         curator: { select: { id: true, fullName: true, email: true, avatarUrl: true } },
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     // Mark messages from the other side as read
     await db.questionMessage.updateMany({
       where: {
-        questionId: question.id,
+        questionId: id,
         authorId: { not: me.userId },
         readAt: null,
       },
