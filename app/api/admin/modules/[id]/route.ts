@@ -37,6 +37,7 @@ export async function PATCH(
         if (openAfterUnit !== undefined) updateData.openAfterUnit = openAfterUnit;
         if (openAfterEvent !== undefined) updateData.openAfterEvent = openAfterEvent;
         if (body.trackSettings !== undefined) updateData.trackSettings = body.trackSettings;
+        if (body.groupSettings !== undefined) updateData.groupSettings = body.groupSettings;
 
         const moduleData = await db.module.update({
           where: { id },

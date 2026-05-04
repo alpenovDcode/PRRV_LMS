@@ -96,6 +96,7 @@ export async function POST(
                 openAfterUnit: moduleToCopy.openAfterUnit,
                 openAfterEvent: moduleToCopy.openAfterEvent,
                 trackSettings: moduleToCopy.trackSettings || undefined,
+                groupSettings: (moduleToCopy as any).groupSettings || undefined,
             }
           });
 

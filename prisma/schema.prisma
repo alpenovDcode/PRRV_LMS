@@ -115,6 +115,7 @@ model Module {
   openAfterUnit  String?      @map("open_after_unit") // 'days', 'weeks'
   openAfterEvent String?      @map("open_after_event") // 'track_definition'
   trackSettings  Json?        @map("track_settings")
+  groupSettings  Json?        @map("group_settings")
   createdAt      DateTime     @default(now()) @map("created_at")
   updatedAt      DateTime     @updatedAt @map("updated_at")
   lessons        Lesson[]

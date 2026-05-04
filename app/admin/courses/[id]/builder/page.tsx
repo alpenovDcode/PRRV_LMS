@@ -38,6 +38,7 @@ interface AdminModule {
   openAfterUnit?: string | null;
   openAfterEvent?: string | null;
   trackSettings?: Record<string, TrackSetting> | null;
+  groupSettings?: Record<string, TrackSetting> | null;
 }
 
 interface AdminCourseDetail {
@@ -66,18 +67,20 @@ interface AccessSettingsDialogProps {
     openAfterUnit?: string | null;
     openAfterEvent?: string | null;
     trackSettings?: Record<string, TrackSetting> | null;
+    groupSettings?: Record<string, TrackSetting> | null;
   };
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (data: { 
-    allowedTariffs: string[]; 
-    allowedTracks: string[]; 
+  onSave: (data: {
+    allowedTariffs: string[];
+    allowedTracks: string[];
     allowedGroups: string[];
     openAt: string | null;
     openAfterAmount: number | null;
     openAfterUnit: string | null;
     openAfterEvent: string | null;
     trackSettings: Record<string, TrackSetting>;
+    groupSettings: Record<string, TrackSetting>;
   }) => void;
 }
 
@@ -96,6 +99,10 @@ function AccessSettingsDialog({ module, open, onOpenChange, onSave }: AccessSett
   // Track Specific Settings
   const [trackSettings, setTrackSettings] = useState<Record<string, TrackSetting>>(module.trackSettings || {});
   const [selectedTrackForConfig, setSelectedTrackForConfig] = useState<string | null>(null);
+
+  // Group Specific Settings
+  const [groupSettings, setGroupSettings] = useState<Record<string, TrackSetting>>(module.groupSettings || {});
+  const [selectedGroupForConfig, setSelectedGroupForConfig] = useState<string | null>(null);
 
   const availableTracks = [
     "Заполнить расписание",
@@ -127,6 +134,7 @@ function AccessSettingsDialog({ module, open, onOpenChange, onSave }: AccessSett
       openAfterUnit: useRelativeAccess ? openAfterUnit : null,
       openAfterEvent: useRelativeAccess ? openAfterEvent : null,
       trackSettings: trackSettings,
+      groupSettings: groupSettings,
     });
     onOpenChange(false);
   };
@@ -147,6 +155,26 @@ function AccessSettingsDialog({ module, open, onOpenChange, onSave }: AccessSett
     setGroups(prev => 
       prev.includes(groupId) ? prev.filter(g => g !== groupId) : [...prev, groupId]
     );
+  };
+
+  // Helper to update group specific setting
+  const updateGroupSetting = (groupId: string, updates: Partial<TrackSetting>) => {
+    setGroupSettings(prev => {
+      const current = prev[groupId] || {
+        openAt: null,
+        openAfterAmount: null,
+        openAfterUnit: "weeks",
+        openAfterEvent: null,
+      };
+      if (updates.openAt !== undefined && updates.openAt) {
+        updates.openAfterEvent = null;
+        updates.openAfterAmount = null;
+        updates.openAfterUnit = null;
+      } else if (updates.openAfterEvent !== undefined && updates.openAfterEvent) {
+        updates.openAt = null;
+      }
+      return { ...prev, [groupId]: { ...current, ...updates } };
+    });
   };
 
   // Helper to update track specific setting
@@ -314,14 +342,140 @@ function AccessSettingsDialog({ module, open, onOpenChange, onSave }: AccessSett
                         // @ts-ignore
                         const groupName = availableGroups.find((g: any) => g.id === groupId)?.name || groupId;
                         return (
-                          <Badge key={groupId} variant="secondary" className="gap-1 bg-white border">
-                            {groupName} <X className="h-3 w-3 cursor-pointer" onClick={() => toggleGroup(groupId)} />
+                          <Badge
+                            key={groupId}
+                            variant={selectedGroupForConfig === groupId ? "default" : "secondary"}
+                            className={`gap-1 cursor-pointer hover:bg-blue-200 ${selectedGroupForConfig === groupId ? "ring-2 ring-primary ring-offset-1" : "bg-white border"}`}
+                            onClick={() => setSelectedGroupForConfig(selectedGroupForConfig === groupId ? null : groupId)}
+                          >
+                            {groupName}
+                            <Settings className="h-3 w-3 ml-1" />
+                            <X className="h-3 w-3 ml-1 hover:text-red-500" onClick={(e) => { e.stopPropagation(); toggleGroup(groupId); }} />
                           </Badge>
                         );
                       })}
                     </div>
                     {groups.length === 0 && <p className="text-xs text-gray-500">Доступно для всех групп</p>}
                 </div>
+
+                {/* Selected Group Configuration Panel */}
+                {selectedGroupForConfig && groups.includes(selectedGroupForConfig) && (
+                  <div className="mt-4 p-4 border border-blue-200 rounded-lg bg-blue-50/50 animate-in fade-in zoom-in-95 duration-200">
+                    <div className="flex items-center justify-between mb-4">
+                      <h5 className="font-semibold text-sm flex items-center gap-2">
+                        <Settings className="h-4 w-4 text-blue-600" />
+                        Настройки для группы:{" "}
+                        <span className="text-blue-700">
+                          {/* @ts-ignore */}
+                          {availableGroups.find((g: any) => g.id === selectedGroupForConfig)?.name || selectedGroupForConfig}
+                        </span>
+                      </h5>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-xs text-gray-500 hover:text-red-600"
+                        onClick={() => {
+                          const newSettings = { ...groupSettings };
+                          delete newSettings[selectedGroupForConfig];
+                          setGroupSettings(newSettings);
+                        }}
+                      >
+                        Сбросить настройки группы
+                      </Button>
+                    </div>
+
+                    <div className="bg-white p-4 rounded border border-gray-100 space-y-4">
+                      <div className="space-y-2">
+                        <Label className="text-xs text-gray-700">Индивидуальная дата открытия</Label>
+                        <Input
+                          type="date"
+                          value={groupSettings[selectedGroupForConfig]?.openAt ? new Date(groupSettings[selectedGroupForConfig]!.openAt!).toISOString().split('T')[0] : ""}
+                          onChange={(e) => updateGroupSetting(selectedGroupForConfig, { openAt: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                        />
+                      </div>
+
+                      <div className="relative">
+                        <div className="absolute inset-0 flex items-center">
+                          <span className="w-full border-t border-gray-100" />
+                        </div>
+                        <div className="relative flex justify-center text-xs uppercase">
+                          <span className="bg-white px-2 text-gray-400">ИЛИ</span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id={`group-relative-${selectedGroupForConfig}`}
+                            checked={!!groupSettings[selectedGroupForConfig]?.openAfterEvent}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                updateGroupSetting(selectedGroupForConfig!, {
+                                  openAfterEvent: "certification_completed",
+                                  openAfterAmount: 0,
+                                  openAfterUnit: "days",
+                                });
+                              } else {
+                                updateGroupSetting(selectedGroupForConfig!, { openAfterEvent: null });
+                              }
+                            }}
+                          />
+                          <label htmlFor={`group-relative-${selectedGroupForConfig}`} className="text-xs cursor-pointer">
+                            Закрыть до события
+                          </label>
+                        </div>
+
+                        {!!groupSettings[selectedGroupForConfig]?.openAfterEvent && (
+                          <div className="space-y-3 pl-6">
+                            <div className="space-y-1">
+                              <Label className="text-[10px] text-gray-500">Событие</Label>
+                              <Select
+                                value={groupSettings[selectedGroupForConfig]?.openAfterEvent || "certification_completed"}
+                                onValueChange={(val) => updateGroupSetting(selectedGroupForConfig!, { openAfterEvent: val })}
+                              >
+                                <SelectTrigger className="h-8 text-xs">
+                                  <SelectValue placeholder="Выберите событие" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="certification_completed">После прохождения сертификации</SelectItem>
+                                  <SelectItem value="track_definition_completed">После определения трека</SelectItem>
+                                  <SelectItem value="group_start_date">С даты старта Группы</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="flex items-end gap-3">
+                              <div className="space-y-1 w-24">
+                                <Label className="text-[10px]">Через</Label>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  className="h-8 text-sm"
+                                  value={groupSettings[selectedGroupForConfig]?.openAfterAmount || ""}
+                                  onChange={(e) => updateGroupSetting(selectedGroupForConfig!, { openAfterAmount: parseInt(e.target.value) || 0 })}
+                                />
+                              </div>
+                              <div className="space-y-1 w-32">
+                                <Label className="text-[10px]">Единица</Label>
+                                <Select
+                                  value={groupSettings[selectedGroupForConfig]?.openAfterUnit || "days"}
+                                  onValueChange={(v) => updateGroupSetting(selectedGroupForConfig!, { openAfterUnit: v })}
+                                >
+                                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="days">Дней</SelectItem>
+                                    <SelectItem value="weeks">Недель</SelectItem>
+                                    <SelectItem value="months">Месяцев</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
              </div>
           </div>
 
@@ -583,17 +737,18 @@ export default function CourseBuilderPage() {
   });
 
   const updateModuleMutation = useMutation({
-    mutationFn: async ({ moduleId, title, allowedTariffs, allowedTracks, allowedGroups, openAt, openAfterAmount, openAfterUnit, openAfterEvent, trackSettings }: { 
-      moduleId: string; 
-      title?: string; 
-      allowedTariffs?: string[]; 
-      allowedTracks?: string[]; 
+    mutationFn: async ({ moduleId, title, allowedTariffs, allowedTracks, allowedGroups, openAt, openAfterAmount, openAfterUnit, openAfterEvent, trackSettings, groupSettings }: {
+      moduleId: string;
+      title?: string;
+      allowedTariffs?: string[];
+      allowedTracks?: string[];
       allowedGroups?: string[];
       openAt?: string | null;
       openAfterAmount?: number | null;
       openAfterUnit?: string | null;
       openAfterEvent?: string | null;
       trackSettings?: Record<string, TrackSetting>;
+      groupSettings?: Record<string, TrackSetting>;
     }) => {
       // Ensure we send arrays, never undefined/null
       const payload = {
@@ -606,6 +761,7 @@ export default function CourseBuilderPage() {
         openAfterUnit,
         openAfterEvent,
         trackSettings,
+        groupSettings,
       };
       await apiClient.patch(`/admin/modules/${moduleId}`, payload);
     },

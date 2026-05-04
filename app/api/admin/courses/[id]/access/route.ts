@@ -38,6 +38,7 @@ export async function GET(
                     openAfterUnit: true,
                     openAfterEvent: true,
                     trackSettings: true,
+                    groupSettings: true,
                 }
             }
         }
@@ -125,6 +126,25 @@ export async function GET(
                      effectiveModule.openAfterEvent = settings.openAfterEvent;
                      effectiveModule.openAfterAmount = settings.openAfterAmount;
                      effectiveModule.openAfterUnit = settings.openAfterUnit;
+                 }
+             }
+          }
+          // Apply group-specific logic (overrides track if user is in a configured group)
+          if ((module as any).groupSettings) {
+             const gs = (module as any).groupSettings as Record<string, any>;
+             const matchedGroupId = userGroupIds.find((gid: string) => gs[gid]);
+             if (matchedGroupId) {
+                 const settings = gs[matchedGroupId];
+                 if (settings.openAt) {
+                     effectiveModule.openAt = settings.openAt;
+                     effectiveModule.openAfterEvent = null;
+                     effectiveModule.openAfterAmount = null;
+                     effectiveModule.openAfterUnit = null;
+                 } else if (settings.openAfterEvent) {
+                     effectiveModule.openAt = null;
+                     effectiveModule.openAfterEvent = settings.openAfterEvent;
+                     effectiveModule.openAfterAmount = settings.openAfterAmount ?? null;
+                     effectiveModule.openAfterUnit = settings.openAfterUnit ?? null;
                  }
              }
           }

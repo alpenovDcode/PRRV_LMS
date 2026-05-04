@@ -81,6 +81,7 @@ export async function checkLessonAvailability(userId: string, lessonId: string):
           allowedTracks: true,
           allowedGroups: true,
           trackSettings: true,
+          groupSettings: true,
           openAt: true,
           openAfterAmount: true,
           openAfterUnit: true,
@@ -140,6 +141,26 @@ export async function checkLessonAvailability(userId: string, lessonId: string):
                 effectiveModule.openAfterEvent = settings.openAfterEvent;
                 effectiveModule.openAfterAmount = settings.openAfterAmount;
                 effectiveModule.openAfterUnit = settings.openAfterUnit;
+            }
+        }
+  }
+  // Apply group-specific logic (overrides track if user is in a configured group).
+  // If user belongs to multiple configured groups — take the first one.
+  if (module.groupSettings) {
+        const gs = module.groupSettings as Record<string, any>;
+        const matchedGroupId = userGroupIds.find((gid) => gs[gid]);
+        if (matchedGroupId) {
+            const settings = gs[matchedGroupId];
+            if (settings.openAt) {
+                effectiveModule.openAt = settings.openAt;
+                effectiveModule.openAfterEvent = null;
+                effectiveModule.openAfterAmount = null;
+                effectiveModule.openAfterUnit = null;
+            } else if (settings.openAfterEvent) {
+                effectiveModule.openAt = null;
+                effectiveModule.openAfterEvent = settings.openAfterEvent;
+                effectiveModule.openAfterAmount = settings.openAfterAmount ?? null;
+                effectiveModule.openAfterUnit = settings.openAfterUnit ?? null;
             }
         }
   }
