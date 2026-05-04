@@ -49,6 +49,7 @@ const adminNavigation = [
   { name: "Email шаблоны", href: "/admin/email-templates", icon: Mail },
   { name: "Лендинги", href: "/admin/landings", icon: LayoutDashboard }, // Using LayoutDashboard temporarily or until a better icon is imported
   { name: "Настройки", href: "/admin/settings", icon: Settings },
+  { name: "Вопросы наставнику", href: "/curator/questions", icon: MessageCircle }
 ];
 
 import { useQuery } from "@tanstack/react-query";

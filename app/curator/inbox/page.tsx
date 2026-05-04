@@ -25,11 +25,16 @@ interface InboxItem {
   lesson: {
     id: string;
     title: string;
-  };
+  } | null;
+  landing: {
+    id: string;
+    title: string;
+    type: string;
+  } | null;
   course: {
     id: string;
     title: string;
-  };
+  } | null;
 }
 
 function getStatusLabel(status: InboxItem["status"]) {
@@ -79,8 +84,9 @@ export default function CuratorInboxPage() {
       return (
         item.user.fullName?.toLowerCase().includes(q) ||
         item.user.email.toLowerCase().includes(q) ||
-        item.course.title.toLowerCase().includes(q) ||
-        item.lesson.title.toLowerCase().includes(q)
+        item.course?.title?.toLowerCase().includes(q) ||
+        item.lesson?.title?.toLowerCase().includes(q) ||
+        item.landing?.title?.toLowerCase().includes(q)
       );
     }) || [];
 
@@ -168,7 +174,11 @@ export default function CuratorInboxPage() {
                             {item.user.fullName || item.user.email}
                           </p>
                           <span className="text-xs text-muted-foreground truncate">
-                            {item.course.title} • {item.lesson.title}
+                            {item.lesson
+                              ? `${item.course?.title ?? "Курс"} • ${item.lesson.title}`
+                              : item.landing
+                                ? `Лендинг • ${item.landing.title}`
+                                : "Без привязки"}
                           </span>
                         </div>
                         <div className="flex flex-wrap items-center gap-3 mt-1 text-xs text-muted-foreground">
