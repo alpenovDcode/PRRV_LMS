@@ -38,6 +38,7 @@ const adminNavigation = [
   { name: "Видео-библиотека", href: "/admin/video-library", icon: Film },
   { name: "Входящие ДЗ", href: "/admin/homework", icon: Inbox },
   { name: "Вопросы наставникам", href: "/admin/questions", icon: MessageCircle },
+  { name: "Статистика вопросов", href: "/admin/questions/stats", icon: BarChart },
   { name: "Обсуждения", href: "/admin/comments", icon: MessageSquare },
   { name: "Уведомления", href: "/admin/notifications", icon: Bell },
   { name: "Рассылки", href: "/admin/broadcasts", icon: Send },
@@ -49,7 +50,7 @@ const adminNavigation = [
   { name: "Email шаблоны", href: "/admin/email-templates", icon: Mail },
   { name: "Лендинги", href: "/admin/landings", icon: LayoutDashboard }, // Using LayoutDashboard temporarily or until a better icon is imported
   { name: "Настройки", href: "/admin/settings", icon: Settings },
-  { name: "Вопросы наставнику", href: "/curator/questions", icon: MessageCircle }
+  { name: "Вопросы наставнику", href: "/admin/questions", icon: MessageCircle }
 ];
 
 import { useQuery } from "@tanstack/react-query";

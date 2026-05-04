@@ -60,7 +60,7 @@ export default function BroadcastsPage() {
     },
   });
 
-  const groups = (groupsData?.groups || groupsData?.items || []) as any[];
+  const groups = (Array.isArray(groupsData) ? groupsData : groupsData?.groups || groupsData?.items || []) as any[];
   const history = (historyData?.items || []) as any[];
 
   const broadcastMutation = useMutation({
