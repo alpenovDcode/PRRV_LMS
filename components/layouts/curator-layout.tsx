@@ -18,6 +18,7 @@ import {
   Users,
   Layers,
   MessageSquare,
+  MessageCircle,
   GraduationCap
 } from "lucide-react";
 import { useState } from "react";
@@ -29,6 +30,7 @@ const curatorNavigation = [
   { name: "Пользователи", href: "/admin/users", icon: Users },
   { name: "Группы", href: "/admin/groups", icon: Layers },
   { name: "Входящие ДЗ", href: "/admin/homework", icon: Inbox },
+  { name: "Вопросы наставнику", href: "/curator/questions", icon: MessageCircle },
   { name: "Обсуждения", href: "/admin/comments", icon: MessageSquare },
   { name: "Тренинги", href: "/admin/trainings", icon: GraduationCap },
 ];

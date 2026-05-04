@@ -82,6 +82,36 @@ export const emailTemplates = {
     </div>
   `,
 
+  broadcast: (title: string, message: string) => `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2>${sanitizeHtml(title)}</h2>
+      <div style="white-space: pre-wrap; padding: 15px; background-color: #f9fafb; border-left: 4px solid #2563eb; border-radius: 4px;">
+        ${sanitizeHtml(message, { allowedTags: ['b', 'i', 'em', 'strong', 'br', 'p', 'a', 'ul', 'ol', 'li'], allowedAttributes: { a: ['href'] } })}
+      </div>
+      <p style="margin-top: 20px;">
+        <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://prrv.tech'}/dashboard" style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+          Перейти в кабинет
+        </a>
+      </p>
+    </div>
+  `,
+
+  newQuestionMessage: (subject: string, fromName: string, preview: string, questionId: string) => `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2>Новое сообщение в диалоге</h2>
+      <p>По вопросу: <strong>${sanitizeHtml(subject)}</strong></p>
+      <p>От: <strong>${sanitizeHtml(fromName)}</strong></p>
+      <div style="padding: 15px; background-color: #f9fafb; border-left: 4px solid #10b981; border-radius: 4px; white-space: pre-wrap;">
+        ${sanitizeHtml(preview, { allowedTags: [], allowedAttributes: {} })}
+      </div>
+      <p style="margin-top: 20px;">
+        <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://prrv.tech'}/dashboard/questions/${questionId}" style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+          Открыть диалог
+        </a>
+      </p>
+    </div>
+  `,
+
   homeworkAccepted: (lessonTitle: string) => `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <h2>Ответ принят!</h2>

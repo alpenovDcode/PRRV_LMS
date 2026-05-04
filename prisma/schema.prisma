@@ -56,6 +56,10 @@ model User {
   loginTokens             LoginToken[]
   keywords                String[]                @default([])  // Накопленные ключевые слова из форм
   certificates            Certificate[]
+  broadcastsCreated       Broadcast[]             @relation("BroadcastAuthor")
+  questionsAsked          Question[]              @relation("QuestionStudent")
+  questionsAssigned       Question[]              @relation("QuestionCurator")
+  questionMessages        QuestionMessage[]
 
   @@index([email])
   @@map("users")
@@ -624,6 +628,74 @@ model Certificate {
   @@index([courseId])
   @@index([certificateNumber])
   @@map("certificates")
+}
+
+model Broadcast {
+  id          String   @id @default(uuid())
+  authorId    String   @map("author_id")
+  title       String
+  message     String   @db.Text
+  channels    String[] // ['lms', 'email']
+  targets     Json     // { roles, groupIds, tariffs, tracks }
+  recipients  Int      @default(0)
+  sentCount   Int      @default(0) @map("sent_count")
+  failedCount Int      @default(0) @map("failed_count")
+  status      String   @default("pending") // pending, sending, completed, failed
+  sentAt      DateTime @default(now()) @map("sent_at")
+  author      User     @relation("BroadcastAuthor", fields: [authorId], references: [id])
+
+  @@index([authorId])
+  @@index([sentAt])
+  @@map("broadcasts")
+}
+
+enum QuestionStatus {
+  open
+  in_progress
+  answered
+  closed
+
+  @@map("question_status")
+}
+
+model Question {
+  id              String            @id @default(uuid())
+  studentId       String            @map("student_id")
+  curatorId       String?           @map("curator_id")
+  subject         String
+  lessonId        String?           @map("lesson_id")
+  status          QuestionStatus    @default(open)
+  rating          Int?
+  ratingComment   String?           @map("rating_comment") @db.Text
+  firstResponseAt DateTime?         @map("first_response_at")
+  closedAt        DateTime?         @map("closed_at")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  student         User              @relation("QuestionStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  curator         User?             @relation("QuestionCurator", fields: [curatorId], references: [id])
+  messages        QuestionMessage[]
+
+  @@index([studentId])
+  @@index([curatorId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("questions")
+}
+
+model QuestionMessage {
+  id          String    @id @default(uuid())
+  questionId  String    @map("question_id")
+  authorId    String    @map("author_id")
+  content     String    @db.Text
+  attachments Json?
+  readAt      DateTime? @map("read_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  question    Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  author      User      @relation(fields: [authorId], references: [id])
+
+  @@index([questionId, createdAt])
+  @@index([authorId])
+  @@map("question_messages")
 }
 
 model EmailTemplate {
