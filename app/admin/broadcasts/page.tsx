@@ -9,8 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Send, AlertTriangle, Mail, Bell } from "lucide-react";
+import { Send, AlertTriangle, Mail, Bell, Download, Eye } from "lucide-react";
 
 const ROLES = [
   { value: "student", label: "Студенты" },
@@ -43,6 +45,7 @@ export default function BroadcastsPage() {
   const [groupIds, setGroupIds] = useState<string[]>([]);
   const [tariffs, setTariffs] = useState<string[]>([]);
   const [tracks, setTracks] = useState<string[]>([]);
+  const [openLogId, setOpenLogId] = useState<string | null>(null);
 
   const { data: groupsData } = useQuery({
     queryKey: ["admin-groups"],
@@ -252,8 +255,15 @@ export default function BroadcastsPage() {
             <CardContent className="space-y-3 max-h-[500px] overflow-y-auto">
               {history.length === 0 && <p className="text-sm text-gray-500">Пока пусто</p>}
               {history.map((b: any) => (
-                <div key={b.id} className="border-b pb-3 last:border-b-0">
-                  <div className="font-medium text-sm">{b.title}</div>
+                <button
+                  key={b.id}
+                  onClick={() => setOpenLogId(b.id)}
+                  className="w-full text-left border-b pb-3 last:border-b-0 hover:bg-gray-50 rounded p-2 -m-2 transition-colors"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="font-medium text-sm">{b.title}</div>
+                    <Eye className="h-4 w-4 text-gray-400 shrink-0" />
+                  </div>
                   <div className="text-xs text-gray-500 mt-1">
                     {new Date(b.sentAt).toLocaleString("ru-RU")} · {b.author?.fullName || b.author?.email}
                   </div>
@@ -261,12 +271,122 @@ export default function BroadcastsPage() {
                     {b.channels.join(", ")} · получателей {b.recipients} · отправлено {b.sentCount}
                     {b.failedCount > 0 && <span className="text-red-600"> · ошибок {b.failedCount}</span>}
                   </div>
-                </div>
+                </button>
               ))}
             </CardContent>
           </Card>
         </div>
       </div>
+
+      <BroadcastLogDialog id={openLogId} onClose={() => setOpenLogId(null)} />
     </div>
+  );
+}
+
+function BroadcastLogDialog({ id, onClose }: { id: string | null; onClose: () => void }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["broadcast-log", id],
+    queryFn: async () => (await apiClient.get(`/admin/broadcasts/${id}`)).data.data,
+    enabled: !!id,
+  });
+  const broadcast = data?.broadcast;
+  const logs = (broadcast?.recipientLogs || []) as any[];
+
+  const [statusFilter, setStatusFilter] = useState<"all" | "sent" | "failed" | "skipped">("all");
+
+  const filtered = logs.filter((l: any) => {
+    if (statusFilter === "all") return true;
+    return l.lmsStatus === statusFilter || l.emailStatus === statusFilter;
+  });
+
+  const statusBadge = (s: string | null | undefined) => {
+    if (!s) return <span className="text-gray-300">—</span>;
+    const colors: Record<string, string> = {
+      sent: "bg-emerald-100 text-emerald-800",
+      failed: "bg-red-100 text-red-800",
+      skipped: "bg-gray-100 text-gray-700",
+      pending: "bg-amber-100 text-amber-800",
+    };
+    return <Badge className={(colors[s] || "bg-gray-100 text-gray-700") + " border-0"}>{s}</Badge>;
+  };
+
+  return (
+    <Dialog open={!!id} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle>{broadcast?.title || "Лог рассылки"}</DialogTitle>
+        </DialogHeader>
+        {isLoading && <p className="text-sm text-gray-500">Загрузка...</p>}
+        {broadcast && (
+          <>
+            <div className="text-sm text-gray-600 space-y-1">
+              <div>
+                Каналы: <strong>{broadcast.channels.join(", ")}</strong> · Отправлено:{" "}
+                <strong>{broadcast.sentCount}</strong> / {broadcast.recipients}
+                {broadcast.failedCount > 0 && <span className="text-red-600"> · ошибок {broadcast.failedCount}</span>}
+              </div>
+              <div className="text-xs text-gray-500">
+                {new Date(broadcast.sentAt).toLocaleString("ru-RU")} · {broadcast.author?.fullName || broadcast.author?.email}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-2 pb-1 border-b">
+              <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+                {(["all", "sent", "failed", "skipped"] as const).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setStatusFilter(s)}
+                    className={
+                      "px-3 py-1 text-xs rounded-md transition-colors " +
+                      (statusFilter === s ? "bg-white shadow text-gray-900" : "text-gray-600 hover:text-gray-900")
+                    }
+                  >
+                    {s === "all" ? `Все (${logs.length})` : s}
+                  </button>
+                ))}
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => window.open(`/api/admin/broadcasts/${broadcast.id}/export`, "_blank")}
+              >
+                <Download className="h-4 w-4 mr-1" /> CSV
+              </Button>
+            </div>
+
+            <div className="overflow-y-auto flex-1">
+              <table className="w-full text-sm">
+                <thead className="text-left text-gray-600 border-b sticky top-0 bg-white">
+                  <tr>
+                    <th className="py-2 pr-4">Получатель</th>
+                    <th className="py-2 pr-4">Email</th>
+                    <th className="py-2 pr-4">Роль</th>
+                    <th className="py-2 pr-4">LMS</th>
+                    <th className="py-2 pr-4">Email</th>
+                    <th className="py-2 pr-4">Ошибка</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.length === 0 ? (
+                    <tr><td colSpan={6} className="py-4 text-gray-500 text-center">Нет записей</td></tr>
+                  ) : filtered.map((l: any) => (
+                    <tr key={l.id} className="border-b last:border-b-0">
+                      <td className="py-2 pr-4">{l.user?.fullName || "—"}</td>
+                      <td className="py-2 pr-4 text-gray-600">{l.email || l.user?.email || "—"}</td>
+                      <td className="py-2 pr-4 text-gray-600">{l.user?.role}</td>
+                      <td className="py-2 pr-4">{statusBadge(l.lmsStatus)}</td>
+                      <td className="py-2 pr-4">{statusBadge(l.emailStatus)}</td>
+                      <td className="py-2 pr-4 text-xs text-red-600 max-w-[200px] truncate" title={l.errorMessage || ""}>
+                        {l.errorMessage || ""}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }

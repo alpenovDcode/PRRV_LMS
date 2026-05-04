@@ -57,6 +57,7 @@ model User {
   keywords                String[]                @default([])  // Накопленные ключевые слова из форм
   certificates            Certificate[]
   broadcastsCreated       Broadcast[]             @relation("BroadcastAuthor")
+  broadcastsReceived      BroadcastRecipient[]    @relation("BroadcastRecipientUser")
   questionsAsked          Question[]              @relation("QuestionStudent")
   questionsAssigned       Question[]              @relation("QuestionCurator")
   questionMessages        QuestionMessage[]
@@ -642,11 +643,29 @@ model Broadcast {
   failedCount Int      @default(0) @map("failed_count")
   status      String   @default("pending") // pending, sending, completed, failed
   sentAt      DateTime @default(now()) @map("sent_at")
-  author      User     @relation("BroadcastAuthor", fields: [authorId], references: [id])
+  author      User                 @relation("BroadcastAuthor", fields: [authorId], references: [id])
+  recipientLogs BroadcastRecipient[]
 
   @@index([authorId])
   @@index([sentAt])
   @@map("broadcasts")
+}
+
+model BroadcastRecipient {
+  id          String    @id @default(uuid())
+  broadcastId String    @map("broadcast_id")
+  userId      String    @map("user_id")
+  email       String?
+  lmsStatus   String?   @map("lms_status")   // sent | failed | skipped
+  emailStatus String?   @map("email_status") // sent | failed | skipped
+  errorMessage String?  @map("error_message")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  broadcast   Broadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  user        User      @relation("BroadcastRecipientUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([broadcastId])
+  @@index([userId])
+  @@map("broadcast_recipients")
 }
 
 enum QuestionStatus {
