@@ -25,14 +25,10 @@ import { useState } from "react";
 import { NotificationsPopover } from "@/components/notifications-popover";
 
 const curatorNavigation = [
-  { name: "Обзор", href: "/admin", icon: LayoutDashboard },
-  { name: "Курсы", href: "/admin/courses", icon: BookOpen },
-  { name: "Пользователи", href: "/admin/users", icon: Users },
-  { name: "Группы", href: "/admin/groups", icon: Layers },
-  { name: "Входящие ДЗ", href: "/admin/homework", icon: Inbox },
+  { name: "Пользователи", href: "/curator/users", icon: Users },
+  { name: "Входящие ДЗ", href: "/curator/homework", icon: Inbox },
   { name: "Вопросы наставнику", href: "/curator/questions", icon: MessageCircle },
-  { name: "Обсуждения", href: "/admin/comments", icon: MessageSquare },
-  { name: "Тренинги", href: "/admin/trainings", icon: GraduationCap },
+  { name: "Обсуждения", href: "/curator/comments", icon: MessageSquare },
 ];
 
 export function CuratorLayout({ children }: { children: React.ReactNode }) {

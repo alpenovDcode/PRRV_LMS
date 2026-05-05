@@ -169,6 +169,23 @@ export async function middleware(request: NextRequest) {
             const url = getSafeUrl("/curator/inbox", request);
             return NextResponse.redirect(url);
           }
+
+          // /curator/* alias routes — rewrite to /admin/* internally,
+          // so curator sees nice URL while page lives in /admin/<section>.
+          // Native /curator pages: /curator/inbox, /curator/questions, /curator/review
+          const NATIVE_CURATOR = ["/curator/inbox", "/curator/questions", "/curator/review"];
+          const isNative = NATIVE_CURATOR.some((p) => path === p || path.startsWith(p + "/"));
+          if (!isNative && path !== "/curator") {
+            const url = request.nextUrl.clone();
+            url.pathname = path.replace(/^\/curator\//, "/admin/");
+            return NextResponse.rewrite(url);
+          }
+          // /curator (root) → rewrite to /admin (admin dashboard)
+          if (path === "/curator") {
+            const url = request.nextUrl.clone();
+            url.pathname = "/admin";
+            return NextResponse.rewrite(url);
+          }
         }
 
         // Редиректы для удобства навигации с главной страницы
