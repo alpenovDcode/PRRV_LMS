@@ -169,6 +169,10 @@ services:
       OPENCLAW_API_URL: ${OPENCLAW_API_URL:-http://host.docker.internal:18789/v1/responses}
       OPENCLAW_API_KEY: ${OPENCLAW_API_KEY}
       OPENCLAW_AGENT_ID: ${OPENCLAW_AGENT_ID:-main}
+
+      # Telegram bot (notifications about new questions)
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_QUESTIONS_CHAT_ID: ${TELEGRAM_QUESTIONS_CHAT_ID:-}
     volumes:
       - ./public/uploads:/app/public/uploads
       - ./data:/app/data

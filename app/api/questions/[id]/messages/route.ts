@@ -11,10 +11,22 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     try {
       const me = req.user!;
       const { id } = await context.params;
-      const { content } = await request.json();
-      if (!content || !String(content).trim()) {
+      const { content, attachments } = await request.json();
+      const cleanAttachments = Array.isArray(attachments)
+        ? attachments
+            .filter((a: any) => a && typeof a.url === "string")
+            .map((a: any) => ({
+              url: String(a.url),
+              name: String(a.name || "file"),
+              type: String(a.type || ""),
+              size: typeof a.size === "number" ? a.size : null,
+            }))
+            .slice(0, 10)
+        : [];
+      const hasContent = content && String(content).trim();
+      if (!hasContent && cleanAttachments.length === 0) {
         return NextResponse.json<ApiResponse>(
-          { success: false, error: { code: "BAD_REQUEST", message: "Текст обязателен" } },
+          { success: false, error: { code: "BAD_REQUEST", message: "Сообщение или вложение обязательны" } },
           { status: 400 }
         );
       }
@@ -52,7 +64,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         data: {
           questionId: id,
           authorId: me.userId,
-          content: String(content).trim(),
+          content: hasContent ? String(content).trim() : "",
+          attachments: cleanAttachments.length > 0 ? cleanAttachments : undefined,
         },
         include: { author: { select: { id: true, fullName: true, email: true, avatarUrl: true, role: true } } },
       });

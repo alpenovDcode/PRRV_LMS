@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Badge } from "@/components/ui/badge";
 import { Plus, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
+import { ImageUploader, QuestionAttachment } from "@/components/questions/image-uploader";
 
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
   open: { label: "Ожидает наставника", color: "bg-amber-100 text-amber-800" },
@@ -26,6 +27,7 @@ export default function StudentQuestionsPage() {
   const [open, setOpen] = useState(false);
   const [subject, setSubject] = useState("");
   const [content, setContent] = useState("");
+  const [attachments, setAttachments] = useState<QuestionAttachment[]>([]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["my-questions"],
@@ -34,11 +36,12 @@ export default function StudentQuestionsPage() {
   });
 
   const create = useMutation({
-    mutationFn: async () => (await apiClient.post("/questions", { subject, content })).data.data,
+    mutationFn: async () => (await apiClient.post("/questions", { subject, content, attachments })).data.data,
     onSuccess: () => {
       toast.success("Вопрос отправлен наставнику");
       setSubject("");
       setContent("");
+      setAttachments([]);
       setOpen(false);
       queryClient.invalidateQueries({ queryKey: ["my-questions"] });
     },
@@ -78,9 +81,13 @@ export default function StudentQuestionsPage() {
                 <Label htmlFor="content">Сообщение</Label>
                 <Textarea id="content" rows={6} value={content} onChange={(e) => setContent(e.target.value)} placeholder="Опишите ваш вопрос подробно..." />
               </div>
+              <div className="space-y-2">
+                <Label>Изображения</Label>
+                <ImageUploader attachments={attachments} onChange={setAttachments} />
+              </div>
               <Button
                 className="w-full bg-blue-600 hover:bg-blue-700"
-                disabled={!subject || !content || create.isPending}
+                disabled={!subject || (!content && attachments.length === 0) || create.isPending}
                 onClick={() => create.mutate()}
               >
                 {create.isPending ? "Отправка..." : "Отправить наставнику"}

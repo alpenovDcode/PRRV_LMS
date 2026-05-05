@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Send, Lock, Star } from "lucide-react";
+import { ImageUploader, QuestionAttachment } from "@/components/questions/image-uploader";
+import { ImageLightbox } from "@/components/questions/image-lightbox";
 
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
   open: { label: "Ожидает наставника", color: "bg-amber-100 text-amber-800" },
@@ -26,10 +28,14 @@ interface Props {
 export function QuestionChatThread({ questionId, viewerRole, viewerId }: Props) {
   const queryClient = useQueryClient();
   const [input, setInput] = useState("");
+  const [pendingAttachments, setPendingAttachments] = useState<QuestionAttachment[]>([]);
   const [rating, setRating] = useState<number>(0);
   const [ratingComment, setRatingComment] = useState("");
   const [showRating, setShowRating] = useState(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
+
+  // Lightbox: collect all images from all messages, open by url
+  const [lightboxIndex, setLightboxIndex] = useState<number>(-1);
 
   const { data, isLoading } = useQuery({
     queryKey: ["question", questionId],
@@ -45,9 +51,14 @@ export function QuestionChatThread({ questionId, viewerRole, viewerId }: Props) 
   }, [messages.length]);
 
   const send = useMutation({
-    mutationFn: async () => (await apiClient.post(`/questions/${questionId}/messages`, { content: input })).data.data,
+    mutationFn: async () =>
+      (await apiClient.post(`/questions/${questionId}/messages`, {
+        content: input,
+        attachments: pendingAttachments,
+      })).data.data,
     onSuccess: () => {
       setInput("");
+      setPendingAttachments([]);
       queryClient.invalidateQueries({ queryKey: ["question", questionId] });
       queryClient.invalidateQueries({ queryKey: ["curator-questions"] });
       queryClient.invalidateQueries({ queryKey: ["my-questions"] });
@@ -177,26 +188,101 @@ export function QuestionChatThread({ questionId, viewerRole, viewerId }: Props) 
 
       {/* Messages */}
       <div ref={scrollerRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-gray-50">
-        {messages.map((m: any) => {
-          const mine = m.authorId === viewerId;
-          const authorName = m.author?.fullName || m.author?.email || "—";
-          return (
-            <div key={m.id} className={cn("flex", mine ? "justify-end" : "justify-start")}>
-              <div
-                className={cn(
-                  "max-w-[75%] rounded-lg px-3 py-2 shadow-sm",
-                  mine ? "bg-blue-600 text-white" : "bg-white text-gray-900 border"
-                )}
-              >
-                <div className={cn("text-xs mb-1 opacity-80", mine ? "text-blue-100" : "text-gray-500")}>
-                  {authorName} · {new Date(m.createdAt).toLocaleString("ru-RU")}
+        {(() => {
+          // Build a flat list of all images in this thread for lightbox navigation
+          const allImages: { url: string; name?: string }[] = [];
+          messages.forEach((m: any) => {
+            const atts = Array.isArray(m.attachments) ? m.attachments : [];
+            atts.forEach((a: any) => {
+              if (a?.url && (!a.type || String(a.type).startsWith("image/") || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(a.url))) {
+                allImages.push({ url: a.url, name: a.name });
+              }
+            });
+          });
+
+          return messages.map((m: any) => {
+            const mine = m.authorId === viewerId;
+            const authorName = m.author?.fullName || m.author?.email || "—";
+            const atts = (Array.isArray(m.attachments) ? m.attachments : []) as any[];
+            return (
+              <div key={m.id} className={cn("flex", mine ? "justify-end" : "justify-start")}>
+                <div
+                  className={cn(
+                    "max-w-[75%] rounded-lg px-3 py-2 shadow-sm",
+                    mine ? "bg-blue-600 text-white" : "bg-white text-gray-900 border"
+                  )}
+                >
+                  <div className={cn("text-xs mb-1 opacity-80", mine ? "text-blue-100" : "text-gray-500")}>
+                    {authorName} · {new Date(m.createdAt).toLocaleString("ru-RU")}
+                  </div>
+                  {m.content && (
+                    <div className="whitespace-pre-wrap break-words text-sm">{m.content}</div>
+                  )}
+                  {atts.length > 0 && (
+                    <div className={cn("flex flex-wrap gap-2", m.content ? "mt-2" : "")}>
+                      {atts.map((a: any, i: number) => {
+                        const isImage = !a.type || String(a.type).startsWith("image/") || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(a.url || "");
+                        if (isImage && a.url) {
+                          const idxInAll = allImages.findIndex((img) => img.url === a.url);
+                          return (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => setLightboxIndex(idxInAll >= 0 ? idxInAll : 0)}
+                              className="block"
+                            >
+                              <img
+                                src={a.url}
+                                alt={a.name || ""}
+                                className="h-32 w-32 object-cover rounded-md border border-white/20 hover:opacity-90 cursor-zoom-in"
+                              />
+                            </button>
+                          );
+                        }
+                        return (
+                          <a
+                            key={i}
+                            href={a.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={cn(
+                              "text-xs underline break-all",
+                              mine ? "text-blue-100" : "text-blue-600"
+                            )}
+                          >
+                            {a.name || "файл"}
+                          </a>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-                <div className="whitespace-pre-wrap break-words text-sm">{m.content}</div>
               </div>
-            </div>
-          );
-        })}
+            );
+          });
+        })()}
       </div>
+
+      {/* Lightbox */}
+      {lightboxIndex >= 0 && (() => {
+        const allImages: { url: string; name?: string }[] = [];
+        messages.forEach((m: any) => {
+          const atts = Array.isArray(m.attachments) ? m.attachments : [];
+          atts.forEach((a: any) => {
+            if (a?.url && (!a.type || String(a.type).startsWith("image/") || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(a.url))) {
+              allImages.push({ url: a.url, name: a.name });
+            }
+          });
+        });
+        return (
+          <ImageLightbox
+            images={allImages}
+            index={lightboxIndex}
+            onClose={() => setLightboxIndex(-1)}
+            onIndexChange={setLightboxIndex}
+          />
+        );
+      })()}
 
       {/* Input */}
       <div className="border-t bg-white p-3">
@@ -205,27 +291,46 @@ export function QuestionChatThread({ questionId, viewerRole, viewerId }: Props) 
             <Lock className="h-4 w-4" /> Диалог закрыт
           </div>
         ) : canSend ? (
-          <div className="flex gap-2">
-            <Textarea
-              rows={2}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Введите сообщение..."
-              className="resize-none"
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                  e.preventDefault();
-                  if (input.trim()) send.mutate();
-                }
-              }}
-            />
-            <Button
-              onClick={() => send.mutate()}
-              disabled={!input.trim() || send.isPending}
-              className="bg-blue-600 hover:bg-blue-700 self-end"
-            >
-              <Send className="h-4 w-4" />
-            </Button>
+          <div className="space-y-2">
+            {pendingAttachments.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {pendingAttachments.map((a, i) => (
+                  <div key={i} className="relative group">
+                    <img src={a.url} alt={a.name} className="h-16 w-16 object-cover rounded border" />
+                    <button
+                      type="button"
+                      onClick={() => setPendingAttachments((arr) => arr.filter((_, idx) => idx !== i))}
+                      className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-red-500 text-white flex items-center justify-center text-xs"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <Textarea
+                rows={2}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Введите сообщение..."
+                className="resize-none"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    if (input.trim() || pendingAttachments.length > 0) send.mutate();
+                  }
+                }}
+              />
+              <Button
+                onClick={() => send.mutate()}
+                disabled={(!input.trim() && pendingAttachments.length === 0) || send.isPending}
+                className="bg-blue-600 hover:bg-blue-700 self-end"
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+            </div>
+            <ImageUploader attachments={pendingAttachments} onChange={setPendingAttachments} compact />
           </div>
         ) : null}
       </div>

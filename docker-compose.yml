@@ -65,6 +65,9 @@ services:
       API_SECRET_KEY: ${API_SECRET_KEY}
       # NEXT_PUBLIC_API_SECRET_KEY removed for security
       NODE_ENV: production
+      # Telegram bot (notifications about new questions)
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_QUESTIONS_CHAT_ID: ${TELEGRAM_QUESTIONS_CHAT_ID:-}
     ports:
       - "${APP_PORT:-3000}:3000"
     depends_on:
