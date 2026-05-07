@@ -164,6 +164,10 @@ services:
       # AI (Replicate & Ollama)
       REPLICATE_API_TOKEN: ${REPLICATE_API_TOKEN}
       OLLAMA_URL: http://ollama:11434
+
+      # AI homework checker (external Flask bot)
+      AI_CHECKER_URL: ${AI_CHECKER_URL}
+      AI_CHECKER_KEY: ${AI_CHECKER_KEY}
       
       # OpenClaw
       OPENCLAW_API_URL: ${OPENCLAW_API_URL:-http://host.docker.internal:18789/v1/responses}
