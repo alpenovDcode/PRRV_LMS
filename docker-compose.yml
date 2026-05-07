@@ -68,6 +68,9 @@ services:
       # Telegram bot (notifications about new questions)
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_QUESTIONS_CHAT_ID: ${TELEGRAM_QUESTIONS_CHAT_ID:-}
+      # AI homework checker (external Flask bot)
+      AI_CHECKER_URL: ${AI_CHECKER_URL}
+      AI_CHECKER_KEY: ${AI_CHECKER_KEY}
     ports:
       - "${APP_PORT:-3000}:3000"
     depends_on:
