@@ -10,15 +10,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { 
-  Camera, 
-  Eye, 
+import {
+  Camera,
+  Eye,
   EyeOff,
   Calendar,
   Shield,
   User,
-  Loader2
+  Loader2,
+  Award,
+  Download,
+  ExternalLink
 } from "lucide-react";
+import { format as formatDate } from "date-fns";
+import { ru } from "date-fns/locale";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -164,9 +169,10 @@ export default function ProfilePage() {
       </div>
 
       <Tabs defaultValue="general" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
+        <TabsList className="grid w-full grid-cols-3 lg:w-[600px]">
           <TabsTrigger value="general">Общие</TabsTrigger>
           <TabsTrigger value="security">Безопасность</TabsTrigger>
+          <TabsTrigger value="certificates">Сертификаты</TabsTrigger>
         </TabsList>
         
         <TabsContent value="general" className="mt-6 space-y-6">
@@ -466,7 +472,100 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="certificates" className="mt-6">
+          <CertificatesTab />
+        </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+interface StudentCertificate {
+  id: string;
+  certificateNumber: string;
+  pdfUrl: string;
+  issuedAt: string;
+  course: { id: string; title: string; slug: string };
+  template: { id: string; name: string };
+}
+
+function CertificatesTab() {
+  const { data: certificates, isLoading } = useQuery<StudentCertificate[]>({
+    queryKey: ["student", "certificates"],
+    queryFn: async () => (await apiClient.get("/student/certificates")).data.data,
+  });
+
+  return (
+    <Card className="border-none shadow-md">
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <Award className="h-5 w-5 text-amber-600" />
+          <CardTitle>Мои сертификаты</CardTitle>
+        </div>
+        <CardDescription>
+          Сертификаты об успешном прохождении курсов. Можно скачать или проверить подлинность.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12 text-gray-500">
+            <Loader2 className="h-5 w-5 animate-spin mr-2" />
+            Загрузка...
+          </div>
+        ) : !certificates || certificates.length === 0 ? (
+          <div className="text-center py-12 text-gray-500">
+            У вас пока нет сертификатов. Завершите курс, чтобы получить.
+          </div>
+        ) : (
+          <div className="grid gap-6 md:grid-cols-2">
+            {certificates.map((cert) => (
+              <div key={cert.id} className="border rounded-lg overflow-hidden hover:shadow-md transition-shadow">
+                <div className="aspect-[4/3] bg-gray-100 overflow-hidden">
+                  <img
+                    src={cert.pdfUrl}
+                    alt={`Сертификат ${cert.course.title}`}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <div className="p-4 space-y-3">
+                  <div>
+                    <h3 className="font-semibold text-gray-900">{cert.course.title}</h3>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Выдан {formatDate(new Date(cert.issuedAt), "d MMMM yyyy", { locale: ru })}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      № <span className="font-mono">{cert.certificateNumber}</span>
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      asChild
+                      variant="default"
+                      size="sm"
+                      className="flex-1"
+                    >
+                      <a href={cert.pdfUrl} download={`certificate-${cert.certificateNumber}.pdf`}>
+                        <Download className="h-4 w-4 mr-2" />
+                        Скачать
+                      </a>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(`/verify/${cert.certificateNumber}`, "_blank")}
+                      className="flex-1"
+                    >
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Проверить
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
