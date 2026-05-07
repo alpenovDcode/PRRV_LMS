@@ -19,8 +19,7 @@ import {
   User,
   Loader2,
   Award,
-  Download,
-  ExternalLink
+  Download
 } from "lucide-react";
 import { format as formatDate } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -521,13 +520,19 @@ function CertificatesTab() {
           <div className="grid gap-6 md:grid-cols-2">
             {certificates.map((cert) => (
               <div key={cert.id} className="border rounded-lg overflow-hidden hover:shadow-md transition-shadow">
-                <div className="aspect-[4/3] bg-gray-100 overflow-hidden">
-                  <img
-                    src={cert.pdfUrl}
-                    alt={`Сертификат ${cert.course.title}`}
-                    className="w-full h-full object-contain"
+                <a
+                  href={cert.pdfUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block aspect-[4/3] bg-gray-100 overflow-hidden relative"
+                  title="Открыть сертификат"
+                >
+                  <iframe
+                    src={`${cert.pdfUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
+                    title={`Сертификат ${cert.course.title}`}
+                    className="w-full h-full pointer-events-none"
                   />
-                </div>
+                </a>
                 <div className="p-4 space-y-3">
                   <div>
                     <h3 className="font-semibold text-gray-900">{cert.course.title}</h3>
@@ -538,28 +543,17 @@ function CertificatesTab() {
                       № <span className="font-mono">{cert.certificateNumber}</span>
                     </p>
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      asChild
-                      variant="default"
-                      size="sm"
-                      className="flex-1"
-                    >
-                      <a href={cert.pdfUrl} download={`certificate-${cert.certificateNumber}.pdf`}>
-                        <Download className="h-4 w-4 mr-2" />
-                        Скачать
-                      </a>
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => window.open(`/verify/${cert.certificateNumber}`, "_blank")}
-                      className="flex-1"
-                    >
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                      Проверить
-                    </Button>
-                  </div>
+                  <Button
+                    asChild
+                    variant="default"
+                    size="sm"
+                    className="w-full"
+                  >
+                    <a href={cert.pdfUrl} download={`certificate-${cert.certificateNumber}.pdf`}>
+                      <Download className="h-4 w-4 mr-2" />
+                      Скачать
+                    </a>
+                  </Button>
                 </div>
               </div>
             ))}
