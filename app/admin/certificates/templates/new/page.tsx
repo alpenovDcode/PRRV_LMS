@@ -65,7 +65,7 @@ export default function NewCertificateTemplatePage() {
     }
   };
 
-  // Initial state for field config
+  // Initial state for field config — only fullName
   const [fieldConfig, setFieldConfig] = useState<any>({
     fullName: {
       x: 400,
