@@ -53,7 +53,7 @@ export async function checkHomeworkWithAI(
       lessonContent,
       studentName,
     }),
-    signal: AbortSignal.timeout(120_000),
+    signal: AbortSignal.timeout(300_000),
   });
 
   if (!response.ok) {

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { withAuth } from "@/lib/api-middleware";
 import { db } from "@/lib/db";
 import { ApiResponse } from "@/types";
@@ -225,8 +225,7 @@ export async function POST(
         });
       // Запускаем AI-проверку только если авто-ответ не задан
       } else if (lesson.aiPrompt) {
-        const { checkHomeworkWithAI } = await import("@/lib/ai/homework-checker");
-        checkHomeworkWithAI({
+        const aiParams = {
           submissionId: submission.id,
           studentAnswer: sanitizedContent,
           aiPrompt: lesson.aiPrompt,
@@ -235,9 +234,16 @@ export async function POST(
           lessonTitle: lesson.title,
           lessonContent: lesson.content ?? null,
           studentName: submission.user.fullName ?? submission.user.email,
-        }).catch((err) =>
-          console.error("AI homework check failed:", err)
-        );
+        };
+        // after() гарантирует завершение задачи даже после отправки ответа клиенту
+        after(async () => {
+          const { checkHomeworkWithAI } = await import("@/lib/ai/homework-checker");
+          try {
+            await checkHomeworkWithAI(aiParams);
+          } catch (err) {
+            console.error("AI homework check failed:", err);
+          }
+        });
       }
 
       // Notify curators
