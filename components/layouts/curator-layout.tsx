@@ -9,22 +9,19 @@ import {
   Inbox,
   CheckSquare,
   Menu,
-  Bell,
   LogOut,
   User,
   X,
-  LayoutDashboard,
   BookOpen,
   Users,
-  Layers,
   MessageSquare,
   MessageCircle,
-  GraduationCap
 } from "lucide-react";
 import { useState } from "react";
 import { NotificationsPopover } from "@/components/notifications-popover";
 
 const curatorNavigation = [
+  { name: "Курсы", href: "/curator/courses", icon: BookOpen },
   { name: "Пользователи", href: "/curator/users", icon: Users },
   { name: "Входящие ДЗ", href: "/curator/homework", icon: Inbox },
   { name: "Вопросы наставнику", href: "/curator/questions", icon: MessageCircle },
