@@ -179,13 +179,16 @@ export default function CuratorCourseDetailsPage() {
                               const Icon = meta.icon;
                               const duration = fmtDuration(l.videoDuration);
                               return (
-                                <div
+                                <Link
                                   key={l.id}
-                                  className="flex items-center gap-3 px-4 py-3 border-b last:border-b-0 bg-white"
+                                  href={`/curator/courses/${id}/lessons/${l.id}`}
+                                  className="flex items-center gap-3 px-4 py-3 border-b last:border-b-0 bg-white hover:bg-blue-50 transition-colors group"
                                 >
                                   <Icon className={cn("h-4 w-4 shrink-0", meta.color)} />
                                   <div className="flex-1 min-w-0">
-                                    <div className="text-sm text-gray-900 truncate">{l.title}</div>
+                                    <div className="text-sm text-gray-900 truncate group-hover:text-blue-700">
+                                      {l.title}
+                                    </div>
                                     <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-2 flex-wrap">
                                       <span>{meta.label}</span>
                                       {duration && <span>· {duration}</span>}
@@ -201,7 +204,8 @@ export default function CuratorCourseDetailsPage() {
                                       )}
                                     </div>
                                   </div>
-                                </div>
+                                  <ChevronRight className="h-4 w-4 text-gray-300 group-hover:text-blue-500 shrink-0" />
+                                </Link>
                               );
                             })}
                         </div>
