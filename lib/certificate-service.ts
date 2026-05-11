@@ -5,6 +5,7 @@ import { PDFDocument, rgb } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import { readFile, writeFile, mkdir } from "fs/promises";
 import { join } from "path";
+import { sendEmail, emailTemplates } from "@/lib/email-service";
 
 interface GenerateCertificateParams {
   userId: string;
@@ -244,6 +245,39 @@ export async function generateCertificate(params: GenerateCertificateParams) {
       template: true,
     },
   });
+
+  // Send certificate to student's email (fire-and-forget — не блокируем выдачу)
+  if (certificate.user.email) {
+    const { join } = await import("path");
+    const { readFile } = await import("fs/promises");
+    const publicDir = join(process.cwd(), "public");
+    const pdfPath = join(publicDir, certificate.pdfUrl.replace(/^\//, ""));
+
+    (async () => {
+      try {
+        const pdfBuffer = await readFile(pdfPath);
+        await sendEmail({
+          to: certificate.user.email,
+          subject: `Ваш сертификат: ${certificate.course.title}`,
+          html: emailTemplates.certificateIssued(
+            certificate.user.fullName || "Студент",
+            certificate.course.title,
+            certificate.certificateNumber
+          ),
+          attachments: [
+            {
+              filename: `certificate-${certificate.certificateNumber}.pdf`,
+              content: pdfBuffer,
+              contentType: "application/pdf",
+            },
+          ],
+        });
+        logs.push(`[email] Sent certificate to ${certificate.user.email}`);
+      } catch (e: any) {
+        console.error("[certificate] Failed to email certificate:", e);
+      }
+    })();
+  }
 
   return { certificate, logs };
 }

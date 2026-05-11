@@ -13,13 +13,21 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+interface EmailAttachment {
+  filename: string;
+  content?: Buffer | string;
+  path?: string;
+  contentType?: string;
+}
+
 interface EmailOptions {
   to: string;
   subject: string;
   html: string;
+  attachments?: EmailAttachment[];
 }
 
-export async function sendEmail({ to, subject, html }: EmailOptions) {
+export async function sendEmail({ to, subject, html, attachments }: EmailOptions) {
   if (!process.env.SMTP_USER || !process.env.SMTP_PASSWORD) {
     console.warn("SMTP credentials not provided. Email not sent:", { to, subject });
     return;
@@ -31,6 +39,7 @@ export async function sendEmail({ to, subject, html }: EmailOptions) {
       to,
       subject,
       html,
+      attachments,
     });
     console.log("Message sent: %s", info.messageId);
     return info;
@@ -107,6 +116,23 @@ export const emailTemplates = {
       <p style="margin-top: 20px;">
         <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://prrv.tech'}/dashboard/questions/${questionId}" style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
           Открыть диалог
+        </a>
+      </p>
+    </div>
+  `,
+
+  certificateIssued: (studentName: string, courseTitle: string, certificateNumber: string) => `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2>Поздравляем с получением сертификата! 🎓</h2>
+      <p>Здравствуйте, <strong>${sanitizeHtml(studentName)}</strong>!</p>
+      <p>Вы успешно завершили курс <strong>«${sanitizeHtml(courseTitle)}»</strong>.</p>
+      <p>Ваш сертификат прикреплён к этому письму. Также его можно скачать в личном кабинете в разделе «Настройки профиля → Сертификаты».</p>
+      <div style="padding: 15px; border-radius: 5px; background-color: #fef3c7; border: 1px solid #fcd34d; margin: 20px 0;">
+        <p style="margin: 0;"><strong>Номер сертификата:</strong> <span style="font-family: monospace;">${sanitizeHtml(certificateNumber)}</span></p>
+      </div>
+      <p>
+        <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://prrv.tech'}/profile" style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+          Открыть в кабинете
         </a>
       </p>
     </div>
