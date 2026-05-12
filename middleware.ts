@@ -1,6 +1,14 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { verifyAccessTokenEdge } from "./lib/auth-edge";
+import {
+  verifyAccessTokenEdge,
+  verifyRefreshTokenEdge,
+  signAccessTokenEdge,
+  signRefreshTokenEdge,
+} from "./lib/auth-edge";
+
+const ACCESS_COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 дней — fallback, cookie не должен умирать раньше refreshToken
+const REFRESH_COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 дней, продляется при каждом silent-refresh
 
 // Helper for constant-time comparison to prevent timing attacks
 function isTokenEqual(a: string | undefined, b: string): boolean {
@@ -106,141 +114,128 @@ export async function middleware(request: NextRequest) {
   }
   // --- API SECURITY CHECK END ---
 
-  // Если пользователь не авторизован и пытается зайти на защищенный роут
-  if (!token) {
-    const refreshToken = request.cookies.get("refreshToken")?.value;
-    
-    // Если есть refreshToken, пробуем обновить сессию
-    if (refreshToken) {
-      const url = getSafeUrl("/api/auth/refresh", request);
-      url.searchParams.set("redirect", path);
-      // Removed appending apiKey to prevent exposure in URL
-      return NextResponse.redirect(url);
-    }
+  // Пытаемся получить payload: сначала из accessToken, потом silent-refresh
+  // через refreshToken прямо в edge (без 302 на /api/auth/refresh).
+  let payload = token ? await verifyAccessTokenEdge(token).catch(() => null) : null;
+  let refreshedAccessToken: string | null = null;
+  let refreshedRefreshToken: string | null = null;
 
+  if (!payload) {
+    const refreshToken = request.cookies.get("refreshToken")?.value;
+    if (refreshToken) {
+      const refreshPayload = await verifyRefreshTokenEdge(refreshToken).catch(() => null);
+      if (refreshPayload) {
+        const minted = {
+          userId: refreshPayload.userId,
+          email: refreshPayload.email,
+          role: refreshPayload.role,
+          sessionId: refreshPayload.sessionId,
+        };
+        refreshedAccessToken = await signAccessTokenEdge(minted);
+        // Ротация refresh: продляем окно жизни пока пользователь активен.
+        refreshedRefreshToken = await signRefreshTokenEdge(minted);
+        payload = minted;
+      }
+    }
+  }
+
+  // Хелпер, который проставляет свежие токены в Set-Cookie ответа.
+  const attachRefreshedCookie = (response: NextResponse): NextResponse => {
+    if (refreshedAccessToken) {
+      response.cookies.set("accessToken", refreshedAccessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: ACCESS_COOKIE_MAX_AGE,
+        path: "/",
+      });
+    }
+    if (refreshedRefreshToken) {
+      response.cookies.set("refreshToken", refreshedRefreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: REFRESH_COOKIE_MAX_AGE,
+        path: "/",
+      });
+    }
+    return response;
+  };
+
+  if (!payload) {
     const url = getSafeUrl("/login", request);
     url.searchParams.set("redirect", path);
     return NextResponse.redirect(url);
   }
 
-  // Если есть токен, проверяем роль и строго контролируем доступ
-  if (token) {
-    try {
-      const payload = await verifyAccessTokenEdge(token);
-      if (payload) {
-        // СТРОГАЯ ПРОВЕРКА: /admin - для админов и кураторов
-        if (path.startsWith("/admin")) {
-          // Исключаем /admin/restore из проверки (это страница восстановления)
-          if (path !== "/admin/restore" && payload.role !== "admin" && payload.role !== "curator") {
-            // Проверяем, есть ли активная сессия impersonation
-            const originalAdminToken = request.cookies.get("originalAdminToken")?.value;
-            if (originalAdminToken) {
-              const url = getSafeUrl("/admin/restore", request);
-              return NextResponse.redirect(url);
-            }
-            const url = getSafeUrl("/no-access", request);
-            return NextResponse.redirect(url);
-          }
-        }
-
-        // СТРОГАЯ ПРОВЕРКА: /dashboard - только для админов и студентов
-        if (path.startsWith("/dashboard") || path === "/dashboard") {
-          // Куратор на /dashboard -> редирект на /admin (или /curator/inbox)
-          if (payload.role === "curator") {
-            const url = getSafeUrl("/curator/inbox", request);
-            return NextResponse.redirect(url);
-          }
-
-          if (payload.role !== "admin" && payload.role !== "student") {
-            const url = getSafeUrl("/no-access", request);
-            return NextResponse.redirect(url);
-          }
-           // Allow admins to access /dashboard
-        }
-
-        // СТРОГАЯ ПРОВЕРКА: /curator - только для админов и кураторов
-        if (path.startsWith("/curator")) {
-          if (payload.role !== "curator" && payload.role !== "admin") {
-            const url = getSafeUrl("/no-access", request);
-            return NextResponse.redirect(url);
-          }
-          // Куратор на /dashboard -> редирект на /curator/inbox
-          if (payload.role === "curator" && path === "/dashboard") {
-            const url = getSafeUrl("/curator/inbox", request);
-            return NextResponse.redirect(url);
-          }
-
-          // /curator/* alias routes — rewrite to /admin/* internally,
-          // so curator sees nice URL while page lives in /admin/<section>.
-          // Native /curator pages: /curator/inbox, /curator/questions, /curator/review
-          const NATIVE_CURATOR = ["/curator/inbox", "/curator/questions", "/curator/review", "/curator/courses"];
-          const isNative = NATIVE_CURATOR.some((p) => path === p || path.startsWith(p + "/"));
-          if (!isNative && path !== "/curator") {
-            const url = request.nextUrl.clone();
-            url.pathname = path.replace(/^\/curator\//, "/admin/");
-            return NextResponse.rewrite(url);
-          }
-          // /curator (root) → rewrite to /admin (admin dashboard)
-          if (path === "/curator") {
-            const url = request.nextUrl.clone();
-            url.pathname = "/admin";
-            return NextResponse.rewrite(url);
-          }
-        }
-
-        // Редиректы для удобства навигации с главной страницы
-        if (path === "/") {
-          if (payload.role === "admin") {
-            const url = getSafeUrl("/admin", request);
-            return NextResponse.redirect(url);
-          } else if (payload.role === "curator") {
-            const url = getSafeUrl("/curator/inbox", request);
-            return NextResponse.redirect(url);
-          } else if (payload.role === "student") {
-            const url = getSafeUrl("/dashboard", request);
-            return NextResponse.redirect(url);
-          }
-        }
-        
-
-      } else {
-        // Если токен невалидный, редирект на логин
-        if (!isPublicRoute) {
-          const refreshToken = request.cookies.get("refreshToken")?.value;
-          if (refreshToken) {
-            const url = getSafeUrl("/api/auth/refresh", request);
-            url.searchParams.set("redirect", path);
-            return NextResponse.redirect(url);
-          }
-          const url = getSafeUrl("/login", request);
-          url.searchParams.set("redirect", path);
-          return NextResponse.redirect(url);
-        }
+  // СТРОГАЯ ПРОВЕРКА: /admin — для админов и кураторов
+  if (path.startsWith("/admin")) {
+    if (path !== "/admin/restore" && payload.role !== "admin" && payload.role !== "curator") {
+      const originalAdminToken = request.cookies.get("originalAdminToken")?.value;
+      if (originalAdminToken) {
+        return attachRefreshedCookie(NextResponse.redirect(getSafeUrl("/admin/restore", request)));
       }
-    } catch {
-      // Если токен невалидный, редирект на логин
-      if (!isPublicRoute) {
-        const refreshToken = request.cookies.get("refreshToken")?.value;
-        if (refreshToken) {
-          const url = getSafeUrl("/api/auth/refresh", request);
-          url.searchParams.set("redirect", path);
-          return NextResponse.redirect(url);
-        }
-        const url = getSafeUrl("/login", request);
-        url.searchParams.set("redirect", path);
-        return NextResponse.redirect(url);
-      }
+      return attachRefreshedCookie(NextResponse.redirect(getSafeUrl("/no-access", request)));
+    }
+  }
+
+  // СТРОГАЯ ПРОВЕРКА: /dashboard — только для админов и студентов
+  if (path.startsWith("/dashboard") || path === "/dashboard") {
+    if (payload.role === "curator") {
+      return attachRefreshedCookie(NextResponse.redirect(getSafeUrl("/curator/inbox", request)));
+    }
+    if (payload.role !== "admin" && payload.role !== "student") {
+      return attachRefreshedCookie(NextResponse.redirect(getSafeUrl("/no-access", request)));
+    }
+  }
+
+  // СТРОГАЯ ПРОВЕРКА: /curator — только для админов и кураторов
+  if (path.startsWith("/curator")) {
+    if (payload.role !== "curator" && payload.role !== "admin") {
+      return attachRefreshedCookie(NextResponse.redirect(getSafeUrl("/no-access", request)));
+    }
+    const NATIVE_CURATOR = ["/curator/inbox", "/curator/questions", "/curator/review", "/curator/courses"];
+    const isNative = NATIVE_CURATOR.some((p) => path === p || path.startsWith(p + "/"));
+    if (!isNative && path !== "/curator") {
+      const url = request.nextUrl.clone();
+      url.pathname = path.replace(/^\/curator\//, "/admin/");
+      return attachRefreshedCookie(NextResponse.rewrite(url));
+    }
+    if (path === "/curator") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/admin";
+      return attachRefreshedCookie(NextResponse.rewrite(url));
+    }
+  }
+
+  // Редиректы для удобства навигации с главной страницы
+  if (path === "/") {
+    if (payload.role === "admin") {
+      return attachRefreshedCookie(NextResponse.redirect(getSafeUrl("/admin", request)));
+    } else if (payload.role === "curator") {
+      return attachRefreshedCookie(NextResponse.redirect(getSafeUrl("/curator/inbox", request)));
+    } else if (payload.role === "student") {
+      return attachRefreshedCookie(NextResponse.redirect(getSafeUrl("/dashboard", request)));
     }
   }
 
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-pathname", path);
+  // Если только что обновили accessToken, прокидываем его в текущий запрос —
+  // чтобы downstream-роуты в этом же RSC-цикле видели свежий токен.
+  if (refreshedAccessToken) {
+    const cookieHeader = request.headers.get("cookie") || "";
+    const stripped = cookieHeader
+      .split(/;\s*/)
+      .filter((c) => c && !c.startsWith("accessToken="))
+      .concat(`accessToken=${refreshedAccessToken}`)
+      .join("; ");
+    requestHeaders.set("cookie", stripped);
+  }
 
-  return NextResponse.next({
-    request: {
-      headers: requestHeaders,
-    },
-  });
+  return attachRefreshedCookie(
+    NextResponse.next({ request: { headers: requestHeaders } })
+  );
 }
 
 export const config = {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/api-middleware";
 import { db } from "@/lib/db";
-import { generateAccessToken, generateRefreshToken, generateSessionId } from "@/lib/auth";
+import { generateAccessToken, generateRefreshToken, generateSessionId, createSession } from "@/lib/auth";
 import { ApiResponse } from "@/types";
 import { UserRole } from "@prisma/client";
 import { logAction } from "@/lib/audit";
@@ -52,11 +52,14 @@ export async function POST(
           );
         }
 
-        // Создаем новую сессию для целевого пользователя
+        // Создаём отдельную сессию impersonation. НЕ перезаписываем User.sessionId
+        // и НЕ деактивируем существующие сессии цели — иначе пользователя
+        // моментально выкидывает со своего реального устройства.
         const sessionId = generateSessionId();
-        await db.user.update({
-          where: { id: targetUser.id },
-          data: { sessionId },
+        await createSession(targetUser.id, sessionId, {
+          ipAddress: getClientIp(request) || undefined,
+          userAgent: getUserAgent(request) || undefined,
+          deviceName: "impersonation",
         });
 
         // Генерируем токены для целевого пользователя
@@ -121,7 +124,7 @@ export async function POST(
           response.cookies.set("originalAdminToken", originalAdminToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
-            sameSite: "strict",
+            sameSite: "lax",
             maxAge: 60 * 60 * 24, // 24 часа (достаточно для сессии impersonation)
             path: "/",
           });
@@ -134,7 +137,7 @@ export async function POST(
         response.cookies.set("accessToken", accessToken, {
           httpOnly: true,
           secure: process.env.NODE_ENV === "production",
-          sameSite: "strict",
+          sameSite: "lax",
           maxAge: 30 * 60, // 30 минут
           path: "/",
         });
@@ -142,7 +145,7 @@ export async function POST(
         response.cookies.set("refreshToken", refreshToken, {
           httpOnly: true,
           secure: process.env.NODE_ENV === "production",
-          sameSite: "strict",
+          sameSite: "lax",
           maxAge: 7 * 24 * 60 * 60, // 7 дней
           path: "/",
         });

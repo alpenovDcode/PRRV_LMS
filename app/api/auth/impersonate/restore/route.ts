@@ -68,8 +68,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Проверяем, что сессия администратора все еще валидна
-    if (admin.sessionId !== adminPayload.sessionId) {
+    // Проверяем, что сессия администратора всё ещё активна.
+    // Источник истины — UserSession; fallback на User.sessionId для
+    // легаси-токенов (см. validateSession).
+    const adminSession = await db.userSession.findUnique({
+      where: {
+        userId_sessionId: { userId: admin.id, sessionId: adminPayload.sessionId },
+      },
+      select: { isActive: true },
+    });
+    const sessionStillValid =
+      (adminSession?.isActive ?? false) || admin.sessionId === adminPayload.sessionId;
+    if (!sessionStillValid) {
       return NextResponse.json<ApiResponse>(
         {
           success: false,
@@ -82,19 +92,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Генерируем новые токены для администратора
+    // Генерируем новые токены для администратора с его исходным sessionId
     const accessToken = generateAccessToken({
       userId: admin.id,
       email: admin.email,
       role: admin.role,
-      sessionId: admin.sessionId,
+      sessionId: adminPayload.sessionId,
     });
 
     const refreshToken = generateRefreshToken({
       userId: admin.id,
       email: admin.email,
       role: admin.role,
-      sessionId: admin.sessionId,
+      sessionId: adminPayload.sessionId,
     });
 
     // Audit log
@@ -116,7 +126,7 @@ export async function POST(request: NextRequest) {
     response.cookies.set("accessToken", accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      sameSite: "lax",
       maxAge: 60 * 30, // 30 минут
       path: "/",
     });
@@ -124,7 +134,7 @@ export async function POST(request: NextRequest) {
     response.cookies.set("refreshToken", refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      sameSite: "lax",
       maxAge: 60 * 60 * 24 * 7, // 7 дней
       path: "/",
     });
@@ -133,7 +143,7 @@ export async function POST(request: NextRequest) {
     response.cookies.set("originalAdminToken", "", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      sameSite: "lax",
       maxAge: 0,
       path: "/",
     });

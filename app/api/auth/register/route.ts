@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { hashPassword, generateAccessToken, generateRefreshToken, generateSessionId } from "@/lib/auth";
+import { hashPassword, generateAccessToken, generateRefreshToken, generateSessionId, createSession } from "@/lib/auth";
 import { ApiResponse } from "@/types";
 import { registerSchema } from "@/lib/validations";
 import { rateLimit } from "@/lib/rate-limit";
@@ -100,8 +100,13 @@ export async function POST(request: NextRequest) {
         email,
         passwordHash,
         fullName,
-        sessionId,
       },
+    });
+
+    // Создаём строку сессии для устройства регистрации.
+    await createSession(user.id, sessionId, {
+      ipAddress: getClientIp(request) || undefined,
+      userAgent: getUserAgent(request) || undefined,
     });
 
     const payload = {
@@ -135,7 +140,7 @@ export async function POST(request: NextRequest) {
     response.cookies.set("refreshToken", refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "strict", // Строгая защита от CSRF
+      sameSite: "lax", // Строгая защита от CSRF
       maxAge: 60 * 60 * 24 * 7, // 7 days
       path: "/",
     });
@@ -144,7 +149,7 @@ export async function POST(request: NextRequest) {
     response.cookies.set("accessToken", accessToken, {
       httpOnly: true, // Теперь httpOnly для безопасности
       secure: process.env.NODE_ENV === "production",
-      sameSite: "strict", // Строгая защита от CSRF
+      sameSite: "lax", // Строгая защита от CSRF
       maxAge: 60 * 30, // 30 minutes
       path: "/",
     });

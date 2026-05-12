@@ -49,18 +49,23 @@ class ApiClient {
           originalRequest._retry = true;
 
           try {
-            // Refresh token теперь в httpOnly cookie, автоматически отправляется
+            // Refresh token в httpOnly cookie, автоматически отправляется
             await axios.post(`${API_URL}/api/auth/refresh`, {}, {
-              withCredentials: true, // Важно для отправки cookies
+              withCredentials: true,
             });
-
-            // AccessToken теперь устанавливается в httpOnly cookie автоматически
-            // Не нужно сохранять в localStorage
-
-            // Повторяем оригинальный запрос (cookies автоматически отправятся)
+            // Повторяем оригинальный запрос
             return this.client(originalRequest);
           } catch (refreshError) {
-            // Очищаем cookies через logout endpoint
+            // На 5xx (БД лежит, сеть упала) НЕ выкидываем — это транзиентная ошибка,
+            // пользователь должен иметь возможность повторить. Кикаем только если
+            // refresh-токен действительно невалиден / истёк (4xx).
+            const status = (refreshError as AxiosError)?.response?.status;
+            const isAuthFailure = typeof status === "number" && status >= 400 && status < 500;
+
+            if (!isAuthFailure) {
+              return Promise.reject(refreshError);
+            }
+
             try {
               await axios.post(`${API_URL}/api/auth/logout`, {}, {
                 withCredentials: true,
@@ -69,7 +74,6 @@ class ApiClient {
               // Игнорируем ошибки при logout
             }
 
-            // Не делаем редирект, если уже на публичной странице
             if (!isPublicRoute && typeof window !== "undefined") {
               window.location.href = "/login";
             }

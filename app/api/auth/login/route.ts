@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { verifyPassword, generateAccessToken, generateRefreshToken, generateSessionId } from "@/lib/auth";
+import { verifyPassword, generateAccessToken, generateRefreshToken, generateSessionId, createSession } from "@/lib/auth";
 import { ApiResponse } from "@/types";
 import { loginSchema } from "@/lib/validations";
 import { rateLimit } from "@/lib/rate-limit";
@@ -123,9 +123,12 @@ export async function POST(request: NextRequest) {
 
     const sessionId = generateSessionId();
 
-    await db.user.update({
-      where: { id: user.id },
-      data: { sessionId },
+    // Создаём отдельную строку сессии для этого устройства.
+    // Не трогаем User.sessionId — иначе залогиненные на других устройствах
+    // пользователи моментально получат 401 (см. validateSession).
+    await createSession(user.id, sessionId, {
+      ipAddress: getClientIp(request) || undefined,
+      userAgent: getUserAgent(request) || undefined,
     });
 
     const payload = {
@@ -165,7 +168,7 @@ export async function POST(request: NextRequest) {
     response.cookies.set("refreshToken", refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "strict", // Строгая защита от CSRF
+      sameSite: "lax", // Строгая защита от CSRF
       maxAge: maxAge, 
       path: "/",
     });
@@ -174,7 +177,7 @@ export async function POST(request: NextRequest) {
     response.cookies.set("accessToken", accessToken, {
       httpOnly: true, // Теперь httpOnly для безопасности
       secure: process.env.NODE_ENV === "production",
-      sameSite: "strict", // Строгая защита от CSRF
+      sameSite: "lax", // Строгая защита от CSRF
       maxAge: maxAge, 
       path: "/",
     });

@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { ApiResponse } from "@/types";
 import { UserRole } from "@prisma/client";
 import { logAction } from "@/lib/audit";
-import { hashPassword } from "@/lib/auth";
+import { hashPassword, invalidateAllSessions } from "@/lib/auth";
 import { z } from "zod";
 
 const updateUserSchema = z.object({
@@ -376,19 +376,22 @@ export async function PATCH(
         if (about !== undefined) updateData.about = about;
         if (avatarUrl !== undefined) updateData.avatarUrl = avatarUrl;
         if (track !== undefined) updateData.track = track;
+        let revokeAllSessions = false;
         if (isBlocked !== undefined) {
             updateData.isBlocked = isBlocked;
             // Reset sessions if blocked
             if (isBlocked) {
                 updateData.sessionId = null;
+                revokeAllSessions = true;
             }
         }
         if (frozenUntil !== undefined) updateData.frozenUntil = frozenUntil ? new Date(frozenUntil) : null;
-        
+
         if (password !== undefined) {
           updateData.passwordHash = await hashPassword(password);
           // При смене пароля инвалидируем все сессии
           updateData.sessionId = null;
+          revokeAllSessions = true;
         }
 
         const updatedUser = await db.user.update({
@@ -409,6 +412,13 @@ export async function PATCH(
             frozenUntil: true,
           },
         });
+
+        // При блокировке/смене пароля деактивируем все строки UserSession —
+        // иначе уже выпущенные токены продолжат работать (validateSession
+        // теперь смотрит в UserSession).
+        if (revokeAllSessions) {
+          await invalidateAllSessions(id);
+        }
 
         // Audit log
         await logAction(req.user!.userId, "UPDATE_USER", "user", id, {

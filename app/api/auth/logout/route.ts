@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/api-middleware";
-import { invalidateAllSessions } from "@/lib/auth";
+import { deactivateSession } from "@/lib/auth";
 import { ApiResponse } from "@/types";
 
 export async function POST(request: NextRequest) {
   return withAuth(request, async (req) => {
     try {
-      await invalidateAllSessions(req.user!.userId);
+      // Деактивируем ТОЛЬКО текущее устройство. Остальные сессии пользователя
+      // остаются активными — иначе выход на телефоне выкидывает с компа.
+      await deactivateSession(req.user!.userId, req.user!.sessionId);
 
       const response = NextResponse.json<ApiResponse>(
         {
@@ -20,14 +22,14 @@ export async function POST(request: NextRequest) {
       response.cookies.set("refreshToken", "", {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
+        sameSite: "lax",
         maxAge: 0,
         path: "/",
       });
       response.cookies.set("accessToken", "", {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
+        sameSite: "lax",
         maxAge: 0,
         path: "/",
       });
@@ -47,14 +49,14 @@ export async function POST(request: NextRequest) {
       response.cookies.set("refreshToken", "", {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
+        sameSite: "lax",
         maxAge: 0,
         path: "/",
       });
       response.cookies.set("accessToken", "", {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
+        sameSite: "lax",
         maxAge: 0,
         path: "/",
       });
