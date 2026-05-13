@@ -73,10 +73,14 @@ function payloadToReplyMarkup(payload: FlowMessagePayload): ReplyMarkup | undefi
   }
 
   // Default: inline keyboard.
-  const inline: InlineKeyboard = payload.buttonRows.map((row) =>
-    row.map((b) => {
+  // Iter 5 — buttons carrying an inline `onClick` bundle get a synthetic
+  // callback_data `act:<rowIdx>:<colIdx>` so the inbound handler can
+  // reverse-look-up which button was clicked and run its actions.
+  const inline: InlineKeyboard = payload.buttonRows.map((row, rIdx) =>
+    row.map((b, cIdx) => {
       if (b.url) return { text: b.text, url: b.url };
       if (b.callback) return { text: b.text, callback_data: b.callback };
+      if (b.onClick) return { text: b.text, callback_data: `act:${rIdx}:${cIdx}` };
       return { text: b.text, callback_data: "btn:noop" };
     }),
   );

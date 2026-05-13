@@ -24,6 +24,8 @@ import type {
 } from "@/lib/tg/flow-schema";
 import { TRIGGER_NODE_ID } from "@/lib/tg/flow-editor-converter";
 import { MediaAttachmentsEditor } from "@/components/admin/tg/media-picker";
+import { InlineActionsEditor } from "@/components/admin/tg/inline-actions-editor";
+import type { InlineActions } from "@/lib/tg/flow-schema";
 
 // ============================================================================
 // Generic helpers
@@ -441,6 +443,15 @@ export function PropertiesPanel({
               update({ isPosition: v } as Partial<FlowNode>)
             }
           />
+          <InlineActionsEditor
+            title="Действия после отправки"
+            value={sNode.payload.onSend}
+            onChange={(actions) =>
+              update({
+                payload: { ...sNode.payload, onSend: actions },
+              } as Partial<FlowNode>)
+            }
+          />
         </>
       )}
 
@@ -486,10 +497,28 @@ export function PropertiesPanel({
               update({ validation: v } as Partial<FlowNode>)
             }
           />
+          <InlineActionsEditor
+            title="После сохранения ответа"
+            value={sNode.onSave}
+            onChange={(actions) =>
+              update({ onSave: actions } as Partial<FlowNode>)
+            }
+          />
           <div className="text-[11px] text-zinc-500 pt-2 border-t">
             Связи: «ответ» и «таймаут» — тяните рёбра от соответствующих handle’ов на холсте.
           </div>
         </>
+      )}
+
+      {sNode.type === "actions" && (
+        <InlineActionsEditor
+          title="Действия"
+          value={sNode.actions}
+          onChange={(actions) =>
+            update({ actions: actions ?? {} } as Partial<FlowNode>)
+          }
+          defaultOpen
+        />
       )}
 
       {sNode.type === "condition" && (
@@ -851,6 +880,13 @@ function ButtonEditor({
           Работает только в режиме <strong>reply-клавиатура</strong> у сообщения.
           Переключи режим клавиатуры выше в редакторе сообщения.
         </p>
+      )}
+      {kind === "callback" && !button.callback && (
+        <InlineActionsEditor
+          title="При клике"
+          value={button.onClick}
+          onChange={(actions) => onChange({ ...button, onClick: actions })}
+        />
       )}
       {kind === "callback" && (
         <>

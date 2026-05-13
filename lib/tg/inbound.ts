@@ -490,6 +490,7 @@ export async function handleUpdate(bot: TgBot, update: TgUpdate): Promise<void> 
         subscriberId: subscriber.id,
         botId: bot.id,
         callbackData: cq.data,
+        tgMessageId: cq.message ? String(cq.message.message_id) : undefined,
       });
     }
     return;

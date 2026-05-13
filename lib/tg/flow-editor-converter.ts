@@ -111,6 +111,7 @@ export function graphToReactFlow(
       case "set_variable":
       case "goto_flow":
       case "note":
+      case "actions":
         if (node.next) {
           edges.push({
             id: `e-${node.id}-${node.next}`,

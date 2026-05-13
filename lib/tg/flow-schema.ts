@@ -4,6 +4,55 @@
 
 import { z } from "zod";
 
+// ---------- Inline action bundle -------------------------------------
+//
+// A small package of side-effects that ride along with another node
+// (most commonly a message-node `onSend`, or a wait_reply `onSave`,
+// or a button `onClick`). Iter 5 introduced this so a typical 5-step
+// funnel doesn't need 25 standalone add_tag / set_variable / list
+// nodes — the side-effects collapse into the parent.
+//
+// Atomic ops covered:
+//   addTags / removeTags        → string[] of tag names
+//   addToLists / removeFromLists → string[] of TgList ids
+//   setVariables                → array of {key, value, asExpression?}
+//                                  (same scope/syntax as set_variable node)
+//
+// Execution order is fixed: variables first (so subsequent ops can
+// reference them), then tag adds, then tag removes, then list adds,
+// then list removes. This is deterministic across deploys and matches
+// how SaleBot orders its dialog-state "Действия" block.
+
+export const setVariableActionSchema = z.object({
+  // See set_variable node — same prefix syntax (client./project./deal./field.).
+  key: z.string().min(1).max(80),
+  value: z.string().max(4096),
+  asExpression: z.boolean().optional(),
+});
+export type SetVariableAction = z.infer<typeof setVariableActionSchema>;
+
+export const inlineActionsSchema = z.object({
+  addTags: z.array(z.string().min(1).max(64)).max(20).optional(),
+  removeTags: z.array(z.string().min(1).max(64)).max(20).optional(),
+  addToLists: z.array(z.string().min(1)).max(20).optional(),
+  removeFromLists: z.array(z.string().min(1)).max(20).optional(),
+  setVariables: z.array(setVariableActionSchema).max(20).optional(),
+});
+export type InlineActions = z.infer<typeof inlineActionsSchema>;
+
+// Helper used by the editor/UI: true if the bundle has at least one
+// configured action. Empty bundles are dropped before persistence.
+export function inlineActionsCount(a: InlineActions | undefined): number {
+  if (!a) return 0;
+  return (
+    (a.addTags?.length ?? 0) +
+    (a.removeTags?.length ?? 0) +
+    (a.addToLists?.length ?? 0) +
+    (a.removeFromLists?.length ?? 0) +
+    (a.setVariables?.length ?? 0)
+  );
+}
+
 // ---------- Message payload (used by message-node and broadcasts) ----------
 
 export const buttonSchema = z.object({
@@ -26,6 +75,9 @@ export const buttonSchema = z.object({
   // Disable for buttons pointing to public bots/channels where we don't
   // care about per-user clicks.
   trackClicks: z.boolean().optional(),
+  // Inline actions fired when this button is clicked. Saves nesting a
+  // dedicated action-node for "tag + jump" patterns.
+  onClick: inlineActionsSchema.optional(),
 });
 export type FlowButton = z.infer<typeof buttonSchema>;
 
@@ -90,6 +142,11 @@ export const messagePayloadSchema = z.object({
   // Suppress notification sound. Useful for low-priority side-effect
   // messages so we don't ping every subscriber at 3am.
   disableNotification: z.boolean().optional(),
+  // Inline actions to run after the message sends successfully. Replaces
+  // having to chain add_tag / set_variable / list nodes after every
+  // message. Order of execution: setVariables → addTags → removeTags →
+  // addToLists → removeFromLists. See lib/tg/inline-actions.ts.
+  onSend: inlineActionsSchema.optional(),
 });
 export type FlowMessagePayload = z.infer<typeof messagePayloadSchema>;
 
@@ -158,6 +215,10 @@ export const waitReplyNodeSchema = baseNode.extend({
   timeoutSeconds: z.number().int().positive().max(60 * 60 * 24 * 30),
   timeoutNext: z.string().optional(),
   validation: waitReplyValidationSchema,
+  // Inline actions fired AFTER the user's reply has been saved and
+  // passed validation. Common use: tag the user "has_phone" after they
+  // submit their phone number.
+  onSave: inlineActionsSchema.optional(),
 });
 
 // Condition rule. Iter 1 broadens ops to cover numeric and existence
@@ -235,6 +296,16 @@ export const noteNodeSchema = baseNode.extend({
   text: z.string().max(4096).optional(),
 });
 
+// Generic "side-effects only" node. Fallback for the rare case where
+// you need a standalone block of tag/variable/list ops without an
+// adjacent message. 95% of flows should use onSend on a message instead —
+// keep this for things like "before broadcast, write to deal.x" macros.
+// Displayed compactly in the editor as a single chip listing all ops.
+export const actionsNodeSchema = baseNode.extend({
+  type: z.literal("actions"),
+  actions: inlineActionsSchema,
+});
+
 export const flowNodeSchema = z.discriminatedUnion("type", [
   messageNodeSchema,
   delayNodeSchema,
@@ -247,6 +318,7 @@ export const flowNodeSchema = z.discriminatedUnion("type", [
   gotoFlowNodeSchema,
   endNodeSchema,
   noteNodeSchema,
+  actionsNodeSchema,
 ]);
 export type FlowNode = z.infer<typeof flowNodeSchema>;
 
