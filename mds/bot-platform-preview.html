@@ -1,0 +1,1101 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Proryv LMS — Bot Platform (визуальный превью)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          primary: { DEFAULT: "#6d28d9", 50: "#f5f3ff", 500: "#8b5cf6", 600: "#7c3aed" },
+          muted: "#f4f4f5",
+          "muted-foreground": "#6b7280",
+          border: "#e5e7eb",
+          background: "#ffffff",
+          foreground: "#0f172a",
+          destructive: "#dc2626",
+          "destructive-foreground": "#ffffff",
+          accent: "#f4f4f5",
+        },
+      },
+    },
+  };
+</script>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  .screen { scroll-margin-top: 80px; }
+  .card { @apply rounded-lg border border-border bg-white shadow-sm; }
+  .badge { @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium; }
+  .badge-default { @apply bg-primary text-white; }
+  .badge-secondary { @apply bg-zinc-100 text-zinc-700; }
+  .badge-destructive { @apply bg-red-100 text-red-700; }
+  .badge-success { @apply bg-emerald-100 text-emerald-700; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 px-4 py-2; }
+  .btn-primary { @apply btn bg-primary text-white hover:bg-primary-600; }
+  .btn-outline { @apply btn border border-border bg-white hover:bg-zinc-50; }
+  .btn-ghost { @apply btn hover:bg-zinc-100; }
+  .btn-destructive { @apply btn bg-destructive text-destructive-foreground hover:bg-red-700; }
+  .btn-sm { @apply px-3 py-1.5 text-xs; }
+  .input { @apply w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30; }
+  .label { @apply text-sm font-medium text-zinc-700 mb-1 block; }
+  .tab { @apply px-3 py-2 text-sm rounded-t border-b-2 -mb-px flex items-center gap-2; }
+  .tab-active { @apply border-primary text-primary font-medium bg-primary-50; }
+  .tab-inactive { @apply border-transparent text-zinc-500 hover:text-zinc-900; }
+  .sidebar-item { @apply flex items-center gap-3 rounded-md px-3 py-2 text-sm text-zinc-600 hover:bg-zinc-100; }
+  .sidebar-item-active { @apply bg-primary text-white hover:bg-primary-600; }
+  table.preview { @apply w-full text-sm; }
+  table.preview th { @apply text-left p-3 text-xs uppercase tracking-wide text-zinc-500 font-medium bg-zinc-50 border-b; }
+  table.preview td { @apply p-3 border-b border-border; }
+  .kbd { @apply inline-flex items-center rounded border border-border bg-zinc-50 px-1.5 py-0.5 text-xs font-mono; }
+  pre.json { @apply rounded bg-zinc-900 text-zinc-100 p-4 text-xs leading-relaxed overflow-x-auto font-mono; }
+</style>
+</head>
+<body class="bg-zinc-50 text-zinc-900">
+
+<!-- TOP BAR (jump-to nav) -->
+<header class="sticky top-0 z-50 bg-white border-b border-border">
+  <div class="max-w-screen-2xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <span class="inline-flex h-8 w-8 items-center justify-center rounded-md bg-primary text-white">🤖</span>
+      <div>
+        <div class="font-semibold">Proryv LMS — Bot Platform</div>
+        <div class="text-xs text-zinc-500">Визуальный превью реализованного функционала</div>
+      </div>
+    </div>
+    <nav class="flex gap-1 text-xs flex-wrap justify-end">
+      <a href="#screen-bots" class="px-2 py-1 rounded hover:bg-zinc-100">Боты</a>
+      <a href="#screen-overview" class="px-2 py-1 rounded hover:bg-zinc-100">Обзор</a>
+      <a href="#screen-subs" class="px-2 py-1 rounded hover:bg-zinc-100">Подписчики</a>
+      <a href="#screen-flows" class="px-2 py-1 rounded hover:bg-zinc-100">Сценарии</a>
+      <a href="#screen-flow-edit" class="px-2 py-1 rounded hover:bg-zinc-100">Редактор</a>
+      <a href="#screen-broadcasts" class="px-2 py-1 rounded hover:bg-zinc-100">Рассылки</a>
+      <a href="#screen-new-broadcast" class="px-2 py-1 rounded hover:bg-zinc-100">Новая рассылка</a>
+      <a href="#screen-links" class="px-2 py-1 rounded hover:bg-zinc-100">UTM</a>
+      <a href="#screen-architecture" class="px-2 py-1 rounded hover:bg-zinc-100">Архитектура</a>
+    </nav>
+  </div>
+</header>
+
+<!-- INTRO -->
+<section class="max-w-screen-2xl mx-auto px-6 py-8">
+  <h1 class="text-3xl font-bold">Что реализовано</h1>
+  <p class="text-zinc-600 mt-2 max-w-3xl">
+    Полноценный аналог SaleBot/BotHelp на базе Proryv LMS:
+    подключение Telegram-ботов, ведение подписчиков с тегами и переменными,
+    сценарии-воронки на 10 типов нод, массовые рассылки c rate-limit,
+    UTM-ссылки с атрибуцией first/last touch. 9 новых таблиц <code>tg_*</code>,
+    существующая ЛМС не затронута.
+  </p>
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6">
+    <div class="card p-4"><div class="text-xs text-zinc-500 uppercase">Новых файлов</div><div class="text-2xl font-semibold">39</div></div>
+    <div class="card p-4"><div class="text-xs text-zinc-500 uppercase">Модулей ядра</div><div class="text-2xl font-semibold">12</div></div>
+    <div class="card p-4"><div class="text-xs text-zinc-500 uppercase">API-роутов</div><div class="text-2xl font-semibold">10</div></div>
+    <div class="card p-4"><div class="text-xs text-zinc-500 uppercase">Unit-тестов</div><div class="text-2xl font-semibold">20 / 20</div></div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SCREEN 1: BOTS LIST -->
+<!-- ============================================================ -->
+<section id="screen-bots" class="screen max-w-screen-2xl mx-auto px-6 py-10">
+  <div class="mb-3 flex items-center gap-2">
+    <span class="kbd">/admin/bots</span>
+    <span class="text-zinc-400">·</span>
+    <span class="text-sm text-zinc-600">Список подключённых Telegram-ботов</span>
+  </div>
+
+  <div class="card overflow-hidden">
+    <div class="flex">
+      <!-- Sidebar mock -->
+      <aside class="w-64 shrink-0 border-r bg-gradient-to-b from-white via-primary-50/30 to-white p-3 space-y-0.5">
+        <div class="px-3 py-2 text-xs font-bold text-primary">PROVRYV LMS</div>
+        <a class="sidebar-item">📚 Курсы</a>
+        <a class="sidebar-item">👥 Пользователи</a>
+        <a class="sidebar-item">📂 Группы</a>
+        <a class="sidebar-item">📥 Входящие ДЗ</a>
+        <a class="sidebar-item">📨 Рассылки</a>
+        <a class="sidebar-item sidebar-item-active">🤖 Боты (Telegram)</a>
+        <a class="sidebar-item">📊 Аналитика</a>
+        <a class="sidebar-item">⚙️ Настройки</a>
+      </aside>
+
+      <!-- Main -->
+      <main class="flex-1 p-6">
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h2 class="text-2xl font-semibold">Telegram-боты</h2>
+            <p class="text-sm text-zinc-500">Подключайте ботов, ведите подписчиков, запускайте сценарии и рассылки.</p>
+          </div>
+          <button class="btn-primary">+ Подключить бота</button>
+        </div>
+
+        <div class="grid grid-cols-3 gap-4">
+          <!-- Bot card 1 -->
+          <div class="card p-4 hover:border-primary/40 transition">
+            <div class="flex items-start justify-between mb-3">
+              <div>
+                <div class="flex items-center gap-2 font-medium">🤖 Прорыв — основной</div>
+                <div class="text-xs text-zinc-500">@prrv_main_bot</div>
+              </div>
+              <span class="badge badge-default">active</span>
+            </div>
+            <div class="text-sm text-zinc-600 mb-2">👥 1 247 подписчиков</div>
+            <div class="text-[10px] text-zinc-400 mb-3 font-mono">token: 1283746521…</div>
+            <div class="flex gap-2">
+              <button class="btn-primary flex-1">Открыть</button>
+              <button class="btn-outline px-2">↗</button>
+            </div>
+          </div>
+
+          <!-- Bot card 2 -->
+          <div class="card p-4 hover:border-primary/40 transition">
+            <div class="flex items-start justify-between mb-3">
+              <div>
+                <div class="flex items-center gap-2 font-medium">🤖 Поддержка</div>
+                <div class="text-xs text-zinc-500">@prrv_help_bot</div>
+              </div>
+              <span class="badge badge-default">active</span>
+            </div>
+            <div class="text-sm text-zinc-600 mb-2">👥 89 подписчиков</div>
+            <div class="text-[10px] text-zinc-400 mb-3 font-mono">token: 7892341123…</div>
+            <div class="flex gap-2">
+              <button class="btn-outline flex-1">Открыть</button>
+              <button class="btn-outline px-2">↗</button>
+            </div>
+          </div>
+
+          <!-- Empty CTA card -->
+          <div class="card p-4 border-dashed border-2 flex flex-col items-center justify-center text-center text-zinc-400">
+            <div class="text-3xl mb-2">+</div>
+            <div class="text-xs">Подключить ещё одного бота</div>
+          </div>
+        </div>
+
+        <!-- Mock dialog for connect bot -->
+        <div class="mt-8 card p-5 border-primary/30">
+          <div class="text-xs uppercase text-zinc-400 mb-2">Диалог «Подключить бота»</div>
+          <div class="font-semibold mb-3">Подключить Telegram-бота</div>
+          <label class="label">Токен от @BotFather</label>
+          <input class="input" placeholder="123456789:AAGn..." disabled />
+          <p class="text-[11px] text-zinc-500 mt-1">Токен зашифровывается AES-256-GCM перед сохранением.</p>
+          <label class="label mt-3">Название (необязательно)</label>
+          <input class="input" placeholder="Курс Прорыв — основной бот" disabled />
+          <div class="flex justify-end gap-2 mt-4">
+            <button class="btn-outline btn-sm">Отмена</button>
+            <button class="btn-primary btn-sm">Подключить</button>
+          </div>
+          <p class="text-[11px] text-zinc-500 mt-3">
+            ↳ платформа сама вызовет <code>getMe</code>, сгенерит секрет, зашифрует токен и
+            зарегистрирует webhook на <code>/api/tg-webhook/&lt;botId&gt;</code>.
+          </p>
+        </div>
+      </main>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SCREEN 2: BOT OVERVIEW -->
+<!-- ============================================================ -->
+<section id="screen-overview" class="screen max-w-screen-2xl mx-auto px-6 py-10">
+  <div class="mb-3 flex items-center gap-2">
+    <span class="kbd">/admin/bots/[botId]</span>
+    <span class="text-zinc-400">·</span>
+    <span class="text-sm text-zinc-600">Сводка по боту, статус webhook, последние события</span>
+  </div>
+
+  <div class="card overflow-hidden">
+    <div class="p-6 space-y-4">
+
+      <!-- Bot header -->
+      <div class="flex items-center gap-3">
+        <span class="inline-flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary text-xl">🤖</span>
+        <div>
+          <h2 class="text-xl font-semibold">Прорыв — основной</h2>
+          <p class="text-sm text-zinc-500">@prrv_main_bot · 1 247 подписчиков</p>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="flex flex-wrap gap-1 border-b">
+        <a class="tab tab-active">📊 Обзор</a>
+        <a class="tab tab-inactive">👥 Подписчики</a>
+        <a class="tab tab-inactive">🔀 Сценарии</a>
+        <a class="tab tab-inactive">📨 Рассылки</a>
+        <a class="tab tab-inactive">🔗 Ссылки/UTM</a>
+      </div>
+
+      <!-- Stat cards -->
+      <div class="grid grid-cols-4 gap-3">
+        <div class="card p-4"><div class="text-xs uppercase text-zinc-500">Подписчиков</div><div class="text-2xl font-semibold mt-1">1 247</div></div>
+        <div class="card p-4"><div class="text-xs uppercase text-zinc-500">Активны за 7д</div><div class="text-2xl font-semibold mt-1">892</div></div>
+        <div class="card p-4"><div class="text-xs uppercase text-zinc-500">Новых за день</div><div class="text-2xl font-semibold mt-1">+47</div></div>
+        <div class="card p-4"><div class="text-xs uppercase text-zinc-500">Заблокировали</div><div class="text-2xl font-semibold mt-1 text-red-600">31</div></div>
+      </div>
+
+      <!-- Two-col -->
+      <div class="grid grid-cols-2 gap-4">
+        <div class="card p-4">
+          <div class="font-medium mb-3">Сообщения за сутки</div>
+          <div class="flex justify-between py-1.5 text-sm border-b border-zinc-100"><span>Отправлено ботом</span><span class="font-semibold">5 432</span></div>
+          <div class="flex justify-between py-1.5 text-sm"><span>Получено от пользователей</span><span class="font-semibold">891</span></div>
+        </div>
+        <div class="card p-4">
+          <div class="font-medium mb-3">Топ-теги</div>
+          <div class="flex justify-between py-1 text-sm border-b border-zinc-100"><span class="badge badge-secondary">leadmagnet</span><span>327</span></div>
+          <div class="flex justify-between py-1 text-sm border-b border-zinc-100"><span class="badge badge-secondary">webinar_15may</span><span>201</span></div>
+          <div class="flex justify-between py-1 text-sm border-b border-zinc-100"><span class="badge badge-secondary">paid_client</span><span>156</span></div>
+          <div class="flex justify-between py-1 text-sm"><span class="badge badge-secondary">warm</span><span>89</span></div>
+        </div>
+      </div>
+
+      <!-- Webhook status -->
+      <div class="card p-4">
+        <div class="flex items-center justify-between mb-3">
+          <div class="font-medium">Состояние вебхука</div>
+          <div class="flex gap-2">
+            <button class="btn-outline btn-sm">↻ Переустановить</button>
+            <button class="btn-outline btn-sm">Выключить</button>
+            <button class="btn-destructive btn-sm">🗑 Удалить</button>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 text-sm">
+          <span class="text-emerald-600">✓</span>
+          <span class="break-all">https://prrv.tech/api/tg-webhook/abc123-d4e5-f678-9012-345678901234</span>
+        </div>
+        <div class="text-xs text-zinc-500 mt-1">В очереди у Telegram: 0</div>
+      </div>
+
+      <!-- Recent events -->
+      <div class="card p-4">
+        <div class="font-medium mb-3">Последние события</div>
+        <div class="space-y-1 text-sm font-mono">
+          <div class="flex justify-between py-1 border-b border-zinc-100">
+            <span><span class="text-emerald-600">subscriber.created</span> <span class="text-zinc-400">·</span> <span class="text-zinc-600">slug=promo15</span></span>
+            <span class="text-zinc-400 text-xs">13 мая, 14:23</span>
+          </div>
+          <div class="flex justify-between py-1 border-b border-zinc-100">
+            <span><span class="text-blue-600">message.sent</span> <span class="text-zinc-400">·</span> <span class="text-zinc-600">flow=lead-warmup</span></span>
+            <span class="text-zinc-400 text-xs">13 мая, 14:23</span>
+          </div>
+          <div class="flex justify-between py-1 border-b border-zinc-100">
+            <span><span class="text-purple-600">flow.entered</span> <span class="text-zinc-400">·</span> <span class="text-zinc-600">tracking_link, slug=promo15</span></span>
+            <span class="text-zinc-400 text-xs">13 мая, 14:23</span>
+          </div>
+          <div class="flex justify-between py-1 border-b border-zinc-100">
+            <span><span class="text-amber-600">subscriber.tag_added</span> <span class="text-zinc-400">·</span> <span class="text-zinc-600">tag=warm</span></span>
+            <span class="text-zinc-400 text-xs">13 мая, 14:22</span>
+          </div>
+          <div class="flex justify-between py-1">
+            <span><span class="text-emerald-600">button.clicked</span> <span class="text-zinc-400">·</span> <span class="text-zinc-600">callback="goto:about"</span></span>
+            <span class="text-zinc-400 text-xs">13 мая, 14:21</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SCREEN 3: SUBSCRIBERS + DRAWER -->
+<!-- ============================================================ -->
+<section id="screen-subs" class="screen max-w-screen-2xl mx-auto px-6 py-10">
+  <div class="mb-3 flex items-center gap-2">
+    <span class="kbd">/admin/bots/[botId]/subscribers</span>
+    <span class="text-zinc-400">·</span>
+    <span class="text-sm text-zinc-600">Подписчики бота — список + правый drawer с CRM-действиями</span>
+  </div>
+
+  <div class="card overflow-hidden relative">
+    <div class="p-6 space-y-4">
+
+      <!-- Filters card -->
+      <div class="card p-4 flex gap-3 items-center">
+        <div class="relative flex-1">
+          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400">🔍</span>
+          <input class="input pl-9" placeholder="Поиск по имени или chat_id" value="" disabled />
+        </div>
+        <input class="input w-40" placeholder="Тег" value="leadmagnet" disabled />
+      </div>
+
+      <!-- Table -->
+      <div class="card overflow-hidden p-0">
+        <table class="preview">
+          <thead>
+            <tr>
+              <th>Пользователь</th>
+              <th>@username</th>
+              <th>Теги</th>
+              <th>Источник</th>
+              <th>Подписан</th>
+              <th>Статус</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="bg-primary-50/40">
+              <td>Иван Петров</td>
+              <td>@ivanov</td>
+              <td>
+                <span class="badge badge-secondary">leadmagnet</span>
+                <span class="badge badge-secondary">warm</span>
+              </td>
+              <td class="text-xs text-zinc-500">promo15</td>
+              <td class="text-xs">12.05.26</td>
+              <td><span class="badge badge-success">active</span></td>
+            </tr>
+            <tr>
+              <td>Мария Сидорова</td>
+              <td>@m_sidorova</td>
+              <td>
+                <span class="badge badge-secondary">paid_client</span>
+                <span class="badge badge-secondary">webinar_15may</span>
+              </td>
+              <td class="text-xs text-zinc-500">organic</td>
+              <td class="text-xs">11.05.26</td>
+              <td><span class="badge badge-success">active</span></td>
+            </tr>
+            <tr>
+              <td>Алексей Кузнецов</td>
+              <td>@akuznetsov</td>
+              <td>
+                <span class="badge badge-secondary">leadmagnet</span>
+              </td>
+              <td class="text-xs text-zinc-500">promo15</td>
+              <td class="text-xs">10.05.26</td>
+              <td><span class="badge badge-success">active</span></td>
+            </tr>
+            <tr>
+              <td>Ольга Васильева</td>
+              <td>@olga_v</td>
+              <td>
+                <span class="badge badge-secondary">partner_x</span>
+              </td>
+              <td class="text-xs text-zinc-500">partner_x</td>
+              <td class="text-xs">09.05.26</td>
+              <td><span class="badge badge-destructive">blocked</span></td>
+            </tr>
+            <tr>
+              <td>Дмитрий Соколов</td>
+              <td>@d_sokol</td>
+              <td>
+                <span class="badge badge-secondary">webinar_15may</span>
+                <span class="badge badge-secondary">warm</span>
+              </td>
+              <td class="text-xs text-zinc-500">organic</td>
+              <td class="text-xs">08.05.26</td>
+              <td><span class="badge badge-success">active</span></td>
+            </tr>
+            <tr>
+              <td>Екатерина Морозова</td>
+              <td>@kate_m</td>
+              <td>
+                <span class="badge badge-secondary">leadmagnet</span>
+                <span class="badge badge-secondary">paid_client</span>
+              </td>
+              <td class="text-xs text-zinc-500">lead-gift</td>
+              <td class="text-xs">07.05.26</td>
+              <td><span class="badge badge-success">active</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 text-sm">
+        <button class="btn-outline btn-sm">‹</button>
+        <span>стр. 1 / 25</span>
+        <button class="btn-outline btn-sm">›</button>
+      </div>
+    </div>
+
+    <!-- Drawer overlay -->
+    <div class="absolute inset-y-0 right-0 w-[480px] bg-white border-l shadow-2xl flex flex-col">
+      <div class="p-5 border-b flex items-center justify-between">
+        <div>
+          <div class="font-semibold text-lg">Иван Петров</div>
+          <div class="text-xs text-zinc-500">@ivanov · chat: 12345678</div>
+        </div>
+        <button class="text-zinc-400 hover:text-zinc-700">✕</button>
+      </div>
+      <div class="p-5 space-y-5 overflow-y-auto">
+        <div>
+          <div class="text-xs text-zinc-500 mb-1">Источник: <span class="font-medium">promo15</span></div>
+          <div class="text-xs text-zinc-500">Последняя активность: 13.05.26, 14:23</div>
+        </div>
+
+        <div>
+          <label class="label">Теги</label>
+          <div class="flex flex-wrap gap-1 mb-2">
+            <span class="badge badge-secondary">leadmagnet <span class="ml-1 cursor-pointer text-zinc-400">✕</span></span>
+            <span class="badge badge-secondary">warm <span class="ml-1 cursor-pointer text-zinc-400">✕</span></span>
+          </div>
+          <div class="flex gap-2">
+            <input class="input" placeholder="новый тег" disabled />
+            <button class="btn-primary btn-sm">+</button>
+          </div>
+        </div>
+
+        <div>
+          <label class="label">Переменные</label>
+          <div class="text-sm space-y-1">
+            <div class="flex justify-between py-1 border-b border-zinc-100"><span class="font-mono text-xs">city</span><span class="text-xs text-zinc-500">Москва</span></div>
+            <div class="flex justify-between py-1 border-b border-zinc-100"><span class="font-mono text-xs">stack</span><span class="text-xs text-zinc-500">Frontend</span></div>
+            <div class="flex justify-between py-1"><span class="font-mono text-xs">utm_source</span><span class="text-xs text-zinc-500">instagram</span></div>
+          </div>
+          <div class="flex gap-2 mt-2">
+            <input class="input" placeholder="ключ" disabled />
+            <input class="input" placeholder="значение" disabled />
+            <button class="btn-primary btn-sm">ок</button>
+          </div>
+        </div>
+
+        <div>
+          <label class="label">Активные сценарии</label>
+          <div class="text-xs flex justify-between border-b py-1.5">
+            <span>Лид-магнит → подогрев</span>
+            <span class="text-zinc-500">sleeping</span>
+          </div>
+        </div>
+
+        <div>
+          <label class="label">Отправить сообщение</label>
+          <textarea class="input" rows="3" placeholder="Текст (HTML: <b>, <i>, <a>)" disabled></textarea>
+          <button class="btn-primary btn-sm mt-2">📤 Отправить</button>
+        </div>
+
+        <div>
+          <label class="label">Запустить сценарий</label>
+          <select class="input mb-2" disabled>
+            <option>— выберите сценарий —</option>
+            <option>Приветствие на /start</option>
+            <option>Лид-магнит → подогрев</option>
+          </select>
+          <button class="btn-primary btn-sm">▶ Запустить</button>
+        </div>
+
+        <div>
+          <label class="label">Последние сообщения</label>
+          <div class="max-h-48 overflow-y-auto rounded border p-2 text-xs space-y-1">
+            <div class="border-b border-zinc-100 py-1"><span class="text-blue-600 font-semibold">↗</span> <span class="text-zinc-400">14:23</span> Лови гайд: https://example.com/guide.pdf</div>
+            <div class="border-b border-zinc-100 py-1"><span class="text-emerald-600 font-semibold">↘</span> <span class="text-zinc-400">14:23</span> /start promo15</div>
+            <div class="border-b border-zinc-100 py-1"><span class="text-blue-600 font-semibold">↗</span> <span class="text-zinc-400">12:30</span> Успел изучить гайд? 😉</div>
+            <div class="py-1"><span class="text-emerald-600 font-semibold">↘</span> <span class="text-zinc-400">11:15</span> 🔘 goto:about</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SCREEN 4: FLOWS LIST -->
+<!-- ============================================================ -->
+<section id="screen-flows" class="screen max-w-screen-2xl mx-auto px-6 py-10">
+  <div class="mb-3 flex items-center gap-2">
+    <span class="kbd">/admin/bots/[botId]/flows</span>
+    <span class="text-zinc-400">·</span>
+    <span class="text-sm text-zinc-600">Сценарии-воронки с шаблонами</span>
+  </div>
+
+  <div class="card overflow-hidden">
+    <div class="p-6 space-y-4">
+      <div class="flex justify-end">
+        <button class="btn-primary">+ Новый сценарий</button>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div class="card p-4">
+          <div class="flex justify-between mb-1">
+            <a class="font-medium hover:underline">Приветствие на /start</a>
+            <span class="badge badge-default">active</span>
+          </div>
+          <div class="text-xs text-zinc-500 mb-3">Простое приветствие новых подписчиков с двумя кнопками-ответами</div>
+          <div class="flex items-center justify-between text-xs text-zinc-500">
+            <div>запусков: <b>1 247</b> · завершено: <b>1 089</b></div>
+            <div class="flex gap-1">
+              <button class="text-zinc-400 hover:text-zinc-700">✏️</button>
+              <button class="text-zinc-400 hover:text-red-600">🗑</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card p-4 ring-2 ring-primary/30">
+          <div class="flex justify-between mb-1">
+            <a class="font-medium hover:underline">Лид-магнит → подогрев</a>
+            <span class="badge badge-default">active</span>
+          </div>
+          <div class="text-xs text-zinc-500 mb-3">Выдаёт лид-магнит, ставит тег, через 1 час и 1 день шлёт подогревающие сообщения</div>
+          <div class="flex items-center justify-between text-xs text-zinc-500">
+            <div>запусков: <b>327</b> · завершено: <b>198</b></div>
+            <div class="flex gap-1">
+              <button class="text-zinc-400 hover:text-zinc-700">✏️</button>
+              <button class="text-zinc-400 hover:text-red-600">🗑</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card p-4">
+          <div class="flex justify-between mb-1">
+            <a class="font-medium hover:underline">Мини-квиз → сегментация</a>
+            <span class="badge badge-default">active</span>
+          </div>
+          <div class="text-xs text-zinc-500 mb-3">Задаёт 1 вопрос, по ответу проставляет разные теги и стартует разные ветки</div>
+          <div class="flex items-center justify-between text-xs text-zinc-500">
+            <div>запусков: <b>89</b> · завершено: <b>67</b></div>
+            <div class="flex gap-1">
+              <button class="text-zinc-400 hover:text-zinc-700">✏️</button>
+              <button class="text-zinc-400 hover:text-red-600">🗑</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card p-4 opacity-60">
+          <div class="flex justify-between mb-1">
+            <a class="font-medium hover:underline">Реактивация (черновик)</a>
+            <span class="badge badge-secondary">off</span>
+          </div>
+          <div class="text-xs text-zinc-500 mb-3">Касание для тех, кто не был активен 30+ дней</div>
+          <div class="flex items-center justify-between text-xs text-zinc-500">
+            <div>запусков: <b>0</b></div>
+            <div class="flex gap-1">
+              <button class="text-zinc-400 hover:text-zinc-700">✏️</button>
+              <button class="text-zinc-400 hover:text-red-600">🗑</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-6 card p-5 border-primary/30 max-w-md">
+        <div class="text-xs uppercase text-zinc-400 mb-2">Диалог «Новый сценарий»</div>
+        <div class="font-semibold mb-3">Новый сценарий</div>
+        <label class="label">Название</label>
+        <input class="input" placeholder="Лид-магнит из инсты" disabled />
+        <label class="label mt-3">Шаблон</label>
+        <select class="input" disabled>
+          <option>Приветствие на /start</option>
+          <option>Лид-магнит → подогрев</option>
+          <option>Мини-квиз → сегментация</option>
+          <option>Пустой сценарий</option>
+        </select>
+        <p class="text-xs text-zinc-500 mt-1">Выдаёт лид-магнит, ставит тег, через 1 час и 1 день шлёт подогрев.</p>
+        <div class="flex justify-end gap-2 mt-4">
+          <button class="btn-outline btn-sm">Отмена</button>
+          <button class="btn-primary btn-sm">Создать</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SCREEN 5: FLOW EDITOR -->
+<!-- ============================================================ -->
+<section id="screen-flow-edit" class="screen max-w-screen-2xl mx-auto px-6 py-10">
+  <div class="mb-3 flex items-center gap-2">
+    <span class="kbd">/admin/bots/[botId]/flows/[flowId]</span>
+    <span class="text-zinc-400">·</span>
+    <span class="text-sm text-zinc-600">JSON-редактор графа сценария с валидацией Zod</span>
+  </div>
+
+  <div class="card overflow-hidden">
+    <div class="p-6 space-y-4">
+      <div class="flex items-center gap-2">
+        <button class="btn-ghost btn-sm">← К списку</button>
+        <div class="flex-1"></div>
+        <span class="badge badge-default">active</span>
+        <button class="btn-outline btn-sm">Выключить</button>
+        <button class="btn-primary btn-sm">💾 Сохранить</button>
+      </div>
+
+      <div class="grid grid-cols-3 gap-4">
+        <!-- Params -->
+        <div class="card p-4 col-span-1">
+          <div class="font-medium mb-3">Параметры</div>
+          <label class="label">Название</label>
+          <input class="input" value="Лид-магнит → подогрев" disabled />
+          <label class="label mt-3">Описание</label>
+          <textarea class="input" rows="3" disabled>Выдаёт лид-магнит, ставит тег, через 1 час и 1 день шлёт подогрев.</textarea>
+          <div class="text-xs text-zinc-500 mt-4 pt-3 border-t space-y-1">
+            <div>Запусков: <b>327</b></div>
+            <div>Завершено: <b>198</b> (60.5%)</div>
+          </div>
+        </div>
+
+        <!-- Triggers -->
+        <div class="card p-4 col-span-2">
+          <div class="font-medium mb-3">Триггеры (JSON)</div>
+          <p class="text-xs text-zinc-500 mb-2">
+            Массив объектов <code>command / keyword / regex / subscribed</code>.
+          </p>
+<pre class="json">[
+  { "type": "command", "command": "start", "payloads": ["leadmagnet"] },
+  { "type": "keyword", "keywords": ["хочу гайд", "получить гайд"] }
+]</pre>
+        </div>
+      </div>
+
+      <!-- Graph JSON -->
+      <div class="card p-4">
+        <div class="font-medium mb-3">Граф сценария (JSON)</div>
+        <p class="text-xs text-zinc-500 mb-2">
+          Поддерживаемые типы нод: <code>message</code>, <code>delay</code>, <code>wait_reply</code>,
+          <code>condition</code>, <code>add_tag</code>, <code>remove_tag</code>,
+          <code>set_variable</code>, <code>http_request</code>, <code>goto_flow</code>, <code>end</code>.
+          Шаблоны <code>{{user.first_name}}</code>, <code>{{vars.x}}</code>, <code>{{ctx.x}}</code> подставляются на лету.
+        </p>
+<pre class="json">{
+  "version": 1,
+  "startNodeId": "msg-gift",
+  "nodes": [
+    {
+      "id": "msg-gift",
+      "type": "message",
+      "label": "Выдача гайда",
+      "payload": {
+        "text": "Лови гайд: https://example.com/guide.pdf\nПолучить ещё материалы — нажми кнопку.",
+        "buttonRows": [
+          [ { "text": "Хочу больше", "callback": "tag:add:warm" } ]
+        ]
+      },
+      "next": "tag-leadmagnet"
+    },
+    { "id": "tag-leadmagnet", "type": "add_tag", "tag": "leadmagnet", "next": "delay-1h" },
+    { "id": "delay-1h", "type": "delay", "seconds": 3600, "next": "msg-warm1" },
+    {
+      "id": "msg-warm1",
+      "type": "message",
+      "label": "Касание 1ч",
+      "payload": { "text": "Успел изучить гайд? Главное — внедрить 😉" },
+      "next": "delay-1d"
+    },
+    { "id": "delay-1d", "type": "delay", "seconds": 86400, "next": "msg-warm2" },
+    {
+      "id": "msg-warm2",
+      "type": "message",
+      "label": "Касание 1д",
+      "payload": { "text": "Если хочешь обсудить — напиши, я подскажу." },
+      "next": "end"
+    },
+    { "id": "end", "type": "end" }
+  ]
+}</pre>
+      </div>
+
+      <!-- Recent runs -->
+      <div class="card p-4">
+        <div class="font-medium mb-3">Последние запуски</div>
+        <table class="preview">
+          <thead>
+            <tr>
+              <th>Подписчик</th>
+              <th>Статус</th>
+              <th>Текущая нода</th>
+              <th>Стартовал</th>
+              <th>Ошибка</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Иван Петров</td>
+              <td><span class="badge badge-secondary">sleeping</span></td>
+              <td class="font-mono text-xs">delay-1h</td>
+              <td class="text-zinc-500 text-xs">13.05.26 14:23</td>
+              <td></td>
+            </tr>
+            <tr>
+              <td>Мария Сидорова</td>
+              <td><span class="badge badge-success">completed</span></td>
+              <td class="font-mono text-xs">end</td>
+              <td class="text-zinc-500 text-xs">12.05.26 18:30</td>
+              <td></td>
+            </tr>
+            <tr>
+              <td>Алексей К.</td>
+              <td><span class="badge badge-secondary">waiting_reply</span></td>
+              <td class="font-mono text-xs">wait-q1</td>
+              <td class="text-zinc-500 text-xs">12.05.26 16:01</td>
+              <td></td>
+            </tr>
+            <tr>
+              <td>Ольга В.</td>
+              <td><span class="badge badge-destructive">cancelled</span></td>
+              <td class="font-mono text-xs">msg-gift</td>
+              <td class="text-zinc-500 text-xs">10.05.26 09:15</td>
+              <td class="text-red-600 text-xs">subscriber blocked bot</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SCREEN 6: BROADCASTS LIST -->
+<!-- ============================================================ -->
+<section id="screen-broadcasts" class="screen max-w-screen-2xl mx-auto px-6 py-10">
+  <div class="mb-3 flex items-center gap-2">
+    <span class="kbd">/admin/bots/[botId]/broadcasts</span>
+    <span class="text-zinc-400">·</span>
+    <span class="text-sm text-zinc-600">Мониторинг рассылок с авто-обновлением каждые 5 секунд</span>
+  </div>
+
+  <div class="card overflow-hidden">
+    <div class="p-6 space-y-4">
+      <div class="flex justify-end">
+        <button class="btn-primary">+ Новая рассылка</button>
+      </div>
+      <div class="card overflow-hidden p-0">
+        <table class="preview">
+          <thead>
+            <tr>
+              <th>Название</th>
+              <th>Статус</th>
+              <th>Доставка</th>
+              <th>Создана</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="font-medium">Запуск 15 мая — webinar reminder</td>
+              <td><span class="badge badge-default">sending</span></td>
+              <td class="text-xs">
+                <b>234</b>/1247 ·
+                <span class="text-red-600">3 ошибок</span> ·
+                <span class="text-amber-600">8 заблок.</span>
+              </td>
+              <td class="text-xs text-zinc-500">13 мая, 12:00</td>
+              <td class="text-right"><button class="btn-outline btn-sm">✕ Стоп</button></td>
+            </tr>
+            <tr>
+              <td class="font-medium">Реактивация мая</td>
+              <td><span class="badge badge-success">completed</span></td>
+              <td class="text-xs"><b>567</b>/567</td>
+              <td class="text-xs text-zinc-500">12 мая, 18:30</td>
+              <td></td>
+            </tr>
+            <tr>
+              <td class="font-medium">Анонс нового модуля</td>
+              <td><span class="badge badge-success">completed</span></td>
+              <td class="text-xs"><b>892</b>/910 · <span class="text-amber-600">18 заблок.</span></td>
+              <td class="text-xs text-zinc-500">10 мая, 11:00</td>
+              <td></td>
+            </tr>
+            <tr>
+              <td class="font-medium">Тест на сегмент warm</td>
+              <td><span class="badge badge-secondary">draft</span></td>
+              <td class="text-xs">0/0</td>
+              <td class="text-xs text-zinc-500">13 мая, 14:00</td>
+              <td class="text-right"><button class="btn-primary btn-sm">▶ Запустить</button></td>
+            </tr>
+            <tr>
+              <td class="font-medium">Старый запуск 1 мая</td>
+              <td><span class="badge badge-destructive">cancelled</span></td>
+              <td class="text-xs">142/720</td>
+              <td class="text-xs text-zinc-500">01 мая, 09:00</td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="text-xs text-zinc-500">⟳ Авто-обновление каждые 5 секунд</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SCREEN 7: NEW BROADCAST -->
+<!-- ============================================================ -->
+<section id="screen-new-broadcast" class="screen max-w-screen-2xl mx-auto px-6 py-10">
+  <div class="mb-3 flex items-center gap-2">
+    <span class="kbd">/admin/bots/[botId]/broadcasts/new</span>
+    <span class="text-zinc-400">·</span>
+    <span class="text-sm text-zinc-600">Композер рассылки с фильтром по тегам</span>
+  </div>
+
+  <div class="card overflow-hidden">
+    <div class="p-6 max-w-3xl space-y-4">
+      <div class="card p-4">
+        <div class="font-medium mb-3">Сообщение</div>
+        <label class="label">Название (для админки)</label>
+        <input class="input" value="Запуск 15 мая — webinar reminder" disabled />
+
+        <label class="label mt-3">Текст (HTML: &lt;b&gt;, &lt;i&gt;, &lt;a href&gt;)</label>
+        <textarea class="input" rows="6" disabled>Привет, {{user.first_name}}! 👋
+
+Уже завтра — вебинар «Как сделать запуск на 5 млн».
+
+⏰ <b>15 мая в 19:00</b> МСК
+🔗 Регистрация по кнопке ниже
+
+До встречи!</textarea>
+
+        <label class="label mt-3">Картинка (URL, опционально)</label>
+        <input class="input" value="https://prrv.tech/banners/webinar-15-may.jpg" disabled />
+
+        <label class="label mt-3">Кнопки (по одной в строке: «Текст | https://…»)</label>
+        <textarea class="input" rows="3" disabled>Зарегистрироваться | https://prrv.tech/webinar/15-may
+Программа | https://prrv.tech/webinar/program</textarea>
+      </div>
+
+      <div class="card p-4">
+        <div class="font-medium mb-3">Получатели</div>
+
+        <label class="label">Включить с тегами (любой из):</label>
+        <div class="flex flex-wrap gap-1 mb-2">
+          <span class="badge badge-secondary">warm <span class="ml-1 cursor-pointer text-zinc-400">✕</span></span>
+          <span class="badge badge-secondary">leadmagnet <span class="ml-1 cursor-pointer text-zinc-400">✕</span></span>
+          <span class="badge badge-secondary">webinar_15may <span class="ml-1 cursor-pointer text-zinc-400">✕</span></span>
+        </div>
+        <div class="flex gap-2 mb-4">
+          <input class="input" placeholder="тег" disabled />
+          <button class="btn-outline btn-sm">добавить</button>
+        </div>
+
+        <label class="label">Исключить с тегами (любой из):</label>
+        <div class="flex flex-wrap gap-1 mb-2">
+          <span class="badge badge-secondary">paid_client <span class="ml-1 cursor-pointer text-zinc-400">✕</span></span>
+        </div>
+        <div class="flex gap-2 mb-3">
+          <input class="input" placeholder="тег" disabled />
+          <button class="btn-outline btn-sm">добавить</button>
+        </div>
+
+        <p class="text-xs text-zinc-500 mb-3">
+          Если оба списка пустые — рассылка отправится всем активным (не заблокировавшим бота) подписчикам.
+        </p>
+
+        <label class="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked disabled />
+          Запустить сразу (иначе сохраним как черновик).
+        </label>
+      </div>
+
+      <div class="flex justify-end gap-2">
+        <button class="btn-outline">Отмена</button>
+        <button class="btn-primary">📤 Создать и запустить</button>
+      </div>
+
+      <div class="card p-4 bg-amber-50 border-amber-200 text-xs">
+        <b>Под капотом:</b> воркер материализует список получателей пагинированно (по 1000),
+        отправляет с rate-limit 28 сообщений/сек глобально и 1/сек на чат, делает exponential backoff
+        (30s → 2min → 10min) до 3 попыток. Заблокированные подписчики помечаются автоматически.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SCREEN 8: UTM LINKS -->
+<!-- ============================================================ -->
+<section id="screen-links" class="screen max-w-screen-2xl mx-auto px-6 py-10">
+  <div class="mb-3 flex items-center gap-2">
+    <span class="kbd">/admin/bots/[botId]/links</span>
+    <span class="text-zinc-400">·</span>
+    <span class="text-sm text-zinc-600">UTM-ссылки c first/last touch атрибуцией</span>
+  </div>
+
+  <div class="card overflow-hidden">
+    <div class="p-6 space-y-4">
+      <div class="flex justify-end">
+        <button class="btn-primary">+ Новая ссылка</button>
+      </div>
+      <div class="card overflow-hidden p-0">
+        <table class="preview">
+          <thead>
+            <tr>
+              <th>Slug</th>
+              <th>Название</th>
+              <th>Теги</th>
+              <th>UTM</th>
+              <th class="text-right">Клики</th>
+              <th class="text-right">Подписок</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="font-mono text-xs">promo15</td>
+              <td>Запуск 15 мая</td>
+              <td><span class="badge badge-secondary">webinar_15may</span></td>
+              <td class="text-xs text-zinc-500">utm_source=instagram · utm_campaign=webinar_may</td>
+              <td class="text-right font-medium">234</td>
+              <td class="text-right font-medium">127</td>
+              <td class="text-right"><button class="btn-ghost btn-sm">📋</button></td>
+            </tr>
+            <tr>
+              <td class="font-mono text-xs">lead-gift</td>
+              <td>Гайд с лендинга</td>
+              <td><span class="badge badge-secondary">leadmagnet</span></td>
+              <td class="text-xs text-zinc-500">utm_source=landing · utm_content=hero</td>
+              <td class="text-right font-medium">891</td>
+              <td class="text-right font-medium">412</td>
+              <td class="text-right"><button class="btn-ghost btn-sm">📋</button></td>
+            </tr>
+            <tr>
+              <td class="font-mono text-xs">partner_x</td>
+              <td>Партнёр Иван</td>
+              <td><span class="badge badge-secondary">partner_x</span></td>
+              <td class="text-xs text-zinc-500">utm_source=partner · utm_content=ivan</td>
+              <td class="text-right font-medium">47</td>
+              <td class="text-right font-medium">23</td>
+              <td class="text-right"><button class="btn-ghost btn-sm">📋</button></td>
+            </tr>
+            <tr>
+              <td class="font-mono text-xs">tg-channel</td>
+              <td>Из основного канала</td>
+              <td>—</td>
+              <td class="text-xs text-zinc-500">utm_source=telegram · utm_campaign=organic</td>
+              <td class="text-right font-medium">1 203</td>
+              <td class="text-right font-medium">678</td>
+              <td class="text-right"><button class="btn-ghost btn-sm">📋</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card p-5 border-primary/30 max-w-md">
+        <div class="text-xs uppercase text-zinc-400 mb-2">Диалог «Новая ссылка»</div>
+        <div class="font-semibold mb-3">Новая ссылка</div>
+        <label class="label">Slug (A-Z, 0-9, _ -; до 48 симв.)</label>
+        <input class="input" value="promo15" disabled />
+        <p class="text-xs text-zinc-500 mt-1 break-all">https://t.me/prrv_main_bot?start=promo15</p>
+
+        <label class="label mt-3">Название</label>
+        <input class="input" value="Запуск 15 мая" disabled />
+
+        <label class="label mt-3">Теги при переходе (через запятую)</label>
+        <input class="input" value="webinar_15may, source_instagram" disabled />
+
+        <div class="grid grid-cols-3 gap-2 mt-3">
+          <div>
+            <label class="label">utm_source</label>
+            <input class="input" value="instagram" disabled />
+          </div>
+          <div>
+            <label class="label">utm_campaign</label>
+            <input class="input" value="webinar_may" disabled />
+          </div>
+          <div>
+            <label class="label">utm_content</label>
+            <input class="input" value="stories_swipe" disabled />
+          </div>
+        </div>
+
+        <label class="label mt-3">Сценарий на старт</label>
+        <select class="input" disabled>
+          <option>Лид-магнит → подогрев</option>
+        </select>
+
+        <div class="flex justify-end gap-2 mt-4">
+          <button class="btn-outline btn-sm">Отмена</button>
+          <button class="btn-primary btn-sm">Создать</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SCREEN 9: ARCHITECTURE -->
+<!-- ============================================================ -->
+<section id="screen-architecture" class="screen max-w-screen-2xl mx-auto px-6 py-10">
+  <div class="mb-3 flex items-center gap-2">
+    <span class="kbd">lib/tg/*</span>
+    <span class="text-zinc-400">·</span>
+    <span class="text-sm text-zinc-600">Архитектура под капотом</span>
+  </div>
+
+  <div class="card p-6 space-y-6">
+
+    <div>
+      <h3 class="font-semibold mb-3">Поток входящего сообщения</h3>
+<pre class="json">user → Telegram → POST /api/tg-webhook/[botId]
+                  ├─ check X-Telegram-Bot-Api-Secret-Token  (timingSafeEqual)
+                  ├─ Redis SETNX(update_id, TTL=1h)         (idempotency)
+                  └─ lib/tg/inbound.ts
+                       ├─ upsert TgSubscriber
+                       ├─ log TgMessage (direction='in')
+                       ├─ applyTrackingLink(slug)            (set tags + UTM + firstTouch)
+                       ├─ deliverReplyToWaitingRun(text)     (resume flow)
+                       ├─ deliverButtonClickToWaitingRun(cb) (goto/tag from button)
+                       └─ findTriggeredFlows() → startFlowRun() × N
+
+flow engine state machine:
+  queued → running → ┬─ sleeping(resumeAt)     ←── cron tick wakes up
+                    ├─ waiting_reply(resumeAt) ←── timeout OR user reply
+                    ├─ completed
+                    ├─ failed
+                    └─ cancelled
+</pre>
+    </div>
+
+    <div>
+      <h3 class="font-semibold mb-3">9 новых таблиц <code>tg_*</code></h3>
+<pre class="json">tg_bots
+  ├─ tg_subscribers  ─┬─ tg_messages
+  │                   ├─ tg_events
+  │                   ├─ tg_flow_runs  ──→ tg_flows
+  │                   └─ tg_broadcast_recipients  ──→ tg_broadcasts
+  ├─ tg_flows
+  ├─ tg_tracking_links
+  ├─ tg_broadcasts
+  └─ tg_events
+
+21 индекс, 11 FK, GIN на tags для быстрой сегментации
+Существующая ЛМС не затронута ни одним ALTER.
+</pre>
+    </div>
+
+    <div>
+      <h3 class="font-semibold mb-3">10 типов нод сценария</h3>
+      <div class="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+        <div class="card p-3"><b>message</b><div class="text-zinc-500 mt-1">текст + фото + кнопки</div></div>
+        <div class="card p-3"><b>delay</b><div class="text-zinc-500 mt-1">пауза до 30 дней</div></div>
+        <div class="card p-3"><b>wait_reply</b><div class="text-zinc-500 mt-1">ждать ответ + таймаут</div></div>
+        <div class="card p-3"><b>condition</b><div class="text-zinc-500 mt-1">if/else по тегу/var</div></div>
+        <div class="card p-3"><b>add_tag</b><div class="text-zinc-500 mt-1">добавить тег</div></div>
+        <div class="card p-3"><b>remove_tag</b><div class="text-zinc-500 mt-1">убрать тег</div></div>
+        <div class="card p-3"><b>set_variable</b><div class="text-zinc-500 mt-1">записать ключ-значение</div></div>
+        <div class="card p-3"><b>http_request</b><div class="text-zinc-500 mt-1">внешний webhook</div></div>
+        <div class="card p-3"><b>goto_flow</b><div class="text-zinc-500 mt-1">прыжок в другой сценарий</div></div>
+        <div class="card p-3"><b>end</b><div class="text-zinc-500 mt-1">завершить</div></div>
+      </div>
+    </div>
+
+    <div>
+      <h3 class="font-semibold mb-3">Безопасность</h3>
+      <ul class="text-sm space-y-1.5 list-disc list-inside text-zinc-700">
+        <li><b>Токены ботов</b> — AES-256-GCM, ключ из <code>TG_TOKEN_ENC_KEY</code>, в БД лежит зашифрованным</li>
+        <li><b>Webhook</b> — проверка <code>X-Telegram-Bot-Api-Secret-Token</code> через <code>timingSafeEqual</code></li>
+        <li><b>Cron</b> — Bearer-токен из <code>TG_CRON_SECRET</code>, тоже timing-safe</li>
+        <li><b>Админ-API</b> — <code>withAuth({roles:["admin"]})</code>, JWT в httpOnly cookie</li>
+        <li><b>HTML</b> — whitelist-санитайзер: <code>&lt;script&gt;</code>, <code>javascript:</code>, <code>onclick</code> уходят как escaped-text</li>
+        <li><b>Rate-limit</b> — Redis token bucket переживает рестарт и несколько Node-инстансов</li>
+        <li><b>Idempotency</b> — <code>update_id</code> в Redis SETNX, TG-ретраи не задвоят сообщения</li>
+      </ul>
+    </div>
+
+    <div>
+      <h3 class="font-semibold mb-3">Чего сознательно нет (вне ночи)</h3>
+      <ul class="text-sm space-y-1.5 list-disc list-inside text-zinc-700">
+        <li>Visual drag-n-drop редактор графа (есть JSON+Zod-валидация+шаблоны)</li>
+        <li>Multi-tenant — single-tenant, как и остальная ЛМС</li>
+        <li>A/B-тесты, ClickHouse-аналитика, биллинг SaaS</li>
+        <li>WhatsApp / VK / прочие каналы — только Telegram</li>
+        <li>Публичный REST API наружу с API-ключами</li>
+      </ul>
+      <p class="text-xs text-zinc-500 mt-3">Каждое — отдельный слой поверх готового ядра. Data-model и события для них уже подготовлены: события из <code>lib/tg/events.ts</code> можно пайпать наружу для webhooks/BI, шаблоны нод покрывают core-флоу.</p>
+    </div>
+  </div>
+</section>
+
+<footer class="max-w-screen-2xl mx-auto px-6 py-10 text-center text-xs text-zinc-500">
+  Proryv LMS — Bot Platform · превью реализованного функционала · 13 мая 2026
+</footer>
+
+</body>
+</html>

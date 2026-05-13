@@ -730,3 +730,256 @@ model EmailTemplate {
 
   @@map("email_templates")
 }
+
+// =================================================================
+// Bot platform (Telegram-first SaleBot/BotHelp replacement)
+// All tables are isolated under tg_* prefix and do not touch
+// the existing LMS schema. Single-tenant for now: the school IS
+// the only org. Multi-tenant can be added later via orgId.
+// =================================================================
+
+model TgBot {
+  id              String   @id @default(uuid())
+  // Encrypted Telegram bot token. NEVER store the raw token.
+  // Encryption: AES-256-GCM, see lib/tg/crypto.ts
+  tokenEncrypted  String   @map("token_encrypted") @db.Text
+  // First 8 chars of the token (before ':'), kept for display only.
+  tokenPrefix     String   @map("token_prefix")
+  // Bot identity from getMe.
+  botUserId       String   @unique @map("bot_user_id")
+  username        String
+  title           String
+  // Random secret token used to verify Telegram webhook calls
+  // (X-Telegram-Bot-Api-Secret-Token header).
+  webhookSecret   String   @map("webhook_secret")
+  webhookUrl      String?  @map("webhook_url")
+  isActive        Boolean  @default(true) @map("is_active")
+  // Default flow triggered by /start without payload (optional).
+  defaultStartFlowId String? @map("default_start_flow_id")
+  // Aggregate stats kept in sync by tg core for fast dashboards.
+  subscriberCount Int      @default(0) @map("subscriber_count")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  subscribers     TgSubscriber[]
+  messages        TgMessage[]
+  flows           TgFlow[]
+  broadcasts      TgBroadcast[]
+  trackingLinks   TgTrackingLink[]
+  events          TgEvent[]
+
+  @@index([username])
+  @@map("tg_bots")
+}
+
+model TgSubscriber {
+  id              String   @id @default(uuid())
+  botId           String   @map("bot_id")
+  // Telegram numeric IDs come as int64; we store as string for safety.
+  chatId          String   @map("chat_id")
+  tgUserId        String   @map("tg_user_id")
+  firstName       String?  @map("first_name")
+  lastName        String?  @map("last_name")
+  username        String?
+  languageCode    String?  @map("language_code")
+  // Set true if Telegram returns 403 (user blocked the bot).
+  isBlocked       Boolean  @default(false) @map("is_blocked")
+  // Free-form tags. Single-tenant per-bot — keep it simple.
+  tags            String[] @default([])
+  // Arbitrary key/value variables set by flow nodes or API.
+  variables       Json     @default("{}")
+  // First/last touch attribution.
+  firstTouchSlug  String?  @map("first_touch_slug")
+  firstTouchAt    DateTime? @map("first_touch_at")
+  lastTouchSlug   String?  @map("last_touch_slug")
+  lastTouchAt     DateTime? @map("last_touch_at")
+  lastSeenAt      DateTime? @map("last_seen_at")
+  subscribedAt    DateTime @default(now()) @map("subscribed_at")
+  unsubscribedAt  DateTime? @map("unsubscribed_at")
+
+  bot             TgBot    @relation(fields: [botId], references: [id], onDelete: Cascade)
+  messages        TgMessage[]
+  flowRuns        TgFlowRun[]
+  events          TgEvent[]
+  broadcastDeliveries TgBroadcastRecipient[]
+
+  @@unique([botId, chatId])
+  @@index([botId, isBlocked])
+  @@index([botId, lastSeenAt])
+  @@index([tags], type: Gin)
+  @@map("tg_subscribers")
+}
+
+model TgMessage {
+  id              String   @id @default(uuid())
+  botId           String   @map("bot_id")
+  subscriberId    String   @map("subscriber_id")
+  // 'in' = received from user, 'out' = sent by bot.
+  direction       String
+  // Telegram message_id from result (out) or update (in).
+  tgMessageId     String?  @map("tg_message_id")
+  // Raw text or caption.
+  text            String?  @db.Text
+  // For media: 'photo' | 'video' | 'document' | 'voice' | etc.
+  mediaType       String?  @map("media_type")
+  mediaFileId     String?  @map("media_file_id")
+  // Inline-button payload if message is a callback_query result.
+  callbackData    String?  @map("callback_data")
+  // Source: flow run, broadcast, manual operator reply, inbound.
+  sourceType      String?  @map("source_type")
+  sourceId        String?  @map("source_id")
+  // Raw Telegram payload (truncated) for diagnostics.
+  rawPayload      Json?    @map("raw_payload")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  bot             TgBot         @relation(fields: [botId], references: [id], onDelete: Cascade)
+  subscriber      TgSubscriber  @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+
+  @@index([botId, createdAt])
+  @@index([subscriberId, createdAt])
+  @@map("tg_messages")
+}
+
+model TgFlow {
+  id              String   @id @default(uuid())
+  botId           String   @map("bot_id")
+  name            String
+  description     String?
+  // Graph definition. See lib/tg/flow-schema.ts for the contract.
+  // Shape: { nodes: TgFlowNode[], startNodeId: string, version: number }
+  graph           Json
+  isActive        Boolean  @default(true) @map("is_active")
+  // Trigger config — array of trigger descriptors evaluated on
+  // every inbound update. See lib/tg/flow-schema.ts.
+  triggers        Json     @default("[]")
+  // Aggregate stats updated by flow engine for fast dashboards.
+  totalEntered    Int      @default(0) @map("total_entered")
+  totalCompleted  Int      @default(0) @map("total_completed")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  bot             TgBot    @relation(fields: [botId], references: [id], onDelete: Cascade)
+  runs            TgFlowRun[]
+
+  @@index([botId, isActive])
+  @@map("tg_flows")
+}
+
+model TgFlowRun {
+  id              String   @id @default(uuid())
+  flowId          String   @map("flow_id")
+  subscriberId    String   @map("subscriber_id")
+  // Current node pointer. null until first step is queued.
+  currentNodeId   String?  @map("current_node_id")
+  // Engine state: queued | running | waiting_reply | sleeping | completed | failed | cancelled
+  status          String   @default("queued")
+  // For 'sleeping' and 'waiting_reply' — when to wake up / time out.
+  resumeAt        DateTime? @map("resume_at")
+  // For 'waiting_reply' — variable name to store the reply into.
+  waitingForVar   String?  @map("waiting_for_var")
+  // Per-run scratch storage (used by ai_reply, http_request results, etc).
+  context         Json     @default("{}")
+  // Diagnostic: last error if status=failed.
+  lastError       String?  @map("last_error") @db.Text
+  startedAt       DateTime @default(now()) @map("started_at")
+  finishedAt      DateTime? @map("finished_at")
+
+  flow            TgFlow        @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  subscriber      TgSubscriber  @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+
+  @@index([status, resumeAt])
+  @@index([subscriberId, status])
+  @@index([flowId, status])
+  @@map("tg_flow_runs")
+}
+
+model TgBroadcast {
+  id              String   @id @default(uuid())
+  botId           String   @map("bot_id")
+  name            String
+  // Message payload (text/buttons/media). See lib/tg/flow-schema.ts.
+  message         Json
+  // Targeting: { allActive: bool, tagsAny: [], tagsAll: [], excludeTags: [], subscriberIds?: [] }
+  filter          Json
+  status          String   @default("draft") // draft | scheduled | sending | completed | cancelled | failed
+  scheduledAt     DateTime? @map("scheduled_at")
+  startedAt       DateTime? @map("started_at")
+  finishedAt      DateTime? @map("finished_at")
+  totalRecipients Int      @default(0) @map("total_recipients")
+  sentCount       Int      @default(0) @map("sent_count")
+  failedCount     Int      @default(0) @map("failed_count")
+  blockedCount    Int      @default(0) @map("blocked_count")
+  createdById     String?  @map("created_by_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  bot             TgBot    @relation(fields: [botId], references: [id], onDelete: Cascade)
+  recipients      TgBroadcastRecipient[]
+
+  @@index([botId, status])
+  @@index([status, scheduledAt])
+  @@map("tg_broadcasts")
+}
+
+model TgBroadcastRecipient {
+  id              String   @id @default(uuid())
+  broadcastId     String   @map("broadcast_id")
+  subscriberId    String   @map("subscriber_id")
+  // pending | sent | failed | blocked | skipped
+  status          String   @default("pending")
+  tgMessageId     String?  @map("tg_message_id")
+  errorCode       Int?     @map("error_code")
+  errorMessage    String?  @map("error_message") @db.Text
+  attempts        Int      @default(0)
+  nextAttemptAt   DateTime? @map("next_attempt_at")
+  sentAt          DateTime? @map("sent_at")
+
+  broadcast       TgBroadcast   @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  subscriber      TgSubscriber  @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+
+  @@unique([broadcastId, subscriberId])
+  @@index([broadcastId, status])
+  @@index([status, nextAttemptAt])
+  @@map("tg_broadcast_recipients")
+}
+
+model TgTrackingLink {
+  id              String   @id @default(uuid())
+  botId           String   @map("bot_id")
+  // Short URL-safe payload (<=48 chars) used in t.me/<bot>?start=<slug>.
+  slug            String
+  name            String
+  // Optional flow to enter on /start; if null — default bot flow.
+  startFlowId     String?  @map("start_flow_id")
+  // Tags applied to subscriber on first touch.
+  applyTags       String[] @default([]) @map("apply_tags")
+  // Arbitrary UTM-style fields, no fixed schema.
+  utm             Json     @default("{}")
+  clickCount      Int      @default(0) @map("click_count")
+  subscribeCount  Int      @default(0) @map("subscribe_count")
+  createdAt       DateTime @default(now()) @map("created_at")
+  expiresAt       DateTime? @map("expires_at")
+
+  bot             TgBot    @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@unique([botId, slug])
+  @@map("tg_tracking_links")
+}
+
+model TgEvent {
+  id              String   @id @default(uuid())
+  botId           String?  @map("bot_id")
+  subscriberId    String?  @map("subscriber_id")
+  // Discriminator. See lib/tg/events.ts for the registry.
+  type            String
+  // Free-form per-type payload.
+  properties      Json     @default("{}")
+  occurredAt      DateTime @default(now()) @map("occurred_at")
+
+  bot             TgBot?        @relation(fields: [botId], references: [id], onDelete: Cascade)
+  subscriber      TgSubscriber? @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+
+  @@index([botId, type, occurredAt])
+  @@index([subscriberId, occurredAt])
+  @@map("tg_events")
+}

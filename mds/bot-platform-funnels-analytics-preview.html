@@ -1,0 +1,1119 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Воронки и аналитика — целевой дизайн</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .card { border-radius: 0.5rem; border: 1px solid #e5e7eb; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+  .badge { display:inline-flex; align-items:center; border-radius:9999px; padding:2px 8px; font-size:11px; font-weight:500; }
+  .badge-default { background:#6d28d9; color:#fff; }
+  .badge-secondary { background:#f4f4f5; color:#3f3f46; }
+  .badge-success { background:#d1fae5; color:#065f46; }
+  .badge-warn { background:#fef3c7; color:#92400e; }
+  .badge-destructive { background:#fee2e2; color:#991b1b; }
+  .btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; border-radius:6px; font-size:13px; font-weight:500; padding:8px 14px; cursor:pointer; }
+  .btn-primary { background:#6d28d9; color:#fff; }
+  .btn-outline { background:#fff; border:1px solid #e5e7eb; }
+  .btn-ghost:hover { background:#f4f4f5; }
+  .btn-sm { padding:5px 10px; font-size:12px; }
+  .kbd { display:inline-flex; align-items:center; border:1px solid #e5e7eb; background:#fafafa; padding:2px 6px; font-size:11px; font-family:monospace; border-radius:4px; }
+  /* Flow editor canvas */
+  .canvas { background-color: #fafafa; background-image:
+    linear-gradient(rgba(0,0,0,.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,0,0,.04) 1px, transparent 1px);
+    background-size: 24px 24px;
+    position: relative;
+    min-height: 640px;
+  }
+  .node {
+    position: absolute;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    width: 240px;
+    box-shadow: 0 4px 12px rgba(0,0,0,.06);
+    cursor: grab;
+  }
+  .node.selected { box-shadow: 0 0 0 2px #6d28d9, 0 4px 12px rgba(109,40,217,.2); }
+  .node-handle { width:10px; height:10px; border-radius:50%; background:#6d28d9; position:absolute; }
+  .node-handle.top { top:-5px; left:50%; transform:translateX(-50%); }
+  .node-handle.bot { bottom:-5px; left:50%; transform:translateX(-50%); }
+  .node-head { padding:8px 12px; font-size:12px; font-weight:600; border-bottom:1px solid #f1f5f9; display:flex; align-items:center; gap:8px; }
+  .node-body { padding:10px 12px; font-size:12px; color:#475569; }
+  .node-trigger { border-color:#7c3aed; }
+  .node-trigger .node-head { background:#f5f3ff; color:#6d28d9; }
+  .node-msg .node-head { background:#eff6ff; color:#1d4ed8; }
+  .node-delay .node-head { background:#fefce8; color:#a16207; }
+  .node-cond .node-head { background:#fdf4ff; color:#a21caf; }
+  .node-tag .node-head { background:#ecfeff; color:#0891b2; }
+  .node-end .node-head { background:#f3f4f6; color:#6b7280; }
+  .node-http .node-head { background:#ecfccb; color:#3f6212; }
+  .node-wait .node-head { background:#ffe4e6; color:#be123c; }
+  /* Funnel chart */
+  .funnel-row { display:grid; grid-template-columns: 160px 1fr 80px 80px; gap:12px; align-items:center; padding:10px 0; }
+  .funnel-bar { height:28px; background:linear-gradient(90deg,#a78bfa,#6d28d9); border-radius:4px; position:relative; color:#fff; font-size:11px; line-height:28px; padding-left:8px; font-weight:500; }
+  .funnel-drop { color:#dc2626; font-size:11px; font-weight:500; }
+  /* Sparkline */
+  .sparkline { stroke:#6d28d9; stroke-width:2; fill:none; }
+  .sparkline-area { fill:url(#sparkGrad); opacity:.3; }
+  /* Cohort */
+  .cohort td { padding:8px; text-align:center; font-size:11px; color:#1f2937; }
+  .cohort th { padding:8px; font-size:11px; color:#6b7280; font-weight:500; }
+  .heat-90 { background:#6d28d9; color:#fff; }
+  .heat-70 { background:#8b5cf6; color:#fff; }
+  .heat-50 { background:#a78bfa; color:#fff; }
+  .heat-30 { background:#c4b5fd; }
+  .heat-20 { background:#ddd6fe; }
+  .heat-10 { background:#ede9fe; }
+  .heat-0 { background:#f5f3ff; color:#9ca3af; }
+</style>
+</head>
+<body class="bg-zinc-50 text-zinc-900">
+
+<header class="sticky top-0 z-50 bg-white border-b border-zinc-200">
+  <div class="max-w-screen-2xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <span class="inline-flex h-8 w-8 items-center justify-center rounded-md bg-purple-600 text-white">🎯</span>
+      <div>
+        <div class="font-semibold">Воронки и аналитика — целевой дизайн</div>
+        <div class="text-xs text-zinc-500">Что должно появиться поверх готового ядра</div>
+      </div>
+    </div>
+    <nav class="flex gap-1 text-xs flex-wrap justify-end">
+      <a href="#status" class="px-2 py-1 rounded hover:bg-zinc-100">Текущее vs цель</a>
+      <a href="#editor" class="px-2 py-1 rounded hover:bg-zinc-100">Конструктор</a>
+      <a href="#node-types" class="px-2 py-1 rounded hover:bg-zinc-100">Типы нод</a>
+      <a href="#analytics-overview" class="px-2 py-1 rounded hover:bg-zinc-100">Аналитика: Обзор</a>
+      <a href="#analytics-funnel" class="px-2 py-1 rounded hover:bg-zinc-100">Конверсия</a>
+      <a href="#analytics-utm" class="px-2 py-1 rounded hover:bg-zinc-100">UTM</a>
+      <a href="#analytics-cohorts" class="px-2 py-1 rounded hover:bg-zinc-100">Когорты</a>
+      <a href="#analytics-broadcasts" class="px-2 py-1 rounded hover:bg-zinc-100">Рассылки</a>
+      <a href="#roadmap" class="px-2 py-1 rounded hover:bg-zinc-100">План работ</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ============================================================ -->
+<!-- STATUS -->
+<!-- ============================================================ -->
+<section id="status" class="max-w-screen-2xl mx-auto px-6 py-8">
+  <h1 class="text-3xl font-bold mb-3">Воронки и аналитика — что нужно достроить</h1>
+  <p class="text-zinc-600 mb-6 max-w-3xl">Движок и события уже работают. Не хватает удобной обёртки над ними — визуального конструктора и нормальных дашбордов. Ниже — целевой дизайн с моками.</p>
+
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="card p-5">
+      <div class="text-xs uppercase text-zinc-500 mb-2">Сейчас</div>
+      <div class="font-semibold text-amber-600 mb-3">🟡 Минимум</div>
+      <ul class="text-sm space-y-2 text-zinc-700">
+        <li>✅ Движок: state-machine, 10 типов нод, шаблоны переменных</li>
+        <li>✅ 3 шаблона флоу (приветствие, лид-магнит, квиз)</li>
+        <li>✅ JSON-редактор с валидацией Zod</li>
+        <li>⚠️ <b>Нет визуального drag-n-drop</b> — собирать руками в JSON</li>
+        <li>✅ События пишутся в <code>tg_events</code> (20 типов)</li>
+        <li>✅ Базовая статистика: подписчики, сообщения, топ-теги</li>
+        <li>⚠️ <b>Нет дашбордов конверсии по нодам</b></li>
+        <li>⚠️ <b>Нет UTM-разрезов</b> (firstTouch есть в БД, но нет отчёта)</li>
+        <li>⚠️ <b>Нет когорт</b> retention</li>
+      </ul>
+    </div>
+    <div class="card p-5 border-purple-200">
+      <div class="text-xs uppercase text-purple-600 mb-2">Целевая картина</div>
+      <div class="font-semibold text-purple-700 mb-3">🟢 Полноценно</div>
+      <ul class="text-sm space-y-2 text-zinc-700">
+        <li>🎨 Визуальный canvas: drag-n-drop ноды, стрелки между ними</li>
+        <li>🎨 Палитра нод слева, properties справа</li>
+        <li>🎨 Inline-предпросмотр сообщений и кнопок</li>
+        <li>🎨 Подсказки про <code>{{vars.x}}</code> на лету</li>
+        <li>📊 Дашборд конверсии: % дроп-офф между нодами</li>
+        <li>📊 UTM-pivot: выручка/подписки в любом разрезе</li>
+        <li>📊 Когорты: % retention по неделям подписки</li>
+        <li>📊 Per-flow-аналитика: время в каждой ноде, дроп</li>
+        <li>📊 Per-broadcast: доставлено/прочитано/клики/отписки</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- VISUAL FLOW EDITOR -->
+<!-- ============================================================ -->
+<section id="editor" class="max-w-screen-2xl mx-auto px-6 py-10">
+  <div class="mb-3 flex items-center gap-2">
+    <span class="kbd">/admin/bots/[botId]/flows/[flowId]</span>
+    <span class="text-zinc-400">·</span>
+    <span class="text-sm text-zinc-600">Визуальный конструктор воронки</span>
+  </div>
+
+  <div class="card overflow-hidden">
+    <!-- Top toolbar -->
+    <div class="flex items-center gap-2 px-4 py-2 border-b bg-white">
+      <button class="btn-ghost btn-sm">← К списку</button>
+      <div class="flex-1"></div>
+      <input class="border rounded px-3 py-1 text-sm font-medium" value="Лид-магнит → подогрев" />
+      <span class="badge badge-default">active</span>
+      <button class="btn-outline btn-sm">↶ Undo</button>
+      <button class="btn-outline btn-sm">↷ Redo</button>
+      <button class="btn-outline btn-sm">⚡ Тестовый запуск</button>
+      <button class="btn-primary btn-sm">💾 Сохранить</button>
+    </div>
+
+    <div class="flex" style="min-height:680px;">
+      <!-- Node palette -->
+      <aside class="w-56 shrink-0 border-r bg-white p-3 space-y-1">
+        <div class="text-xs font-semibold text-zinc-400 uppercase px-1 mb-2">Палитра нод</div>
+        <div class="card p-2 flex items-center gap-2 cursor-grab hover:border-purple-300">
+          <span class="text-blue-600">💬</span><span class="text-sm">Сообщение</span>
+        </div>
+        <div class="card p-2 flex items-center gap-2 cursor-grab hover:border-purple-300">
+          <span class="text-amber-600">⏰</span><span class="text-sm">Задержка</span>
+        </div>
+        <div class="card p-2 flex items-center gap-2 cursor-grab hover:border-purple-300">
+          <span class="text-rose-600">⌛</span><span class="text-sm">Ждать ответ</span>
+        </div>
+        <div class="card p-2 flex items-center gap-2 cursor-grab hover:border-purple-300">
+          <span class="text-fuchsia-600">⚡</span><span class="text-sm">Условие</span>
+        </div>
+        <div class="card p-2 flex items-center gap-2 cursor-grab hover:border-purple-300">
+          <span class="text-cyan-600">🏷️</span><span class="text-sm">Добавить тег</span>
+        </div>
+        <div class="card p-2 flex items-center gap-2 cursor-grab hover:border-purple-300">
+          <span class="text-cyan-600">🏷️</span><span class="text-sm">Убрать тег</span>
+        </div>
+        <div class="card p-2 flex items-center gap-2 cursor-grab hover:border-purple-300">
+          <span class="text-violet-600">📝</span><span class="text-sm">Переменная</span>
+        </div>
+        <div class="card p-2 flex items-center gap-2 cursor-grab hover:border-purple-300">
+          <span class="text-lime-600">🌐</span><span class="text-sm">HTTP-запрос</span>
+        </div>
+        <div class="card p-2 flex items-center gap-2 cursor-grab hover:border-purple-300">
+          <span class="text-purple-600">↪</span><span class="text-sm">Прыжок в другой</span>
+        </div>
+        <div class="card p-2 flex items-center gap-2 cursor-grab hover:border-purple-300">
+          <span class="text-zinc-500">⏹</span><span class="text-sm">Конец</span>
+        </div>
+      </aside>
+
+      <!-- Canvas -->
+      <div class="flex-1 canvas overflow-auto">
+        <!-- SVG arrows -->
+        <svg style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none;">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8"/>
+            </marker>
+          </defs>
+          <!-- trigger -> msg-gift -->
+          <line x1="170" y1="100" x2="170" y2="150" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/>
+          <!-- msg-gift -> tag -->
+          <line x1="170" y1="260" x2="170" y2="310" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/>
+          <!-- tag -> delay 1h -->
+          <line x1="170" y1="380" x2="170" y2="430" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/>
+          <!-- delay 1h -> condition -->
+          <line x1="170" y1="500" x2="170" y2="550" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/>
+          <!-- condition -> msg-warm (left, "warm tag") -->
+          <path d="M 130 620 Q 60 620 60 690" stroke="#94a3b8" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+          <text x="40" y="660" font-size="10" fill="#dc2626">+ warm</text>
+          <!-- condition -> msg-cold (right, "no tag") -->
+          <path d="M 210 620 Q 320 620 320 690" stroke="#94a3b8" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+          <text x="330" y="660" font-size="10" fill="#16a34a">иначе</text>
+
+          <!-- warm branch -> end -->
+          <line x1="60" y1="800" x2="60" y2="860" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/>
+          <!-- cold branch -> end (merging) -->
+          <path d="M 320 800 Q 320 830 200 850 Q 130 855 130 870" stroke="#94a3b8" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+        </svg>
+
+        <!-- TRIGGER -->
+        <div class="node node-trigger" style="top:30px; left:50px;">
+          <div class="node-handle bot"></div>
+          <div class="node-head">▶ Триггер</div>
+          <div class="node-body">
+            <div><b>/start leadmagnet</b></div>
+            <div class="text-xs text-zinc-400 mt-1">+ ключевое слово «хочу гайд»</div>
+            <div class="text-[10px] text-zinc-400 mt-1">прошло: 327</div>
+          </div>
+        </div>
+
+        <!-- MESSAGE -->
+        <div class="node node-msg selected" style="top:160px; left:50px;">
+          <div class="node-handle top"></div>
+          <div class="node-handle bot"></div>
+          <div class="node-head">💬 Сообщение</div>
+          <div class="node-body">
+            <div class="text-xs text-zinc-700">Лови гайд: <span class="text-blue-600">https://example.com/guide.pdf</span></div>
+            <div class="mt-2 px-2 py-1 bg-zinc-50 rounded text-[10px] text-zinc-600 border">[ Хочу больше ]</div>
+            <div class="text-[10px] text-zinc-400 mt-1">прошло: 327 → 318</div>
+          </div>
+        </div>
+
+        <!-- ADD TAG -->
+        <div class="node node-tag" style="top:320px; left:50px;">
+          <div class="node-handle top"></div>
+          <div class="node-handle bot"></div>
+          <div class="node-head">🏷️ Тег</div>
+          <div class="node-body">+ <code>leadmagnet</code>
+            <div class="text-[10px] text-zinc-400 mt-1">прошло: 318</div>
+          </div>
+        </div>
+
+        <!-- DELAY 1h -->
+        <div class="node node-delay" style="top:440px; left:50px;">
+          <div class="node-handle top"></div>
+          <div class="node-handle bot"></div>
+          <div class="node-head">⏰ Задержка</div>
+          <div class="node-body">1 час
+            <div class="text-[10px] text-zinc-400 mt-1">прошло: 318 → 256 <span class="text-red-600">(дроп 19%)</span></div>
+          </div>
+        </div>
+
+        <!-- CONDITION -->
+        <div class="node node-cond" style="top:560px; left:50px;">
+          <div class="node-handle top"></div>
+          <div class="node-handle bot"></div>
+          <div class="node-head">⚡ Условие</div>
+          <div class="node-body">
+            <div class="text-xs">если <code>tag = warm</code></div>
+            <div class="text-[10px] text-zinc-400 mt-1">прошло: 256 → 89 / 167</div>
+          </div>
+        </div>
+
+        <!-- WARM BRANCH -->
+        <div class="node node-msg" style="top:700px; left:-60px;">
+          <div class="node-handle top"></div>
+          <div class="node-handle bot"></div>
+          <div class="node-head">💬 Касание (warm)</div>
+          <div class="node-body">
+            <div class="text-xs">Готов обсудить запуск?</div>
+            <div class="text-[10px] text-zinc-400 mt-1">прошло: 89</div>
+          </div>
+        </div>
+
+        <!-- COLD BRANCH -->
+        <div class="node node-msg" style="top:700px; left:200px;">
+          <div class="node-handle top"></div>
+          <div class="node-handle bot"></div>
+          <div class="node-head">💬 Касание (общее)</div>
+          <div class="node-body">
+            <div class="text-xs">Изучил гайд? Главное — внедрить 😉</div>
+            <div class="text-[10px] text-zinc-400 mt-1">прошло: 167</div>
+          </div>
+        </div>
+
+        <!-- END -->
+        <div class="node node-end" style="top:880px; left:50px;">
+          <div class="node-handle top"></div>
+          <div class="node-head">⏹ Конец</div>
+          <div class="node-body text-zinc-500 text-xs">завершено: 198</div>
+        </div>
+
+        <!-- Minimap -->
+        <div class="absolute right-3 bottom-3 card p-2" style="width:140px; height:90px; opacity:.9;">
+          <div class="text-[9px] text-zinc-400 mb-1">мини-карта</div>
+          <svg viewBox="0 0 140 90" class="w-full h-full">
+            <rect x="60" y="2" width="20" height="6" fill="#7c3aed"/>
+            <rect x="60" y="12" width="20" height="6" fill="#3b82f6"/>
+            <rect x="60" y="22" width="20" height="6" fill="#0891b2"/>
+            <rect x="60" y="32" width="20" height="6" fill="#a16207"/>
+            <rect x="60" y="42" width="20" height="6" fill="#a21caf"/>
+            <rect x="40" y="55" width="20" height="6" fill="#3b82f6"/>
+            <rect x="80" y="55" width="20" height="6" fill="#3b82f6"/>
+            <rect x="60" y="70" width="20" height="6" fill="#6b7280"/>
+            <rect x="0" y="0" width="140" height="90" fill="none" stroke="#cbd5e1" stroke-width="1"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Properties panel -->
+      <aside class="w-80 shrink-0 border-l bg-white p-4 overflow-y-auto">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="text-blue-600">💬</span>
+          <span class="font-semibold text-sm">Сообщение</span>
+          <span class="text-[10px] text-zinc-400 font-mono ml-auto">id: msg-gift</span>
+        </div>
+
+        <div class="space-y-3 text-sm">
+          <div>
+            <label class="text-xs font-medium text-zinc-600">Текст</label>
+            <textarea class="w-full mt-1 rounded border p-2 text-sm" rows="3">Лови гайд: https://example.com/guide.pdf
+Получить ещё материалы — нажми кнопку.</textarea>
+            <div class="text-[10px] text-zinc-400 mt-1">Поддерживается HTML и <code>{{user.first_name}}</code>, <code>{{vars.x}}</code></div>
+          </div>
+
+          <div>
+            <label class="text-xs font-medium text-zinc-600">Картинка (URL)</label>
+            <input class="w-full mt-1 rounded border p-2 text-sm" placeholder="https://..." />
+          </div>
+
+          <div>
+            <label class="text-xs font-medium text-zinc-600">Кнопки</label>
+            <div class="mt-1 space-y-2">
+              <div class="card p-2 text-xs">
+                <div class="flex justify-between mb-1">
+                  <input class="border-0 outline-0 font-medium" value="Хочу больше" />
+                  <button class="text-zinc-400 text-sm">✕</button>
+                </div>
+                <select class="w-full text-[11px] border rounded px-1 py-0.5 mb-1">
+                  <option>callback: установить тег + перейти</option>
+                  <option>url: внешняя ссылка</option>
+                </select>
+                <div class="grid grid-cols-2 gap-1">
+                  <select class="text-[11px] border rounded px-1 py-0.5">
+                    <option>+ тег: warm</option>
+                    <option>+ тег: paid</option>
+                  </select>
+                  <select class="text-[11px] border rounded px-1 py-0.5">
+                    <option>→ след. нода</option>
+                    <option>→ конец</option>
+                  </select>
+                </div>
+              </div>
+              <button class="text-xs text-purple-600 hover:underline">+ Добавить кнопку</button>
+            </div>
+          </div>
+
+          <hr />
+
+          <div>
+            <label class="text-xs font-medium text-zinc-600">Статистика</label>
+            <div class="mt-1 text-xs space-y-1">
+              <div class="flex justify-between">Прошло: <b>327</b></div>
+              <div class="flex justify-between">Доставлено: <b>318</b> <span class="text-zinc-400">(97%)</span></div>
+              <div class="flex justify-between">Кликнули кнопку: <b>89</b> <span class="text-zinc-400">(28%)</span></div>
+              <div class="flex justify-between">Дроп после ноды: <b class="text-red-600">9</b> <span class="text-zinc-400">(3%)</span></div>
+            </div>
+          </div>
+
+          <button class="btn-outline btn-sm w-full">🔍 Открыть в аналитике</button>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- NODE TYPES with previews -->
+<!-- ============================================================ -->
+<section id="node-types" class="max-w-screen-2xl mx-auto px-6 py-10">
+  <h2 class="text-xl font-bold mb-3">10 типов нод и как они выглядят на холсте</h2>
+
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+    <div class="node node-trigger" style="position:relative; width:auto;">
+      <div class="node-head">▶ Триггер</div>
+      <div class="node-body text-xs">/start, keyword, regex, subscribed</div>
+    </div>
+    <div class="node node-msg" style="position:relative; width:auto;">
+      <div class="node-head">💬 Сообщение</div>
+      <div class="node-body text-xs">текст + фото + кнопки + шаблоны</div>
+    </div>
+    <div class="node node-delay" style="position:relative; width:auto;">
+      <div class="node-head">⏰ Задержка</div>
+      <div class="node-body text-xs">до 30 дней, run спит</div>
+    </div>
+    <div class="node node-wait" style="position:relative; width:auto;">
+      <div class="node-head">⌛ Ждать ответ</div>
+      <div class="node-body text-xs">сохранить в var + таймаут</div>
+    </div>
+    <div class="node node-cond" style="position:relative; width:auto;">
+      <div class="node-head">⚡ Условие</div>
+      <div class="node-body text-xs">if/else по тегу/var/событию</div>
+    </div>
+    <div class="node node-tag" style="position:relative; width:auto;">
+      <div class="node-head">🏷️ Тег</div>
+      <div class="node-body text-xs">добавить или убрать</div>
+    </div>
+    <div class="node" style="position:relative; width:auto;">
+      <div class="node-head" style="background:#f5f3ff; color:#7c3aed;">📝 Переменная</div>
+      <div class="node-body text-xs">записать ключ = значение</div>
+    </div>
+    <div class="node node-http" style="position:relative; width:auto;">
+      <div class="node-head">🌐 HTTP</div>
+      <div class="node-body text-xs">внешний webhook + saveAs</div>
+    </div>
+    <div class="node" style="position:relative; width:auto;">
+      <div class="node-head" style="background:#f5f3ff; color:#7c3aed;">↪ Прыжок</div>
+      <div class="node-body text-xs">перейти в другой сценарий</div>
+    </div>
+    <div class="node node-end" style="position:relative; width:auto;">
+      <div class="node-head">⏹ Конец</div>
+      <div class="node-body text-xs">завершить run</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- ANALYTICS: OVERVIEW -->
+<!-- ============================================================ -->
+<section id="analytics-overview" class="max-w-screen-2xl mx-auto px-6 py-10">
+  <div class="mb-3 flex items-center gap-2">
+    <span class="kbd">/admin/bots/[botId]/analytics</span>
+    <span class="text-zinc-400">·</span>
+    <span class="text-sm text-zinc-600">Аналитика — 5 вкладок</span>
+  </div>
+
+  <div class="card overflow-hidden">
+    <div class="p-6 space-y-5">
+      <!-- Tab nav -->
+      <div class="flex border-b gap-1">
+        <a class="px-3 py-2 text-sm rounded-t border-b-2 -mb-px border-purple-600 text-purple-600 font-medium bg-purple-50">📊 Обзор</a>
+        <a class="px-3 py-2 text-sm rounded-t border-b-2 -mb-px border-transparent text-zinc-500">🔀 Конверсия воронки</a>
+        <a class="px-3 py-2 text-sm rounded-t border-b-2 -mb-px border-transparent text-zinc-500">🎯 UTM-источники</a>
+        <a class="px-3 py-2 text-sm rounded-t border-b-2 -mb-px border-transparent text-zinc-500">📨 Рассылки</a>
+        <a class="px-3 py-2 text-sm rounded-t border-b-2 -mb-px border-transparent text-zinc-500">📅 Когорты</a>
+      </div>
+
+      <!-- Period filter -->
+      <div class="flex items-center gap-2 text-sm">
+        <span class="text-zinc-500">Период:</span>
+        <button class="btn-outline btn-sm">7 дней</button>
+        <button class="btn-primary btn-sm">30 дней</button>
+        <button class="btn-outline btn-sm">90 дней</button>
+        <button class="btn-outline btn-sm">📅 Свой</button>
+      </div>
+
+      <!-- KPI row -->
+      <div class="grid grid-cols-5 gap-3">
+        <div class="card p-4">
+          <div class="text-xs uppercase text-zinc-500">Подписчиков</div>
+          <div class="text-2xl font-semibold mt-1">1 247</div>
+          <div class="text-[11px] text-emerald-600 mt-1">↑ +312 за 30 дней (33%)</div>
+        </div>
+        <div class="card p-4">
+          <div class="text-xs uppercase text-zinc-500">Активные</div>
+          <div class="text-2xl font-semibold mt-1">892</div>
+          <div class="text-[11px] text-emerald-600 mt-1">71.5% от базы</div>
+        </div>
+        <div class="card p-4">
+          <div class="text-xs uppercase text-zinc-500">Сообщений отправлено</div>
+          <div class="text-2xl font-semibold mt-1">142 K</div>
+          <div class="text-[11px] text-emerald-600 mt-1">↑ +18% к прошлому периоду</div>
+        </div>
+        <div class="card p-4">
+          <div class="text-xs uppercase text-zinc-500">Конверсия в оплату</div>
+          <div class="text-2xl font-semibold mt-1">14.2%</div>
+          <div class="text-[11px] text-red-600 mt-1">↓ -1.3 п.п.</div>
+        </div>
+        <div class="card p-4">
+          <div class="text-xs uppercase text-zinc-500">Заблокировали</div>
+          <div class="text-2xl font-semibold mt-1 text-red-600">31</div>
+          <div class="text-[11px] text-zinc-500 mt-1">2.5% от базы</div>
+        </div>
+      </div>
+
+      <!-- Sub growth chart -->
+      <div class="card p-4">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <div class="font-medium">Подписчики по дням</div>
+            <div class="text-xs text-zinc-500">накопительно + новые / отписки</div>
+          </div>
+          <select class="border rounded px-2 py-1 text-xs">
+            <option>все источники</option>
+          </select>
+        </div>
+        <svg viewBox="0 0 800 220" class="w-full" style="height:220px;">
+          <defs>
+            <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#a78bfa"/>
+              <stop offset="100%" stop-color="#a78bfa" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <!-- Y grid -->
+          <line x1="40" y1="20" x2="780" y2="20" stroke="#f1f5f9"/>
+          <line x1="40" y1="80" x2="780" y2="80" stroke="#f1f5f9"/>
+          <line x1="40" y1="140" x2="780" y2="140" stroke="#f1f5f9"/>
+          <line x1="40" y1="200" x2="780" y2="200" stroke="#94a3b8"/>
+          <text x="10" y="25" font-size="10" fill="#94a3b8">1.5K</text>
+          <text x="10" y="85" font-size="10" fill="#94a3b8">1.0K</text>
+          <text x="10" y="145" font-size="10" fill="#94a3b8">500</text>
+          <text x="10" y="205" font-size="10" fill="#94a3b8">0</text>
+          <!-- Cumulative line -->
+          <path d="M 50 180 L 100 175 L 150 170 L 200 160 L 250 150 L 300 130 L 350 120 L 400 100 L 450 95 L 500 80 L 550 70 L 600 50 L 650 45 L 700 35 L 750 30" class="sparkline-area" />
+          <path d="M 50 180 L 100 175 L 150 170 L 200 160 L 250 150 L 300 130 L 350 120 L 400 100 L 450 95 L 500 80 L 550 70 L 600 50 L 650 45 L 700 35 L 750 30 L 750 200 L 50 200 Z" fill="url(#sparkGrad)" />
+          <path d="M 50 180 L 100 175 L 150 170 L 200 160 L 250 150 L 300 130 L 350 120 L 400 100 L 450 95 L 500 80 L 550 70 L 600 50 L 650 45 L 700 35 L 750 30" stroke="#6d28d9" stroke-width="2.5" fill="none"/>
+          <!-- New per day bars -->
+          <g fill="#10b981" opacity=".5">
+            <rect x="55" y="190" width="8" height="10"/>
+            <rect x="105" y="185" width="8" height="15"/>
+            <rect x="155" y="187" width="8" height="13"/>
+            <rect x="205" y="182" width="8" height="18"/>
+            <rect x="255" y="180" width="8" height="20"/>
+            <rect x="305" y="172" width="8" height="28"/>
+            <rect x="355" y="178" width="8" height="22"/>
+            <rect x="405" y="170" width="8" height="30"/>
+            <rect x="455" y="178" width="8" height="22"/>
+            <rect x="505" y="170" width="8" height="30"/>
+            <rect x="555" y="175" width="8" height="25"/>
+            <rect x="605" y="165" width="8" height="35"/>
+            <rect x="655" y="180" width="8" height="20"/>
+            <rect x="705" y="170" width="8" height="30"/>
+            <rect x="755" y="172" width="8" height="28"/>
+          </g>
+          <!-- Legend -->
+          <circle cx="50" cy="15" r="4" fill="#6d28d9"/>
+          <text x="60" y="19" font-size="11" fill="#334155">Всего подписчиков</text>
+          <rect x="220" y="11" width="8" height="8" fill="#10b981" opacity=".5"/>
+          <text x="232" y="19" font-size="11" fill="#334155">Новые за день</text>
+        </svg>
+      </div>
+
+      <!-- Two cols: events leaderboard & sources mini -->
+      <div class="grid grid-cols-2 gap-4">
+        <div class="card p-4">
+          <div class="font-medium mb-3">Топ-события за период</div>
+          <table class="w-full text-xs">
+            <tbody>
+              <tr class="border-b"><td class="py-2 font-mono">message.sent</td><td class="py-2 text-right font-semibold">142 318</td></tr>
+              <tr class="border-b"><td class="py-2 font-mono">message.received</td><td class="py-2 text-right font-semibold">38 921</td></tr>
+              <tr class="border-b"><td class="py-2 font-mono">flow.node_executed</td><td class="py-2 text-right font-semibold">28 102</td></tr>
+              <tr class="border-b"><td class="py-2 font-mono">subscriber.created</td><td class="py-2 text-right font-semibold">312</td></tr>
+              <tr class="border-b"><td class="py-2 font-mono">flow.completed</td><td class="py-2 text-right font-semibold">198</td></tr>
+              <tr class="border-b"><td class="py-2 font-mono">button.clicked</td><td class="py-2 text-right font-semibold">2 401</td></tr>
+              <tr><td class="py-2 font-mono">link.clicked</td><td class="py-2 text-right font-semibold">3 187</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card p-4">
+          <div class="font-medium mb-3">Распределение по источникам</div>
+          <div class="space-y-2">
+            <div>
+              <div class="flex justify-between text-xs"><span>instagram</span><span class="text-zinc-500">412 (33%)</span></div>
+              <div class="h-2 rounded bg-zinc-100 mt-1"><div class="h-2 rounded bg-purple-500" style="width:33%"></div></div>
+            </div>
+            <div>
+              <div class="flex justify-between text-xs"><span>landing</span><span class="text-zinc-500">298 (24%)</span></div>
+              <div class="h-2 rounded bg-zinc-100 mt-1"><div class="h-2 rounded bg-purple-500" style="width:24%"></div></div>
+            </div>
+            <div>
+              <div class="flex justify-between text-xs"><span>telegram-channel</span><span class="text-zinc-500">241 (19%)</span></div>
+              <div class="h-2 rounded bg-zinc-100 mt-1"><div class="h-2 rounded bg-purple-500" style="width:19%"></div></div>
+            </div>
+            <div>
+              <div class="flex justify-between text-xs"><span>partner_x</span><span class="text-zinc-500">156 (12.5%)</span></div>
+              <div class="h-2 rounded bg-zinc-100 mt-1"><div class="h-2 rounded bg-purple-500" style="width:12.5%"></div></div>
+            </div>
+            <div>
+              <div class="flex justify-between text-xs"><span>organic</span><span class="text-zinc-500">140 (11.5%)</span></div>
+              <div class="h-2 rounded bg-zinc-100 mt-1"><div class="h-2 rounded bg-purple-500" style="width:11.5%"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- ANALYTICS: FUNNEL -->
+<!-- ============================================================ -->
+<section id="analytics-funnel" class="max-w-screen-2xl mx-auto px-6 py-10">
+  <div class="mb-3 flex items-center gap-2">
+    <span class="kbd">/admin/bots/[botId]/analytics → Конверсия</span>
+    <span class="text-zinc-400">·</span>
+    <span class="text-sm text-zinc-600">Дроп-офф по нодам конкретной воронки</span>
+  </div>
+
+  <div class="card p-6 space-y-5">
+    <div class="flex items-center gap-3">
+      <select class="input border rounded px-2 py-1 text-sm">
+        <option>Сценарий: Лид-магнит → подогрев</option>
+      </select>
+      <button class="btn-outline btn-sm">7 дней</button>
+      <button class="btn-primary btn-sm">30 дней</button>
+      <button class="btn-outline btn-sm">90 дней</button>
+    </div>
+
+    <!-- Vertical funnel -->
+    <div>
+      <div class="funnel-row">
+        <div class="text-sm font-medium">▶ Вход (триггер)</div>
+        <div class="funnel-bar" style="width:100%">327 (100%)</div>
+        <div class="text-xs text-right text-zinc-500">↓ дроп</div>
+        <div class="text-xs text-right">время в ноде</div>
+      </div>
+      <div class="funnel-row">
+        <div class="text-sm">💬 Выдача гайда</div>
+        <div class="funnel-bar" style="width:97%">318 (97.2%)</div>
+        <div class="funnel-drop text-right">-9 (2.8%)</div>
+        <div class="text-xs text-right text-zinc-500">мгновенно</div>
+      </div>
+      <div class="funnel-row">
+        <div class="text-sm">🏷️ +тег leadmagnet</div>
+        <div class="funnel-bar" style="width:97%">318 (97.2%)</div>
+        <div class="funnel-drop text-right">0</div>
+        <div class="text-xs text-right text-zinc-500">мгновенно</div>
+      </div>
+      <div class="funnel-row">
+        <div class="text-sm">⏰ Задержка 1ч</div>
+        <div class="funnel-bar" style="width:78%">256 (78.3%)</div>
+        <div class="funnel-drop text-right">-62 (19.5%) <span class="text-xs">⚠</span></div>
+        <div class="text-xs text-right text-zinc-500">~1ч</div>
+      </div>
+      <div class="funnel-row">
+        <div class="text-sm">💬 Касание 1ч</div>
+        <div class="funnel-bar" style="width:72%">235 (71.9%)</div>
+        <div class="funnel-drop text-right">-21 (8.2%)</div>
+        <div class="text-xs text-right text-zinc-500">мгновенно</div>
+      </div>
+      <div class="funnel-row">
+        <div class="text-sm">⏰ Задержка 1д</div>
+        <div class="funnel-bar" style="width:64%">209 (63.9%)</div>
+        <div class="funnel-drop text-right">-26 (11.1%)</div>
+        <div class="text-xs text-right text-zinc-500">~1д</div>
+      </div>
+      <div class="funnel-row">
+        <div class="text-sm">💬 Касание 1д</div>
+        <div class="funnel-bar" style="width:61%">198 (60.5%)</div>
+        <div class="funnel-drop text-right">-11 (5.3%)</div>
+        <div class="text-xs text-right text-zinc-500">мгновенно</div>
+      </div>
+      <div class="funnel-row">
+        <div class="text-sm">⏹ Конец</div>
+        <div class="funnel-bar" style="width:61%">198 (60.5%)</div>
+        <div class="funnel-drop text-right">—</div>
+        <div class="text-xs text-right text-zinc-500">—</div>
+      </div>
+    </div>
+
+    <div class="card p-4 bg-amber-50 border-amber-200 text-sm">
+      ⚠️ <b>Самая большая утечка</b> — задержка 1ч (−19.5%). Стоит проверить: блокируют ли бота на этом интервале, или просто отписываются?
+      <a class="text-purple-700 underline ml-2">Открыть подписчиков, выпавших на этом шаге →</a>
+    </div>
+
+    <!-- Time-in-node breakdown -->
+    <div class="card p-4">
+      <div class="font-medium mb-3">Сколько времени проводят в каждой ноде</div>
+      <svg viewBox="0 0 800 200" class="w-full" style="height:200px;">
+        <line x1="40" y1="180" x2="780" y2="180" stroke="#94a3b8"/>
+        <g>
+          <rect x="50" y="170" width="80" height="10" fill="#6d28d9"/>
+          <text x="50" y="195" font-size="10" fill="#475569">💬 gift</text>
+          <text x="55" y="165" font-size="10" fill="#475569">0s</text>
+
+          <rect x="150" y="170" width="80" height="10" fill="#6d28d9"/>
+          <text x="150" y="195" font-size="10" fill="#475569">🏷️ tag</text>
+          <text x="155" y="165" font-size="10" fill="#475569">0s</text>
+
+          <rect x="250" y="20" width="80" height="160" fill="#a16207"/>
+          <text x="250" y="195" font-size="10" fill="#475569">⏰ delay-1h</text>
+          <text x="255" y="15" font-size="10" fill="#475569">~58 мин</text>
+
+          <rect x="350" y="170" width="80" height="10" fill="#6d28d9"/>
+          <text x="350" y="195" font-size="10" fill="#475569">💬 warm-1h</text>
+          <text x="355" y="165" font-size="10" fill="#475569">0s</text>
+
+          <rect x="450" y="40" width="80" height="140" fill="#a16207"/>
+          <text x="450" y="195" font-size="10" fill="#475569">⏰ delay-1d</text>
+          <text x="455" y="35" font-size="10" fill="#475569">~23ч 50м</text>
+
+          <rect x="550" y="170" width="80" height="10" fill="#6d28d9"/>
+          <text x="550" y="195" font-size="10" fill="#475569">💬 warm-1d</text>
+          <text x="555" y="165" font-size="10" fill="#475569">0s</text>
+
+          <rect x="650" y="170" width="80" height="10" fill="#9ca3af"/>
+          <text x="650" y="195" font-size="10" fill="#475569">⏹ end</text>
+          <text x="655" y="165" font-size="10" fill="#475569">0s</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- ANALYTICS: UTM -->
+<!-- ============================================================ -->
+<section id="analytics-utm" class="max-w-screen-2xl mx-auto px-6 py-10">
+  <div class="mb-3 flex items-center gap-2">
+    <span class="kbd">/admin/bots/[botId]/analytics → UTM</span>
+    <span class="text-zinc-400">·</span>
+    <span class="text-sm text-zinc-600">Источники трафика с pivot и атрибуцией</span>
+  </div>
+
+  <div class="card p-6 space-y-4">
+    <div class="flex items-center gap-3 text-sm">
+      <span class="text-zinc-500">Атрибуция:</span>
+      <button class="btn-primary btn-sm">First touch</button>
+      <button class="btn-outline btn-sm">Last touch</button>
+      <span class="text-zinc-300">|</span>
+      <span class="text-zinc-500">Группировать по:</span>
+      <select class="border rounded px-2 py-1 text-xs">
+        <option>utm_source</option>
+        <option>utm_source × utm_campaign</option>
+        <option>slug</option>
+      </select>
+    </div>
+
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b bg-zinc-50 text-xs uppercase text-zinc-500">
+          <th class="text-left p-3">Источник</th>
+          <th class="text-right p-3">Клики</th>
+          <th class="text-right p-3">Подп.</th>
+          <th class="text-right p-3">Conv. → подп.</th>
+          <th class="text-right p-3">Активные</th>
+          <th class="text-right p-3">Оплатили</th>
+          <th class="text-right p-3">Conv. → оплата</th>
+          <th class="text-right p-3">Выручка</th>
+        </tr>
+      </thead>
+      <tbody class="text-sm">
+        <tr class="border-b">
+          <td class="p-3 font-medium">📸 instagram</td>
+          <td class="p-3 text-right">891</td>
+          <td class="p-3 text-right">412 <span class="text-xs text-zinc-500">(46%)</span></td>
+          <td class="p-3 text-right">
+            <div class="h-2 w-16 rounded bg-zinc-100 ml-auto"><div class="h-2 rounded bg-emerald-500" style="width:46%"></div></div>
+          </td>
+          <td class="p-3 text-right">312</td>
+          <td class="p-3 text-right">68 <span class="text-xs text-zinc-500">(16.5%)</span></td>
+          <td class="p-3 text-right">
+            <div class="h-2 w-16 rounded bg-zinc-100 ml-auto"><div class="h-2 rounded bg-emerald-500" style="width:16.5%"></div></div>
+          </td>
+          <td class="p-3 text-right font-semibold">680 000 ₽</td>
+        </tr>
+        <tr class="border-b">
+          <td class="p-3 font-medium">🌐 landing</td>
+          <td class="p-3 text-right">541</td>
+          <td class="p-3 text-right">298 <span class="text-xs text-zinc-500">(55%)</span></td>
+          <td class="p-3 text-right">
+            <div class="h-2 w-16 rounded bg-zinc-100 ml-auto"><div class="h-2 rounded bg-emerald-500" style="width:55%"></div></div>
+          </td>
+          <td class="p-3 text-right">231</td>
+          <td class="p-3 text-right">52 <span class="text-xs text-zinc-500">(17.4%)</span></td>
+          <td class="p-3 text-right">
+            <div class="h-2 w-16 rounded bg-zinc-100 ml-auto"><div class="h-2 rounded bg-emerald-500" style="width:17.4%"></div></div>
+          </td>
+          <td class="p-3 text-right font-semibold">520 000 ₽</td>
+        </tr>
+        <tr class="border-b">
+          <td class="p-3 font-medium">📢 telegram-channel</td>
+          <td class="p-3 text-right">298</td>
+          <td class="p-3 text-right">241 <span class="text-xs text-zinc-500">(81%)</span></td>
+          <td class="p-3 text-right">
+            <div class="h-2 w-16 rounded bg-zinc-100 ml-auto"><div class="h-2 rounded bg-emerald-500" style="width:81%"></div></div>
+          </td>
+          <td class="p-3 text-right">198</td>
+          <td class="p-3 text-right">37 <span class="text-xs text-zinc-500">(15.3%)</span></td>
+          <td class="p-3 text-right">
+            <div class="h-2 w-16 rounded bg-zinc-100 ml-auto"><div class="h-2 rounded bg-emerald-500" style="width:15.3%"></div></div>
+          </td>
+          <td class="p-3 text-right font-semibold">370 000 ₽</td>
+        </tr>
+        <tr class="border-b bg-amber-50">
+          <td class="p-3 font-medium">🤝 partner_x</td>
+          <td class="p-3 text-right">87</td>
+          <td class="p-3 text-right">23 <span class="text-xs text-zinc-500">(26%)</span></td>
+          <td class="p-3 text-right">
+            <div class="h-2 w-16 rounded bg-zinc-100 ml-auto"><div class="h-2 rounded bg-red-400" style="width:26%"></div></div>
+          </td>
+          <td class="p-3 text-right">15</td>
+          <td class="p-3 text-right">1 <span class="text-xs text-zinc-500">(4.3%)</span></td>
+          <td class="p-3 text-right">
+            <div class="h-2 w-16 rounded bg-zinc-100 ml-auto"><div class="h-2 rounded bg-red-400" style="width:4.3%"></div></div>
+          </td>
+          <td class="p-3 text-right font-semibold">10 000 ₽</td>
+        </tr>
+        <tr>
+          <td class="p-3 font-medium">🌱 organic</td>
+          <td class="p-3 text-right">—</td>
+          <td class="p-3 text-right">140</td>
+          <td class="p-3 text-right">—</td>
+          <td class="p-3 text-right">99</td>
+          <td class="p-3 text-right">18 <span class="text-xs text-zinc-500">(12.9%)</span></td>
+          <td class="p-3 text-right">
+            <div class="h-2 w-16 rounded bg-zinc-100 ml-auto"><div class="h-2 rounded bg-emerald-500" style="width:12.9%"></div></div>
+          </td>
+          <td class="p-3 text-right font-semibold">180 000 ₽</td>
+        </tr>
+        <tr class="bg-zinc-50 font-medium">
+          <td class="p-3">ИТОГО</td>
+          <td class="p-3 text-right">1 817</td>
+          <td class="p-3 text-right">1 114</td>
+          <td class="p-3 text-right">61.3%</td>
+          <td class="p-3 text-right">855</td>
+          <td class="p-3 text-right">176</td>
+          <td class="p-3 text-right">15.8%</td>
+          <td class="p-3 text-right">1 760 000 ₽</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="grid grid-cols-2 gap-4">
+      <div class="card p-4 bg-amber-50 border-amber-200 text-sm">
+        ⚠️ <b>partner_x</b> — большой клик-трафик, но конверсия в подписку 26% (норма 50%+).
+        Проверить landing-страницу партнёра и текст призыва.
+      </div>
+      <div class="card p-4 bg-emerald-50 border-emerald-200 text-sm">
+        ✅ <b>telegram-channel</b> — лучшая конверсия клик→подписка (81%). Стоит увеличить долю этого канала.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- ANALYTICS: COHORTS -->
+<!-- ============================================================ -->
+<section id="analytics-cohorts" class="max-w-screen-2xl mx-auto px-6 py-10">
+  <div class="mb-3 flex items-center gap-2">
+    <span class="kbd">/admin/bots/[botId]/analytics → Когорты</span>
+    <span class="text-zinc-400">·</span>
+    <span class="text-sm text-zinc-600">Удержание подписчиков по неделе подписки</span>
+  </div>
+
+  <div class="card p-6 space-y-4">
+    <div class="flex items-center gap-3 text-sm">
+      <span class="text-zinc-500">Метрика:</span>
+      <button class="btn-primary btn-sm">% активных</button>
+      <button class="btn-outline btn-sm">% открыли сообщ.</button>
+      <button class="btn-outline btn-sm">% не заблок.</button>
+    </div>
+
+    <table class="cohort w-full border-collapse">
+      <thead>
+        <tr>
+          <th class="text-left">Когорта</th>
+          <th>Подп.</th>
+          <th>Нед. 0</th>
+          <th>Нед. 1</th>
+          <th>Нед. 2</th>
+          <th>Нед. 3</th>
+          <th>Нед. 4</th>
+          <th>Нед. 5</th>
+          <th>Нед. 6</th>
+          <th>Нед. 7</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="text-left text-zinc-700">11 мар — 17 мар</td>
+          <td>87</td>
+          <td class="heat-90">100%</td>
+          <td class="heat-70">78%</td>
+          <td class="heat-50">61%</td>
+          <td class="heat-50">52%</td>
+          <td class="heat-30">41%</td>
+          <td class="heat-30">38%</td>
+          <td class="heat-30">36%</td>
+          <td class="heat-30">34%</td>
+        </tr>
+        <tr>
+          <td class="text-left text-zinc-700">18 мар — 24 мар</td>
+          <td>124</td>
+          <td class="heat-90">100%</td>
+          <td class="heat-70">82%</td>
+          <td class="heat-50">68%</td>
+          <td class="heat-50">59%</td>
+          <td class="heat-50">52%</td>
+          <td class="heat-30">45%</td>
+          <td class="heat-30">42%</td>
+          <td class="heat-0">—</td>
+        </tr>
+        <tr>
+          <td class="text-left text-zinc-700">25 мар — 31 мар</td>
+          <td>156</td>
+          <td class="heat-90">100%</td>
+          <td class="heat-70">85%</td>
+          <td class="heat-70">71%</td>
+          <td class="heat-50">61%</td>
+          <td class="heat-50">54%</td>
+          <td class="heat-50">48%</td>
+          <td class="heat-0">—</td>
+          <td class="heat-0">—</td>
+        </tr>
+        <tr>
+          <td class="text-left text-zinc-700">1 апр — 7 апр</td>
+          <td>189</td>
+          <td class="heat-90">100%</td>
+          <td class="heat-70">88%</td>
+          <td class="heat-70">76%</td>
+          <td class="heat-50">65%</td>
+          <td class="heat-50">58%</td>
+          <td class="heat-0">—</td>
+          <td class="heat-0">—</td>
+          <td class="heat-0">—</td>
+        </tr>
+        <tr>
+          <td class="text-left text-zinc-700">8 апр — 14 апр</td>
+          <td>201</td>
+          <td class="heat-90">100%</td>
+          <td class="heat-70">86%</td>
+          <td class="heat-70">74%</td>
+          <td class="heat-50">66%</td>
+          <td class="heat-0">—</td>
+          <td class="heat-0">—</td>
+          <td class="heat-0">—</td>
+          <td class="heat-0">—</td>
+        </tr>
+        <tr>
+          <td class="text-left text-zinc-700">15 апр — 21 апр</td>
+          <td>234</td>
+          <td class="heat-90">100%</td>
+          <td class="heat-70">81%</td>
+          <td class="heat-70">72%</td>
+          <td class="heat-0">—</td>
+          <td class="heat-0">—</td>
+          <td class="heat-0">—</td>
+          <td class="heat-0">—</td>
+          <td class="heat-0">—</td>
+        </tr>
+        <tr>
+          <td class="text-left text-zinc-700">22 апр — 28 апр</td>
+          <td>256</td>
+          <td class="heat-90">100%</td>
+          <td class="heat-70">79%</td>
+          <td class="heat-0">—</td>
+          <td class="heat-0">—</td>
+          <td class="heat-0">—</td>
+          <td class="heat-0">—</td>
+          <td class="heat-0">—</td>
+          <td class="heat-0">—</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p class="text-xs text-zinc-500 italic">Цвет = доля когорты, активной на этой неделе. Чем темнее — тем лучше удержание. После 5-й недели когорта стабилизируется на ~40-50% — этот «хвост» и есть ядро базы.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- ANALYTICS: BROADCASTS -->
+<!-- ============================================================ -->
+<section id="analytics-broadcasts" class="max-w-screen-2xl mx-auto px-6 py-10">
+  <div class="mb-3 flex items-center gap-2">
+    <span class="kbd">/admin/bots/[botId]/analytics → Рассылки</span>
+    <span class="text-zinc-400">·</span>
+    <span class="text-sm text-zinc-600">Эффективность массовых рассылок</span>
+  </div>
+
+  <div class="card p-6 space-y-4">
+    <div class="grid grid-cols-3 gap-4">
+      <div class="card p-4">
+        <div class="text-xs uppercase text-zinc-500">Средний open-rate</div>
+        <div class="text-2xl font-semibold mt-1">73.4%</div>
+        <div class="text-[11px] text-emerald-600">↑ +2.1 п.п. к прошлому периоду</div>
+      </div>
+      <div class="card p-4">
+        <div class="text-xs uppercase text-zinc-500">Средний click-rate</div>
+        <div class="text-2xl font-semibold mt-1">18.2%</div>
+        <div class="text-[11px] text-emerald-600">↑ +0.8 п.п.</div>
+      </div>
+      <div class="card p-4">
+        <div class="text-xs uppercase text-zinc-500">Отписок после</div>
+        <div class="text-2xl font-semibold mt-1 text-red-600">0.6%</div>
+        <div class="text-[11px] text-emerald-600">в норме (порог 2%)</div>
+      </div>
+    </div>
+
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b bg-zinc-50 text-xs uppercase text-zinc-500">
+          <th class="text-left p-3">Рассылка</th>
+          <th class="text-right p-3">Получатели</th>
+          <th class="text-right p-3">Доставлено</th>
+          <th class="text-right p-3">Прочитано</th>
+          <th class="text-right p-3">Кликнули</th>
+          <th class="text-right p-3">Отписались</th>
+          <th class="text-right p-3">Выручка</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="border-b">
+          <td class="p-3 font-medium">Запуск 15 мая</td>
+          <td class="p-3 text-right">1 247</td>
+          <td class="p-3 text-right">1 198 <span class="text-xs text-zinc-500">(96.1%)</span></td>
+          <td class="p-3 text-right">912 <span class="text-xs text-zinc-500">(76.1%)</span></td>
+          <td class="p-3 text-right">287 <span class="text-xs text-zinc-500">(24%)</span></td>
+          <td class="p-3 text-right">6 <span class="text-xs text-red-600">(0.5%)</span></td>
+          <td class="p-3 text-right font-semibold">680 000 ₽</td>
+        </tr>
+        <tr class="border-b">
+          <td class="p-3 font-medium">Реактивация мая</td>
+          <td class="p-3 text-right">567</td>
+          <td class="p-3 text-right">541 <span class="text-xs text-zinc-500">(95.4%)</span></td>
+          <td class="p-3 text-right">389 <span class="text-xs text-zinc-500">(71.9%)</span></td>
+          <td class="p-3 text-right">82 <span class="text-xs text-zinc-500">(15.2%)</span></td>
+          <td class="p-3 text-right">2 <span class="text-xs text-red-600">(0.4%)</span></td>
+          <td class="p-3 text-right font-semibold">120 000 ₽</td>
+        </tr>
+        <tr>
+          <td class="p-3 font-medium">Анонс нового модуля</td>
+          <td class="p-3 text-right">910</td>
+          <td class="p-3 text-right">892 <span class="text-xs text-zinc-500">(98%)</span></td>
+          <td class="p-3 text-right">671 <span class="text-xs text-zinc-500">(75.2%)</span></td>
+          <td class="p-3 text-right">198 <span class="text-xs text-zinc-500">(22.2%)</span></td>
+          <td class="p-3 text-right">7 <span class="text-xs text-red-600">(0.8%)</span></td>
+          <td class="p-3 text-right font-semibold">235 000 ₽</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- ROADMAP -->
+<!-- ============================================================ -->
+<section id="roadmap" class="max-w-screen-2xl mx-auto px-6 py-10">
+  <h2 class="text-2xl font-bold mb-1">План работ — что построить</h2>
+  <p class="text-zinc-600 mb-6 max-w-3xl">Готовое ядро (движок + событийный стрим) переживёт оба апгрейда. Это слой UI и слой агрегаций — без изменений API/БД (только добавочные таблицы для агрегатов).</p>
+
+  <div class="grid md:grid-cols-2 gap-4">
+    <!-- Editor roadmap -->
+    <div class="card p-5">
+      <div class="text-xs uppercase text-purple-600 mb-2">Конструктор воронок</div>
+      <div class="font-semibold mb-3">Визуальный canvas на React Flow</div>
+      <ul class="text-sm space-y-2 text-zinc-700">
+        <li>📦 Добавить пакет <code>@xyflow/react</code></li>
+        <li>🎨 10 кастомных React-Flow-нод с цветовой кодировкой</li>
+        <li>🧩 Палитра слева, properties справа (как в макете выше)</li>
+        <li>🔄 Сохраняем тот же JSON-формат (<code>tg_flows.graph</code>) — engine ничего не знает про UI</li>
+        <li>↶ Undo/redo через локальную history-стек</li>
+        <li>🧪 Тестовый запуск без БД — симулятор шагов в браузере</li>
+        <li>📍 Подсветка ноды, в которой сейчас находятся активные runs</li>
+        <li>⚙️ Drag-handles на каждой ноде, авто-layout (dagre) для импорта шаблонов</li>
+      </ul>
+      <div class="mt-4 text-xs text-zinc-500">
+        Оценка: <b>1.5–2 дня</b> на одного фуллстек. Зависимости: <code>@xyflow/react</code>, <code>dagre</code>.
+      </div>
+    </div>
+
+    <!-- Analytics roadmap -->
+    <div class="card p-5">
+      <div class="text-xs uppercase text-purple-600 mb-2">Аналитика</div>
+      <div class="font-semibold mb-3">5 дашбордов + материализация агрегатов</div>
+      <ul class="text-sm space-y-2 text-zinc-700">
+        <li>📊 Recharts уже в зависимостях — графики готовы</li>
+        <li>📦 Добавить таблицу <code>tg_event_daily</code> — агрегаты по дню/типу/боту</li>
+        <li>⏰ Cron-тик уже есть — досыпать пересчёт агрегатов каждые 5 мин</li>
+        <li>🎯 Дашборд воронки: SQL по <code>flow.node_executed</code> группой по <code>nodeId</code></li>
+        <li>🎯 Дашборд UTM: <code>firstTouchSlug/lastTouchSlug</code> уже в БД</li>
+        <li>🎯 Когорты: groupBy неделя подписки × неделя <code>message.received</code></li>
+        <li>🎯 Per-broadcast метрики — уже есть в <code>tg_broadcasts</code>, нужны графики</li>
+        <li>💰 Подключить выручку (если есть Payment-нода) — TBD по платежам</li>
+      </ul>
+      <div class="mt-4 text-xs text-zinc-500">
+        Оценка: <b>2–2.5 дня</b>. Зависимости: уже все есть (recharts, prisma raw).
+      </div>
+    </div>
+  </div>
+
+  <div class="card p-5 mt-4 bg-purple-50 border-purple-200">
+    <div class="font-semibold mb-2">Что построим в каком порядке?</div>
+    <ol class="text-sm space-y-1 list-decimal list-inside text-zinc-700">
+      <li><b>Аналитика-MVP</b> (4–6 ч): дашборды Обзор + UTM + Per-flow конверсия по <code>tg_events</code>. Без когорт.</li>
+      <li><b>Визуальный редактор</b> (6–8 ч): React Flow, 10 типов нод, properties-panel, undo/redo. JSON формат не меняется.</li>
+      <li><b>Когорты + Per-broadcast аналитика</b> (3–4 ч).</li>
+      <li><b>Агрегатор</b> (2 ч): таблица <code>tg_event_daily</code> + cron-пересчёт.</li>
+    </ol>
+    <p class="mt-3 text-sm text-zinc-700">
+      💬 <b>Скажите «делай», и я начну с пункта 1 — конверсии воронки.</b> Это самая полезная штука, чтобы видеть «где утекают деньги» прямо в админке.
+    </p>
+  </div>
+</section>
+
+<footer class="max-w-screen-2xl mx-auto px-6 py-8 text-center text-xs text-zinc-500">
+  Proryv LMS · целевой дизайн «Воронки и аналитика» · 13 мая 2026
+</footer>
+</body>
+</html>

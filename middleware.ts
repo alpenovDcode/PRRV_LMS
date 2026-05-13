@@ -51,6 +51,8 @@ export async function middleware(request: NextRequest) {
     path.startsWith("/no-access") ||
     path.startsWith("/api/auth") ||
     path.startsWith("/api/health") ||
+    path.startsWith("/api/tg-webhook/") || // Telegram inbound — authed via X-Telegram-Bot-Api-Secret-Token
+    path.startsWith("/api/tg-cron/") ||    // External cron tick — authed via TG_CRON_SECRET
     path.startsWith("/l/") ||          // Landing pages
     path === "/l" ||                   // Landing root (if any)
     path.startsWith("/api/landings/submit") ||
