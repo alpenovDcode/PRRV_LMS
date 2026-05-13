@@ -263,6 +263,8 @@ export function reactFlowToGraph(
       next.type === "delay" ||
       next.type === "add_tag" ||
       next.type === "remove_tag" ||
+      next.type === "add_to_list" ||
+      next.type === "remove_from_list" ||
       next.type === "set_variable" ||
       next.type === "goto_flow" ||
       next.type === "note"

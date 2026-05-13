@@ -5,7 +5,17 @@ import { usePathname, useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
-import { Bot, Users, Workflow, Send, Link2, BarChart3, LineChart } from "lucide-react";
+import {
+  Bot,
+  Users,
+  Workflow,
+  Send,
+  Link2,
+  BarChart3,
+  LineChart,
+  ListChecks,
+  FormInput,
+} from "lucide-react";
 
 export default function BotDetailLayout({ children }: { children: React.ReactNode }) {
   const params = useParams<{ botId: string }>();
@@ -31,6 +41,8 @@ export default function BotDetailLayout({ children }: { children: React.ReactNod
     { href: `/admin/bots/${botId}/subscribers`, label: "Подписчики", icon: Users },
     { href: `/admin/bots/${botId}/flows`, label: "Сценарии", icon: Workflow },
     { href: `/admin/bots/${botId}/broadcasts`, label: "Рассылки", icon: Send },
+    { href: `/admin/bots/${botId}/lists`, label: "Списки", icon: ListChecks },
+    { href: `/admin/bots/${botId}/fields`, label: "Поля", icon: FormInput },
     { href: `/admin/bots/${botId}/links`, label: "Ссылки/UTM", icon: Link2 },
     { href: `/admin/bots/${botId}/analytics`, label: "Аналитика", icon: LineChart },
   ];

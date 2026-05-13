@@ -170,6 +170,14 @@ export const tagOpNodeSchema = baseNode.extend({
   tag: z.string().min(1).max(64),
 });
 
+// List membership ops — counterpart to tag ops, but for explicit
+// named TgList entities (with stable IDs, member counts, and the
+// `list_joined` / `list_left` triggers).
+export const listOpNodeSchema = baseNode.extend({
+  type: z.enum(["add_to_list", "remove_from_list"]),
+  listId: z.string().min(1),
+});
+
 export const setVariableNodeSchema = baseNode.extend({
   type: z.literal("set_variable"),
   // Variable key. Scope prefix optional:
@@ -220,6 +228,7 @@ export const flowNodeSchema = z.discriminatedUnion("type", [
   waitReplyNodeSchema,
   conditionNodeSchema,
   tagOpNodeSchema,
+  listOpNodeSchema,
   setVariableNodeSchema,
   httpRequestNodeSchema,
   gotoFlowNodeSchema,
@@ -278,9 +287,8 @@ export const triggerSchema = z.discriminatedUnion("type", [
     type: z.literal("subscribed"),
     advanced: advancedTriggerSchema.optional(),
   }),
-  // Reactive triggers added in Iter 1 — fire on tag/list mutations.
-  // Engine wiring lands in Iter 2 alongside the lists feature; for now
-  // the schema accepts them so flows can be authored ahead.
+  // Reactive triggers: fire when a subscriber's tag/list state changes.
+  // Wired through lib/tg/lists.ts → fireTagTriggers / fireListTriggers.
   z.object({
     type: z.literal("tag_added"),
     tag: z.string().min(1).max(64),
@@ -289,6 +297,16 @@ export const triggerSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("tag_removed"),
     tag: z.string().min(1).max(64),
+    advanced: advancedTriggerSchema.optional(),
+  }),
+  z.object({
+    type: z.literal("list_joined"),
+    listId: z.string().min(1),
+    advanced: advancedTriggerSchema.optional(),
+  }),
+  z.object({
+    type: z.literal("list_left"),
+    listId: z.string().min(1),
     advanced: advancedTriggerSchema.optional(),
   }),
 ]);

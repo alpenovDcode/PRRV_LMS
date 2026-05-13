@@ -47,6 +47,11 @@ import {
 } from "./vars";
 import type { EvalContext } from "./expr";
 import { trackEvent } from "./events";
+import {
+  addSubscriberToList,
+  removeSubscriberFromList,
+  fireTagTriggers,
+} from "./lists";
 import type { Prisma, TgBot, TgSubscriber, TgFlow, TgFlowRun } from "@prisma/client";
 
 interface RunBundle {
@@ -70,6 +75,21 @@ function findNode(graph: FlowGraph, id: string | null | undefined): FlowNode | u
   return graph.nodes.find((n) => n.id === id);
 }
 
+async function buildCtxAsync(bundle: RunBundle, inboundText?: string | null): Promise<EvalContext> {
+  const memberships = await db.tgSubscriberList.findMany({
+    where: { subscriberId: bundle.subscriber.id },
+    select: { listId: true },
+  });
+  return buildEvalContext({
+    subscriber: snapSubscriber(bundle.subscriber),
+    bot: snapBot(bundle.bot),
+    run: snapRun(bundle.run),
+    inboundText,
+    listMembershipIds: memberships.map((m) => m.listId),
+  });
+}
+
+// Sync variant kept for paths that don't need list-membership lookup.
 function buildCtx(bundle: RunBundle, inboundText?: string | null): EvalContext {
   return buildEvalContext({
     subscriber: snapSubscriber(bundle.subscriber),
@@ -94,9 +114,24 @@ async function setVarScoped(
   bundle: RunBundle,
   rawKey: string,
   value: unknown,
-): Promise<void> {
+): Promise<{ ok: boolean; reason?: string }> {
   const { scope, key } = parseScopedKey(rawKey);
   const { run, subscriber, bot } = bundle;
+  // Custom-field writes go through the type validator so e.g. an
+  // email field rejects "не email", and a select field rejects values
+  // not in the option list. If validation fails, we DON'T write; the
+  // caller decides what to do (typically: re-prompt the user).
+  if (scope === "field") {
+    const field = await db.tgCustomField.findFirst({
+      where: { botId: bot.id, key },
+    });
+    if (field) {
+      const { validateCustomFieldValue } = await import("./custom-fields-validator");
+      const result = validateCustomFieldValue(field, value);
+      if (!result.ok) return { ok: false, reason: result.reason };
+      value = result.value;
+    }
+  }
   if (scope === "client") {
     const cur = (subscriber.variables as Record<string, unknown>) ?? {};
     const next = { ...cur, [key]: value };
@@ -136,6 +171,7 @@ async function setVarScoped(
     subscriberId: subscriber.id,
     properties: { scope, key, value },
   }).catch(() => {});
+  return { ok: true };
 }
 
 async function addTag(subscriberId: string, tag: string, botId: string) {
@@ -152,6 +188,8 @@ async function addTag(subscriberId: string, tag: string, botId: string) {
     subscriberId,
     properties: { tag },
   }).catch(() => {});
+  // Fire tag_added triggers across all active flows of this bot.
+  await fireTagTriggers({ botId, subscriberId, tag, kind: "tag_added" });
 }
 
 async function removeTag(subscriberId: string, tag: string, botId: string) {
@@ -168,6 +206,7 @@ async function removeTag(subscriberId: string, tag: string, botId: string) {
     subscriberId,
     properties: { tag },
   }).catch(() => {});
+  await fireTagTriggers({ botId, subscriberId, tag, kind: "tag_removed" });
 }
 
 // -- condition rule evaluator (extended for numeric ops + expr) -----
@@ -372,7 +411,7 @@ async function executeNode(
       return { done: true };
     }
     case "condition": {
-      const ctx = buildCtx(bundle);
+      const ctx = await buildCtxAsync(bundle);
       const evalArgs = {
         sub: snapSubscriber(subscriber),
         bot: snapBot(bot),
@@ -391,6 +430,20 @@ async function executeNode(
       return { done: false, nextNodeId: node.next };
     case "remove_tag":
       await removeTag(subscriber.id, node.tag, bot.id);
+      return { done: false, nextNodeId: node.next };
+    case "add_to_list":
+      await addSubscriberToList({
+        botId: bot.id,
+        listId: node.listId,
+        subscriberId: subscriber.id,
+      });
+      return { done: false, nextNodeId: node.next };
+    case "remove_from_list":
+      await removeSubscriberFromList({
+        botId: bot.id,
+        listId: node.listId,
+        subscriberId: subscriber.id,
+      });
       return { done: false, nextNodeId: node.next };
     case "set_variable": {
       const ctx = buildCtx(bundle);
@@ -693,11 +746,48 @@ export async function deliverReplyToWaitingRun(args: {
   const flowBot = await db.tgBot.findUnique({ where: { id: flow.botId } });
   const sub = await db.tgSubscriber.findUnique({ where: { id: args.subscriberId } });
   if (!flowBot || !sub) return false;
-  await setVarScoped(
+  const saveResult = await setVarScoped(
     { bot: flowBot, subscriber: sub, run, flow, graph } as RunBundle,
     run.waitingForVar,
     args.text,
   );
+  if (!saveResult.ok) {
+    // Treat custom-field validation errors like regex-validation errors:
+    // tell the user what's wrong, then either jump to onInvalidNext or
+    // stay parked at the wait_reply node.
+    if (saveResult.reason) {
+      const evalCtx = buildEvalContext({
+        subscriber: snapSubscriber(sub),
+        bot: snapBot(flowBot),
+        run: snapRun(run),
+        inboundText: args.text,
+      });
+      await sendBotMessage({
+        botId: flowBot.id,
+        encryptedToken: flowBot.tokenEncrypted,
+        subscriberId: sub.id,
+        chatId: sub.chatId,
+        payload: { text: saveResult.reason },
+        renderCtx: evalCtx,
+        sourceType: "flow",
+        sourceId: `${flow.id}:${node.id}:field-invalid`,
+      });
+    }
+    const invalidNext = node.validation?.onInvalidNext;
+    if (invalidNext) {
+      await db.tgFlowRun.update({
+        where: { id: run.id },
+        data: { currentNodeId: invalidNext, status: "queued", waitingForVar: null, resumeAt: null },
+      });
+      await tickRun(run.id);
+    } else {
+      await db.tgFlowRun.update({
+        where: { id: run.id },
+        data: { status: "waiting_reply" },
+      });
+    }
+    return true;
+  }
 
   const nextNodeId = node.next ?? null;
   await db.tgFlowRun.update({
