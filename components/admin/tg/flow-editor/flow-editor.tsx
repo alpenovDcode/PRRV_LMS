@@ -186,13 +186,35 @@ function FlowEditorInner({
   );
 
   const decorateEdges = useCallback((eds: EditorEdge[]): Edge[] => {
-    return eds.map((e) => ({
-      ...e,
-      type: "smoothstep",
-      animated: false,
-      markerEnd: { type: MarkerType.ArrowClosed, color: "#94a3b8" },
-      style: { stroke: "#94a3b8", strokeWidth: 1.5 },
-    })) as Edge[];
+    return eds.map((e) => {
+      const isDashed = e.style === "dashed";
+      // Drop our custom string-typed `style` field before spreading so
+      // React Flow's runtime sees only the proper CSS object below.
+      const { style: _drop, color: _drop2, ...rest } = e;
+      void _drop;
+      void _drop2;
+      return {
+        ...rest,
+        type: "smoothstep",
+        animated: isDashed,
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: isDashed ? "#fbbf24" : "#94a3b8",
+        },
+        // Tailwind-ish palette: amber for dashed (delays/timeouts),
+        // slate for solid (explicit user advances).
+        style: isDashed
+          ? {
+              stroke: "#fbbf24",
+              strokeWidth: 1.5,
+              strokeDasharray: "6 4",
+            }
+          : {
+              stroke: "#94a3b8",
+              strokeWidth: 1.5,
+            },
+      };
+    }) as unknown as Edge[];
   }, []);
 
   const [nodes, setNodes] = useState<Node[]>(() => enrich(initial.nodes));

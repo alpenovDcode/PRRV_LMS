@@ -25,6 +25,7 @@ import {
   tgSendMediaGroup,
   classifyTgError,
   type InlineKeyboard,
+  type ReplyMarkup,
   type TgApiResult,
   type TgMessageResult,
   type MediaGroupItem,
@@ -43,15 +44,43 @@ export interface SendResult {
   errorMessage?: string;
 }
 
-function payloadToKeyboard(payload: FlowMessagePayload): InlineKeyboard | undefined {
+// Build the reply_markup field according to the payload's keyboardMode.
+// Returns undefined for messages without any keyboard.
+function payloadToReplyMarkup(payload: FlowMessagePayload): ReplyMarkup | undefined {
+  if (payload.keyboardMode === "remove") {
+    return { remove_keyboard: true };
+  }
   if (!payload.buttonRows || payload.buttonRows.length === 0) return undefined;
-  return payload.buttonRows.map((row) =>
+
+  if (payload.keyboardMode === "reply") {
+    // Reply keyboards live under the input box. We map only the fields
+    // a reply-keyboard understands: text + request_contact / request_location.
+    // url/callback buttons in a reply keyboard would just send their
+    // text back as a normal message — we accept that as the user's
+    // intent and don't filter them out.
+    const keyboard = payload.buttonRows.map((row) =>
+      row.map((b) => ({
+        text: b.text,
+        request_contact: b.requestContact || undefined,
+        request_location: b.requestLocation || undefined,
+      })),
+    );
+    return {
+      keyboard,
+      resize_keyboard: true,
+      one_time_keyboard: payload.oneTimeKeyboard ?? false,
+    };
+  }
+
+  // Default: inline keyboard.
+  const inline: InlineKeyboard = payload.buttonRows.map((row) =>
     row.map((b) => {
       if (b.url) return { text: b.text, url: b.url };
       if (b.callback) return { text: b.text, callback_data: b.callback };
       return { text: b.text, callback_data: "btn:noop" };
-    })
+    }),
   );
+  return { inline_keyboard: inline };
 }
 
 // Resolve the actual media reference Telegram should consume — prefer
@@ -82,8 +111,7 @@ export interface SendOptions {
 export async function sendBotMessage(opts: SendOptions): Promise<SendResult> {
   const rawText = renderTemplate(opts.payload.text, opts.renderCtx);
   const safeText = sanitizeTelegramHtml(rawText);
-  const keyboard = payloadToKeyboard(opts.payload);
-  const replyMarkup = keyboard ? { inline_keyboard: keyboard } : undefined;
+  const replyMarkup = payloadToReplyMarkup(opts.payload);
   const parseMode = opts.payload.parseMode ?? "HTML";
   const disableNotification = opts.payload.disableNotification;
 
