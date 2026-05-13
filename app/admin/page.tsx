@@ -6,8 +6,35 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
-import { BookOpen, Users, Layers, Activity, TrendingUp } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { BookOpen, Users, Layers, Activity, TrendingUp, Download } from "lucide-react";
 import { useState } from "react";
+
+// Triggers a browser download of the per-user progress CSV for a course.
+// Goes through credentialed fetch (httpOnly cookie auth) → blob → anchor
+// so the file actually saves with the server-supplied filename instead
+// of being shown inline.
+async function downloadProgressCsv(courseId: string, detailed = false) {
+  const url = `/api/admin/courses/${courseId}/progress-export${
+    detailed ? "?detailed=true" : ""
+  }`;
+  const res = await fetch(url, { credentials: "include" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  // Recover filename from Content-Disposition (UTF-8 form).
+  const cd = res.headers.get("content-disposition") ?? "";
+  const m = /filename\*=UTF-8''([^;]+)/i.exec(cd);
+  const filename = m
+    ? decodeURIComponent(m[1])
+    : `progress_${courseId}.csv`;
+  const blob = await res.blob();
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(a.href);
+}
 
 interface AdminStats {
   totalCourses: number;
@@ -256,19 +283,45 @@ export default function AdminDashboardPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="max-w-md">
-            <Select value={selectedCourseId} onValueChange={setSelectedCourseId}>
-              <SelectTrigger className="border-gray-300">
-                <SelectValue placeholder="Выберите курс для анализа" />
-              </SelectTrigger>
-              <SelectContent>
-                {courses?.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.title}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="max-w-md flex-1 min-w-[260px]">
+              <Select value={selectedCourseId} onValueChange={setSelectedCourseId}>
+                <SelectTrigger className="border-gray-300">
+                  <SelectValue placeholder="Выберите курс для анализа" />
+                </SelectTrigger>
+                <SelectContent>
+                  {courses?.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {selectedCourseId && (
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-gray-300"
+                  onClick={() => downloadProgressCsv(selectedCourseId)}
+                  title="CSV: одна строка на пользователя, итог по курсу"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Экспорт по пользователям
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-gray-300"
+                  onClick={() => downloadProgressCsv(selectedCourseId, true)}
+                  title="CSV с колонкой на каждый урок"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Подробный (по урокам)
+                </Button>
+              </div>
+            )}
           </div>
 
           {funnelLoading ? (
