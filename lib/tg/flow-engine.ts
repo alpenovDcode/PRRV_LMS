@@ -53,6 +53,7 @@ import {
   fireTagTriggers,
 } from "./lists";
 import { rewriteUrlButtons } from "./redirect-tracking";
+import { executeInlineActions } from "./inline-actions";
 import type { Prisma, TgBot, TgSubscriber, TgFlow, TgFlowRun } from "@prisma/client";
 
 interface RunBundle {
@@ -391,6 +392,28 @@ async function executeNode(
         sourceId: `${bundle.flow.id}:${node.id}`,
       });
       if (!res.ok && res.blocked) return { done: true };
+      // Iter 5 — inline `onSend` bundle. Replaces having to chain
+      // separate add_tag / set_variable / list nodes after each message.
+      if (res.ok && node.payload.onSend) {
+        await executeInlineActions(node.payload.onSend, {
+          botId: bot.id,
+          subscriberId: subscriber.id,
+          runId: run.id,
+          evalCtx: ctx,
+        });
+      }
+      return { done: false, nextNodeId: node.next };
+    }
+    case "actions": {
+      // Standalone "side-effects only" node. Rare — usually onSend
+      // covers it — but kept for macros without an adjacent message.
+      const ctx = await buildCtxAsync(bundle);
+      await executeInlineActions(node.actions, {
+        botId: bot.id,
+        subscriberId: subscriber.id,
+        runId: run.id,
+        evalCtx: ctx,
+      });
       return { done: false, nextNodeId: node.next };
     }
     case "delay": {
@@ -799,6 +822,23 @@ export async function deliverReplyToWaitingRun(args: {
     return true;
   }
 
+  // Iter 5 — inline `onSave` bundle. Run AFTER the variable lands so
+  // tag/list ops can reference the just-saved value via templates.
+  if (node.onSave) {
+    const evalCtx = buildEvalContext({
+      subscriber: snapSubscriber(sub),
+      bot: snapBot(flowBot),
+      run: snapRun(run),
+      inboundText: args.text,
+    });
+    await executeInlineActions(node.onSave, {
+      botId: flowBot.id,
+      subscriberId: sub.id,
+      runId: run.id,
+      evalCtx,
+    });
+  }
+
   const nextNodeId = node.next ?? null;
   await db.tgFlowRun.update({
     where: { id: run.id },
@@ -817,7 +857,59 @@ export async function deliverButtonClickToWaitingRun(args: {
   subscriberId: string;
   botId: string;
   callbackData: string;
+  // Telegram message_id of the message containing the clicked button.
+  // Used to reverse-look-up the source flow/node so we can execute
+  // the button's inline onClick bundle (Iter 5).
+  tgMessageId?: string;
 }): Promise<boolean> {
+  // Iter 5 — Inline onClick handler. Format: `act:<r>:<c>`. We resolve
+  // the source message via tgMessageId → tgMessage.sourceId → flow + node,
+  // then read node.payload.buttonRows[r][c].onClick.
+  if (args.callbackData.startsWith("act:") && args.tgMessageId) {
+    const parts = args.callbackData.split(":");
+    const r = parseInt(parts[1] ?? "", 10);
+    const c = parseInt(parts[2] ?? "", 10);
+    if (Number.isNaN(r) || Number.isNaN(c)) return false;
+    const tgMsg = await db.tgMessage.findFirst({
+      where: {
+        botId: args.botId,
+        subscriberId: args.subscriberId,
+        tgMessageId: args.tgMessageId,
+      },
+    });
+    if (!tgMsg || !tgMsg.sourceId) return false;
+    const [flowId, nodeId] = tgMsg.sourceId.split(":");
+    if (!flowId || !nodeId) return false;
+    const flow = await db.tgFlow.findUnique({ where: { id: flowId } });
+    if (!flow) return false;
+    let graph: FlowGraph;
+    try {
+      graph = parseGraph(flow);
+    } catch {
+      return false;
+    }
+    const node = findNode(graph, nodeId);
+    if (!node || node.type !== "message") return false;
+    const row = node.payload.buttonRows?.[r];
+    const button = row?.[c];
+    if (!button?.onClick) return false;
+    // Build a transient eval context so templates inside onClick can
+    // reference current subscriber state.
+    const subscriber = await db.tgSubscriber.findUnique({ where: { id: args.subscriberId } });
+    const bot = await db.tgBot.findUnique({ where: { id: args.botId } });
+    if (!subscriber || !bot) return false;
+    const evalCtx = buildEvalContext({
+      subscriber: snapSubscriber(subscriber),
+      bot: snapBot(bot),
+      run: undefined,
+    });
+    await executeInlineActions(button.onClick, {
+      botId: args.botId,
+      subscriberId: args.subscriberId,
+      evalCtx,
+    });
+    return true;
+  }
   if (args.callbackData.startsWith("goto:")) {
     const flowId = args.callbackData.substring(5);
     await startFlowRun({

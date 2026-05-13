@@ -9,17 +9,19 @@ export interface PaletteItem {
   color: string;
 }
 
+// Iter 5: палитра сокращена с 13 до 8 типов. Узкие операции
+// (add_tag/remove_tag, add_to_list/remove_from_list, set_variable)
+// больше не нужны как отдельные ноды — они стали «Действиями после
+// отправки» прямо на message/wait_reply/кнопке. Старые ноды в схеме
+// сохраняются для обратной совместимости (уже сохранённые флоу
+// продолжают работать), но в палитре их нет.
 export const PALETTE_ITEMS: PaletteItem[] = [
   { type: "message", icon: "💬", label: "Сообщение", color: "text-blue-600" },
   { type: "delay", icon: "⏰", label: "Задержка", color: "text-amber-600" },
   { type: "wait_reply", icon: "⌛", label: "Ждать ответ", color: "text-rose-600" },
   { type: "condition", icon: "⚡", label: "Условие", color: "text-fuchsia-600" },
-  { type: "add_tag", icon: "🏷️", label: "Добавить тег", color: "text-cyan-600" },
-  { type: "remove_tag", icon: "🏷️", label: "Убрать тег", color: "text-cyan-600" },
-  { type: "add_to_list", icon: "📂", label: "В список", color: "text-teal-600" },
-  { type: "remove_from_list", icon: "📂", label: "Из списка", color: "text-teal-600" },
-  { type: "set_variable", icon: "📝", label: "Переменная", color: "text-violet-600" },
   { type: "http_request", icon: "🌐", label: "HTTP-запрос", color: "text-lime-600" },
+  { type: "actions", icon: "🎯", label: "Действия", color: "text-violet-600" },
   { type: "goto_flow", icon: "↪", label: "Прыжок", color: "text-purple-600" },
   { type: "note", icon: "💭", label: "Заметка", color: "text-yellow-600" },
   { type: "end", icon: "⏹", label: "Конец", color: "text-zinc-500" },

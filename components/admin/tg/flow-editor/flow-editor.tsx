@@ -53,6 +53,7 @@ import { SetVariableNode } from "./nodes/set-variable-node";
 import { HttpRequestNode } from "./nodes/http-request-node";
 import { GotoFlowNode } from "./nodes/goto-flow-node";
 import { NoteNode } from "./nodes/note-node";
+import { ActionsNode } from "./nodes/actions-node";
 import { EndNode } from "./nodes/end-node";
 import { TriggerNode } from "./nodes/trigger-node";
 import { Button } from "@/components/ui/button";
@@ -70,6 +71,7 @@ const nodeTypes = {
   http_request: HttpRequestNode,
   goto_flow: GotoFlowNode,
   note: NoteNode,
+  actions: ActionsNode,
   end: EndNode,
 };
 
@@ -140,6 +142,9 @@ function defaultSchemaNodeFor(type: string, id: string): FlowNode | null {
       return { id, type: "goto_flow", label: "Прыжок", flowId: "" };
     case "note":
       return { id, type: "note", label: "Заметка", text: "Описание шага…" };
+    case "actions":
+      // Standalone action-bundle — rare; usually inline onSend covers it.
+      return { id, type: "actions", label: "Действия", actions: {} };
     case "end":
       return { id, type: "end", label: "Конец" };
     default:
