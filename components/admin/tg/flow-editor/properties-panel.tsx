@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
 import {
   Select,
   SelectContent,
@@ -19,8 +20,10 @@ import type {
   FlowNode,
   FlowTrigger,
   FlowMessagePayload,
+  MediaAttachment,
 } from "@/lib/tg/flow-schema";
 import { TRIGGER_NODE_ID } from "@/lib/tg/flow-editor-converter";
+import { MediaAttachmentsEditor } from "@/components/admin/tg/media-picker";
 
 // ============================================================================
 // Generic helpers
@@ -606,16 +609,19 @@ function MessageEditor({
           <code>&lt;b&gt;</code>, <code>&lt;i&gt;</code>, <code>&lt;a&gt;</code>.
         </div>
       </div>
-      <div>
-        <Label>Фото URL (опц.)</Label>
-        <Input
-          value={payload.photoUrl ?? ""}
-          onChange={(e) =>
-            onChange({ ...payload, photoUrl: e.target.value || undefined })
-          }
-          placeholder="https://…/image.jpg"
-        />
-      </div>
+      <MediaAttachmentsEditor
+        attachments={payload.attachments ?? []}
+        legacyPhotoUrl={payload.photoUrl}
+        onChange={(next) =>
+          onChange({
+            ...payload,
+            attachments: next,
+            // First time the user opens the picker, migrate the legacy
+            // photoUrl into the new list and clear the old field.
+            photoUrl: undefined,
+          })
+        }
+      />
       <div className="border-t pt-3">
         <div className="flex items-center justify-between mb-2">
           <Label className="mb-0">Кнопки</Label>

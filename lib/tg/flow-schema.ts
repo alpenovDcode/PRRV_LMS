@@ -25,18 +25,58 @@ export const buttonSchema = z.object({
 });
 export type FlowButton = z.infer<typeof buttonSchema>;
 
+// ---------- Media attachments ----------------------------------------
+// A single attachment can be one of seven Telegram media kinds. Each
+// stores either a `fileId` (preferred — cached, reusable, no upload
+// cost) or a public `url` (fallback for stock images and one-offs).
+// Captions live on the parent payload, not per-attachment, to match
+// Telegram's API (only the FIRST item in an album carries a caption).
+export const mediaAttachmentSchema = z.object({
+  kind: z.enum([
+    "photo",
+    "video",
+    "voice",
+    "video_note",
+    "document",
+    "audio",
+    "animation",
+  ]),
+  // Exactly one of these is required at runtime. Schema-level we allow
+  // both as optional so partially-edited drafts validate.
+  fileId: z.string().min(1).max(256).optional(),
+  url: z.string().url().optional(),
+  // Optional metadata captured at /fileid time — only used by the UI
+  // for preview/tooltips. Engine sends just fileId or url.
+  fileName: z.string().max(256).optional(),
+  mimeType: z.string().max(64).optional(),
+  duration: z.number().int().nonnegative().optional(),
+});
+export type MediaAttachment = z.infer<typeof mediaAttachmentSchema>;
+
 export const messagePayloadSchema = z.object({
   // Body text with HTML formatting (sanitized by the engine before send).
   // Supports {{expr}} templates resolved against subscriber + bot + run.
+  // Required for text-only messages; optional when sending an album where
+  // a caption suffices. We keep it min(1) to discourage empty sends and
+  // let the editor pre-fill it when an attachment is added.
   text: z.string().min(1).max(4096),
-  // Optional media URL — must be publicly reachable by Telegram.
+  // Legacy single-photo URL kept for backwards compatibility with flows
+  // saved before Iter 2. New flows use `attachments` instead. If both
+  // are present, `attachments` wins.
   photoUrl: z.string().url().optional(),
+  // 0..10 media attachments. Multiple = sent as a media group / album
+  // (only "photo" and "video" can be mixed in an album per Telegram's
+  // rules; the sender enforces this).
+  attachments: z.array(mediaAttachmentSchema).max(10).optional(),
   // Buttons are arranged in rows.
   buttonRows: z.array(z.array(buttonSchema)).optional(),
   // Parse mode override (defaults to HTML).
   parseMode: z.enum(["HTML", "MarkdownV2"]).optional(),
   // Disable web preview override.
   disablePreview: z.boolean().optional(),
+  // Suppress notification sound. Useful for low-priority side-effect
+  // messages so we don't ping every subscriber at 3am.
+  disableNotification: z.boolean().optional(),
 });
 export type FlowMessagePayload = z.infer<typeof messagePayloadSchema>;
 
