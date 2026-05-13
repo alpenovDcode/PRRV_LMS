@@ -780,6 +780,8 @@ model TgBot {
   trackingLinks   TgTrackingLink[]
   events          TgEvent[]
   mediaFiles      TgMediaFile[]
+  lists           TgList[]
+  customFields    TgCustomField[]
 
   @@index([username])
   @@map("tg_bots")
@@ -836,6 +838,7 @@ model TgSubscriber {
   flowRuns        TgFlowRun[]
   events          TgEvent[]
   broadcastDeliveries TgBroadcastRecipient[]
+  lists           TgSubscriberList[]
 
   @@unique([botId, chatId])
   @@index([botId, isBlocked])
@@ -1024,6 +1027,99 @@ model TgEvent {
   @@index([botId, type, occurredAt])
   @@index([subscriberId, occurredAt])
   @@map("tg_events")
+}
+
+// Lists are dynamic segments — an admin-curated bucket of subscribers
+// used for targeting broadcasts and for `list_joined` / `list_left`
+// reactive triggers in flows. Conceptually distinct from tags:
+//   - Tag = a free-form label attached to a subscriber (denormalized
+//     into TgSubscriber.tags[] for cheap GIN-index lookups).
+//   - List = an explicit named bucket the subscriber belongs to,
+//     with its own analytics counters.
+// Mirror of SaleBot's "Списки" feature.
+model TgList {
+  id              String   @id @default(uuid())
+  botId           String   @map("bot_id")
+  name            String
+  // Optional emoji or short prefix shown in the picker.
+  icon            String?
+  description     String?
+  // Auto-add subscribers matching these tag predicates? Empty = manual.
+  // Format: { all?: string[], any?: string[], none?: string[] }
+  autoTagRules    Json     @default("{}") @map("auto_tag_rules")
+  // Cached counts. Kept fresh by engine writes; can drift slightly
+  // under heavy concurrency — fix by recomputing in cron if needed.
+  memberCount     Int      @default(0) @map("member_count")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  bot             TgBot    @relation(fields: [botId], references: [id], onDelete: Cascade)
+  members         TgSubscriberList[]
+
+  @@unique([botId, name])
+  @@index([botId])
+  @@map("tg_lists")
+}
+
+// Many-to-many join: which subscribers are in which lists. Created /
+// destroyed by addToList() / removeFromList() in lib/tg/lists.ts.
+// joinedAt fires the `list_joined` trigger; deletion fires `list_left`.
+model TgSubscriberList {
+  id              String   @id @default(uuid())
+  listId          String   @map("list_id")
+  subscriberId    String   @map("subscriber_id")
+  joinedAt        DateTime @default(now()) @map("joined_at")
+
+  list            TgList       @relation(fields: [listId], references: [id], onDelete: Cascade)
+  subscriber      TgSubscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+
+  @@unique([listId, subscriberId])
+  @@index([subscriberId])
+  @@index([listId, joinedAt])
+  @@map("tg_subscriber_lists")
+}
+
+// Typed custom fields for subscribers. Schema lives here; values live
+// in TgSubscriber.customFields (a JSON bag keyed by `key`).
+// Each field has a runtime type that the validator + UI honor.
+//   text     → free text
+//   number   → numeric (validated as parsable float)
+//   date     → dd.mm.yyyy
+//   email    → email regex
+//   phone    → normalised via normalizePhone() helper
+//   select   → one of `options[].value`
+//   boolean  → "yes"/"no" or true/false
+//   url      → URL regex
+model TgCustomField {
+  id              String   @id @default(uuid())
+  botId           String   @map("bot_id")
+  // Identifier used in templates / `wait_reply.saveAs = field.x`.
+  // Must match /^[a-z][a-z0-9_]*$/ — enforced in API layer.
+  key             String
+  // Display label in admin UI.
+  label           String
+  // Type discriminator (see model docstring).
+  type            String
+  // Free-text help shown under the field in admin UI.
+  description     String?
+  // For type=select: array of { value, label }. JSON for flexibility.
+  options         Json     @default("[]")
+  // Optional regex applied on top of type validation (e.g. an email
+  // field restricted to a specific corporate domain).
+  validationRegex String?  @map("validation_regex")
+  // True = required when an admin opens a subscriber profile. Engine
+  // also surfaces required-but-empty fields in the lead sidebar.
+  isRequired      Boolean  @default(false) @map("is_required")
+  // Display order in lead sidebar.
+  sortOrder       Int      @default(0) @map("sort_order")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  bot             TgBot    @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@unique([botId, key])
+  @@index([botId, sortOrder])
+  @@map("tg_custom_fields")
 }
 
 // Cached Telegram file_ids. Populated automatically when an admin

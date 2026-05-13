@@ -122,6 +122,10 @@ function defaultSchemaNodeFor(type: string, id: string): FlowNode | null {
       return { id, type: "add_tag", label: "Тег +", tag: "tag1" };
     case "remove_tag":
       return { id, type: "remove_tag", label: "Тег −", tag: "tag1" };
+    case "add_to_list":
+      return { id, type: "add_to_list", label: "В список", listId: "" };
+    case "remove_from_list":
+      return { id, type: "remove_from_list", label: "Из списка", listId: "" };
     case "set_variable":
       return { id, type: "set_variable", label: "Переменная", key: "key", value: "" };
     case "http_request":

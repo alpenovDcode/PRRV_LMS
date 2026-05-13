@@ -157,10 +157,13 @@ export interface BuildCtxArgs {
   // Surfaces as `{{question}}`. Engines that resume a flow on a timer
   // pass undefined here — `{{question}}` then resolves to "".
   inboundText?: string | null;
+  // List IDs the subscriber currently belongs to. Used by the
+  // `in_list("listId")` expression helper (Iter 2b).
+  listMembershipIds?: string[];
 }
 
 export function buildEvalContext(args: BuildCtxArgs): EvalContext {
-  const { subscriber, bot, run, inboundText } = args;
+  const { subscriber, bot, run, inboundText, listMembershipIds = [] } = args;
   const now = new Date();
   const tz = bot.timezone;
 
@@ -206,12 +209,27 @@ export function buildEvalContext(args: BuildCtxArgs): EvalContext {
     tags: subscriber.tags,
   };
 
+  const listSet = new Set(listMembershipIds);
+
   return {
+    extraFunctions: {
+      // `in_list(listId)` — true if subscriber is in that list right now.
+      in_list: (...args: unknown[]) => {
+        const id = args[0];
+        return id != null && listSet.has(String(id));
+      },
+      // `list_size(listId)` — synchronous lookup not possible; return 0
+      // and rely on the broadcast targeting / lists API for real counts.
+      // We expose the function name so authors don't get an "unknown
+      // function" error mid-flow.
+      list_size: () => 0,
+    },
     resolve(name: string) {
       if (name === "client") return clientScope;
       if (name === "project") return projectScope;
       if (name === "deal") return dealScope;
       if (name === "const") return constScope;
+      if (name === "lists") return Array.from(listSet);
       // SaleBot's legacy `vars.x` alias for client.x.
       if (name === "vars") return clientScope;
       if (name === "user") {

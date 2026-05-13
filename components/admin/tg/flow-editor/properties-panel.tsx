@@ -262,6 +262,52 @@ function ValidationEditor({
   );
 }
 
+// Fetches the bot's lists once and lets the user pick one. Used by
+// add_to_list / remove_from_list nodes. We pull botId from the URL —
+// the editor is always rendered under /admin/bots/[botId].
+function ListPicker({
+  listId,
+  onChange,
+}: {
+  listId: string;
+  onChange: (id: string) => void;
+}) {
+  const params = useParams() as { botId?: string };
+  const botId = params.botId ?? "";
+  const [lists, setLists] = useState<Array<{ id: string; name: string; icon: string | null }>>([]);
+  useEffect(() => {
+    if (!botId) return;
+    fetch(`/api/admin/tg/bots/${botId}/lists`)
+      .then((r) => r.json())
+      .then((j) => setLists(j?.data?.lists ?? []))
+      .catch(() => undefined);
+  }, [botId]);
+  return (
+    <div>
+      <Label>Список</Label>
+      <Select value={listId || "__none__"} onValueChange={(v) => onChange(v === "__none__" ? "" : v)}>
+        <SelectTrigger>
+          <SelectValue placeholder="— выбрать —" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__none__">— не выбран —</SelectItem>
+          {lists.map((l) => (
+            <SelectItem key={l.id} value={l.id}>
+              {l.icon ? `${l.icon} ` : ""}
+              {l.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {lists.length === 0 && (
+        <p className="text-[10px] text-zinc-500 mt-1">
+          Ни одного списка. Создай в разделе «Списки».
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ============================================================================
 // Main component
 // ============================================================================
@@ -472,6 +518,13 @@ export function PropertiesPanel({
             placeholder="например, cold"
           />
         </div>
+      )}
+
+      {(sNode.type === "add_to_list" || sNode.type === "remove_from_list") && (
+        <ListPicker
+          listId={sNode.listId}
+          onChange={(id) => update({ listId: id } as Partial<FlowNode>)}
+        />
       )}
 
       {sNode.type === "set_variable" && (

@@ -16,6 +16,8 @@ export const PALETTE_ITEMS: PaletteItem[] = [
   { type: "condition", icon: "⚡", label: "Условие", color: "text-fuchsia-600" },
   { type: "add_tag", icon: "🏷️", label: "Добавить тег", color: "text-cyan-600" },
   { type: "remove_tag", icon: "🏷️", label: "Убрать тег", color: "text-cyan-600" },
+  { type: "add_to_list", icon: "📂", label: "В список", color: "text-teal-600" },
+  { type: "remove_from_list", icon: "📂", label: "Из списка", color: "text-teal-600" },
   { type: "set_variable", icon: "📝", label: "Переменная", color: "text-violet-600" },
   { type: "http_request", icon: "🌐", label: "HTTP-запрос", color: "text-lime-600" },
   { type: "goto_flow", icon: "↪", label: "Прыжок", color: "text-purple-600" },
