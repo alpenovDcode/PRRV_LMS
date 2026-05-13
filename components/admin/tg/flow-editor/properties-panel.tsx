@@ -1,0 +1,1014 @@
+"use client";
+
+import { useMemo } from "react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Trash2, Plus } from "lucide-react";
+import type {
+  FlowButton,
+  FlowNode,
+  FlowTrigger,
+  FlowMessagePayload,
+} from "@/lib/tg/flow-schema";
+import { TRIGGER_NODE_ID } from "@/lib/tg/flow-editor-converter";
+
+// ============================================================================
+// Generic helpers
+// ============================================================================
+
+type DurationUnit = "s" | "m" | "h" | "d";
+
+function splitDuration(totalSeconds: number): { value: number; unit: DurationUnit } {
+  if (totalSeconds >= 86400 && totalSeconds % 86400 === 0) {
+    return { value: totalSeconds / 86400, unit: "d" };
+  }
+  if (totalSeconds >= 3600 && totalSeconds % 3600 === 0) {
+    return { value: totalSeconds / 3600, unit: "h" };
+  }
+  if (totalSeconds >= 60 && totalSeconds % 60 === 0) {
+    return { value: totalSeconds / 60, unit: "m" };
+  }
+  return { value: totalSeconds, unit: "s" };
+}
+
+function toSeconds(value: number, unit: DurationUnit): number {
+  if (unit === "d") return value * 86400;
+  if (unit === "h") return value * 3600;
+  if (unit === "m") return value * 60;
+  return value;
+}
+
+function DurationInput({
+  totalSeconds,
+  onChange,
+  max,
+}: {
+  totalSeconds: number;
+  onChange: (s: number) => void;
+  max?: number;
+}) {
+  const { value, unit } = splitDuration(totalSeconds);
+  return (
+    <div className="flex gap-2">
+      <Input
+        type="number"
+        min={1}
+        max={max}
+        value={value}
+        onChange={(e) => {
+          const v = Math.max(1, parseInt(e.target.value || "0", 10) || 1);
+          onChange(toSeconds(v, unit));
+        }}
+        className="flex-1"
+      />
+      <Select
+        value={unit}
+        onValueChange={(u: string) => onChange(toSeconds(value, u as DurationUnit))}
+      >
+        <SelectTrigger className="w-24">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="s">сек</SelectItem>
+          <SelectItem value="m">мин</SelectItem>
+          <SelectItem value="h">час</SelectItem>
+          <SelectItem value="d">дн</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+interface NodeOption {
+  id: string;
+  label: string;
+}
+
+function NodePicker({
+  value,
+  onChange,
+  options,
+  placeholder = "— не выбрано —",
+}: {
+  value: string | undefined;
+  onChange: (v: string | undefined) => void;
+  options: NodeOption[];
+  placeholder?: string;
+}) {
+  return (
+    <Select
+      value={value ?? "__none__"}
+      onValueChange={(v) => onChange(v === "__none__" ? undefined : v)}
+    >
+      <SelectTrigger>
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="__none__">— не выбрано —</SelectItem>
+        {options.map((o) => (
+          <SelectItem key={o.id} value={o.id}>
+            {o.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+// ============================================================================
+// Main component
+// ============================================================================
+
+interface FlowListItem {
+  id: string;
+  name: string;
+}
+
+export interface PropertiesPanelProps {
+  selectedNodeId: string | null;
+  nodes: Array<{ id: string; type: string; data: unknown }>;
+  flowList: FlowListItem[];
+  currentFlowId: string;
+  onUpdateNode: (id: string, data: unknown) => void;
+  onUpdateTriggers: (triggers: FlowTrigger[]) => void;
+  onDeleteNode: (id: string) => void;
+}
+
+export function PropertiesPanel({
+  selectedNodeId,
+  nodes,
+  flowList,
+  currentFlowId,
+  onUpdateNode,
+  onUpdateTriggers,
+  onDeleteNode,
+}: PropertiesPanelProps) {
+  const selected = useMemo(
+    () => nodes.find((n) => n.id === selectedNodeId) ?? null,
+    [nodes, selectedNodeId]
+  );
+
+  // Options for "next-node" pickers: all schema nodes except the current one.
+  const nodeOptions = useMemo<NodeOption[]>(() => {
+    return nodes
+      .filter((n) => n.id !== TRIGGER_NODE_ID && n.id !== selectedNodeId)
+      .map((n) => {
+        const data = n.data as { schemaNode?: FlowNode };
+        const label = data.schemaNode?.label ?? n.id;
+        return { id: n.id, label: `${label} (${n.type})` };
+      });
+  }, [nodes, selectedNodeId]);
+
+  if (!selected) {
+    return (
+      <aside className="w-80 shrink-0 border-l bg-white p-4 text-sm text-zinc-500">
+        <div className="font-semibold text-zinc-700 mb-2">Свойства</div>
+        Выберите ноду на холсте, чтобы редактировать её параметры.
+      </aside>
+    );
+  }
+
+  // -- Trigger virtual node ----------
+  if (selected.id === TRIGGER_NODE_ID) {
+    const triggers =
+      (selected.data as { triggers?: FlowTrigger[] }).triggers ?? [];
+    return (
+      <aside className="w-80 shrink-0 border-l bg-white p-4 overflow-y-auto space-y-3">
+        <div className="font-semibold text-zinc-800">Триггеры запуска</div>
+        <p className="text-xs text-zinc-500">
+          Когда любое из этих условий выполняется — запускается сценарий.
+        </p>
+        <TriggersEditor triggers={triggers} onChange={onUpdateTriggers} />
+      </aside>
+    );
+  }
+
+  const sNode = (selected.data as { schemaNode?: FlowNode }).schemaNode;
+  if (!sNode) {
+    return (
+      <aside className="w-80 shrink-0 border-l bg-white p-4 text-sm text-zinc-500">
+        Нет данных
+      </aside>
+    );
+  }
+
+  const update = (patch: Partial<FlowNode>) => {
+    const data = selected.data as Record<string, unknown>;
+    const merged = {
+      ...(sNode as unknown as Record<string, unknown>),
+      ...(patch as unknown as Record<string, unknown>),
+    };
+    onUpdateNode(selected.id, { ...data, schemaNode: merged });
+  };
+
+  return (
+    <aside className="w-80 shrink-0 border-l bg-white p-4 overflow-y-auto space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="font-semibold text-zinc-800">Свойства ноды</div>
+          <Badge variant="secondary" className="mt-1 font-mono text-[10px]">
+            {sNode.type}
+          </Badge>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => onDeleteNode(selected.id)}
+          title="Удалить ноду"
+        >
+          <Trash2 className="h-4 w-4 text-red-500" />
+        </Button>
+      </div>
+
+      <div>
+        <Label>ID</Label>
+        <Input
+          value={sNode.id}
+          onChange={(e) => update({ id: e.target.value.replace(/\s+/g, "-") } as Partial<FlowNode>)}
+        />
+      </div>
+      <div>
+        <Label>Подпись</Label>
+        <Input
+          value={sNode.label ?? ""}
+          onChange={(e) => update({ label: e.target.value } as Partial<FlowNode>)}
+        />
+      </div>
+
+      {sNode.type === "message" && (
+        <MessageEditor
+          payload={sNode.payload}
+          onChange={(p) => update({ payload: p } as Partial<FlowNode>)}
+          nodeOptions={nodeOptions}
+        />
+      )}
+
+      {sNode.type === "delay" && (
+        <div>
+          <Label>Длительность</Label>
+          <DurationInput
+            totalSeconds={sNode.seconds}
+            onChange={(s) => update({ seconds: s } as Partial<FlowNode>)}
+            max={60 * 60 * 24 * 30}
+          />
+        </div>
+      )}
+
+      {sNode.type === "wait_reply" && (
+        <>
+          <div>
+            <Label>Сохранить ответ в vars.</Label>
+            <Input
+              value={sNode.saveAs}
+              onChange={(e) => update({ saveAs: e.target.value } as Partial<FlowNode>)}
+              placeholder="например, answer"
+            />
+          </div>
+          <div>
+            <Label>Таймаут</Label>
+            <DurationInput
+              totalSeconds={sNode.timeoutSeconds}
+              onChange={(s) => update({ timeoutSeconds: s } as Partial<FlowNode>)}
+              max={60 * 60 * 24 * 7}
+            />
+          </div>
+          <div className="text-[11px] text-zinc-500 pt-2 border-t">
+            Связи: «ответ» и «таймаут» — тяните рёбра от соответствующих handle’ов на холсте.
+          </div>
+        </>
+      )}
+
+      {sNode.type === "condition" && (
+        <ConditionEditor
+          rules={sNode.rules}
+          onChange={(rules) => update({ rules } as Partial<FlowNode>)}
+        />
+      )}
+
+      {sNode.type === "add_tag" && (
+        <div>
+          <Label>Тег</Label>
+          <Input
+            value={sNode.tag}
+            onChange={(e) => update({ tag: e.target.value } as Partial<FlowNode>)}
+            placeholder="например, warm"
+          />
+        </div>
+      )}
+      {sNode.type === "remove_tag" && (
+        <div>
+          <Label>Тег</Label>
+          <Input
+            value={sNode.tag}
+            onChange={(e) => update({ tag: e.target.value } as Partial<FlowNode>)}
+            placeholder="например, cold"
+          />
+        </div>
+      )}
+
+      {sNode.type === "set_variable" && (
+        <>
+          <div>
+            <Label>Ключ переменной</Label>
+            <Input
+              value={sNode.key}
+              onChange={(e) => update({ key: e.target.value } as Partial<FlowNode>)}
+            />
+          </div>
+          <div>
+            <Label>Значение</Label>
+            <Textarea
+              rows={3}
+              value={sNode.value}
+              onChange={(e) => update({ value: e.target.value } as Partial<FlowNode>)}
+              placeholder="Можно использовать {{user.first_name}}, {{vars.x}}"
+            />
+            <div className="text-[10px] text-zinc-500 mt-1">
+              Шаблоны: <code>{`{{user.first_name}}`}</code>, <code>{`{{vars.x}}`}</code>
+            </div>
+          </div>
+        </>
+      )}
+
+      {sNode.type === "http_request" && (
+        <HttpRequestEditor
+          node={sNode}
+          onChange={(patch) => update(patch as Partial<FlowNode>)}
+        />
+      )}
+
+      {sNode.type === "goto_flow" && (
+        <GotoFlowEditor
+          flowId={sNode.flowId}
+          flowList={flowList}
+          currentFlowId={currentFlowId}
+          onChange={(id) => update({ flowId: id } as Partial<FlowNode>)}
+        />
+      )}
+
+      {sNode.type === "end" && (
+        <div className="text-sm text-zinc-500 p-3 bg-zinc-50 rounded border border-zinc-200">
+          Терминальная нода — никакой настройки.
+        </div>
+      )}
+    </aside>
+  );
+}
+
+// ============================================================================
+// Sub-editors
+// ============================================================================
+
+function MessageEditor({
+  payload,
+  onChange,
+  nodeOptions,
+}: {
+  payload: FlowMessagePayload;
+  onChange: (p: FlowMessagePayload) => void;
+  nodeOptions: NodeOption[];
+}) {
+  const buttonRows = payload.buttonRows ?? [];
+
+  const setButton = (rowIdx: number, btnIdx: number, btn: FlowButton) => {
+    const next = buttonRows.map((row, ri) =>
+      ri === rowIdx ? row.map((b, bi) => (bi === btnIdx ? btn : b)) : row
+    );
+    onChange({ ...payload, buttonRows: next });
+  };
+  const addButton = (rowIdx: number) => {
+    const next = buttonRows.map((row, ri) =>
+      ri === rowIdx ? [...row, { text: "Кнопка" } as FlowButton] : row
+    );
+    onChange({ ...payload, buttonRows: next });
+  };
+  const removeButton = (rowIdx: number, btnIdx: number) => {
+    const next = buttonRows
+      .map((row, ri) => (ri === rowIdx ? row.filter((_, bi) => bi !== btnIdx) : row))
+      .filter((row) => row.length > 0);
+    onChange({ ...payload, buttonRows: next.length ? next : undefined });
+  };
+  const addRow = () => {
+    onChange({
+      ...payload,
+      buttonRows: [...buttonRows, [{ text: "Кнопка" } as FlowButton]],
+    });
+  };
+
+  return (
+    <>
+      <div>
+        <Label>Текст</Label>
+        <Textarea
+          rows={5}
+          value={payload.text}
+          onChange={(e) => onChange({ ...payload, text: e.target.value })}
+        />
+        <div className="text-[10px] text-zinc-500 mt-1">
+          Поддерживает <code>{`{{user.first_name}}`}</code>, теги{" "}
+          <code>&lt;b&gt;</code>, <code>&lt;i&gt;</code>, <code>&lt;a&gt;</code>.
+        </div>
+      </div>
+      <div>
+        <Label>Фото URL (опц.)</Label>
+        <Input
+          value={payload.photoUrl ?? ""}
+          onChange={(e) =>
+            onChange({ ...payload, photoUrl: e.target.value || undefined })
+          }
+          placeholder="https://…/image.jpg"
+        />
+      </div>
+      <div className="border-t pt-3">
+        <div className="flex items-center justify-between mb-2">
+          <Label className="mb-0">Кнопки</Label>
+          <Button variant="outline" size="sm" onClick={addRow}>
+            <Plus className="h-3 w-3" /> ряд
+          </Button>
+        </div>
+        <div className="space-y-3">
+          {buttonRows.map((row, rowIdx) => (
+            <div
+              key={rowIdx}
+              className="border border-zinc-200 rounded p-2 space-y-2 bg-zinc-50/50"
+            >
+              <div className="text-[10px] text-zinc-500 flex justify-between">
+                <span>Ряд {rowIdx + 1}</span>
+                <button
+                  type="button"
+                  className="text-purple-600 hover:underline"
+                  onClick={() => addButton(rowIdx)}
+                >
+                  + кнопка
+                </button>
+              </div>
+              {row.map((btn, btnIdx) => (
+                <ButtonEditor
+                  key={btnIdx}
+                  button={btn}
+                  onChange={(b) => setButton(rowIdx, btnIdx, b)}
+                  onRemove={() => removeButton(rowIdx, btnIdx)}
+                  nodeOptions={nodeOptions}
+                />
+              ))}
+            </div>
+          ))}
+          {buttonRows.length === 0 && (
+            <div className="text-xs text-zinc-400 italic">Без кнопок</div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+type ButtonKind = "url" | "callback";
+
+function ButtonEditor({
+  button,
+  onChange,
+  onRemove,
+  nodeOptions,
+}: {
+  button: FlowButton;
+  onChange: (b: FlowButton) => void;
+  onRemove: () => void;
+  nodeOptions: NodeOption[];
+}) {
+  const kind: ButtonKind = button.url ? "url" : "callback";
+  // Callback shortcuts.
+  const callback = button.callback ?? "";
+  const cbKind: "goto" | "tag_add" | "tag_rm" | "custom" = callback.startsWith("goto:")
+    ? "goto"
+    : callback.startsWith("tag:add:")
+    ? "tag_add"
+    : callback.startsWith("tag:rm:")
+    ? "tag_rm"
+    : "custom";
+
+  return (
+    <div className="border border-zinc-200 rounded bg-white p-2 space-y-2">
+      <div className="flex gap-2">
+        <Input
+          className="flex-1"
+          value={button.text}
+          onChange={(e) => onChange({ ...button, text: e.target.value })}
+          placeholder="Текст кнопки"
+        />
+        <Button variant="ghost" size="sm" onClick={onRemove}>
+          <Trash2 className="h-3 w-3 text-red-500" />
+        </Button>
+      </div>
+      <Select
+        value={kind}
+        onValueChange={(v) => {
+          if (v === "url")
+            onChange({ ...button, url: button.url ?? "https://", callback: undefined });
+          else onChange({ ...button, url: undefined, callback: button.callback ?? "" });
+        }}
+      >
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="url">URL-кнопка</SelectItem>
+          <SelectItem value="callback">Callback</SelectItem>
+        </SelectContent>
+      </Select>
+      {kind === "url" && (
+        <Input
+          value={button.url ?? ""}
+          onChange={(e) => onChange({ ...button, url: e.target.value })}
+          placeholder="https://…"
+        />
+      )}
+      {kind === "callback" && (
+        <>
+          <Select
+            value={cbKind}
+            onValueChange={(v) => {
+              if (v === "goto") onChange({ ...button, callback: "goto:" });
+              else if (v === "tag_add") onChange({ ...button, callback: "tag:add:" });
+              else if (v === "tag_rm") onChange({ ...button, callback: "tag:rm:" });
+              else onChange({ ...button, callback: "" });
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="goto">↪ Перейти к флоу</SelectItem>
+              <SelectItem value="tag_add">+ установить тег</SelectItem>
+              <SelectItem value="tag_rm">− снять тег</SelectItem>
+              <SelectItem value="custom">кастомная строка</SelectItem>
+            </SelectContent>
+          </Select>
+          {cbKind === "tag_add" && (
+            <Input
+              value={callback.slice("tag:add:".length)}
+              onChange={(e) => onChange({ ...button, callback: `tag:add:${e.target.value}` })}
+              placeholder="имя тега"
+            />
+          )}
+          {cbKind === "tag_rm" && (
+            <Input
+              value={callback.slice("tag:rm:".length)}
+              onChange={(e) => onChange({ ...button, callback: `tag:rm:${e.target.value}` })}
+              placeholder="имя тега"
+            />
+          )}
+          {cbKind === "goto" && (
+            <Input
+              value={callback.slice("goto:".length)}
+              onChange={(e) => onChange({ ...button, callback: `goto:${e.target.value}` })}
+              placeholder="flowId"
+            />
+          )}
+          {cbKind === "custom" && (
+            <Input
+              value={callback}
+              onChange={(e) => onChange({ ...button, callback: e.target.value })}
+              placeholder="произвольный callback_data"
+            />
+          )}
+          <div>
+            <Label className="text-[11px] text-zinc-500">Перейти к ноде (опц.)</Label>
+            <NodePicker
+              value={button.goto}
+              onChange={(v) => onChange({ ...button, goto: v })}
+              options={nodeOptions}
+            />
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function ConditionEditor({
+  rules,
+  onChange,
+}: {
+  rules: Array<{ kind: "tag" | "variable" | "always"; params: Record<string, unknown>; next: string }>;
+  onChange: (
+    rules: Array<{
+      kind: "tag" | "variable" | "always";
+      params: Record<string, unknown>;
+      next: string;
+    }>
+  ) => void;
+}) {
+  const setRule = (idx: number, patch: Partial<(typeof rules)[number]>) => {
+    onChange(rules.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
+  };
+  const removeRule = (idx: number) => {
+    onChange(rules.filter((_, i) => i !== idx));
+  };
+  const addRule = () => {
+    onChange([
+      ...rules,
+      { kind: "tag", params: { op: "has", value: "" }, next: "" },
+    ]);
+  };
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <Label className="mb-0">Правила</Label>
+        <Button variant="outline" size="sm" onClick={addRule}>
+          <Plus className="h-3 w-3" /> правило
+        </Button>
+      </div>
+      <div className="text-[10px] text-zinc-500">
+        Связи правил тяните от handle’ов на правом крае ноды.
+      </div>
+      <div className="space-y-2">
+        {rules.map((rule, idx) => (
+          <div
+            key={idx}
+            className="border border-zinc-200 rounded p-2 space-y-2 bg-zinc-50/50"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-zinc-500">Правило {idx + 1}</span>
+              <Button variant="ghost" size="sm" onClick={() => removeRule(idx)}>
+                <Trash2 className="h-3 w-3 text-red-500" />
+              </Button>
+            </div>
+            <Select
+              value={rule.kind}
+              onValueChange={(v) =>
+                setRule(idx, {
+                  kind: v as "tag" | "variable" | "always",
+                  params: v === "always" ? {} : v === "tag" ? { op: "has", value: "" } : { key: "", op: "eq", value: "" },
+                })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="tag">Тег</SelectItem>
+                <SelectItem value="variable">Переменная</SelectItem>
+                <SelectItem value="always">Всегда</SelectItem>
+              </SelectContent>
+            </Select>
+            {rule.kind === "tag" && (
+              <div className="flex gap-2">
+                <Select
+                  value={String(rule.params.op ?? "has")}
+                  onValueChange={(v) =>
+                    setRule(idx, { params: { ...rule.params, op: v } })
+                  }
+                >
+                  <SelectTrigger className="w-28">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="has">есть</SelectItem>
+                    <SelectItem value="not_has">нет</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  className="flex-1"
+                  value={String(rule.params.value ?? "")}
+                  onChange={(e) =>
+                    setRule(idx, {
+                      params: { ...rule.params, value: e.target.value },
+                    })
+                  }
+                  placeholder="имя тега"
+                />
+              </div>
+            )}
+            {rule.kind === "variable" && (
+              <>
+                <Input
+                  value={String(rule.params.key ?? "")}
+                  onChange={(e) =>
+                    setRule(idx, {
+                      params: { ...rule.params, key: e.target.value },
+                    })
+                  }
+                  placeholder="ключ переменной"
+                />
+                <div className="flex gap-2">
+                  <Select
+                    value={String(rule.params.op ?? "eq")}
+                    onValueChange={(v) =>
+                      setRule(idx, { params: { ...rule.params, op: v } })
+                    }
+                  >
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="eq">=</SelectItem>
+                      <SelectItem value="ne">≠</SelectItem>
+                      <SelectItem value="contains">содержит</SelectItem>
+                      <SelectItem value="exists">существует</SelectItem>
+                      <SelectItem value="not_exists">не существует</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {(rule.params.op === "eq" ||
+                    rule.params.op === "ne" ||
+                    rule.params.op === "contains" ||
+                    !rule.params.op) && (
+                    <Input
+                      className="flex-1"
+                      value={String(rule.params.value ?? "")}
+                      onChange={(e) =>
+                        setRule(idx, {
+                          params: { ...rule.params, value: e.target.value },
+                        })
+                      }
+                      placeholder="значение"
+                    />
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        ))}
+        {rules.length === 0 && (
+          <div className="text-xs text-zinc-400 italic">Нет правил</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function HttpRequestEditor({
+  node,
+  onChange,
+}: {
+  node: Extract<FlowNode, { type: "http_request" }>;
+  onChange: (patch: Partial<Extract<FlowNode, { type: "http_request" }>>) => void;
+}) {
+  const headers = node.headers ?? {};
+  const headerEntries = Object.entries(headers);
+  const setHeader = (oldKey: string | null, key: string, value: string) => {
+    const next = { ...headers };
+    if (oldKey && oldKey !== key) delete next[oldKey];
+    if (key) next[key] = value;
+    onChange({ headers: next });
+  };
+  const removeHeader = (key: string) => {
+    const next = { ...headers };
+    delete next[key];
+    onChange({ headers: next });
+  };
+  const addHeader = () => {
+    onChange({ headers: { ...headers, "": "" } });
+  };
+
+  return (
+    <>
+      <div>
+        <Label>Метод</Label>
+        <Select
+          value={node.method}
+          onValueChange={(v) =>
+            onChange({ method: v as "GET" | "POST" | "PUT" | "PATCH" | "DELETE" })
+          }
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="GET">GET</SelectItem>
+            <SelectItem value="POST">POST</SelectItem>
+            <SelectItem value="PUT">PUT</SelectItem>
+            <SelectItem value="PATCH">PATCH</SelectItem>
+            <SelectItem value="DELETE">DELETE</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label>URL</Label>
+        <Input
+          value={node.url}
+          onChange={(e) => onChange({ url: e.target.value })}
+          placeholder="https://api.example.com/{{vars.x}}"
+        />
+        <div className="text-[10px] text-zinc-500 mt-1">
+          Шаблоны разрешены — <code>{`{{vars.x}}`}</code>.
+        </div>
+      </div>
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <Label className="mb-0">Заголовки</Label>
+          <Button variant="outline" size="sm" onClick={addHeader}>
+            <Plus className="h-3 w-3" />
+          </Button>
+        </div>
+        <div className="space-y-1">
+          {headerEntries.map(([k, v]) => (
+            <div key={k || "__empty__"} className="flex gap-1">
+              <Input
+                className="flex-1"
+                placeholder="Имя"
+                defaultValue={k}
+                onBlur={(e) => setHeader(k, e.target.value, v)}
+              />
+              <Input
+                className="flex-1"
+                placeholder="Значение"
+                defaultValue={v}
+                onBlur={(e) => setHeader(k, k, e.target.value)}
+              />
+              <Button variant="ghost" size="sm" onClick={() => removeHeader(k)}>
+                <Trash2 className="h-3 w-3 text-red-500" />
+              </Button>
+            </div>
+          ))}
+          {headerEntries.length === 0 && (
+            <div className="text-[11px] text-zinc-400 italic">нет</div>
+          )}
+        </div>
+      </div>
+      {node.method !== "GET" && (
+        <div>
+          <Label>Тело</Label>
+          <Textarea
+            rows={3}
+            value={node.body ?? ""}
+            onChange={(e) => onChange({ body: e.target.value })}
+            placeholder='{"key": "{{vars.x}}"}'
+          />
+        </div>
+      )}
+      <div>
+        <Label>Сохранить ответ в vars. (опц.)</Label>
+        <Input
+          value={node.saveAs ?? ""}
+          onChange={(e) => onChange({ saveAs: e.target.value || undefined })}
+          placeholder="например, api_response"
+        />
+      </div>
+      <div className="text-[11px] text-zinc-500 pt-2 border-t">
+        Связи «ok» и «error» — тяните рёбра от handle’ов на ноде.
+      </div>
+    </>
+  );
+}
+
+function GotoFlowEditor({
+  flowId,
+  flowList,
+  currentFlowId,
+  onChange,
+}: {
+  flowId: string;
+  flowList: FlowListItem[];
+  currentFlowId: string;
+  onChange: (id: string) => void;
+}) {
+  const options = flowList.filter((f) => f.id !== currentFlowId);
+  return (
+    <div>
+      <Label>Целевой сценарий</Label>
+      <Select value={flowId || "__none__"} onValueChange={(v) => onChange(v === "__none__" ? "" : v)}>
+        <SelectTrigger>
+          <SelectValue placeholder="— выберите —" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__none__">— не выбрано —</SelectItem>
+          {options.map((f) => (
+            <SelectItem key={f.id} value={f.id}>
+              {f.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {flowId && !options.find((f) => f.id === flowId) && (
+        <div className="text-[10px] text-amber-600 mt-1">
+          flowId «{flowId}» не найден в этом боте.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TriggersEditor({
+  triggers,
+  onChange,
+}: {
+  triggers: FlowTrigger[];
+  onChange: (next: FlowTrigger[]) => void;
+}) {
+  const setTrigger = (idx: number, t: FlowTrigger) => {
+    onChange(triggers.map((x, i) => (i === idx ? t : x)));
+  };
+  const removeTrigger = (idx: number) => onChange(triggers.filter((_, i) => i !== idx));
+  const addTrigger = (type: FlowTrigger["type"]) => {
+    let nt: FlowTrigger;
+    if (type === "command") nt = { type: "command", command: "start" };
+    else if (type === "keyword") nt = { type: "keyword", keywords: [""] };
+    else if (type === "regex") nt = { type: "regex", pattern: "" };
+    else nt = { type: "subscribed" };
+    onChange([...triggers, nt]);
+  };
+  return (
+    <div className="space-y-2">
+      {triggers.map((t, idx) => (
+        <div
+          key={idx}
+          className="border border-zinc-200 rounded p-2 space-y-2 bg-zinc-50/50"
+        >
+          <div className="flex items-center justify-between">
+            <Badge variant="secondary" className="font-mono text-[10px]">
+              {t.type}
+            </Badge>
+            <Button variant="ghost" size="sm" onClick={() => removeTrigger(idx)}>
+              <Trash2 className="h-3 w-3 text-red-500" />
+            </Button>
+          </div>
+          {t.type === "command" && (
+            <>
+              <div>
+                <Label className="text-[11px]">Команда (без /)</Label>
+                <Input
+                  value={t.command}
+                  onChange={(e) =>
+                    setTrigger(idx, { ...t, command: e.target.value.replace(/^\//, "") })
+                  }
+                />
+              </div>
+              <div>
+                <Label className="text-[11px]">Payloads (через запятую, опц.)</Label>
+                <Input
+                  value={(t.payloads ?? []).join(",")}
+                  onChange={(e) =>
+                    setTrigger(idx, {
+                      ...t,
+                      payloads: e.target.value
+                        ? e.target.value.split(",").map((s) => s.trim()).filter(Boolean)
+                        : undefined,
+                    })
+                  }
+                  placeholder="например, leadmagnet, promo2025"
+                />
+              </div>
+            </>
+          )}
+          {t.type === "keyword" && (
+            <div>
+              <Label className="text-[11px]">Ключевые слова (через запятую)</Label>
+              <Input
+                value={t.keywords.join(",")}
+                onChange={(e) =>
+                  setTrigger(idx, {
+                    ...t,
+                    keywords: e.target.value
+                      .split(",")
+                      .map((s) => s.trim())
+                      .filter(Boolean),
+                  })
+                }
+                placeholder="хочу гайд, получить"
+              />
+            </div>
+          )}
+          {t.type === "regex" && (
+            <div>
+              <Label className="text-[11px]">RegExp (i)</Label>
+              <Input
+                value={t.pattern}
+                onChange={(e) => setTrigger(idx, { ...t, pattern: e.target.value })}
+                placeholder="^привет"
+              />
+            </div>
+          )}
+          {t.type === "subscribed" && (
+            <div className="text-[11px] text-zinc-500">
+              При первом /start (новом подписчике).
+            </div>
+          )}
+        </div>
+      ))}
+      <div className="flex gap-1 flex-wrap pt-2 border-t">
+        <Button size="sm" variant="outline" onClick={() => addTrigger("command")}>
+          + /команда
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => addTrigger("keyword")}>
+          + слово
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => addTrigger("regex")}>
+          + regex
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => addTrigger("subscribed")}>
+          + subscribed
+        </Button>
+      </div>
+    </div>
+  );
+}
