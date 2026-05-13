@@ -45,7 +45,7 @@ function fmtDateTime(d: Date | null | undefined): string {
 
 export async function GET(
   request: NextRequest,
-  { params: paramsP }: { params: Promise<{ courseId: string }> }
+  { params: paramsP }: { params: Promise<{ id: string }> }
 ) {
   const params = await paramsP;
   return withAuth(
@@ -55,7 +55,7 @@ export async function GET(
       const detailed = url.searchParams.get("detailed") === "true";
 
       const course = await db.course.findUnique({
-        where: { id: params.courseId },
+        where: { id: params.id },
         select: {
           id: true,
           title: true,
@@ -94,7 +94,7 @@ export async function GET(
       const lessonIds = lessonsWithPosition.map((l) => l.id);
 
       const enrollments = await db.enrollment.findMany({
-        where: { courseId: params.courseId },
+        where: { courseId: params.id },
         orderBy: { createdAt: "desc" },
         select: {
           userId: true,
