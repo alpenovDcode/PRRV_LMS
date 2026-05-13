@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
-import { SubscriberDrawer } from "@/components/admin/tg/subscriber-drawer";
 
 interface Subscriber {
   id: string;
@@ -26,11 +25,11 @@ interface Subscriber {
 
 export default function SubscribersPage() {
   const params = useParams<{ botId: string }>();
+  const router = useRouter();
   const botId = params.botId;
   const [q, setQ] = useState("");
   const [tag, setTag] = useState("");
   const [page, setPage] = useState(1);
-  const [openId, setOpenId] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["tg-subs", botId, q, tag, page],
@@ -98,7 +97,7 @@ export default function SubscribersPage() {
                   <tr
                     key={s.id}
                     className="border-b hover:bg-muted/30 cursor-pointer"
-                    onClick={() => setOpenId(s.id)}
+                    onClick={() => router.push(`/admin/bots/${botId}/subscribers/${s.id}`)}
                   >
                     <td className="p-3">
                       {[s.firstName, s.lastName].filter(Boolean).join(" ") || s.chatId}
@@ -154,14 +153,6 @@ export default function SubscribersPage() {
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
-      )}
-
-      {openId && (
-        <SubscriberDrawer
-          botId={botId}
-          subscriberId={openId}
-          onClose={() => setOpenId(null)}
-        />
       )}
     </div>
   );
