@@ -26,6 +26,8 @@ export async function GET(
           tokenPrefix: true,
           webhookUrl: true,
           defaultStartFlowId: true,
+          adminChatIds: true,
+          timezone: true,
           createdAt: true,
         },
       });
@@ -49,6 +51,10 @@ const patchSchema = z.object({
   title: z.string().min(1).max(120).optional(),
   isActive: z.boolean().optional(),
   defaultStartFlowId: z.string().nullable().optional(),
+  // Telegram chat_ids of admins whose inbound media gets auto-saved
+  // to the media library. We store as strings since chat_id is int64.
+  adminChatIds: z.array(z.string().regex(/^-?\d+$/)).max(10).optional(),
+  timezone: z.string().max(64).nullable().optional(),
   refreshWebhook: z.boolean().optional(),
 });
 

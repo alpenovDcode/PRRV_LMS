@@ -25,6 +25,14 @@ export interface SendMessageOptions {
 
 export interface SendPhotoOptions extends SendMessageOptions {
   caption?: string;
+  disable_notification?: boolean;
+}
+
+export interface SendMediaOptions extends SendPhotoOptions {
+  // Width/height help Telegram pick the right preview. Optional.
+  width?: number;
+  height?: number;
+  duration?: number;
 }
 
 export interface TgApiResult<T = unknown> {
@@ -89,16 +97,189 @@ export function tgSendMessage(
 export function tgSendPhoto(
   encryptedToken: string,
   chatId: string | number,
-  photoUrl: string,
+  photoUrlOrFileId: string,
   opts: SendPhotoOptions = {}
 ) {
   return callApi<TgMessageResult>(encryptedToken, "sendPhoto", {
     chat_id: chatId,
-    photo: photoUrl,
+    photo: photoUrlOrFileId,
     caption: opts.caption,
     parse_mode: opts.parse_mode ?? "HTML",
     reply_markup: opts.reply_markup,
+    disable_notification: opts.disable_notification,
   });
+}
+
+// -- New in Iter 2: full media family.
+// Each helper accepts either a URL (for stock content) or a file_id
+// from the media library (preferred — instant, no upload, no size cap).
+
+export function tgSendVideo(
+  encryptedToken: string,
+  chatId: string | number,
+  videoUrlOrFileId: string,
+  opts: SendMediaOptions = {}
+) {
+  return callApi<TgMessageResult>(encryptedToken, "sendVideo", {
+    chat_id: chatId,
+    video: videoUrlOrFileId,
+    caption: opts.caption,
+    parse_mode: opts.parse_mode ?? "HTML",
+    reply_markup: opts.reply_markup,
+    width: opts.width,
+    height: opts.height,
+    duration: opts.duration,
+    disable_notification: opts.disable_notification,
+  });
+}
+
+// Short round video ("кружочек"). Telegram strips caption and most
+// formatting for these — that's a Telegram API limitation.
+export function tgSendVideoNote(
+  encryptedToken: string,
+  chatId: string | number,
+  videoNoteUrlOrFileId: string,
+  opts: SendMediaOptions = {}
+) {
+  return callApi<TgMessageResult>(encryptedToken, "sendVideoNote", {
+    chat_id: chatId,
+    video_note: videoNoteUrlOrFileId,
+    reply_markup: opts.reply_markup,
+    duration: opts.duration,
+    disable_notification: opts.disable_notification,
+  });
+}
+
+export function tgSendVoice(
+  encryptedToken: string,
+  chatId: string | number,
+  voiceUrlOrFileId: string,
+  opts: SendMediaOptions = {}
+) {
+  return callApi<TgMessageResult>(encryptedToken, "sendVoice", {
+    chat_id: chatId,
+    voice: voiceUrlOrFileId,
+    caption: opts.caption,
+    parse_mode: opts.parse_mode ?? "HTML",
+    reply_markup: opts.reply_markup,
+    duration: opts.duration,
+    disable_notification: opts.disable_notification,
+  });
+}
+
+export function tgSendAudio(
+  encryptedToken: string,
+  chatId: string | number,
+  audioUrlOrFileId: string,
+  opts: SendMediaOptions & { title?: string; performer?: string } = {}
+) {
+  return callApi<TgMessageResult>(encryptedToken, "sendAudio", {
+    chat_id: chatId,
+    audio: audioUrlOrFileId,
+    caption: opts.caption,
+    parse_mode: opts.parse_mode ?? "HTML",
+    reply_markup: opts.reply_markup,
+    duration: opts.duration,
+    title: opts.title,
+    performer: opts.performer,
+    disable_notification: opts.disable_notification,
+  });
+}
+
+export function tgSendDocument(
+  encryptedToken: string,
+  chatId: string | number,
+  documentUrlOrFileId: string,
+  opts: SendMediaOptions = {}
+) {
+  return callApi<TgMessageResult>(encryptedToken, "sendDocument", {
+    chat_id: chatId,
+    document: documentUrlOrFileId,
+    caption: opts.caption,
+    parse_mode: opts.parse_mode ?? "HTML",
+    reply_markup: opts.reply_markup,
+    disable_notification: opts.disable_notification,
+  });
+}
+
+// Animation = GIF/MP4 looped. Useful for product demos and reactions.
+export function tgSendAnimation(
+  encryptedToken: string,
+  chatId: string | number,
+  animationUrlOrFileId: string,
+  opts: SendMediaOptions = {}
+) {
+  return callApi<TgMessageResult>(encryptedToken, "sendAnimation", {
+    chat_id: chatId,
+    animation: animationUrlOrFileId,
+    caption: opts.caption,
+    parse_mode: opts.parse_mode ?? "HTML",
+    reply_markup: opts.reply_markup,
+    width: opts.width,
+    height: opts.height,
+    duration: opts.duration,
+    disable_notification: opts.disable_notification,
+  });
+}
+
+// Media group / album. Telegram returns an array of Messages (one per
+// item). Only "photo" and "video" can be mixed in a single album per
+// Telegram's rules; the sender enforces this before calling here.
+export interface MediaGroupItem {
+  type: "photo" | "video" | "document" | "audio";
+  media: string; // url or file_id
+  caption?: string; // only the FIRST item's caption is shown by Telegram
+  parse_mode?: "HTML" | "MarkdownV2";
+}
+
+export function tgSendMediaGroup(
+  encryptedToken: string,
+  chatId: string | number,
+  items: MediaGroupItem[],
+  opts: { disable_notification?: boolean } = {}
+) {
+  return callApi<TgMessageResult[]>(encryptedToken, "sendMediaGroup", {
+    chat_id: chatId,
+    media: items,
+    disable_notification: opts.disable_notification,
+  });
+}
+
+// "..is typing" indicator. Lasts ~5s — call right before a long-running
+// node (HTTP request, AI reply) so the UX feels alive.
+export type ChatAction =
+  | "typing"
+  | "upload_photo"
+  | "record_video"
+  | "upload_video"
+  | "record_voice"
+  | "upload_voice"
+  | "upload_document"
+  | "find_location"
+  | "record_video_note"
+  | "upload_video_note";
+
+export function tgSendChatAction(
+  encryptedToken: string,
+  chatId: string | number,
+  action: ChatAction,
+) {
+  return callApi<true>(encryptedToken, "sendChatAction", {
+    chat_id: chatId,
+    action,
+  });
+}
+
+// Looks up file metadata by file_id. Used by the media library when an
+// admin wants to refresh a stale preview thumb.
+export interface TgFileInfo {
+  file_id: string;
+  file_unique_id: string;
+  file_size?: number;
+  file_path?: string;
+}
+export function tgGetFile(encryptedToken: string, fileId: string) {
+  return callApi<TgFileInfo>(encryptedToken, "getFile", { file_id: fileId });
 }
 
 export function tgAnswerCallbackQuery(

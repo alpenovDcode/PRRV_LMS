@@ -17,6 +17,7 @@ import {
   deliverButtonClickToWaitingRun,
 } from "./flow-engine";
 import { tgAnswerCallbackQuery } from "./api";
+import { captureAdminMedia } from "./media-library";
 import type { TgBot, TgSubscriber } from "@prisma/client";
 
 // Minimal types — we only access fields we need.
@@ -32,17 +33,63 @@ interface TgChat {
   id: number;
   type: string;
 }
+// Telegram update objects (Bot API 7.x). We only declare fields the
+// inbound pipeline + media-library auto-capture touch.
+interface PhotoSize {
+  file_id: string;
+  file_unique_id: string;
+  width: number;
+  height: number;
+  file_size?: number;
+}
+interface FileBase {
+  file_id: string;
+  file_unique_id: string;
+  file_size?: number;
+}
+interface VideoLike extends FileBase {
+  width?: number;
+  height?: number;
+  duration?: number;
+  mime_type?: string;
+  file_name?: string;
+  thumbnail?: PhotoSize;
+}
+interface VoiceLike extends FileBase {
+  duration?: number;
+  mime_type?: string;
+}
+interface DocumentLike extends FileBase {
+  mime_type?: string;
+  file_name?: string;
+  thumbnail?: PhotoSize;
+}
+interface AudioLike extends FileBase {
+  duration?: number;
+  mime_type?: string;
+  file_name?: string;
+  title?: string;
+  performer?: string;
+}
+interface VideoNoteLike extends FileBase {
+  duration?: number;
+  thumbnail?: PhotoSize;
+}
+
 interface TgMessage {
   message_id: number;
   from?: TgUser;
   chat: TgChat;
   date: number;
   text?: string;
-  photo?: Array<{ file_id: string }>;
-  voice?: { file_id: string };
-  video?: { file_id: string };
-  document?: { file_id: string; mime_type?: string };
   caption?: string;
+  photo?: PhotoSize[];
+  voice?: VoiceLike;
+  video?: VideoLike;
+  video_note?: VideoNoteLike;
+  document?: DocumentLike;
+  audio?: AudioLike;
+  animation?: VideoLike;
 }
 interface TgCallbackQuery {
   id: string;
@@ -445,6 +492,25 @@ export async function handleUpdate(bot: TgBot, update: TgUpdate): Promise<void> 
     user: msg.from,
   });
   await recordIncomingMessage({ bot, subscriber, msg });
+
+  // Auto-capture media from whitelisted admins into the library and
+  // SHORT-CIRCUIT the rest of the inbound pipeline — we don't want
+  // admin's test sends to fire flows or get matched against triggers.
+  if (
+    bot.adminChatIds.length > 0 &&
+    bot.adminChatIds.includes(String(msg.chat.id))
+  ) {
+    const cap = await captureAdminMedia({
+      botId: bot.id,
+      encryptedToken: bot.tokenEncrypted,
+      adminChatId: String(msg.chat.id),
+      message: msg,
+      ackInChat: true,
+    });
+    if (cap.captured) return;
+    // Non-media admin messages fall through to normal handling so
+    // admins can still test /start flows from their own chat.
+  }
 
   const text = msg.text ?? msg.caption ?? "";
   const startCmd = parseStartCommand(text);

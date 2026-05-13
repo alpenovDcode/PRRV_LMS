@@ -1,13 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { AlertTriangle, CheckCircle2, RefreshCw, Trash2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, RefreshCw, Trash2, Plus } from "lucide-react";
 
 interface BotDetail {
   bot: {
@@ -19,6 +21,8 @@ interface BotDetail {
     webhookUrl: string | null;
     tokenPrefix: string;
     defaultStartFlowId: string | null;
+    adminChatIds: string[];
+    timezone: string | null;
   };
   webhookInfo: {
     url: string;
@@ -190,6 +194,8 @@ export default function BotOverviewPage() {
         </CardContent>
       </Card>
 
+      {data?.bot && <MediaCaptureSettings bot={data.bot} botId={botId} />}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Последние события</CardTitle>
@@ -219,6 +225,108 @@ function StatCard({ label, value }: { label: string; value: number | string }) {
       <CardContent className="py-4">
         <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
         <div className="mt-1 text-2xl font-semibold">{value}</div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Auto-capture settings — admin chat_ids whose media inbound is saved
+// into the bot's media library. This is the bot-platform equivalent of
+// SaleBot's "получи file_id, отправив боту медиа" workflow.
+function MediaCaptureSettings({
+  bot,
+  botId,
+}: {
+  bot: BotDetail["bot"];
+  botId: string;
+}) {
+  const queryClient = useQueryClient();
+  const [draft, setDraft] = useState("");
+  const save = useMutation({
+    mutationFn: async (adminChatIds: string[]) =>
+      apiClient.patch(`/admin/tg/bots/${botId}`, { adminChatIds }),
+    onSuccess: () => {
+      toast.success("Сохранено");
+      queryClient.invalidateQueries({ queryKey: ["tg-bot-detail", botId] });
+    },
+    onError: (e: any) =>
+      toast.error(e?.response?.data?.error?.message || "Ошибка"),
+  });
+  const ids = bot.adminChatIds;
+
+  const add = () => {
+    const v = draft.trim();
+    if (!v || !/^-?\d+$/.test(v)) {
+      toast.error("Только цифры, можно с минусом для каналов/чатов");
+      return;
+    }
+    if (ids.includes(v)) {
+      toast.error("Уже в списке");
+      return;
+    }
+    save.mutate([...ids, v]);
+    setDraft("");
+  };
+  const remove = (id: string) => save.mutate(ids.filter((x) => x !== id));
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Авто-захват медиа</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        <p className="text-muted-foreground">
+          Когда любой админ из этого списка отправляет медиа в этот бот,
+          оно автоматически сохраняется в библиотеку с file_id и становится
+          доступно в редакторе сообщений. Свой chat_id можно узнать у{" "}
+          <a
+            href={`https://t.me/${bot.username}`}
+            target="_blank"
+            rel="noreferrer"
+            className="underline"
+          >
+            @{bot.username}
+          </a>{" "}
+          или у любого служебного бота типа <code>@userinfobot</code>.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {ids.length === 0 ? (
+            <span className="text-muted-foreground italic text-xs">
+              Список пуст — авто-захват выключен.
+            </span>
+          ) : (
+            ids.map((id) => (
+              <Badge
+                key={id}
+                variant="secondary"
+                className="font-mono pr-1 flex items-center gap-1"
+              >
+                {id}
+                <button
+                  type="button"
+                  onClick={() => remove(id)}
+                  className="text-zinc-500 hover:text-red-600"
+                >
+                  ×
+                </button>
+              </Badge>
+            ))
+          )}
+        </div>
+        <div className="flex gap-2">
+          <Input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="chat_id, например 73704021"
+            className="font-mono"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") add();
+            }}
+          />
+          <Button onClick={add} disabled={save.isPending}>
+            <Plus className="mr-1 h-3 w-3" /> Добавить
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

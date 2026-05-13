@@ -764,6 +764,10 @@ model TgBot {
   // IANA tz; used by date helpers (current_date, weekday, etc.).
   // null = UTC. Default Moscow.
   timezone        String?  @default("Europe/Moscow")
+  // Telegram chat_ids of admins whose inbound media is auto-captured
+  // into the media library. Empty list = no auto-capture. Set this on
+  // bot creation in the admin UI.
+  adminChatIds    String[] @default([]) @map("admin_chat_ids")
   // Aggregate stats kept in sync by tg core for fast dashboards.
   subscriberCount Int      @default(0) @map("subscriber_count")
   createdAt       DateTime @default(now()) @map("created_at")
@@ -775,6 +779,7 @@ model TgBot {
   broadcasts      TgBroadcast[]
   trackingLinks   TgTrackingLink[]
   events          TgEvent[]
+  mediaFiles      TgMediaFile[]
 
   @@index([username])
   @@map("tg_bots")
@@ -1019,4 +1024,53 @@ model TgEvent {
   @@index([botId, type, occurredAt])
   @@index([subscriberId, occurredAt])
   @@map("tg_events")
+}
+
+// Cached Telegram file_ids. Populated automatically when an admin
+// (whitelisted via TgBot.adminChatIds) sends a media message to the
+// bot — see lib/tg/inbound.ts. The same file_id can then be reused
+// across messages and broadcasts without re-uploading, which is the
+// only practical way to send large videos (>50MB upload cap on Bot API).
+//
+// `kind` mirrors the Telegram media discriminator we send back via
+// sendPhoto / sendVideo / sendVoice / sendVideoNote / sendDocument /
+// sendAudio / sendAnimation.
+model TgMediaFile {
+  id              String   @id @default(uuid())
+  botId           String   @map("bot_id")
+  // Stable Telegram file_id (valid for the bot that captured it).
+  fileId          String   @map("file_id") @db.Text
+  // Optional file_unique_id — same across all bots, used for dedup.
+  fileUniqueId    String?  @map("file_unique_id")
+  // Kind discriminator: photo | video | voice | video_note | document | audio | animation
+  kind            String
+  // Mime type when Telegram gives it (documents / audio / voice).
+  mimeType        String?  @map("mime_type")
+  // Bytes (Telegram's reported size; null for very small payloads).
+  fileSize        Int?     @map("file_size")
+  // For photos: pick the largest variant's dimensions.
+  width           Int?
+  height          Int?
+  duration        Int?
+  // Human label assigned in the admin UI. Defaults to original filename
+  // for documents, or "voice 2026-05-13 14:32" for sender-recorded media.
+  title           String?
+  // Original filename when Telegram provides it (document/video/audio).
+  fileName        String?  @map("file_name")
+  // Cached preview thumb file_id, when available. Used for picker UI.
+  thumbFileId     String?  @map("thumb_file_id")
+  // Where it came from. 'inbound' = admin sent it to the bot. 'upload' =
+  // uploaded directly through the admin panel and then echoed back via
+  // sendDocument-self to get a file_id (deferred to future iter).
+  source          String   @default("inbound")
+  // Telegram chat_id of the admin who captured it — for audit.
+  capturedByChatId String? @map("captured_by_chat_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  lastUsedAt      DateTime? @map("last_used_at")
+
+  bot             TgBot    @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@index([botId, kind, createdAt])
+  @@index([botId, fileUniqueId])
+  @@map("tg_media_files")
 }
