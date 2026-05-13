@@ -49,6 +49,13 @@ export interface EditorEdge {
   target: string;
   sourceHandle?: string | null;
   label?: string;
+  // Visual hint for the renderer:
+  //   "solid" = follow-up after explicit user action (default)
+  //   "dashed" = time-based / passive (delay, wait_reply.timeout)
+  // Mirrors SaleBot's solid/dashed convention so funnels read at a glance.
+  style?: "solid" | "dashed";
+  // Tailwind colour token applied to the edge. Empty = default.
+  color?: string;
 }
 
 export const TRIGGER_NODE_ID = "__trigger";
@@ -97,16 +104,31 @@ export function graphToReactFlow(
     // Outbound edges per node-type.
     switch (node.type) {
       case "message":
-      case "delay":
       case "add_tag":
       case "remove_tag":
+      case "add_to_list":
+      case "remove_from_list":
       case "set_variable":
       case "goto_flow":
+      case "note":
         if (node.next) {
           edges.push({
             id: `e-${node.id}-${node.next}`,
             source: node.id,
             target: node.next,
+            style: "solid",
+          });
+        }
+        break;
+      case "delay":
+        // Delays are passive — render the outbound edge as dashed so the
+        // funnel diagram reads "this is a timer, not a user action".
+        if (node.next) {
+          edges.push({
+            id: `e-${node.id}-${node.next}`,
+            source: node.id,
+            target: node.next,
+            style: "dashed",
           });
         }
         break;
@@ -118,6 +140,7 @@ export function graphToReactFlow(
             sourceHandle: "reply",
             target: node.next,
             label: "ответ",
+            style: "solid",
           });
         }
         if (node.timeoutNext) {
@@ -127,6 +150,8 @@ export function graphToReactFlow(
             sourceHandle: "timeout",
             target: node.timeoutNext,
             label: "таймаут",
+            // Timeout fires after a pure wait — dashed.
+            style: "dashed",
           });
         }
         break;

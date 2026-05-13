@@ -76,6 +76,19 @@ interface VideoNoteLike extends FileBase {
   thumbnail?: PhotoSize;
 }
 
+interface TgContact {
+  phone_number: string;
+  first_name?: string;
+  last_name?: string;
+  user_id?: number;
+}
+interface TgLocation {
+  latitude: number;
+  longitude: number;
+  // Live-location fields we ignore for now.
+  horizontal_accuracy?: number;
+}
+
 interface TgMessage {
   message_id: number;
   from?: TgUser;
@@ -90,6 +103,8 @@ interface TgMessage {
   document?: DocumentLike;
   audio?: AudioLike;
   animation?: VideoLike;
+  contact?: TgContact;
+  location?: TgLocation;
 }
 interface TgCallbackQuery {
   id: string;
@@ -512,7 +527,54 @@ export async function handleUpdate(bot: TgBot, update: TgUpdate): Promise<void> 
     // admins can still test /start flows from their own chat.
   }
 
-  const text = msg.text ?? msg.caption ?? "";
+  // Auto-capture contact / location into client.* variables and let
+  // any wait_reply node treat the phone/coords as the reply text.
+  // Conversion to subscriber-friendly text happens here so the rest
+  // of the pipeline doesn't need to know whether the input was raw.
+  let extractedText: string | null = null;
+  if (msg.contact?.phone_number) {
+    extractedText = msg.contact.phone_number;
+    await db.tgSubscriber.update({
+      where: { id: subscriber.id },
+      data: {
+        variables: {
+          ...((subscriber.variables as Record<string, unknown>) ?? {}),
+          phone: msg.contact.phone_number,
+          phone_first_name: msg.contact.first_name,
+          phone_last_name: msg.contact.last_name,
+        },
+      },
+    });
+    trackEvent({
+      type: "subscriber.contact_received",
+      botId: bot.id,
+      subscriberId: subscriber.id,
+      properties: { phone: msg.contact.phone_number },
+    }).catch(() => {});
+  } else if (msg.location) {
+    extractedText = `${msg.location.latitude},${msg.location.longitude}`;
+    await db.tgSubscriber.update({
+      where: { id: subscriber.id },
+      data: {
+        variables: {
+          ...((subscriber.variables as Record<string, unknown>) ?? {}),
+          location_lat: msg.location.latitude,
+          location_lon: msg.location.longitude,
+        },
+      },
+    });
+    trackEvent({
+      type: "subscriber.location_received",
+      botId: bot.id,
+      subscriberId: subscriber.id,
+      properties: {
+        latitude: msg.location.latitude,
+        longitude: msg.location.longitude,
+      },
+    }).catch(() => {});
+  }
+
+  const text = msg.text ?? msg.caption ?? extractedText ?? "";
   const startCmd = parseStartCommand(text);
   const cmd = startCmd.isStart ? { command: "start", rest: startCmd.payload ?? "" } : parseCommand(text);
   const commandPayload = startCmd.isStart ? startCmd.payload : cmd?.rest || undefined;

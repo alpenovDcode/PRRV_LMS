@@ -17,11 +17,15 @@ export const buttonSchema = z.object({
   // Optional: tag to apply / remove when clicked (handy for tag-based flows).
   addTag: z.string().optional(),
   removeTag: z.string().optional(),
-  // Iter 1: request_contact / request_location are deferred to Iter 3.
-  // We accept the field shape so saved flows that experiment with it
-  // don't get rejected by zod, but the engine ignores them for now.
+  // Reply-keyboard kinds — wired in Iter 3. When keyboardMode==="reply"
+  // on the parent payload, these become Telegram's KeyboardButton with
+  // request_contact / request_location set.
   requestContact: z.boolean().optional(),
   requestLocation: z.boolean().optional(),
+  // Opt-out of redirect-tracking for this URL button. Default: tracked.
+  // Disable for buttons pointing to public bots/channels where we don't
+  // care about per-user clicks.
+  trackClicks: z.boolean().optional(),
 });
 export type FlowButton = z.infer<typeof buttonSchema>;
 
@@ -70,6 +74,15 @@ export const messagePayloadSchema = z.object({
   attachments: z.array(mediaAttachmentSchema).max(10).optional(),
   // Buttons are arranged in rows.
   buttonRows: z.array(z.array(buttonSchema)).optional(),
+  // "inline" (default) = buttons attached to this specific message.
+  // "reply" = a persistent keyboard under the input bar. Use reply for
+  // contact/location collection or for sticky menus; inline for
+  // one-off CTAs and callback-driven flows.
+  // "remove" = clear any active reply keyboard (sends a one-shot
+  // ReplyKeyboardRemove markup).
+  keyboardMode: z.enum(["inline", "reply", "remove"]).optional(),
+  // For keyboardMode=reply: collapse the keyboard after first use.
+  oneTimeKeyboard: z.boolean().optional(),
   // Parse mode override (defaults to HTML).
   parseMode: z.enum(["HTML", "MarkdownV2"]).optional(),
   // Disable web preview override.

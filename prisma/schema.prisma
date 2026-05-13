@@ -782,6 +782,7 @@ model TgBot {
   mediaFiles      TgMediaFile[]
   lists           TgList[]
   customFields    TgCustomField[]
+  redirectLinks   TgRedirectLink[]
 
   @@index([username])
   @@map("tg_bots")
@@ -1120,6 +1121,40 @@ model TgCustomField {
   @@unique([botId, key])
   @@index([botId, sortOrder])
   @@map("tg_custom_fields")
+}
+
+// Short redirect URLs used to track outbound clicks. When a flow
+// button contains a URL, the engine can optionally rewrite it to
+// /r/<slug> — clicks land here, get logged with subscriberId, and
+// then 302 to the real target. Lets condition nodes branch on
+// "did this subscriber click the link?" — a SaleBot staple for
+// video-delivery and reminder-with-link funnels.
+model TgRedirectLink {
+  id              String   @id @default(uuid())
+  botId           String   @map("bot_id")
+  // URL-safe random slug (10 chars). Globally unique to avoid leaking
+  // bot identity in the URL.
+  slug            String   @unique
+  // Where to send the user after logging the click.
+  targetUrl       String   @map("target_url") @db.Text
+  // Optional flow/node the link was generated from (for analytics).
+  sourceFlowId    String?  @map("source_flow_id")
+  sourceNodeId    String?  @map("source_node_id")
+  // Subscriber-specific links: when set, only this subscriber's
+  // clicks are logged for this slug. Used by flows that want per-user
+  // click attribution. Pass `?s=` query param at click time as a
+  // back-up identifier in case the cookie / browser session is bad.
+  subscriberId    String?  @map("subscriber_id")
+  clickCount      Int      @default(0) @map("click_count")
+  lastClickAt     DateTime? @map("last_click_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  expiresAt       DateTime? @map("expires_at")
+
+  bot             TgBot    @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@index([botId, createdAt])
+  @@index([subscriberId])
+  @@map("tg_redirect_links")
 }
 
 // Cached Telegram file_ids. Populated automatically when an admin

@@ -52,6 +52,7 @@ import {
   removeSubscriberFromList,
   fireTagTriggers,
 } from "./lists";
+import { rewriteUrlButtons } from "./redirect-tracking";
 import type { Prisma, TgBot, TgSubscriber, TgFlow, TgFlowRun } from "@prisma/client";
 
 interface RunBundle {
@@ -370,12 +371,21 @@ async function executeNode(
       return { done: false, nextNodeId: node.next };
     case "message": {
       const ctx = buildCtx(bundle);
+      // Rewrite URL-buttons to /r/<slug> so we can attribute clicks.
+      // Buttons w/o url, or with trackClicks=false, pass through.
+      const payload = await rewriteUrlButtons({
+        payload: node.payload,
+        botId: bot.id,
+        subscriberId: subscriber.id,
+        flowId: bundle.flow.id,
+        nodeId: node.id,
+      });
       const res = await sendBotMessage({
         botId: bot.id,
         encryptedToken: bot.tokenEncrypted,
         subscriberId: subscriber.id,
         chatId: subscriber.chatId,
-        payload: node.payload,
+        payload,
         renderCtx: ctx,
         sourceType: "flow",
         sourceId: `${bundle.flow.id}:${node.id}`,

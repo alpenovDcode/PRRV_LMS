@@ -16,14 +16,46 @@ export interface InlineKeyboardButton {
 
 export type InlineKeyboard = InlineKeyboardButton[][];
 
+// Reply keyboards live UNDER the input box and don't carry callbacks —
+// pressing one sends its text as a regular message. The two special
+// kinds we support (request_contact / request_location) tell Telegram
+// to capture and forward the user's phone or geolocation.
+export interface ReplyKeyboardButton {
+  text: string;
+  request_contact?: boolean;
+  request_location?: boolean;
+}
+export type ReplyKeyboard = ReplyKeyboardButton[][];
+
+export interface ReplyKeyboardMarkup {
+  keyboard: ReplyKeyboard;
+  resize_keyboard?: boolean;
+  one_time_keyboard?: boolean;
+  selective?: boolean;
+}
+
+export interface ReplyKeyboardRemove {
+  remove_keyboard: true;
+  selective?: boolean;
+}
+
+// Union of all reply_markup shapes Telegram accepts.
+export type ReplyMarkup =
+  | { inline_keyboard: InlineKeyboard }
+  | ReplyKeyboardMarkup
+  | ReplyKeyboardRemove;
+
 export interface SendMessageOptions {
   parse_mode?: "HTML" | "MarkdownV2";
   disable_web_page_preview?: boolean;
-  reply_markup?: { inline_keyboard: InlineKeyboard };
+  reply_markup?: ReplyMarkup;
   reply_to_message_id?: number;
 }
 
-export interface SendPhotoOptions extends SendMessageOptions {
+export interface SendPhotoOptions {
+  parse_mode?: "HTML" | "MarkdownV2";
+  reply_markup?: ReplyMarkup;
+  reply_to_message_id?: number;
   caption?: string;
   disable_notification?: boolean;
 }

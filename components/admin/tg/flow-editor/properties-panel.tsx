@@ -678,10 +678,48 @@ function MessageEditor({
       <div className="border-t pt-3">
         <div className="flex items-center justify-between mb-2">
           <Label className="mb-0">Кнопки</Label>
-          <Button variant="outline" size="sm" onClick={addRow}>
-            <Plus className="h-3 w-3" /> ряд
-          </Button>
+          <div className="flex items-center gap-2">
+            <Select
+              value={payload.keyboardMode ?? "inline"}
+              onValueChange={(v) =>
+                onChange({
+                  ...payload,
+                  keyboardMode: v as "inline" | "reply" | "remove",
+                })
+              }
+            >
+              <SelectTrigger className="h-7 w-32 text-[11px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="inline">Inline</SelectItem>
+                <SelectItem value="reply">Reply (клавиатура)</SelectItem>
+                <SelectItem value="remove">Снять клавиатуру</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="sm" onClick={addRow}>
+              <Plus className="h-3 w-3" /> ряд
+            </Button>
+          </div>
         </div>
+        {payload.keyboardMode === "reply" && (
+          <div className="flex items-center gap-2 mb-2">
+            <input
+              id={`onetime-${payload.text.slice(0, 8)}`}
+              type="checkbox"
+              checked={Boolean(payload.oneTimeKeyboard)}
+              onChange={(e) =>
+                onChange({ ...payload, oneTimeKeyboard: e.target.checked })
+              }
+            />
+            <Label
+              htmlFor={`onetime-${payload.text.slice(0, 8)}`}
+              className="mb-0 text-[11px] font-normal"
+            >
+              Скрыть клавиатуру после первого нажатия
+            </Label>
+          </div>
+        )}
         <div className="space-y-3">
           {buttonRows.map((row, rowIdx) => (
             <div
@@ -718,7 +756,7 @@ function MessageEditor({
   );
 }
 
-type ButtonKind = "url" | "callback";
+type ButtonKind = "url" | "callback" | "contact" | "location";
 
 function ButtonEditor({
   button,
@@ -731,7 +769,13 @@ function ButtonEditor({
   onRemove: () => void;
   nodeOptions: NodeOption[];
 }) {
-  const kind: ButtonKind = button.url ? "url" : "callback";
+  const kind: ButtonKind = button.requestContact
+    ? "contact"
+    : button.requestLocation
+    ? "location"
+    : button.url
+    ? "url"
+    : "callback";
   // Callback shortcuts.
   const callback = button.callback ?? "";
   const cbKind: "goto" | "tag_add" | "tag_rm" | "custom" = callback.startsWith("goto:")
@@ -758,25 +802,55 @@ function ButtonEditor({
       <Select
         value={kind}
         onValueChange={(v) => {
-          if (v === "url")
-            onChange({ ...button, url: button.url ?? "https://", callback: undefined });
-          else onChange({ ...button, url: undefined, callback: button.callback ?? "" });
+          // Mutually exclusive — clear other kind-fields when switching.
+          const base = {
+            text: button.text,
+            url: undefined as string | undefined,
+            callback: undefined as string | undefined,
+            requestContact: undefined as boolean | undefined,
+            requestLocation: undefined as boolean | undefined,
+          };
+          if (v === "url") onChange({ ...base, url: button.url ?? "https://" });
+          else if (v === "callback") onChange({ ...base, callback: button.callback ?? "" });
+          else if (v === "contact") onChange({ ...base, requestContact: true });
+          else if (v === "location") onChange({ ...base, requestLocation: true });
         }}
       >
         <SelectTrigger>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="url">URL-кнопка</SelectItem>
-          <SelectItem value="callback">Callback</SelectItem>
+          <SelectItem value="url">🌐 URL-кнопка</SelectItem>
+          <SelectItem value="callback">⚙️ Callback</SelectItem>
+          <SelectItem value="contact">📞 Запросить телефон</SelectItem>
+          <SelectItem value="location">📍 Запросить геолокацию</SelectItem>
         </SelectContent>
       </Select>
       {kind === "url" && (
-        <Input
-          value={button.url ?? ""}
-          onChange={(e) => onChange({ ...button, url: e.target.value })}
-          placeholder="https://…"
-        />
+        <>
+          <Input
+            value={button.url ?? ""}
+            onChange={(e) => onChange({ ...button, url: e.target.value })}
+            placeholder="https://…"
+          />
+          <div className="flex items-center gap-2">
+            <input
+              id={`track-${button.text}`}
+              type="checkbox"
+              checked={button.trackClicks !== false}
+              onChange={(e) => onChange({ ...button, trackClicks: e.target.checked })}
+            />
+            <Label htmlFor={`track-${button.text}`} className="mb-0 text-[11px] font-normal">
+              Отслеживать клики (через /r/&lt;slug&gt;)
+            </Label>
+          </div>
+        </>
+      )}
+      {(kind === "contact" || kind === "location") && (
+        <p className="text-[10px] text-zinc-500 italic">
+          Работает только в режиме <strong>reply-клавиатура</strong> у сообщения.
+          Переключи режим клавиатуры выше в редакторе сообщения.
+        </p>
       )}
       {kind === "callback" && (
         <>
