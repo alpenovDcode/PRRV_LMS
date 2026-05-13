@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Trash, Pencil, ChevronUp, ChevronDown, GripVertical, Save, X, Play, FileText, CircleHelp, CornerDownRight, Lock, Settings, Copy } from "lucide-react";
+import { Plus, Trash, Pencil, ChevronUp, ChevronDown, GripVertical, Save, X, Play, FileText, CircleHelp, CornerDownRight, Lock, Settings, Copy, Download } from "lucide-react";
 import { useState, useMemo } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -1308,6 +1308,38 @@ export default function CourseBuilderPage() {
               <Badge variant={data.isPublished ? "default" : "outline"} className="text-sm px-3 py-1">
                 {data.isPublished ? "Опубликован" : "Черновик"}
               </Badge>
+              <Button
+                variant="outline"
+                className="border-gray-300"
+                onClick={async () => {
+                  try {
+                    const res = await fetch(
+                      `/api/admin/courses/${courseId}/progress-export`,
+                      { credentials: "include" }
+                    );
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    const cd = res.headers.get("content-disposition") ?? "";
+                    const m = /filename\*=UTF-8''([^;]+)/i.exec(cd);
+                    const filename = m
+                      ? decodeURIComponent(m[1])
+                      : `progress_${courseId}.csv`;
+                    const blob = await res.blob();
+                    const a = document.createElement("a");
+                    a.href = URL.createObjectURL(blob);
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(a.href);
+                  } catch (e) {
+                    toast.error("Не удалось скачать CSV");
+                  }
+                }}
+                title="Скачать CSV с прогрессом каждого зачисленного пользователя"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Экспорт прогресса
+              </Button>
               <Button variant="outline" asChild className="border-gray-300">
                 <Link href={`/admin/courses/${courseId}`}>Настройки курса</Link>
               </Button>
