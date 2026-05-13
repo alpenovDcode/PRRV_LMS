@@ -1030,6 +1030,35 @@ model TgEvent {
   @@map("tg_events")
 }
 
+// Admin audit log — recorded for every state-changing admin action.
+// Read endpoints don't write here (too noisy); only mutations do.
+// Retention is the operator's call; cron in lib/tg/audit.ts can prune
+// rows older than 180 days.
+model TgAuditLog {
+  id              String   @id @default(uuid())
+  // Who did it. null = system / cron.
+  actorUserId     String?  @map("actor_user_id")
+  actorEmail      String?  @map("actor_email")
+  // Scope of the change.
+  botId           String?  @map("bot_id")
+  // Discriminator: "tg.flow.update", "tg.broadcast.send",
+  // "tg.bot.delete" etc. Keeps the schema flat — no per-action table.
+  action          String
+  // Free-form payload: which IDs changed, what fields, IP, UA.
+  details         Json     @default("{}")
+  // Result code: "ok" | "denied" | "failed". Helps distinguish a
+  // permission denial from a successful mutation.
+  outcome         String   @default("ok")
+  ip              String?
+  userAgent       String?  @map("user_agent")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([botId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([action, createdAt])
+  @@map("tg_audit_log")
+}
+
 // Lists are dynamic segments — an admin-curated bucket of subscribers
 // used for targeting broadcasts and for `list_joined` / `list_left`
 // reactive triggers in flows. Conceptually distinct from tags:
