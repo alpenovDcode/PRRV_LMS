@@ -39,8 +39,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        # NEXT_PUBLIC_API_SECRET_KEY removed for security
     container_name: proryv_app
     restart: unless-stopped
     environment:
@@ -63,9 +61,19 @@ services:
       R2_PUBLIC_URL: /api/assets
       # API Protection
       API_SECRET_KEY: ${API_SECRET_KEY}
-      # NEXT_PUBLIC_API_SECRET_KEY removed for security
       NODE_ENV: production
-      # Telegram bot (notifications about new questions)
+      # ---- Bot platform (own SaleBot-alternative) ----
+      # AES-256-GCM key for encrypting bot tokens in DB.
+      # Generate once: `openssl rand -hex 32`. NEVER rotate without a
+      # migration of existing tokens or they become unreadable.
+      TG_TOKEN_ENC_KEY: ${TG_TOKEN_ENC_KEY}
+      # Bearer token for /api/tg-cron/tick. The tg-cron sidecar below
+      # uses it to drive delay + wait_reply timeouts every 20s.
+      TG_CRON_SECRET: ${TG_CRON_SECRET}
+      # Externally-reachable base URL — needed by redirect-tracking to
+      # build /r/<slug> click-through URLs in outbound buttons.
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-${NEXT_PUBLIC_APP_URL:-http://localhost:3000}}
+      # ---- Misc telegram (notifications about LMS questions) ----
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_QUESTIONS_CHAT_ID: ${TELEGRAM_QUESTIONS_CHAT_ID:-}
       # AI homework checker (external Flask bot)
@@ -94,6 +102,37 @@ services:
         reservations:
           cpus: '2'
           memory: 2G
+
+  # Sidecar that drives the bot-platform flow engine. Hits
+  # /api/tg-cron/tick every 20s. Without it, `delay`-nodes and
+  # `wait_reply` timeouts never fire — runs hang in `sleeping` /
+  # `waiting_reply` forever.
+  tg-cron:
+    image: curlimages/curl:8.10.1
+    container_name: proryv_tg_cron
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      TG_CRON_SECRET: ${TG_CRON_SECRET}
+    entrypoint:
+      - sh
+      - -c
+      - |
+        echo "[tg-cron] starting, tick every 20s";
+        while true; do
+          curl -fsS -X POST \
+            -H "Authorization: Bearer $$TG_CRON_SECRET" \
+            http://app:3000/api/tg-cron/tick \
+            -o /tmp/tick.log 2>/dev/null \
+            && cat /tmp/tick.log \
+            || echo "[tg-cron] tick failed";
+          echo;
+          sleep 20;
+        done
+    networks:
+      - proryv_network
 
   nginx:
     image: nginx:alpine
