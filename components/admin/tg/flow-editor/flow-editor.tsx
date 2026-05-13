@@ -52,6 +52,7 @@ import { AddTagNode, RemoveTagNode } from "./nodes/tag-nodes";
 import { SetVariableNode } from "./nodes/set-variable-node";
 import { HttpRequestNode } from "./nodes/http-request-node";
 import { GotoFlowNode } from "./nodes/goto-flow-node";
+import { NoteNode } from "./nodes/note-node";
 import { EndNode } from "./nodes/end-node";
 import { TriggerNode } from "./nodes/trigger-node";
 import { Button } from "@/components/ui/button";
@@ -68,6 +69,7 @@ const nodeTypes = {
   set_variable: SetVariableNode,
   http_request: HttpRequestNode,
   goto_flow: GotoFlowNode,
+  note: NoteNode,
   end: EndNode,
 };
 
@@ -132,6 +134,8 @@ function defaultSchemaNodeFor(type: string, id: string): FlowNode | null {
       };
     case "goto_flow":
       return { id, type: "goto_flow", label: "Прыжок", flowId: "" };
+    case "note":
+      return { id, type: "note", label: "Заметка", text: "Описание шага…" };
     case "end":
       return { id, type: "end", label: "Конец" };
     default:

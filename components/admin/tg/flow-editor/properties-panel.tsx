@@ -125,6 +125,140 @@ function NodePicker({
   );
 }
 
+// Toggle for the "Step / Side-effect" distinction on message nodes.
+// Step = isPosition=true (default): subscriber's position pointer
+// updates here, and any pending dozhims from previous Steps cancel.
+// Side-effect = isPosition=false: fire-and-forget, position stays put.
+function PositionToggle({
+  value,
+  onChange,
+}: {
+  value: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="border-t pt-3 mt-3">
+      <div className="flex items-center justify-between">
+        <div className="flex-1">
+          <Label className="mb-0 flex items-center gap-2">
+            <span>«Шаг» воронки</span>
+            <Badge variant={value ? "default" : "secondary"} className="text-[10px]">
+              {value ? "позиция" : "фон"}
+            </Badge>
+          </Label>
+          <p className="text-[10px] text-zinc-500 mt-1">
+            {value
+              ? "Подписчик «остановится» в этой ноде. Дожимы из предыдущей позиции отменятся."
+              : "Сработает рядом с активным шагом. Позицию не сдвинет, дожимы не отменит."}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => onChange(!value)}
+          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+            value ? "bg-blue-600" : "bg-zinc-300"
+          }`}
+        >
+          <span
+            className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+              value ? "translate-x-4" : "translate-x-0"
+            }`}
+          />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Regex validation editor for wait_reply nodes. Pulls presets from
+// regex-presets.ts so the user can drop in a phone/email/date pattern
+// in one click — no regex memorisation.
+import { REGEX_PRESETS } from "@/lib/tg/regex-presets";
+
+interface ValidationValue {
+  pattern: string;
+  flags?: string;
+  errorMessage?: string;
+  onInvalidNext?: string;
+  maxAttempts?: number;
+}
+
+function ValidationEditor({
+  value,
+  onChange,
+}: {
+  value: ValidationValue | undefined;
+  onChange: (v: ValidationValue | undefined) => void;
+}) {
+  const enabled = Boolean(value);
+  return (
+    <div className="border-t pt-3">
+      <div className="flex items-center justify-between mb-2">
+        <Label className="mb-0">Проверка ответа</Label>
+        <button
+          type="button"
+          onClick={() =>
+            onChange(enabled ? undefined : { pattern: "" })
+          }
+          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+            enabled ? "bg-blue-600" : "bg-zinc-300"
+          }`}
+        >
+          <span
+            className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+              enabled ? "translate-x-4" : "translate-x-0"
+            }`}
+          />
+        </button>
+      </div>
+      {enabled && value && (
+        <div className="space-y-2">
+          <div>
+            <Label className="text-[10px]">Шаблон (regex)</Label>
+            <Input
+              value={value.pattern}
+              onChange={(e) => onChange({ ...value, pattern: e.target.value })}
+              className="font-mono text-xs"
+              placeholder="например, ^\\d{11}$"
+            />
+          </div>
+          <div>
+            <Label className="text-[10px]">Готовые шаблоны</Label>
+            <Select
+              value=""
+              onValueChange={(key) => {
+                const p = REGEX_PRESETS.find((x) => x.key === key);
+                if (p) onChange({ ...value, pattern: p.pattern });
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="выбрать пресет…" />
+              </SelectTrigger>
+              <SelectContent>
+                {REGEX_PRESETS.map((p) => (
+                  <SelectItem key={p.key} value={p.key}>
+                    {p.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-[10px]">Сообщение при ошибке</Label>
+            <Input
+              value={value.errorMessage ?? ""}
+              onChange={(e) =>
+                onChange({ ...value, errorMessage: e.target.value || undefined })
+              }
+              placeholder="Например: «Введите номер в формате +79991234567»"
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============================================================================
 // Main component
 // ============================================================================
@@ -246,11 +380,19 @@ export function PropertiesPanel({
       </div>
 
       {sNode.type === "message" && (
-        <MessageEditor
-          payload={sNode.payload}
-          onChange={(p) => update({ payload: p } as Partial<FlowNode>)}
-          nodeOptions={nodeOptions}
-        />
+        <>
+          <MessageEditor
+            payload={sNode.payload}
+            onChange={(p) => update({ payload: p } as Partial<FlowNode>)}
+            nodeOptions={nodeOptions}
+          />
+          <PositionToggle
+            value={sNode.isPosition !== false}
+            onChange={(v) =>
+              update({ isPosition: v } as Partial<FlowNode>)
+            }
+          />
+        </>
       )}
 
       {sNode.type === "delay" && (
@@ -259,20 +401,27 @@ export function PropertiesPanel({
           <DurationInput
             totalSeconds={sNode.seconds}
             onChange={(s) => update({ seconds: s } as Partial<FlowNode>)}
-            max={60 * 60 * 24 * 30}
+            max={60 * 60 * 24 * 90}
           />
+          <p className="text-[10px] text-zinc-500 mt-1">
+            Если за это время пользователь дойдёт до новой «позиции» — этот дожим отменится автоматически.
+          </p>
         </div>
       )}
 
       {sNode.type === "wait_reply" && (
         <>
           <div>
-            <Label>Сохранить ответ в vars.</Label>
+            <Label>Сохранить ответ в</Label>
             <Input
               value={sNode.saveAs}
               onChange={(e) => update({ saveAs: e.target.value } as Partial<FlowNode>)}
-              placeholder="например, answer"
+              placeholder="answer или client.x, project.x, field.x"
             />
+            <p className="text-[10px] text-zinc-500 mt-1">
+              По умолчанию пишется в <code>client.&lt;ключ&gt;</code>. Префикс{" "}
+              <code>project.</code> — в переменные проекта, <code>field.</code> — в кастомное поле.
+            </p>
           </div>
           <div>
             <Label>Таймаут</Label>
@@ -282,6 +431,12 @@ export function PropertiesPanel({
               max={60 * 60 * 24 * 7}
             />
           </div>
+          <ValidationEditor
+            value={sNode.validation}
+            onChange={(v) =>
+              update({ validation: v } as Partial<FlowNode>)
+            }
+          />
           <div className="text-[11px] text-zinc-500 pt-2 border-t">
             Связи: «ответ» и «таймаут» — тяните рёбра от соответствующих handle’ов на холсте.
           </div>
@@ -323,7 +478,13 @@ export function PropertiesPanel({
             <Input
               value={sNode.key}
               onChange={(e) => update({ key: e.target.value } as Partial<FlowNode>)}
+              placeholder="например: x  /  client.x  /  project.x  /  field.x"
             />
+            <p className="text-[10px] text-zinc-500 mt-1">
+              Без префикса = переменная подписчика (client). Префиксы:{" "}
+              <code>project.</code> (бот), <code>deal.</code> (этот run),{" "}
+              <code>field.</code> (кастомное поле).
+            </p>
           </div>
           <div>
             <Label>Значение</Label>
@@ -331,13 +492,39 @@ export function PropertiesPanel({
               rows={3}
               value={sNode.value}
               onChange={(e) => update({ value: e.target.value } as Partial<FlowNode>)}
-              placeholder="Можно использовать {{user.first_name}}, {{vars.x}}"
+              placeholder='Текст или шаблон. Пример: {{addDays(current_date, 3)}}'
             />
-            <div className="text-[10px] text-zinc-500 mt-1">
-              Шаблоны: <code>{`{{user.first_name}}`}</code>, <code>{`{{vars.x}}`}</code>
+            <div className="flex items-center gap-2 mt-1">
+              <input
+                type="checkbox"
+                id={`expr-${sNode.id}`}
+                checked={sNode.asExpression === true}
+                onChange={(e) =>
+                  update({ asExpression: e.target.checked } as Partial<FlowNode>)
+                }
+              />
+              <Label htmlFor={`expr-${sNode.id}`} className="mb-0 text-[11px] font-normal">
+                Считать как выражение (число/массив/булево, без шаблонизации)
+              </Label>
             </div>
+            <p className="text-[10px] text-zinc-500 mt-1">
+              Доступно: <code>{`{{client.x}}`}</code>, <code>{`{{addDays(...)}}`}</code>,{" "}
+              <code>{`{{date_rus(current_date)}}`}</code>, <code>{`{{normalizePhone(question)}}`}</code> и др.
+            </p>
           </div>
         </>
+      )}
+
+      {sNode.type === "note" && (
+        <div>
+          <Label>Текст заметки</Label>
+          <Textarea
+            rows={4}
+            value={sNode.text ?? ""}
+            onChange={(e) => update({ text: e.target.value } as Partial<FlowNode>)}
+            placeholder="Любое описание для редактора — игнорируется движком"
+          />
+        </div>
       )}
 
       {sNode.type === "http_request" && (
@@ -595,20 +782,20 @@ function ButtonEditor({
   );
 }
 
+// Condition rule kinds. Extended in Iter 1 with "expr" so power users
+// can plug a full expression-engine condition (e.g. `age >= 18 and
+// country == "RU"`) instead of constructing it via the multi-field UI.
+type CondKind = "tag" | "variable" | "expr" | "always";
+type CondRule = { kind: CondKind; params: Record<string, unknown>; next: string };
+
 function ConditionEditor({
   rules,
   onChange,
 }: {
-  rules: Array<{ kind: "tag" | "variable" | "always"; params: Record<string, unknown>; next: string }>;
-  onChange: (
-    rules: Array<{
-      kind: "tag" | "variable" | "always";
-      params: Record<string, unknown>;
-      next: string;
-    }>
-  ) => void;
+  rules: CondRule[];
+  onChange: (rules: CondRule[]) => void;
 }) {
-  const setRule = (idx: number, patch: Partial<(typeof rules)[number]>) => {
+  const setRule = (idx: number, patch: Partial<CondRule>) => {
     onChange(rules.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
   };
   const removeRule = (idx: number) => {
@@ -629,7 +816,7 @@ function ConditionEditor({
         </Button>
       </div>
       <div className="text-[10px] text-zinc-500">
-        Связи правил тяните от handle’ов на правом крае ноды.
+        Связи правил тяните от handle’ов на правом крае ноды. Первое сработавшее правило побеждает.
       </div>
       <div className="space-y-2">
         {rules.map((rule, idx) => (
@@ -647,8 +834,15 @@ function ConditionEditor({
               value={rule.kind}
               onValueChange={(v) =>
                 setRule(idx, {
-                  kind: v as "tag" | "variable" | "always",
-                  params: v === "always" ? {} : v === "tag" ? { op: "has", value: "" } : { key: "", op: "eq", value: "" },
+                  kind: v as CondKind,
+                  params:
+                    v === "always"
+                      ? {}
+                      : v === "tag"
+                      ? { op: "has", value: "" }
+                      : v === "expr"
+                      ? { expr: "" }
+                      : { key: "", op: "eq", value: "" },
                 })
               }
             >
@@ -658,9 +852,29 @@ function ConditionEditor({
               <SelectContent>
                 <SelectItem value="tag">Тег</SelectItem>
                 <SelectItem value="variable">Переменная</SelectItem>
+                <SelectItem value="expr">Выражение</SelectItem>
                 <SelectItem value="always">Всегда</SelectItem>
               </SelectContent>
             </Select>
+            {rule.kind === "expr" && (
+              <div>
+                <Input
+                  value={String(rule.params.expr ?? "")}
+                  onChange={(e) =>
+                    setRule(idx, {
+                      params: { expr: e.target.value },
+                    })
+                  }
+                  placeholder='age >= 18 and country == "RU"'
+                />
+                <div className="text-[10px] text-zinc-500 mt-1">
+                  Полное выражение. Доступны переменные <code>client.x</code>,{" "}
+                  <code>project.x</code>, <code>question</code>, операторы{" "}
+                  <code>== != &lt; &lt;= &gt; &gt;=</code>, функции{" "}
+                  <code>addDays</code>, <code>findall</code>, <code>similar</code> и др.
+                </div>
+              </div>
+            )}
             {rule.kind === "tag" && (
               <div className="flex gap-2">
                 <Select
@@ -698,7 +912,7 @@ function ConditionEditor({
                       params: { ...rule.params, key: e.target.value },
                     })
                   }
-                  placeholder="ключ переменной"
+                  placeholder="ключ (например, client.age или project.x)"
                 />
                 <div className="flex gap-2">
                   <Select
@@ -713,15 +927,16 @@ function ConditionEditor({
                     <SelectContent>
                       <SelectItem value="eq">=</SelectItem>
                       <SelectItem value="ne">≠</SelectItem>
+                      <SelectItem value="gt">&gt;</SelectItem>
+                      <SelectItem value="gte">≥</SelectItem>
+                      <SelectItem value="lt">&lt;</SelectItem>
+                      <SelectItem value="lte">≤</SelectItem>
                       <SelectItem value="contains">содержит</SelectItem>
                       <SelectItem value="exists">существует</SelectItem>
                       <SelectItem value="not_exists">не существует</SelectItem>
                     </SelectContent>
                   </Select>
-                  {(rule.params.op === "eq" ||
-                    rule.params.op === "ne" ||
-                    rule.params.op === "contains" ||
-                    !rule.params.op) && (
+                  {rule.params.op !== "exists" && rule.params.op !== "not_exists" && (
                     <Input
                       className="flex-1"
                       value={String(rule.params.value ?? "")}

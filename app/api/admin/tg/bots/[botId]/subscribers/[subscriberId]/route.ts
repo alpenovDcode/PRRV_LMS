@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { withAuth } from "@/lib/api-middleware";
 import { sendBotMessage } from "@/lib/tg/sender";
+import { buildEvalContext, snapBot, snapSubscriber } from "@/lib/tg/vars";
 import { startFlowRun } from "@/lib/tg/flow-engine";
 import { messagePayloadSchema } from "@/lib/tg/flow-schema";
 import type { Prisma } from "@prisma/client";
@@ -108,17 +109,10 @@ export async function PATCH(
             subscriberId: sub.id,
             chatId: sub.chatId,
             payload: parsed.data.sendMessage,
-            renderCtx: {
-              subscriber: {
-                chatId: sub.chatId,
-                firstName: sub.firstName,
-                lastName: sub.lastName,
-                username: sub.username,
-                variables: newVars,
-              },
-              bot: { username: bot.username, title: bot.title },
-              runContext: {},
-            },
+            renderCtx: buildEvalContext({
+              subscriber: snapSubscriber(sub),
+              bot: snapBot(bot),
+            }),
             sourceType: "manual",
           });
         }

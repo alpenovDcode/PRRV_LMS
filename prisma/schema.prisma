@@ -756,6 +756,14 @@ model TgBot {
   isActive        Boolean  @default(true) @map("is_active")
   // Default flow triggered by /start without payload (optional).
   defaultStartFlowId String? @map("default_start_flow_id")
+  // Bot-wide variables ("project.x") and constants. Editable in admin.
+  // Both are {key: value} JSON objects. Used by the expression engine
+  // when a template references `{{project.x}}` or `{{const.x}}`.
+  projectVariables Json    @default("{}") @map("project_variables")
+  constants       Json     @default("{}")
+  // IANA tz; used by date helpers (current_date, weekday, etc.).
+  // null = UTC. Default Moscow.
+  timezone        String?  @default("Europe/Moscow")
   // Aggregate stats kept in sync by tg core for fast dashboards.
   subscriberCount Int      @default(0) @map("subscriber_count")
   createdAt       DateTime @default(now()) @map("created_at")
@@ -797,6 +805,27 @@ model TgSubscriber {
   subscribedAt    DateTime @default(now()) @map("subscribed_at")
   unsubscribedAt  DateTime? @map("unsubscribed_at")
 
+  // -- Position in funnel (SaleBot "позиция воронки") -------------------
+  // The latest Step (positional message-node) the subscriber walked into.
+  // Used to:
+  //   1. Display where the subscriber currently is in any funnel
+  //   2. Auto-cancel side-effect/dozhim runs originating from a previous
+  //      position when the subscriber moves to a new one.
+  // null = subscriber has never reached a positional node.
+  currentPositionFlowId String? @map("current_position_flow_id")
+  currentPositionNodeId String? @map("current_position_node_id")
+  currentPositionAt     DateTime? @map("current_position_at")
+
+  // List of "flowId:nodeId" pairs whose triggers fired with onlyOnce=true.
+  // Prevents re-entry. Empty in practice for most subscribers.
+  firedOnceTriggers     String[] @default([]) @map("fired_once_triggers")
+
+  // Typed custom fields ("доп. поля" in SaleBot terms). Stored as
+  // {key: value} with schema defined at the bot level (TgCustomField,
+  // added in Iter 2). For Iter 1 this is just a free-form JSON bag —
+  // wait_reply nodes can save into it via `saveAs: "field.<key>"`.
+  customFields    Json     @default("{}") @map("custom_fields")
+
   bot             TgBot    @relation(fields: [botId], references: [id], onDelete: Cascade)
   messages        TgMessage[]
   flowRuns        TgFlowRun[]
@@ -806,6 +835,7 @@ model TgSubscriber {
   @@unique([botId, chatId])
   @@index([botId, isBlocked])
   @@index([botId, lastSeenAt])
+  @@index([botId, currentPositionFlowId, currentPositionNodeId])
   @@index([tags], type: Gin)
   @@map("tg_subscribers")
 }
@@ -881,6 +911,12 @@ model TgFlowRun {
   context         Json     @default("{}")
   // Diagnostic: last error if status=failed.
   lastError       String?  @map("last_error") @db.Text
+  // The positional node ID this run was scheduled FROM. When the
+  // subscriber advances to a new positional node, any sleeping/waiting
+  // run with positionGroupId == old position is auto-cancelled.
+  // null = run is not tied to a position (top-level trigger, broadcast,
+  // CRM event etc.) and is immune to position-change cancellation.
+  positionGroupId String?  @map("position_group_id")
   startedAt       DateTime @default(now()) @map("started_at")
   finishedAt      DateTime? @map("finished_at")
 
@@ -890,6 +926,7 @@ model TgFlowRun {
   @@index([status, resumeAt])
   @@index([subscriberId, status])
   @@index([flowId, status])
+  @@index([subscriberId, positionGroupId, status])
   @@map("tg_flow_runs")
 }
 

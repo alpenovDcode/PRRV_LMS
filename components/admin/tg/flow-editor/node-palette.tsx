@@ -19,6 +19,7 @@ export const PALETTE_ITEMS: PaletteItem[] = [
   { type: "set_variable", icon: "📝", label: "Переменная", color: "text-violet-600" },
   { type: "http_request", icon: "🌐", label: "HTTP-запрос", color: "text-lime-600" },
   { type: "goto_flow", icon: "↪", label: "Прыжок", color: "text-purple-600" },
+  { type: "note", icon: "💭", label: "Заметка", color: "text-yellow-600" },
   { type: "end", icon: "⏹", label: "Конец", color: "text-zinc-500" },
 ];
 

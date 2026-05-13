@@ -15,6 +15,7 @@ export const NODE_HEAD_COLORS: Record<string, string> = {
   set_variable: "bg-violet-50 text-violet-700",
   http_request: "bg-lime-50 text-lime-700",
   goto_flow: "bg-purple-50 text-purple-700",
+  note: "bg-yellow-50 text-yellow-800",
   end: "bg-zinc-100 text-zinc-600",
 };
 

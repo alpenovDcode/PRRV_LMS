@@ -15,6 +15,7 @@
 import { db } from "../db";
 import { messagePayloadSchema, type FlowMessagePayload } from "./flow-schema";
 import { sendBotMessage } from "./sender";
+import { buildEvalContext, snapBot, snapSubscriber } from "./vars";
 import { trackEvent } from "./events";
 import type { TgBot, TgBroadcast, TgSubscriber, Prisma } from "@prisma/client";
 
@@ -231,17 +232,10 @@ async function sendOne(
     subscriberId: rec.subscriber.id,
     chatId: rec.subscriber.chatId,
     payload,
-    renderCtx: {
-      subscriber: {
-        chatId: rec.subscriber.chatId,
-        firstName: rec.subscriber.firstName,
-        lastName: rec.subscriber.lastName,
-        username: rec.subscriber.username,
-        variables: (rec.subscriber.variables ?? {}) as Record<string, unknown>,
-      },
-      bot: { username: bot.username, title: bot.title },
-      runContext: {},
-    },
+    renderCtx: buildEvalContext({
+      subscriber: snapSubscriber(rec.subscriber),
+      bot: snapBot(bot),
+    }),
     sourceType: "broadcast",
     sourceId: broadcast.id,
   });

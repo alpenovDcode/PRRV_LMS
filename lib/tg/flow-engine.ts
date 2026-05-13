@@ -12,17 +12,40 @@
 //   waiting_reply -> wait_reply node, resume_at = timeout, waiting_for_var set
 //   completed     -> reached an end node
 //   failed        -> unrecoverable error (last_error set)
-//   cancelled     -> manually stopped
+//   cancelled     -> manually stopped (or position-change cancellation in Iter 1)
 //
 // Concurrency: we use a coarse-grained Prisma update with a status check
 // to claim a run for processing. Multiple ticks racing on the same run
 // are rare in practice; if they happen, both will harmlessly send (we
 // don't dedupe sends in MVP).
+//
+// Position model (Iter 1, SaleBot equivalent "позиция воронки"):
+//   When a subscriber reaches a positional message node (isPosition!==false),
+//   the engine:
+//     1. Sets subscriber.currentPositionFlowId/NodeId on TgSubscriber.
+//     2. Cancels every `sleeping` / `waiting_reply` run for that subscriber
+//        whose `positionGroupId` references the OLD position, except the
+//        run that's actively advancing.
+//   This implements the "dozhim auto-cancel" behaviour: schedule a follow-up
+//   from Step A with a 2-day delay; if the subscriber enters Step B in the
+//   meantime, the follow-up auto-cancels and never sends.
 
 import { db } from "../db";
-import { flowGraphSchema, type FlowGraph, type FlowNode } from "./flow-schema";
+import { flowGraphSchema, type FlowGraph, type FlowNode, isPositionalNode } from "./flow-schema";
 import { sendBotMessage } from "./sender";
-import { renderTemplate, type RenderContext } from "./vars";
+import {
+  buildEvalContext,
+  snapBot,
+  snapSubscriber,
+  snapRun,
+  evalConditionExpr,
+  evalValueExpr,
+  renderTemplate,
+  type SubscriberSnapshot,
+  type BotSnapshot,
+  type RunSnapshot,
+} from "./vars";
+import type { EvalContext } from "./expr";
 import { trackEvent } from "./events";
 import type { Prisma, TgBot, TgSubscriber, TgFlow, TgFlowRun } from "@prisma/client";
 
@@ -47,38 +70,71 @@ function findNode(graph: FlowGraph, id: string | null | undefined): FlowNode | u
   return graph.nodes.find((n) => n.id === id);
 }
 
-function buildRenderCtx(bundle: RunBundle): RenderContext {
-  return {
-    subscriber: {
-      chatId: bundle.subscriber.chatId,
-      firstName: bundle.subscriber.firstName,
-      lastName: bundle.subscriber.lastName,
-      username: bundle.subscriber.username,
-      variables: (bundle.subscriber.variables ?? {}) as Record<string, unknown>,
-    },
-    bot: { username: bundle.bot.username, title: bundle.bot.title },
-    runContext: (bundle.run.context ?? {}) as Record<string, unknown>,
-  };
+function buildCtx(bundle: RunBundle, inboundText?: string | null): EvalContext {
+  return buildEvalContext({
+    subscriber: snapSubscriber(bundle.subscriber),
+    bot: snapBot(bundle.bot),
+    run: snapRun(bundle.run),
+    inboundText,
+  });
 }
 
-async function setVar(
-  subscriberId: string,
-  key: string,
+// -- variable persistence with scope routing ------------------------
+
+// Parses `client.x`, `project.x`, `deal.x`, `field.x` keys. Default
+// scope when no prefix is specified is `client` (most common case).
+function parseScopedKey(raw: string): { scope: "client" | "project" | "deal" | "field"; key: string } {
+  const m = /^(client|project|deal|field|vars)\.(.+)$/.exec(raw);
+  if (!m) return { scope: "client", key: raw };
+  const scope = m[1] === "vars" ? "client" : (m[1] as "client" | "project" | "deal" | "field");
+  return { scope, key: m[2] };
+}
+
+async function setVarScoped(
+  bundle: RunBundle,
+  rawKey: string,
   value: unknown,
-  botId: string
-) {
-  const sub = await db.tgSubscriber.findUnique({ where: { id: subscriberId } });
-  if (!sub) return;
-  const vars = { ...((sub.variables as Record<string, unknown>) ?? {}), [key]: value };
-  await db.tgSubscriber.update({
-    where: { id: subscriberId },
-    data: { variables: vars as Prisma.InputJsonValue },
-  });
+): Promise<void> {
+  const { scope, key } = parseScopedKey(rawKey);
+  const { run, subscriber, bot } = bundle;
+  if (scope === "client") {
+    const cur = (subscriber.variables as Record<string, unknown>) ?? {};
+    const next = { ...cur, [key]: value };
+    await db.tgSubscriber.update({
+      where: { id: subscriber.id },
+      data: { variables: next as Prisma.InputJsonValue },
+    });
+    bundle.subscriber.variables = next as object;
+  } else if (scope === "field") {
+    const cur = (subscriber.customFields as Record<string, unknown>) ?? {};
+    const next = { ...cur, [key]: value };
+    await db.tgSubscriber.update({
+      where: { id: subscriber.id },
+      data: { customFields: next as Prisma.InputJsonValue },
+    });
+    bundle.subscriber.customFields = next as object;
+  } else if (scope === "project") {
+    const cur = (bot.projectVariables as Record<string, unknown>) ?? {};
+    const next = { ...cur, [key]: value };
+    await db.tgBot.update({
+      where: { id: bot.id },
+      data: { projectVariables: next as Prisma.InputJsonValue },
+    });
+    bundle.bot.projectVariables = next as object;
+  } else if (scope === "deal") {
+    const cur = (run.context as Record<string, unknown>) ?? {};
+    const next = { ...cur, [key]: value };
+    await db.tgFlowRun.update({
+      where: { id: run.id },
+      data: { context: next as Prisma.InputJsonValue },
+    });
+    bundle.run.context = next as object;
+  }
   trackEvent({
     type: "subscriber.variable_set",
-    botId,
-    subscriberId,
-    properties: { key, value },
+    botId: bot.id,
+    subscriberId: subscriber.id,
+    properties: { scope, key, value },
   }).catch(() => {});
 }
 
@@ -114,26 +170,50 @@ async function removeTag(subscriberId: string, tag: string, botId: string) {
   }).catch(() => {});
 }
 
-function evalCondition(
+// -- condition rule evaluator (extended for numeric ops + expr) -----
+
+function getVarValue(sub: SubscriberSnapshot, bot: BotSnapshot, run: RunSnapshot | undefined, key: string): unknown {
+  const { scope, key: k } = parseScopedKey(key);
+  if (scope === "client") return sub.variables[k];
+  if (scope === "field") return sub.customFields[k];
+  if (scope === "project") return bot.projectVariables[k];
+  if (scope === "deal") return run?.context[k];
+  return undefined;
+}
+
+function evalRule(
   rule: { kind: string; params: Record<string, unknown> },
-  subscriber: TgSubscriber
+  ctx: { sub: SubscriberSnapshot; bot: BotSnapshot; run: RunSnapshot | undefined; evalCtx: EvalContext },
 ): boolean {
   if (rule.kind === "always") return true;
   if (rule.kind === "tag") {
     const op = String(rule.params.op ?? "has");
     const val = String(rule.params.value ?? "");
-    const has = subscriber.tags.includes(val);
+    const has = ctx.sub.tags.includes(val);
     return op === "has" ? has : !has;
+  }
+  if (rule.kind === "expr") {
+    const expr = String(rule.params.expr ?? "");
+    if (!expr) return false;
+    return evalConditionExpr(expr, ctx.evalCtx);
   }
   if (rule.kind === "variable") {
     const key = String(rule.params.key ?? "");
     const op = String(rule.params.op ?? "eq");
     const expected = rule.params.value;
-    const vars = (subscriber.variables as Record<string, unknown>) ?? {};
-    const actual = vars[key];
-    if (op === "exists") return actual !== undefined && actual !== null;
-    if (op === "not_exists") return actual === undefined || actual === null;
+    const actual = getVarValue(ctx.sub, ctx.bot, ctx.run, key);
+    if (op === "exists") return actual !== undefined && actual !== null && actual !== "";
+    if (op === "not_exists") return actual === undefined || actual === null || actual === "";
     if (actual === undefined || actual === null) return false;
+    if (op === "gt" || op === "gte" || op === "lt" || op === "lte") {
+      const an = parseFloat(String(actual));
+      const en = parseFloat(String(expected));
+      if (!Number.isFinite(an) || !Number.isFinite(en)) return false;
+      if (op === "gt") return an > en;
+      if (op === "gte") return an >= en;
+      if (op === "lt") return an < en;
+      if (op === "lte") return an <= en;
+    }
     const aStr = String(actual);
     const eStr = expected == null ? "" : String(expected);
     if (op === "eq") return aStr === eStr;
@@ -143,13 +223,101 @@ function evalCondition(
   return false;
 }
 
-// Execute one step. Returns true if engine should immediately keep going,
-// false if the run is waiting (sleep/wait_reply/end/fail).
+// -- regex validation -----------------------------------------------
+
+function checkValidation(
+  node: Extract<FlowNode, { type: "wait_reply" }>,
+  text: string,
+): { ok: boolean; reason?: string } {
+  if (!node.validation) return { ok: true };
+  try {
+    const flags = node.validation.flags ?? "i";
+    const re = new RegExp(node.validation.pattern, flags);
+    if (re.test(text)) return { ok: true };
+    return { ok: false, reason: "pattern_mismatch" };
+  } catch {
+    // Bad regex — fail open so a broken validator doesn't trap users.
+    return { ok: true };
+  }
+}
+
+// -- position model -------------------------------------------------
+
+// Cancel sleeping / waiting runs that were scheduled FROM a position
+// the subscriber has now left. The run actively being advanced is
+// excluded by id so it can continue its work.
+async function cancelPositionBoundRuns(
+  subscriberId: string,
+  oldPositionNodeId: string | null,
+  excludeRunId: string,
+): Promise<number> {
+  if (!oldPositionNodeId) return 0;
+  const cancelled = await db.tgFlowRun.updateMany({
+    where: {
+      subscriberId,
+      positionGroupId: oldPositionNodeId,
+      id: { not: excludeRunId },
+      status: { in: ["sleeping", "waiting_reply", "queued"] },
+    },
+    data: {
+      status: "cancelled",
+      lastError: "position changed",
+      finishedAt: new Date(),
+    },
+  });
+  return cancelled.count;
+}
+
+async function enterPosition(bundle: RunBundle, node: FlowNode): Promise<void> {
+  if (!isPositionalNode(node)) return;
+  const { subscriber, flow } = bundle;
+  const previousPosition = subscriber.currentPositionNodeId;
+  if (previousPosition === node.id && subscriber.currentPositionFlowId === flow.id) {
+    return;
+  }
+  await db.tgSubscriber.update({
+    where: { id: subscriber.id },
+    data: {
+      currentPositionFlowId: flow.id,
+      currentPositionNodeId: node.id,
+      currentPositionAt: new Date(),
+    },
+  });
+  bundle.subscriber.currentPositionFlowId = flow.id;
+  bundle.subscriber.currentPositionNodeId = node.id;
+  bundle.subscriber.currentPositionAt = new Date();
+
+  if (previousPosition && previousPosition !== node.id) {
+    const cancelled = await cancelPositionBoundRuns(subscriber.id, previousPosition, bundle.run.id);
+    if (cancelled > 0) {
+      trackEvent({
+        type: "flow.position_runs_cancelled",
+        botId: bundle.bot.id,
+        subscriberId: subscriber.id,
+        properties: { fromNode: previousPosition, toNode: node.id, count: cancelled },
+      }).catch(() => {});
+    }
+  }
+  trackEvent({
+    type: "flow.position_entered",
+    botId: bundle.bot.id,
+    subscriberId: subscriber.id,
+    properties: { flowId: flow.id, nodeId: node.id, previousNodeId: previousPosition },
+  }).catch(() => {});
+}
+
+// -- node executor --------------------------------------------------
+
 async function executeNode(
   bundle: RunBundle,
-  node: FlowNode
+  node: FlowNode,
 ): Promise<{ done: boolean; nextNodeId?: string | null }> {
-  const { run, subscriber, bot, graph } = bundle;
+  const { run, subscriber, bot } = bundle;
+
+  // Apply position-change side effects BEFORE running the node so the
+  // dozhim cancellation lands before any new messages go out.
+  await enterPosition(bundle, node);
+
   trackEvent({
     type: "flow.node_executed",
     botId: bot.id,
@@ -158,27 +326,34 @@ async function executeNode(
   }).catch(() => {});
 
   switch (node.type) {
+    case "note":
+      // Pure editor annotation — walk past it.
+      return { done: false, nextNodeId: node.next };
     case "message": {
+      const ctx = buildCtx(bundle);
       const res = await sendBotMessage({
         botId: bot.id,
         encryptedToken: bot.tokenEncrypted,
         subscriberId: subscriber.id,
         chatId: subscriber.chatId,
         payload: node.payload,
-        renderCtx: buildRenderCtx(bundle),
+        renderCtx: ctx,
         sourceType: "flow",
         sourceId: `${bundle.flow.id}:${node.id}`,
       });
-      if (!res.ok && res.blocked) {
-        return { done: true };
-      }
+      if (!res.ok && res.blocked) return { done: true };
       return { done: false, nextNodeId: node.next };
     }
     case "delay": {
       const resumeAt = new Date(Date.now() + node.seconds * 1000);
       await db.tgFlowRun.update({
         where: { id: run.id },
-        data: { status: "sleeping", resumeAt, currentNodeId: node.id },
+        data: {
+          status: "sleeping",
+          resumeAt,
+          currentNodeId: node.id,
+          positionGroupId: subscriber.currentPositionNodeId ?? null,
+        },
       });
       return { done: true };
     }
@@ -191,13 +366,21 @@ async function executeNode(
           resumeAt,
           currentNodeId: node.id,
           waitingForVar: node.saveAs,
+          positionGroupId: subscriber.currentPositionNodeId ?? null,
         },
       });
       return { done: true };
     }
     case "condition": {
+      const ctx = buildCtx(bundle);
+      const evalArgs = {
+        sub: snapSubscriber(subscriber),
+        bot: snapBot(bot),
+        run: snapRun(run),
+        evalCtx: ctx,
+      };
       for (const rule of node.rules) {
-        if (evalCondition(rule, subscriber)) {
+        if (evalRule(rule, evalArgs)) {
           return { done: false, nextNodeId: rule.next };
         }
       }
@@ -210,13 +393,23 @@ async function executeNode(
       await removeTag(subscriber.id, node.tag, bot.id);
       return { done: false, nextNodeId: node.next };
     case "set_variable": {
-      const rendered = renderTemplate(node.value, buildRenderCtx(bundle));
-      await setVar(subscriber.id, node.key, rendered, bot.id);
+      const ctx = buildCtx(bundle);
+      let value: unknown;
+      if (node.asExpression) {
+        try {
+          value = evalValueExpr(node.value, ctx);
+        } catch {
+          value = "";
+        }
+      } else {
+        value = renderTemplate(node.value, ctx);
+      }
+      await setVarScoped(bundle, node.key, value);
       return { done: false, nextNodeId: node.next };
     }
     case "http_request": {
       try {
-        const ctx = buildRenderCtx(bundle);
+        const ctx = buildCtx(bundle);
         const url = renderTemplate(node.url, ctx);
         const body = node.body ? renderTemplate(node.body, ctx) : undefined;
         const headers = Object.fromEntries(
@@ -248,7 +441,6 @@ async function executeNode(
             where: { id: run.id },
             data: { context: newCtx as Prisma.InputJsonValue },
           });
-          // Update local bundle so subsequent nodes see the value.
           bundle.run.context = newCtx as object;
         }
         return { done: false, nextNodeId: node.next };
@@ -275,7 +467,6 @@ async function executeNode(
       }
     }
     case "goto_flow": {
-      // Mark current run completed and start a new run on the target flow.
       await db.tgFlowRun.update({
         where: { id: run.id },
         data: { status: "completed", finishedAt: new Date() },
@@ -307,8 +498,6 @@ async function executeNode(
   }
 }
 
-// Run the next sequence of nodes until we hit a wait state or end.
-// Bounded by maxSteps to prevent runaway loops.
 async function tickRun(runId: string, maxSteps = 50): Promise<void> {
   const claimed = await db.tgFlowRun.updateMany({
     where: { id: runId, status: { in: ["queued", "sleeping", "waiting_reply"] } },
@@ -316,7 +505,7 @@ async function tickRun(runId: string, maxSteps = 50): Promise<void> {
   });
   if (claimed.count === 0) return;
 
-  let run = await db.tgFlowRun.findUnique({ where: { id: runId } });
+  const run = await db.tgFlowRun.findUnique({ where: { id: runId } });
   if (!run) return;
   const flow = await db.tgFlow.findUnique({ where: { id: run.flowId } });
   if (!flow) return;
@@ -337,7 +526,6 @@ async function tickRun(runId: string, maxSteps = 50): Promise<void> {
     return;
   }
 
-  // If subscriber is blocked, abort the run early.
   if (subscriber.isBlocked) {
     await db.tgFlowRun.update({
       where: { id: runId },
@@ -380,7 +568,6 @@ async function tickRun(runId: string, maxSteps = 50): Promise<void> {
       },
     });
   } else if (!nextId) {
-    // Walked off the graph cleanly.
     await db.tgFlowRun.update({
       where: { id: runId },
       data: { status: "completed", finishedAt: new Date() },
@@ -408,6 +595,9 @@ export async function startFlowRun(args: {
       subscriberId: subscriber.id,
       status: "queued",
       context: (args.triggerInfo ?? {}) as object,
+      // Inherit subscriber's current position so any wait/sleep this run
+      // schedules can be auto-cancelled if the subscriber moves on.
+      positionGroupId: subscriber.currentPositionNodeId ?? null,
     },
   });
   await db.tgFlow.update({
@@ -424,13 +614,13 @@ export async function startFlowRun(args: {
   return db.tgFlowRun.findUnique({ where: { id: run.id } });
 }
 
-// Called by cron tick for runs whose resumeAt has passed.
 export async function resumeFlowRun(runId: string): Promise<void> {
   await tickRun(runId);
 }
 
 // Called by inbound handler when subscriber sends a text reply.
-// If there's an active wait_reply run, save the text and advance.
+// If there's an active wait_reply run, validate (optionally), save,
+// and advance.
 export async function deliverReplyToWaitingRun(args: {
   subscriberId: string;
   botId: string;
@@ -441,14 +631,75 @@ export async function deliverReplyToWaitingRun(args: {
     orderBy: { startedAt: "desc" },
   });
   if (!run || !run.waitingForVar) return false;
-  // Persist the reply into subscriber.variables.
-  await setVar(args.subscriberId, run.waitingForVar, args.text, args.botId);
-  // Resume from the wait_reply node — advance to its `next`.
   const flow = await db.tgFlow.findUnique({ where: { id: run.flowId } });
   if (!flow) return false;
   const graph = parseGraph(flow);
   const node = findNode(graph, run.currentNodeId);
-  const nextNodeId = node && node.type === "wait_reply" ? node.next ?? null : null;
+  if (!node || node.type !== "wait_reply") return false;
+
+  // Run regex validation if configured.
+  const v = checkValidation(node, args.text);
+  if (!v.ok) {
+    const subscriber = await db.tgSubscriber.findUnique({ where: { id: args.subscriberId } });
+    const bot = await db.tgBot.findUnique({ where: { id: args.botId } });
+    if (subscriber && bot && node.validation?.errorMessage) {
+      const evalCtx = buildEvalContext({
+        subscriber: snapSubscriber(subscriber),
+        bot: snapBot(bot),
+        run: snapRun(run),
+        inboundText: args.text,
+      });
+      const rendered = renderTemplate(node.validation.errorMessage, evalCtx);
+      await sendBotMessage({
+        botId: bot.id,
+        encryptedToken: bot.tokenEncrypted,
+        subscriberId: subscriber.id,
+        chatId: subscriber.chatId,
+        payload: { text: rendered },
+        renderCtx: evalCtx,
+        sourceType: "flow",
+        sourceId: `${flow.id}:${node.id}:invalid`,
+      });
+    }
+    trackEvent({
+      type: "flow.wait_reply_invalid",
+      botId: args.botId,
+      subscriberId: args.subscriberId,
+      properties: { flowId: flow.id, nodeId: node.id },
+    }).catch(() => {});
+    const invalidNext = node.validation?.onInvalidNext;
+    if (invalidNext) {
+      await db.tgFlowRun.update({
+        where: { id: run.id },
+        data: {
+          currentNodeId: invalidNext,
+          status: "queued",
+          waitingForVar: null,
+          resumeAt: null,
+        },
+      });
+      await tickRun(run.id);
+    } else {
+      // Stay parked at the wait_reply node — next message gets validated again.
+      await db.tgFlowRun.update({
+        where: { id: run.id },
+        data: { status: "waiting_reply" },
+      });
+    }
+    return true;
+  }
+
+  // Persist the reply into the chosen scope, then advance.
+  const flowBot = await db.tgBot.findUnique({ where: { id: flow.botId } });
+  const sub = await db.tgSubscriber.findUnique({ where: { id: args.subscriberId } });
+  if (!flowBot || !sub) return false;
+  await setVarScoped(
+    { bot: flowBot, subscriber: sub, run, flow, graph } as RunBundle,
+    run.waitingForVar,
+    args.text,
+  );
+
+  const nextNodeId = node.next ?? null;
   await db.tgFlowRun.update({
     where: { id: run.id },
     data: {
@@ -462,14 +713,11 @@ export async function deliverReplyToWaitingRun(args: {
   return true;
 }
 
-// Called by inbound handler when subscriber clicks a button with goto/tag.
 export async function deliverButtonClickToWaitingRun(args: {
   subscriberId: string;
   botId: string;
   callbackData: string;
 }): Promise<boolean> {
-  // We accept "goto:<flowId>" or "node:<nodeId>" or "tag:add:<tag>" / "tag:rm:<tag>"
-  // as built-in callbacks. Otherwise — no engine effect, just a logged click.
   if (args.callbackData.startsWith("goto:")) {
     const flowId = args.callbackData.substring(5);
     await startFlowRun({
@@ -490,8 +738,6 @@ export async function deliverButtonClickToWaitingRun(args: {
   return false;
 }
 
-// Drives all pending runs whose resumeAt is due.
-// Called by the cron tick endpoint.
 export async function processDueRuns(maxBatch = 100): Promise<{ processed: number }> {
   const due = await db.tgFlowRun.findMany({
     where: {
@@ -507,7 +753,6 @@ export async function processDueRuns(maxBatch = 100): Promise<{ processed: numbe
   let processed = 0;
   for (const r of due) {
     if (r.status === "waiting_reply") {
-      // Timed out — follow timeoutNext from the wait_reply node.
       const flow = await db.tgFlow.findUnique({ where: { id: r.flowId } });
       if (!flow) continue;
       const graph = parseGraph(flow);
