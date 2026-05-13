@@ -264,7 +264,8 @@ export function reactFlowToGraph(
       next.type === "add_tag" ||
       next.type === "remove_tag" ||
       next.type === "set_variable" ||
-      next.type === "goto_flow"
+      next.type === "goto_flow" ||
+      next.type === "note"
     ) {
       const edge = outs.find((e) => !e.sourceHandle);
       next.next = edge?.target;

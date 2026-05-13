@@ -8,6 +8,7 @@ import { getRedisClient } from "../redis";
 import { trackEvent } from "./events";
 import {
   triggersSchema,
+  triggerAdvanced,
   type FlowTrigger,
 } from "./flow-schema";
 import {
@@ -192,34 +193,114 @@ async function recordIncomingMessage(args: {
   }).catch(() => {});
 }
 
+interface TriggerCtx {
+  command?: string;
+  commandPayload?: string;
+  messageText?: string;
+  isNewSubscriber: boolean;
+  // True when the inbound update is a callback_query (button click).
+  isCallback: boolean;
+  // Already-fired-once trigger IDs for this subscriber. Each is
+  // `flowId:triggerIndex` so the same trigger logic across multiple
+  // flows is tracked independently.
+  firedOnce: Set<string>;
+}
+
+interface MatchedTrigger {
+  flowId: string;
+  triggerIndex: number;
+  // Effective priority used for ordering — defaults to 10 when unset.
+  priority: number;
+  // True if the trigger has onlyOnce=true, so the caller knows to
+  // append the firedOnce key to TgSubscriber.firedOnceTriggers.
+  onlyOnce: boolean;
+  triggerInfo: Record<string, unknown>;
+}
+
 async function findTriggeredFlows(
   bot: TgBot,
-  ctx: { command?: string; commandPayload?: string; messageText?: string; isNewSubscriber: boolean }
-): Promise<Array<{ flowId: string; triggerInfo: Record<string, unknown> }>> {
+  ctx: TriggerCtx,
+): Promise<MatchedTrigger[]> {
   const flows = await db.tgFlow.findMany({
     where: { botId: bot.id, isActive: true },
   });
-  const matched: Array<{ flowId: string; triggerInfo: Record<string, unknown> }> = [];
+  const matched: MatchedTrigger[] = [];
   for (const flow of flows) {
     const parsedTriggers = triggersSchema.safeParse(flow.triggers);
     if (!parsedTriggers.success) continue;
-    for (const trigger of parsedTriggers.data) {
-      const hit = triggerMatches(trigger, ctx);
-      if (hit) {
-        matched.push({
-          flowId: flow.id,
-          triggerInfo: { triggerType: trigger.type, ...hit },
-        });
-        break; // one match per flow is enough
+    parsedTriggers.data.forEach((trigger, index) => {
+      const adv = triggerAdvanced(trigger);
+      // onlyOnCallback gate: skip non-callback inputs.
+      if (adv.onlyOnCallback && !ctx.isCallback) return;
+      // onlyOnce gate: skip if already fired for this subscriber.
+      const onceKey = `${flow.id}:${index}`;
+      if (adv.onlyOnce && ctx.firedOnce.has(onceKey)) return;
+      // Exclusion list: bail if the inbound text matches an exclusion.
+      const text = ctx.messageText ?? "";
+      if (text && adv.exclusions.some((ex) => text.toLowerCase().includes(ex.toLowerCase()))) {
+        return;
       }
+      const hit = triggerMatches(trigger, ctx);
+      if (!hit) return;
+      matched.push({
+        flowId: flow.id,
+        triggerIndex: index,
+        priority: adv.priority,
+        onlyOnce: adv.onlyOnce,
+        triggerInfo: { triggerType: trigger.type, ...hit },
+      });
+    });
+  }
+  // Sort by priority desc — ties keep insertion order so multi-match
+  // is deterministic across deploys.
+  matched.sort((a, b) => b.priority - a.priority);
+  return matched;
+}
+
+function keywordMatches(
+  trigger: Extract<FlowTrigger, { type: "keyword" }>,
+  text: string,
+): { keyword: string } | null {
+  const mode = trigger.matchMode ?? "keyword";
+  const lower = text.toLowerCase().trim();
+  for (const kw of trigger.keywords) {
+    const k = kw.toLowerCase().trim();
+    if (mode === "exact") {
+      if (lower === k) return { keyword: kw };
+    } else if (mode === "fuzzy") {
+      // Levenshtein-normalized distance <30%.
+      if (lower === k) return { keyword: kw };
+      if (k.length < 4) continue;
+      const a = lower, b = k;
+      const dp: number[][] = [];
+      for (let i = 0; i <= a.length; i++) dp.push([i]);
+      for (let j = 1; j <= b.length; j++) dp[0][j] = j;
+      for (let i = 1; i <= a.length; i++) {
+        for (let j = 1; j <= b.length; j++) {
+          const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+          dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+        }
+      }
+      const dist = dp[a.length][b.length];
+      if (dist / Math.max(a.length, b.length) < 0.3) return { keyword: kw };
+    } else if (mode === "regex") {
+      try {
+        const re = new RegExp(kw, "i");
+        if (re.test(text)) return { keyword: kw };
+      } catch {
+        // Bad regex - skip silently.
+      }
+    } else {
+      // default: substring (case-insensitive)
+      if (lower.includes(k)) return { keyword: kw };
     }
   }
-  return matched;
+  return null;
 }
 
 function triggerMatches(
   trigger: FlowTrigger,
-  ctx: { command?: string; commandPayload?: string; messageText?: string; isNewSubscriber: boolean }
+  ctx: TriggerCtx,
 ): Record<string, unknown> | null {
   if (trigger.type === "command") {
     if (!ctx.command || ctx.command !== trigger.command.toLowerCase()) return null;
@@ -230,14 +311,13 @@ function triggerMatches(
   }
   if (trigger.type === "keyword") {
     if (!ctx.messageText) return null;
-    const lower = ctx.messageText.toLowerCase();
-    const hit = trigger.keywords.find((k) => lower.includes(k.toLowerCase()));
-    return hit ? { keyword: hit } : null;
+    return keywordMatches(trigger, ctx.messageText);
   }
   if (trigger.type === "regex") {
     if (!ctx.messageText) return null;
     try {
-      const re = new RegExp(trigger.pattern, "i");
+      const flags = trigger.flags ?? "i";
+      const re = new RegExp(trigger.pattern, flags);
       const m = re.exec(ctx.messageText);
       return m ? { match: m[0] } : null;
     } catch {
@@ -247,6 +327,7 @@ function triggerMatches(
   if (trigger.type === "subscribed") {
     return ctx.isNewSubscriber ? { subscribed: true } : null;
   }
+  // tag_added / tag_removed: wired in Iter 2 with the lists feature.
   return null;
 }
 
@@ -392,19 +473,35 @@ export async function handleUpdate(bot: TgBot, update: TgUpdate): Promise<void> 
 
   // 3) Match triggers and start flow runs.
   const fresh = await db.tgSubscriber.findUnique({ where: { id: subscriber.id } });
+  if (!fresh) return;
+  const firedOnce = new Set<string>(fresh.firedOnceTriggers ?? []);
   const triggered = await findTriggeredFlows(bot, {
     command: cmd?.command,
     commandPayload,
     messageText: text,
     isNewSubscriber: created,
+    isCallback: false,
+    firedOnce,
   });
 
   // 4) If a tracking link nominated a specific flow, prepend it (avoid duplicates).
-  const flowsToStart = [
+  type ToStart = {
+    flowId: string;
+    triggerInfo: Record<string, unknown>;
+    onceKey?: string;
+  };
+  const flowsToStart: ToStart[] = [
     ...(linkFlowId && !triggered.some((t) => t.flowId === linkFlowId)
-      ? [{ flowId: linkFlowId, triggerInfo: { triggerType: "tracking_link", slug: startCmd.payload } }]
+      ? [{
+          flowId: linkFlowId,
+          triggerInfo: { triggerType: "tracking_link", slug: startCmd.payload } as Record<string, unknown>,
+        }]
       : []),
-    ...triggered,
+    ...triggered.map((t) => ({
+      flowId: t.flowId,
+      triggerInfo: t.triggerInfo,
+      onceKey: t.onlyOnce ? `${t.flowId}:${t.triggerIndex}` : undefined,
+    })),
   ];
 
   // 5) Fallback: if /start with no triggers matched, fire the bot's default start flow.
@@ -420,12 +517,22 @@ export async function handleUpdate(bot: TgBot, update: TgUpdate): Promise<void> 
   }
 
   // Cap concurrent starts to keep a single message from spawning a swarm.
+  const newOnceKeys: string[] = [];
   for (const f of flowsToStart.slice(0, 3)) {
     if (!fresh || fresh.isBlocked) break;
     await startFlowRun({
       flowId: f.flowId,
       subscriberId: subscriber.id,
       triggerInfo: f.triggerInfo,
+    });
+    if (f.onceKey) newOnceKeys.push(f.onceKey);
+  }
+  if (newOnceKeys.length > 0) {
+    await db.tgSubscriber.update({
+      where: { id: subscriber.id },
+      data: {
+        firedOnceTriggers: { push: newOnceKeys },
+      },
     });
   }
 }

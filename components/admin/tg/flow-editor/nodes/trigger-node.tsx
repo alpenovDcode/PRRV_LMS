@@ -17,9 +17,15 @@ function describeTrigger(t: FlowTrigger): string {
     case "keyword":
       return `«${t.keywords.slice(0, 2).join("», «")}»${t.keywords.length > 2 ? "…" : ""}`;
     case "regex":
-      return `/${t.pattern}/i`;
+      return `/${t.pattern}/${t.flags ?? "i"}`;
     case "subscribed":
       return "новый подписчик";
+    case "tag_added":
+      return `тег «${t.tag}» добавлен`;
+    case "tag_removed":
+      return `тег «${t.tag}» убран`;
+    default:
+      return "trigger";
   }
 }
 
