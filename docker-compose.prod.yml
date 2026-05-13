@@ -177,6 +177,17 @@ services:
       # Telegram bot (notifications about new questions)
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_QUESTIONS_CHAT_ID: ${TELEGRAM_QUESTIONS_CHAT_ID:-}
+
+      # ---- Bot platform (own SaleBot-alternative) ----
+      # AES-256-GCM key for encrypting bot tokens in DB. Generate once
+      # with `openssl rand -hex 32` and treat as a long-lived secret;
+      # rotation needs token re-encryption migration.
+      TG_TOKEN_ENC_KEY: ${TG_TOKEN_ENC_KEY}
+      # Bearer token consumed by /api/tg-cron/tick. The tg-cron sidecar
+      # below uses it to drive delay + wait_reply timeouts every 20s.
+      TG_CRON_SECRET: ${TG_CRON_SECRET}
+      # Public base URL for /r/<slug> redirect-tracking URLs.
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-${NEXT_PUBLIC_APP_URL}}
     volumes:
       - ./public/uploads:/app/public/uploads
       - ./data:/app/data
@@ -216,6 +227,43 @@ services:
   app-green:
     <<: *app-defaults
     container_name: proryv_app_green
+
+  # Sidecar that drives the bot-platform flow engine. Hits
+  # /api/tg-cron/tick every 20s through nginx (which load-balances to
+  # the active blue/green instance). Without it, `delay`-nodes and
+  # `wait_reply` timeouts never fire — runs hang in `sleeping` /
+  # `waiting_reply` forever.
+  tg-cron:
+    image: curlimages/curl:8.10.1
+    container_name: proryv_tg_cron
+    restart: always
+    depends_on:
+      nginx:
+        condition: service_started
+    environment:
+      TG_CRON_SECRET: ${TG_CRON_SECRET}
+    entrypoint:
+      - sh
+      - -c
+      - |
+        echo "[tg-cron] starting, tick every 20s";
+        while true; do
+          curl -fsS -X POST \
+            -H "Authorization: Bearer $$TG_CRON_SECRET" \
+            http://nginx/api/tg-cron/tick \
+            -o /tmp/tick.log 2>/dev/null \
+            && cat /tmp/tick.log \
+            || echo "[tg-cron] tick failed";
+          echo;
+          sleep 20;
+        done
+    networks:
+      - proryv_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "1m"
+        max-file: "3"
 
   nginx:
     image: nginx:alpine
