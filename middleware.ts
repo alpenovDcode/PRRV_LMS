@@ -59,7 +59,8 @@ export async function middleware(request: NextRequest) {
     path.startsWith("/api/landings/html") ||
     path.startsWith("/api/video/token/public") ||
     path.startsWith("/api/video-proxy") ||
-    path.startsWith("/api/landings/check-status");
+    path.startsWith("/api/landings/check-status") ||
+    path.startsWith("/api/homework/ai-result"); // внешний callback от AI-чекера, auth внутри роута
 
   // 1. ПУБЛИЧНЫЕ РОУТЫ И ВИДЕО-ПРОКСИ (РАННИЙ ВЫХОД)
   if (isPublicRoute) {
