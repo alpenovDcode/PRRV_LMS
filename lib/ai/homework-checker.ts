@@ -78,14 +78,22 @@ export async function checkHomeworkWithAI(
     );
   }
 
-  const result = (await response.json()) as HomeworkCheckResult;
+  const result = await response.json();
+
+  // AI отправил на апрув куратору — ЛМС ждёт callback /api/homework/ai-result
+  if ((result as any).status === "pending_approval") {
+    console.log(`Homework ${submissionId} sent for human approval in Pachca`);
+    return;
+  }
+
+  const checkerResult = result as HomeworkCheckResult;
 
   await db.homeworkSubmission.update({
     where: { id: submissionId },
     data: {
-      status: result.verdict,
-      curatorComment: result.comment,
-      curatorId: null, // null = проверено AI, не куратором
+      status: checkerResult.verdict,
+      curatorComment: checkerResult.comment,
+      curatorId: null,
       reviewedAt: new Date(),
     },
   });
