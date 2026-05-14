@@ -16,6 +16,8 @@ export interface HomeworkCheckParams {
   studentName: string;
 }
 
+const AI_CHECK_DELAY_MS = parseInt(process.env.AI_CHECK_DELAY_MS || "1200000"); // 20 минут
+
 /**
  * Отправляет ДЗ студента на внешний AI-чекер (Flask/Claude) и обновляет submission в БД.
  * Предназначена для вызова в фоне (без await).
@@ -33,6 +35,20 @@ export async function checkHomeworkWithAI(
     lessonContent,
     studentName,
   } = params;
+
+  // Задержка перед проверкой — даёт куратору возможность проверить вручную
+  if (AI_CHECK_DELAY_MS > 0) {
+    await new Promise((resolve) => setTimeout(resolve, AI_CHECK_DELAY_MS));
+  }
+
+  // Если за время ожидания куратор уже проверил — не перезаписываем его решение
+  const current = await db.homeworkSubmission.findUnique({
+    where: { id: submissionId },
+    select: { status: true, curatorId: true },
+  });
+  if (current && current.status !== "pending") {
+    return;
+  }
 
   const baseUrl = process.env.AI_CHECKER_URL || "http://localhost:3000";
   const apiKey = process.env.AI_CHECKER_KEY || "";
