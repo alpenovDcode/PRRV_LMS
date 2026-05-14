@@ -7,9 +7,21 @@ import { sanitizeText } from "@/lib/sanitize";
 import { logAction } from "@/lib/audit";
 import { z } from "zod";
 
+const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png"] as const;
+const imageUrlRegex = new RegExp(`\\.(${IMAGE_EXTENSIONS.join("|")})(\\?.*)?$`, "i");
+
 const homeworkSubmitSchema = z.object({
   content: z.string().optional(),
-  files: z.array(z.string()).optional(),
+  files: z
+    .array(
+      z
+        .string()
+        .refine(
+          (url) => imageUrlRegex.test(url),
+          "К ДЗ можно прикреплять только изображения (JPG, PNG)"
+        )
+    )
+    .optional(),
 });
 
 export async function POST(
