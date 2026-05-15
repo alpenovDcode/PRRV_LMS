@@ -862,9 +862,14 @@ export async function deliverButtonClickToWaitingRun(args: {
   // the button's inline onClick bundle (Iter 5).
   tgMessageId?: string;
 }): Promise<boolean> {
-  // Iter 5 — Inline onClick handler. Format: `act:<r>:<c>`. We resolve
-  // the source message via tgMessageId → tgMessage.sourceId → flow + node,
-  // then read node.payload.buttonRows[r][c].onClick.
+  // Iter 5 — Inline onClick + wait_reply advance. Format: `act:<r>:<c>`.
+  // We resolve the source message via tgMessageId → tgMessage.sourceId →
+  // flow + node, then read node.payload.buttonRows[r][c]. If the button
+  // has an `onClick` bundle, run it. Either way, if there's an active
+  // waiting_reply run for this subscriber in the same flow, advance it
+  // — clicking a button is "engagement" and should progress the flow.
+  // To opt out (button is pure side-effect), use tag:add:/tag:rm:
+  // callback formats instead.
   if (args.callbackData.startsWith("act:") && args.tgMessageId) {
     const parts = args.callbackData.split(":");
     const r = parseInt(parts[1] ?? "", 10);
@@ -892,9 +897,8 @@ export async function deliverButtonClickToWaitingRun(args: {
     if (!node || node.type !== "message") return false;
     const row = node.payload.buttonRows?.[r];
     const button = row?.[c];
-    if (!button?.onClick) return false;
-    // Build a transient eval context so templates inside onClick can
-    // reference current subscriber state.
+    if (!button) return false;
+
     const subscriber = await db.tgSubscriber.findUnique({ where: { id: args.subscriberId } });
     const bot = await db.tgBot.findUnique({ where: { id: args.botId } });
     if (!subscriber || !bot) return false;
@@ -903,11 +907,58 @@ export async function deliverButtonClickToWaitingRun(args: {
       bot: snapBot(bot),
       run: undefined,
     });
-    await executeInlineActions(button.onClick, {
-      botId: args.botId,
-      subscriberId: args.subscriberId,
-      evalCtx,
+
+    // 1. Run inline onClick actions (tags, list, set_variable), if any.
+    if (button.onClick) {
+      await executeInlineActions(button.onClick, {
+        botId: args.botId,
+        subscriberId: args.subscriberId,
+        evalCtx,
+      });
+    }
+
+    // 2. Advance the active waiting_reply run for this flow, so the
+    //    button click feels like "next step". We save the button text
+    //    into the wait_reply.saveAs scope so downstream nodes can
+    //    reference what the user picked.
+    const waitingRun = await db.tgFlowRun.findFirst({
+      where: {
+        subscriberId: args.subscriberId,
+        status: "waiting_reply",
+        flowId,
+      },
+      orderBy: { startedAt: "desc" },
     });
+    if (waitingRun && waitingRun.currentNodeId) {
+      const wnode = findNode(graph, waitingRun.currentNodeId);
+      if (wnode && wnode.type === "wait_reply") {
+        // Persist the button text as the user's "reply" so the saveAs
+        // variable is populated and templates downstream can read it.
+        if (waitingRun.waitingForVar) {
+          await setVarScoped(
+            {
+              bot,
+              subscriber,
+              run: waitingRun,
+              flow,
+              graph,
+            } as RunBundle,
+            waitingRun.waitingForVar,
+            button.text,
+          );
+        }
+        await db.tgFlowRun.update({
+          where: { id: waitingRun.id },
+          data: {
+            currentNodeId: wnode.next ?? null,
+            status: "queued",
+            waitingForVar: null,
+            resumeAt: null,
+          },
+        });
+        await tickRun(waitingRun.id);
+      }
+    }
     return true;
   }
   if (args.callbackData.startsWith("goto:")) {
