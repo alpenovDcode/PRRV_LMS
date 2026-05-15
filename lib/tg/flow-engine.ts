@@ -54,6 +54,7 @@ import {
 } from "./lists";
 import { rewriteUrlButtons } from "./redirect-tracking";
 import { executeInlineActions } from "./inline-actions";
+import { parseScopedKey } from "./scoped-key";
 import type { Prisma, TgBot, TgSubscriber, TgFlow, TgFlowRun } from "@prisma/client";
 
 interface RunBundle {
@@ -102,15 +103,6 @@ function buildCtx(bundle: RunBundle, inboundText?: string | null): EvalContext {
 }
 
 // -- variable persistence with scope routing ------------------------
-
-// Parses `client.x`, `project.x`, `deal.x`, `field.x` keys. Default
-// scope when no prefix is specified is `client` (most common case).
-function parseScopedKey(raw: string): { scope: "client" | "project" | "deal" | "field"; key: string } {
-  const m = /^(client|project|deal|field|vars)\.(.+)$/.exec(raw);
-  if (!m) return { scope: "client", key: raw };
-  const scope = m[1] === "vars" ? "client" : (m[1] as "client" | "project" | "deal" | "field");
-  return { scope, key: m[2] };
-}
 
 async function setVarScoped(
   bundle: RunBundle,
@@ -222,7 +214,8 @@ function getVarValue(sub: SubscriberSnapshot, bot: BotSnapshot, run: RunSnapshot
   return undefined;
 }
 
-function evalRule(
+// Exported for unit tests — pure function over snapshots, no DB calls.
+export function evalRule(
   rule: { kind: string; params: Record<string, unknown> },
   ctx: { sub: SubscriberSnapshot; bot: BotSnapshot; run: RunSnapshot | undefined; evalCtx: EvalContext },
 ): boolean {
@@ -840,16 +833,35 @@ export async function deliverReplyToWaitingRun(args: {
   }
 
   const nextNodeId = node.next ?? null;
-  await db.tgFlowRun.update({
-    where: { id: run.id },
-    data: {
-      currentNodeId: nextNodeId,
-      status: "queued",
-      waitingForVar: null,
-      resumeAt: null,
-    },
-  });
-  await tickRun(run.id);
+  if (nextNodeId) {
+    await db.tgFlowRun.update({
+      where: { id: run.id },
+      data: {
+        currentNodeId: nextNodeId,
+        status: "queued",
+        waitingForVar: null,
+        resumeAt: null,
+      },
+    });
+    await tickRun(run.id);
+  } else {
+    // wait_reply was the last node — complete the run instead of leaving
+    // currentNodeId=null in queued state, which would cause tickRun to
+    // fall back to graph.startNodeId and silently restart the flow.
+    await db.tgFlowRun.update({
+      where: { id: run.id },
+      data: {
+        status: "completed",
+        finishedAt: new Date(),
+        waitingForVar: null,
+        resumeAt: null,
+      },
+    });
+    await db.tgFlow.update({
+      where: { id: flow.id },
+      data: { totalCompleted: { increment: 1 } },
+    });
+  }
   return true;
 }
 
@@ -917,10 +929,14 @@ export async function deliverButtonClickToWaitingRun(args: {
       });
     }
 
-    // 2. Advance the active waiting_reply run for this flow, so the
-    //    button click feels like "next step". We save the button text
-    //    into the wait_reply.saveAs scope so downstream nodes can
-    //    reference what the user picked.
+    // 2. Advance the active waiting_reply run — BUT ONLY if the button
+    //    we just clicked actually belongs to the message immediately
+    //    before this wait_reply. Otherwise old buttons (still visible
+    //    in chat scroll) could pollute the current wait_reply's saveAs.
+    //
+    //    The check: the source message node's `next` must equal the
+    //    waiting_reply's currentNodeId. That guarantees this button was
+    //    on the message that put the user into this exact wait_reply.
     const waitingRun = await db.tgFlowRun.findFirst({
       where: {
         subscriberId: args.subscriberId,
@@ -929,11 +945,11 @@ export async function deliverButtonClickToWaitingRun(args: {
       },
       orderBy: { startedAt: "desc" },
     });
-    if (waitingRun && waitingRun.currentNodeId) {
+    if (waitingRun && waitingRun.currentNodeId && node.next === waitingRun.currentNodeId) {
       const wnode = findNode(graph, waitingRun.currentNodeId);
       if (wnode && wnode.type === "wait_reply") {
-        // Persist the button text as the user's "reply" so the saveAs
-        // variable is populated and templates downstream can read it.
+        // Persist the button text as the user's "reply" so saveAs is
+        // populated and templates downstream can read it.
         if (waitingRun.waitingForVar) {
           await setVarScoped(
             {
@@ -947,16 +963,36 @@ export async function deliverButtonClickToWaitingRun(args: {
             button.text,
           );
         }
-        await db.tgFlowRun.update({
-          where: { id: waitingRun.id },
-          data: {
-            currentNodeId: wnode.next ?? null,
-            status: "queued",
-            waitingForVar: null,
-            resumeAt: null,
-          },
-        });
-        await tickRun(waitingRun.id);
+        const wnext = wnode.next ?? null;
+        if (wnext) {
+          await db.tgFlowRun.update({
+            where: { id: waitingRun.id },
+            data: {
+              currentNodeId: wnext,
+              status: "queued",
+              waitingForVar: null,
+              resumeAt: null,
+            },
+          });
+          await tickRun(waitingRun.id);
+        } else {
+          // wait_reply has no `next` — terminal. Complete the run
+          // instead of leaving currentNodeId=null in queued state,
+          // which would silently restart the flow on next tick.
+          await db.tgFlowRun.update({
+            where: { id: waitingRun.id },
+            data: {
+              status: "completed",
+              finishedAt: new Date(),
+              waitingForVar: null,
+              resumeAt: null,
+            },
+          });
+          await db.tgFlow.update({
+            where: { id: flow.id },
+            data: { totalCompleted: { increment: 1 } },
+          });
+        }
       }
     }
     return true;
@@ -996,6 +1032,7 @@ export async function processDueRuns(maxBatch = 100): Promise<{ processed: numbe
   let processed = 0;
   for (const r of due) {
     if (r.status === "waiting_reply") {
+      // wait_reply timed out — follow .timeoutNext or complete the run.
       const flow = await db.tgFlow.findUnique({ where: { id: r.flowId } });
       if (!flow) continue;
       const graph = parseGraph(flow);
@@ -1011,8 +1048,42 @@ export async function processDueRuns(maxBatch = 100): Promise<{ processed: numbe
           resumeAt: null,
         },
       });
-      if (next) await tickRun(r.id);
+      if (!next) {
+        await db.tgFlow.update({
+          where: { id: flow.id },
+          data: { totalCompleted: { increment: 1 } },
+        });
+      } else {
+        await tickRun(r.id);
+      }
+    } else if (r.status === "sleeping") {
+      // delay-node expired — advance to delay.next BEFORE ticking, so
+      // tickRun doesn't re-execute the delay node and reset its
+      // resumeAt (infinite loop bug fixed here).
+      const flow = await db.tgFlow.findUnique({ where: { id: r.flowId } });
+      if (!flow) continue;
+      const graph = parseGraph(flow);
+      const node = findNode(graph, r.currentNodeId);
+      const next = node && node.type === "delay" ? node.next ?? null : null;
+      await db.tgFlowRun.update({
+        where: { id: r.id },
+        data: {
+          currentNodeId: next,
+          status: next ? "queued" : "completed",
+          finishedAt: next ? undefined : new Date(),
+          resumeAt: null,
+        },
+      });
+      if (!next) {
+        await db.tgFlow.update({
+          where: { id: flow.id },
+          data: { totalCompleted: { increment: 1 } },
+        });
+      } else {
+        await tickRun(r.id);
+      }
     } else {
+      // queued — start/resume tick from currentNodeId (or graph.startNodeId).
       await tickRun(r.id);
     }
     processed++;

@@ -24,15 +24,7 @@ import type { EvalContext } from "./expr";
 import { renderTemplate, evalValueExpr } from "./vars";
 import type { Prisma } from "@prisma/client";
 import { trackEvent } from "./events";
-
-// Same scope router as flow-engine.setVarScoped. Kept inline here to
-// avoid an import cycle (flow-engine imports this module).
-function parseScopedKey(raw: string): { scope: "client" | "project" | "deal" | "field"; key: string } {
-  const m = /^(client|project|deal|field|vars)\.(.+)$/.exec(raw);
-  if (!m) return { scope: "client", key: raw };
-  const scope = m[1] === "vars" ? "client" : (m[1] as "client" | "project" | "deal" | "field");
-  return { scope, key: m[2] };
-}
+import { parseScopedKey } from "./scoped-key";
 
 export interface InlineActionsCtx {
   botId: string;
