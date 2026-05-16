@@ -120,9 +120,42 @@ export async function POST(
         );
       }
 
-      // Санитизируем контент перед сохранением
-      // Санитизируем контент перед сохранением
-      const sanitizedContent = content ? await sanitizeText(content) : "";
+      // Санитизация контента.
+      //
+      // ВАЖНО: certification-form-viewer и подобные «анкетные» уроки
+      // присылают content как сериализованный JSON со всеми ответами
+      // (47+ вопросов сертификации легко даёт 11–14 КБ). Дефолтный
+      // sanitizeText (а точнее, его MAX_LENGTH=10000 в lib/content-
+      // sanitization.ts) обрезал такие JSON-ы посередине строки, и
+      // ответы оказывались сломанными — админ видел частичный или
+      // вовсе нечитаемый content.
+      //
+      // Подход: если контент — валидный JSON, храним as-is (XSS-риска
+      // нет, потому что админский viewer не рендерит content как HTML;
+      // потенциально опасные `<…>` внутри строковых ответов будут
+      // экранированы при рендере React-ом). Для обычного текста
+      // оставляем существующий санитайзер.
+      let sanitizedContent = "";
+      if (content) {
+        const trimmed = content.trim();
+        const looksLikeJson = trimmed.startsWith("{") || trimmed.startsWith("[");
+        if (looksLikeJson) {
+          try {
+            JSON.parse(trimmed);
+            // Валидный JSON — храним полностью, без обрезки.
+            // Hard cap 200 КБ как защита от accidental DOS.
+            sanitizedContent = trimmed.length <= 200_000
+              ? trimmed
+              : trimmed.substring(0, 200_000);
+          } catch {
+            // Похоже на JSON, но не парсится — фолбэк на стандартный
+            // санитайзер.
+            sanitizedContent = await sanitizeText(content);
+          }
+        } else {
+          sanitizedContent = await sanitizeText(content);
+        }
+      }
 
       // Проверяем существующую отправку
       const existingSubmission = await db.homeworkSubmission.findFirst({
