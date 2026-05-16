@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Mic, Square, Trash, Play, Pause, Loader2 } from "lucide-react";
+import { Mic, Square, Trash, Play, Pause } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface AudioRecorderProps {
@@ -13,7 +13,6 @@ interface AudioRecorderProps {
 
 export function AudioRecorder({ onRecordingComplete, onClear, className }: AudioRecorderProps) {
   const [isRecording, setIsRecording] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -107,7 +106,7 @@ export function AudioRecorder({ onRecordingComplete, onClear, className }: Audio
           <Button
             variant={isRecording ? "destructive" : "default"}
             size="icon"
-            className={cn("h-10 w-10 text-white rounded-full transition-all", isRecording && "animate-pulse")}
+            className="h-10 w-10 text-white rounded-full"
             onClick={isRecording ? stopRecording : startRecording}
             type="button"
           >
