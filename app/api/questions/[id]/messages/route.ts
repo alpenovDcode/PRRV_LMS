@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { withAuth } from "@/lib/api-middleware";
 import { db } from "@/lib/db";
 import { UserRole } from "@prisma/client";
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
           `/dashboard/questions/${id}`
         );
         if (question.student.email) {
-          const fromName = (message.author.fullName as string) || "Наставник";
+          const fromName = message.author?.fullName || "Наставник";
           sendEmail({
             to: question.student.email,
             subject: `Ответ наставника: ${subjectShort}`,
@@ -128,6 +128,14 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
             )
           );
         }
+      }
+
+      // If student sent the message — schedule Jarvis reply after delay
+      if (isStudent) {
+        after(async () => {
+          const { scheduleJarvisReply } = await import("@/lib/jarvis");
+          await scheduleJarvisReply(id);
+        });
       }
 
       return NextResponse.json<ApiResponse>({ success: true, data: { message } });

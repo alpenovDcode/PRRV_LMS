@@ -686,10 +686,12 @@ model Question {
   status          QuestionStatus    @default(open)
   rating          Int?
   ratingComment   String?           @map("rating_comment") @db.Text
-  firstResponseAt DateTime?         @map("first_response_at")
-  closedAt        DateTime?         @map("closed_at")
-  createdAt       DateTime          @default(now()) @map("created_at")
-  updatedAt       DateTime          @updatedAt @map("updated_at")
+  firstResponseAt   DateTime?         @map("first_response_at")
+  closedAt          DateTime?         @map("closed_at")
+  lastMentorCallAt  DateTime?         @map("last_mentor_call_at")
+  jarvisRepliedAt   DateTime?         @map("jarvis_replied_at")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
   student         User              @relation("QuestionStudent", fields: [studentId], references: [id], onDelete: Cascade)
   curator         User?             @relation("QuestionCurator", fields: [curatorId], references: [id])
   messages        QuestionMessage[]
@@ -702,15 +704,17 @@ model Question {
 }
 
 model QuestionMessage {
-  id          String    @id @default(uuid())
-  questionId  String    @map("question_id")
-  authorId    String    @map("author_id")
-  content     String    @db.Text
-  attachments Json?
-  readAt      DateTime? @map("read_at")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  question    Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  author      User      @relation(fields: [authorId], references: [id])
+  id           String    @id @default(uuid())
+  questionId   String    @map("question_id")
+  authorId     String?   @map("author_id")
+  content      String    @db.Text
+  attachments  Json?
+  readAt       DateTime? @map("read_at")
+  isAiReply    Boolean   @default(false) @map("is_ai_reply")
+  aiSenderName String?   @map("ai_sender_name")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  question     Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  author       User?     @relation(fields: [authorId], references: [id])
 
   @@index([questionId, createdAt])
   @@index([authorId])

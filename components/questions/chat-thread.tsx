@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { Send, Lock, Star, Mic, Loader2 } from "lucide-react";
+import { Send, Lock, Star, Mic, Loader2, BellRing } from "lucide-react";
 import { ImageUploader, QuestionAttachment } from "@/components/questions/image-uploader";
 import { ImageLightbox } from "@/components/questions/image-lightbox";
 import { AudioRecorder } from "@/components/ui/audio-recorder";
@@ -92,6 +92,12 @@ export function QuestionChatThread({ questionId, viewerRole, viewerId }: Props) 
     onError: () => toast.error("Не удалось закрыть"),
   });
 
+  const callMentor = useMutation({
+    mutationFn: async () => (await apiClient.post(`/questions/${questionId}/call-mentor`, {})).data,
+    onSuccess: () => toast.success("Наставник уведомлён!"),
+    onError: (e: any) => toast.error(e?.response?.data?.error?.message || "Не удалось вызвать наставника"),
+  });
+
   const rate = useMutation({
     mutationFn: async () =>
       (await apiClient.post(`/questions/${questionId}/rate`, { rating, comment: ratingComment })).data.data,
@@ -161,6 +167,17 @@ export function QuestionChatThread({ questionId, viewerRole, viewerId }: Props) 
             </div>
           </div>
           <div className="flex gap-2">
+            {isStudent && !isClosed && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => callMentor.mutate()}
+                disabled={callMentor.isPending}
+                className="text-orange-600 border-orange-300 hover:bg-orange-50"
+              >
+                <BellRing className="h-4 w-4 mr-1" /> Вызвать наставника
+              </Button>
+            )}
             {canTake && (
               <Button size="sm" onClick={() => take.mutate()} disabled={take.isPending}>
                 Взять в работу
@@ -231,18 +248,25 @@ export function QuestionChatThread({ questionId, viewerRole, viewerId }: Props) 
           });
 
           return messages.map((m: any) => {
-            const mine = m.authorId === viewerId;
-            const authorName = m.author?.fullName || m.author?.email || "—";
+            const isAI = Boolean(m.isAiReply);
+            const mine = !isAI && m.authorId === viewerId;
+            const authorName = isAI
+              ? (m.aiSenderName || "Джарвикс")
+              : (m.author?.fullName || m.author?.email || "—");
             const atts = (Array.isArray(m.attachments) ? m.attachments : []) as any[];
             return (
               <div key={m.id} className={cn("flex", mine ? "justify-end" : "justify-start")}>
                 <div
                   className={cn(
                     "max-w-[75%] rounded-lg px-3 py-2 shadow-sm",
-                    mine ? "bg-blue-600 text-white" : "bg-white text-gray-900 border"
+                    mine
+                      ? "bg-blue-600 text-white"
+                      : isAI
+                      ? "bg-violet-50 text-gray-900 border border-violet-200"
+                      : "bg-white text-gray-900 border"
                   )}
                 >
-                  <div className={cn("text-xs mb-1 opacity-80", mine ? "text-blue-100" : "text-gray-500")}>
+                  <div className={cn("text-xs mb-1 opacity-80", mine ? "text-blue-100" : isAI ? "text-violet-500" : "text-gray-500")}>
                     {authorName} · {new Date(m.createdAt).toLocaleString("ru-RU")}
                   </div>
                   {m.content && (
