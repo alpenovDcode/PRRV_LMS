@@ -36,6 +36,7 @@ export function QuestionChatThread({ questionId, viewerRole, viewerId }: Props) 
   const [showRating, setShowRating] = useState(false);
   const [isVoiceMode, setIsVoiceMode] = useState(false);
   const [isUploadingAudio, setIsUploadingAudio] = useState(false);
+  const [subjectExpanded, setSubjectExpanded] = useState(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
 
   // Lightbox: collect all images from all messages, open by url
@@ -152,9 +153,15 @@ export function QuestionChatThread({ questionId, viewerRole, viewerId }: Props) 
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="border-b px-4 py-3 bg-white">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <h2 className="font-semibold text-gray-900 truncate">{question.subject}</h2>
+        <div className="grid items-start gap-3" style={{ gridTemplateColumns: "minmax(0,1fr) auto" }}>
+          <div className="overflow-hidden">
+            <h2
+              className={cn("font-semibold text-gray-900 cursor-pointer hover:text-gray-600", subjectExpanded ? "" : "truncate")}
+              onClick={() => setSubjectExpanded((v) => !v)}
+              title={subjectExpanded ? undefined : question.subject}
+            >
+              {question.subject}
+            </h2>
             <div className="flex items-center gap-2 mt-1 flex-wrap text-xs text-gray-500">
               <Badge className={status.color + " border-0"}>{status.label}</Badge>
               <span>Студент: {question.student?.fullName || question.student?.email}</span>
