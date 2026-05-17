@@ -130,11 +130,11 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         }
       }
 
-      // If student sent the message — schedule Jarvis reply after delay
+      // If student sent the message — schedule AI reply after delay
       if (isStudent) {
         after(async () => {
-          const { scheduleJarvisReply } = await import("@/lib/jarvis");
-          await scheduleJarvisReply(id);
+          const { scheduleQuestionAIReply } = await import("@/lib/ai/question-checker");
+          await scheduleQuestionAIReply(id);
         });
       }
 

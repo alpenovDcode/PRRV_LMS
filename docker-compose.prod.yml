@@ -179,10 +179,8 @@ services:
       TELEGRAM_QUESTIONS_CHAT_ID: ${TELEGRAM_QUESTIONS_CHAT_ID:-}
       MENTORS_TG_CHAT_ID: ${MENTORS_TG_CHAT_ID:-}
 
-      # Jarvis AI (первичный ответ на вопросы наставникам)
-      JARVIS_PROVIDER: ${JARVIS_PROVIDER:-openclaw}
+      # Задержка перед ответом AI на вопросы наставнику (мс). Прод: 300000 (5 мин)
       JARVIS_DELAY_MS: ${JARVIS_DELAY_MS:-300000}
-      JARVIS_CRON_SECRET: ${JARVIS_CRON_SECRET}
 
       # ---- Bot platform (own SaleBot-alternative) ----
       # AES-256-GCM key for encrypting bot tokens in DB. Generate once
@@ -233,40 +231,6 @@ services:
   app-green:
     <<: *app-defaults
     container_name: proryv_app_green
-
-  # Sidecar that calls /api/jarvis/cron every 2 minutes — safety net for
-  # questions where after() was lost on container restart.
-  jarvis-cron:
-    image: curlimages/curl:8.10.1
-    container_name: proryv_jarvis_cron
-    restart: always
-    depends_on:
-      nginx:
-        condition: service_started
-    environment:
-      JARVIS_CRON_SECRET: ${JARVIS_CRON_SECRET}
-    entrypoint:
-      - sh
-      - -c
-      - |
-        echo "[jarvis-cron] starting, tick every 2min";
-        while true; do
-          sleep 120;
-          curl -fsS -X POST \
-            -H "Authorization: Bearer $$JARVIS_CRON_SECRET" \
-            http://nginx/api/jarvis/cron \
-            -o /tmp/jarvis.log 2>/dev/null \
-            && cat /tmp/jarvis.log \
-            || echo "[jarvis-cron] tick failed";
-          echo;
-        done
-    networks:
-      - proryv_network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "1m"
-        max-file: "3"
 
   # Sidecar that drives the bot-platform flow engine. Hits
   # /api/tg-cron/tick every 20s through nginx (which load-balances to

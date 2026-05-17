@@ -99,10 +99,10 @@ export async function POST(request: NextRequest) {
         buttons: [{ text: "Открыть вопрос", url: link }],
       }).catch((e) => console.error("Telegram notify failed", e));
 
-      // Schedule Jarvis reply after delay (same pattern as homework AI checker)
+      // Schedule AI reply after delay (same pattern as homework AI checker)
       after(async () => {
-        const { scheduleJarvisReply } = await import("@/lib/jarvis");
-        await scheduleJarvisReply(question.id);
+        const { scheduleQuestionAIReply } = await import("@/lib/ai/question-checker");
+        await scheduleQuestionAIReply(question.id);
       });
 
       return NextResponse.json<ApiResponse>({ success: true, data: { question } });
