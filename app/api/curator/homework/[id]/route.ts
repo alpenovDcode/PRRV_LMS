@@ -30,13 +30,13 @@ export async function GET(
                   },
                 },
               },
-            } as any,
+            },
             landingBlock: {
               include: { page: true }
             },
             curator: true,
           },
-        });
+        }) as any;
 
         if (!submission) {
           return NextResponse.json<ApiResponse>(
@@ -56,10 +56,8 @@ export async function GET(
           status: submission.status,
           content: submission.content,
           files: (submission.files as string[]) || [],
-          // @ts-ignore
           curatorFiles: (submission.curatorFiles as string[]) || [],
           curatorComment: submission.curatorComment,
-          // @ts-ignore
           curatorAudioUrl: submission.curatorAudioUrl || null,
           createdAt: submission.createdAt.toISOString(),
           reviewedAt: submission.reviewedAt?.toISOString() || null,
@@ -77,15 +75,11 @@ export async function GET(
             id: submission.lesson.id,
             title: submission.lesson.title,
             content: submission.lesson.content,
-            // @ts-ignore
             aiPrompt: submission.lesson.aiPrompt || null,
           } : null,
-          // @ts-ignore
-          aiSuggestedVerdict: (submission as any).aiSuggestedVerdict || null,
-          // @ts-ignore
-          aiSuggestedComment: (submission as any).aiSuggestedComment || null,
-          // @ts-ignore
-          aiAnalyzedAt: (submission as any).aiAnalyzedAt?.toISOString() || null,
+          aiSuggestedVerdict: submission.aiSuggestedVerdict || null,
+          aiSuggestedComment: submission.aiSuggestedComment || null,
+          aiAnalyzedAt: submission.aiAnalyzedAt?.toISOString() || null,
           landing: submission.landingBlock ? {
              id: submission.landingBlock.id,
              title: submission.landingBlock.page?.title || "Лендинг",
