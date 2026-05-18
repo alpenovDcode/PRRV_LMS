@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { withAuth } from "@/lib/api-middleware";
 import { db } from "@/lib/db";
 import { UserRole } from "@prisma/client";
@@ -98,6 +98,12 @@ export async function POST(request: NextRequest) {
       sendTelegramMessage(text, {
         buttons: [{ text: "Открыть вопрос", url: link }],
       }).catch((e) => console.error("Telegram notify failed", e));
+
+      // Schedule AI reply after delay (same pattern as homework AI checker)
+      after(async () => {
+        const { scheduleQuestionAIReply } = await import("@/lib/ai/question-checker");
+        await scheduleQuestionAIReply(question.id);
+      });
 
       return NextResponse.json<ApiResponse>({ success: true, data: { question } });
     } catch (error) {

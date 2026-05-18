@@ -177,6 +177,10 @@ services:
       # Telegram bot (notifications about new questions)
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_QUESTIONS_CHAT_ID: ${TELEGRAM_QUESTIONS_CHAT_ID:-}
+      MENTORS_TG_CHAT_ID: ${MENTORS_TG_CHAT_ID:-}
+
+      # Задержка перед ответом AI на вопросы наставнику (мс). Прод: 300000 (5 мин)
+      JARVIS_DELAY_MS: ${JARVIS_DELAY_MS:-300000}
 
       # ---- Bot platform (own SaleBot-alternative) ----
       # AES-256-GCM key for encrypting bot tokens in DB. Generate once
