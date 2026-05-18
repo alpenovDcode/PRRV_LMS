@@ -1,6 +1,119 @@
 # Production Docker Compose Configuration
 # Optimized for production deployment
 
+# YAML anchor for app-blue / app-green shared config. MUST be at top
+# level (x-* prefix). When placed inside `services:` docker compose
+# treats it as a real service and spins up a phantom container.
+x-app-defaults: &app-defaults
+  build:
+    context: .
+    dockerfile: Dockerfile
+    args:
+      NODE_ENV: production
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+      NEXT_PUBLIC_CLOUDFLARE_STREAM_CUSTOMER_CODE: ${NEXT_PUBLIC_CLOUDFLARE_STREAM_CUSTOMER_CODE}
+      NEXT_PUBLIC_CLOUDFLARE_IMAGES_ACCOUNT_HASH: ${NEXT_PUBLIC_CLOUDFLARE_IMAGES_ACCOUNT_HASH}
+  image: proryv-lms:latest
+  restart: always
+  environment:
+    # Database
+    DATABASE_URL: postgresql://${POSTGRES_USER:-proryv}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-proryv_lms}?schema=public&connection_limit=10&pool_timeout=20
+    DIRECT_URL: postgresql://${POSTGRES_USER:-proryv}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-proryv_lms}?schema=public
+    # Redis
+    REDIS_URL: redis://redis:6379
+    # JWT
+    JWT_SECRET: ${JWT_SECRET}
+    JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+    JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-30m}
+    JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+    # Application
+    NODE_ENV: production
+    NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+    ALLOWED_ORIGIN: ${ALLOWED_ORIGIN}
+    ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+    # Cloudflare Stream
+    CLOUDFLARE_ACCOUNT_ID: ${CLOUDFLARE_ACCOUNT_ID:-}
+    CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:-}
+    CLOUDFLARE_STREAM_CUSTOMER_CODE: ${CLOUDFLARE_STREAM_CUSTOMER_CODE}
+    NEXT_PUBLIC_CLOUDFLARE_STREAM_CUSTOMER_CODE: ${NEXT_PUBLIC_CLOUDFLARE_STREAM_CUSTOMER_CODE}
+    # Cloudflare R2 Storage
+    R2_ACCOUNT_ID: ${R2_ACCOUNT_ID}
+    R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
+    R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
+    R2_BUCKET_NAME: ${R2_BUCKET_NAME:-}
+    R2_PUBLIC_URL: /api/assets
+    # API Protection
+    API_SECRET_KEY: ${API_SECRET_KEY}
+    # Cloudflare Images
+    CLOUDFLARE_IMAGES_ACCOUNT_ID: ${CLOUDFLARE_IMAGES_ACCOUNT_ID:-}
+    CLOUDFLARE_IMAGES_ACCOUNT_HASH: ${CLOUDFLARE_IMAGES_ACCOUNT_HASH:-}
+    NEXT_PUBLIC_CLOUDFLARE_IMAGES_ACCOUNT_HASH: ${NEXT_PUBLIC_CLOUDFLARE_IMAGES_ACCOUNT_HASH:-}
+    # Bitrix24
+    BITRIX24_WEBHOOK_URL: ${BITRIX24_WEBHOOK_URL}
+    BITRIX_FUNNEL_ID: ${BITRIX_FUNNEL_ID}
+    BITRIX_SOURCE_STAGE_ID: ${BITRIX_SOURCE_STAGE_ID}
+    # Sentry (optional)
+    NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
+    # Email (SMTP)
+    SMTP_HOST: ${SMTP_HOST}
+    SMTP_PORT: ${SMTP_PORT}
+    SMTP_USER: ${SMTP_USER}
+    SMTP_PASSWORD: ${SMTP_PASSWORD}
+    SMTP_FROM: ${SMTP_FROM}
+    # AI (Replicate & Ollama)
+    REPLICATE_API_TOKEN: ${REPLICATE_API_TOKEN}
+    OLLAMA_URL: http://ollama:11434
+    # AI homework checker (external Flask bot)
+    AI_CHECKER_URL: ${AI_CHECKER_URL}
+    AI_CHECKER_KEY: ${AI_CHECKER_KEY}
+    # OpenClaw
+    OPENCLAW_API_URL: ${OPENCLAW_API_URL:-http://host.docker.internal:18789/v1/responses}
+    OPENCLAW_API_KEY: ${OPENCLAW_API_KEY}
+    OPENCLAW_AGENT_ID: ${OPENCLAW_AGENT_ID:-main}
+    # Telegram bot (notifications about new questions)
+    TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+    TELEGRAM_QUESTIONS_CHAT_ID: ${TELEGRAM_QUESTIONS_CHAT_ID:-}
+    # ---- Bot platform (own SaleBot-alternative) ----
+    # AES-256-GCM key for encrypting bot tokens in DB. Generate once
+    # with `openssl rand -hex 32`; rotation needs token migration.
+    TG_TOKEN_ENC_KEY: ${TG_TOKEN_ENC_KEY}
+    # Bearer token consumed by /api/tg-cron/tick. The tg-cron sidecar
+    # below uses it to drive delay + wait_reply timeouts every 20s.
+    TG_CRON_SECRET: ${TG_CRON_SECRET}
+    # Public base URL for /r/<slug> redirect-tracking URLs.
+    PUBLIC_APP_URL: ${PUBLIC_APP_URL:-${NEXT_PUBLIC_APP_URL}}
+  volumes:
+    - ./public/uploads:/app/public/uploads
+    - ./data:/app/data
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  networks:
+    - proryv_network
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  healthcheck:
+    test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r => {if(!r.ok) throw new Error(r.statusText)}).catch(e => {console.error(e); process.exit(1)})"]
+    interval: 30s
+    timeout: 10s
+    retries: 3
+    start_period: 60s
+  deploy:
+    resources:
+      limits:
+        cpus: '1.5'
+        memory: 1.5G
+      reservations:
+        cpus: '0.5'
+        memory: 256M
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "10m"
+      max-file: "3"
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -92,137 +205,6 @@ services:
              echo '[ollama-pull] Pulling bge-reranker-v2-m3...';
              curl -X POST http://ollama:11434/api/pull -d '{\"name\": \"bge-reranker-v2-m3\"}';
              echo '[ollama-pull] Done.'"
-
-  x-app-defaults: &app-defaults
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        NODE_ENV: production
-        # NEXT_PUBLIC_API_SECRET_KEY removed for security
-        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
-        NEXT_PUBLIC_CLOUDFLARE_STREAM_CUSTOMER_CODE: ${NEXT_PUBLIC_CLOUDFLARE_STREAM_CUSTOMER_CODE}
-        NEXT_PUBLIC_CLOUDFLARE_IMAGES_ACCOUNT_HASH: ${NEXT_PUBLIC_CLOUDFLARE_IMAGES_ACCOUNT_HASH}
-    image: proryv-lms:latest
-    restart: always
-    environment:
-      # Database
-      DATABASE_URL: postgresql://${POSTGRES_USER:-proryv}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-proryv_lms}?schema=public&connection_limit=10&pool_timeout=20
-      DIRECT_URL: postgresql://${POSTGRES_USER:-proryv}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-proryv_lms}?schema=public
-      
-      # Redis
-      REDIS_URL: redis://redis:6379
-      
-      # JWT
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
-      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-30m}
-      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
-      
-      # Application
-      NODE_ENV: production
-      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
-      ALLOWED_ORIGIN: ${ALLOWED_ORIGIN}
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
-      
-      # Cloudflare Stream
-      CLOUDFLARE_ACCOUNT_ID: ${CLOUDFLARE_ACCOUNT_ID:-}
-      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:-}
-      CLOUDFLARE_STREAM_CUSTOMER_CODE: ${CLOUDFLARE_STREAM_CUSTOMER_CODE}
-      NEXT_PUBLIC_CLOUDFLARE_STREAM_CUSTOMER_CODE: ${NEXT_PUBLIC_CLOUDFLARE_STREAM_CUSTOMER_CODE}
-      
-      # Cloudflare R2 Storage
-      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID}
-      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
-      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
-      R2_BUCKET_NAME: ${R2_BUCKET_NAME:-}
-      R2_PUBLIC_URL: /api/assets
-
-      # API Protection
-      API_SECRET_KEY: ${API_SECRET_KEY}
-      # NEXT_PUBLIC_API_SECRET_KEY removed for security
-      
-      # Cloudflare Images
-      CLOUDFLARE_IMAGES_ACCOUNT_ID: ${CLOUDFLARE_IMAGES_ACCOUNT_ID:-}
-      CLOUDFLARE_IMAGES_ACCOUNT_HASH: ${CLOUDFLARE_IMAGES_ACCOUNT_HASH:-}
-      NEXT_PUBLIC_CLOUDFLARE_IMAGES_ACCOUNT_HASH: ${NEXT_PUBLIC_CLOUDFLARE_IMAGES_ACCOUNT_HASH:-}
-      # Bitrix24
-      BITRIX24_WEBHOOK_URL: ${BITRIX24_WEBHOOK_URL}
-      BITRIX_FUNNEL_ID: ${BITRIX_FUNNEL_ID}
-      BITRIX_SOURCE_STAGE_ID: ${BITRIX_SOURCE_STAGE_ID}
-
-      # Sentry (optional)
-      NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
-
-      # Email (SMTP)
-      SMTP_HOST: ${SMTP_HOST}
-      SMTP_PORT: ${SMTP_PORT}
-      SMTP_USER: ${SMTP_USER}
-      SMTP_PASSWORD: ${SMTP_PASSWORD}
-      SMTP_FROM: ${SMTP_FROM}
-
-      # AI (Replicate & Ollama)
-      REPLICATE_API_TOKEN: ${REPLICATE_API_TOKEN}
-      OLLAMA_URL: http://ollama:11434
-
-      # AI homework checker (external Flask bot)
-      AI_CHECKER_URL: ${AI_CHECKER_URL}
-      AI_CHECKER_KEY: ${AI_CHECKER_KEY}
-      
-      # OpenClaw
-      OPENCLAW_API_URL: ${OPENCLAW_API_URL:-http://host.docker.internal:18789/v1/responses}
-      OPENCLAW_API_KEY: ${OPENCLAW_API_KEY}
-      OPENCLAW_AGENT_ID: ${OPENCLAW_AGENT_ID:-main}
-
-      # Telegram bot (notifications about new questions)
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
-      TELEGRAM_QUESTIONS_CHAT_ID: ${TELEGRAM_QUESTIONS_CHAT_ID:-}
-      MENTORS_TG_CHAT_ID: ${MENTORS_TG_CHAT_ID:-}
-
-      # Задержка перед ответом AI на вопросы наставнику (мс). Прод: 300000 (5 мин)
-      JARVIS_DELAY_MS: ${JARVIS_DELAY_MS:-300000}
-
-      # ---- Bot platform (own SaleBot-alternative) ----
-      # AES-256-GCM key for encrypting bot tokens in DB. Generate once
-      # with `openssl rand -hex 32` and treat as a long-lived secret;
-      # rotation needs token re-encryption migration.
-      TG_TOKEN_ENC_KEY: ${TG_TOKEN_ENC_KEY}
-      # Bearer token consumed by /api/tg-cron/tick. The tg-cron sidecar
-      # below uses it to drive delay + wait_reply timeouts every 20s.
-      TG_CRON_SECRET: ${TG_CRON_SECRET}
-      # Public base URL for /r/<slug> redirect-tracking URLs.
-      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-${NEXT_PUBLIC_APP_URL}}
-    volumes:
-      - ./public/uploads:/app/public/uploads
-      - ./data:/app/data
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - proryv_network
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r => {if(!r.ok) throw new Error(r.statusText)}).catch(e => {console.error(e); process.exit(1)})"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-    deploy:
-      resources:
-        limits:
-          cpus: '1.5'      # Reduced from 2 to prevent overcommitment
-          memory: 1.5G     # Reduced from 2G
-        reservations:
-          cpus: '0.5'
-          memory: 256M
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
 
   app-blue:
     <<: *app-defaults
