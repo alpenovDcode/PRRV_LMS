@@ -17,6 +17,7 @@ import {
   Calendar,
   FileText,
   MessageCircle,
+  ClipboardList,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { NotificationsPopover } from "@/components/notifications-popover";
@@ -27,6 +28,7 @@ const navigation = [
   { name: "Мои материалы", href: "/courses", icon: BookOpen },
   { name: "Календарь", href: "/dashboard/calendar", icon: Calendar },
   { name: "Домашнее задание", href: "/dashboard/homework", icon: FileText },
+  { name: "Бриф для упаковки", href: "/dashboard/brief", icon: ClipboardList },
   { name: "Вопросы наставнику", href: "/dashboard/questions", icon: MessageCircle },
   { name: "Настройки профиля", href: "/profile", icon: Settings },
 ];
