@@ -30,6 +30,9 @@ interface HomeworkSubmission {
   } | null;
   curatorFiles?: string[];
   curatorAudioUrl?: string | null;
+  aiSuggestedVerdict?: "approved" | "rejected" | null;
+  aiSuggestedComment?: string | null;
+  aiAnalyzedAt?: string | null;
   user: {
     id: string;
     fullName: string | null;
@@ -40,6 +43,7 @@ interface HomeworkSubmission {
     title: string;
     isStopLesson: boolean;
     content: any;
+    aiPrompt?: string | null;
   };
   course?: {
     id: string;
@@ -152,10 +156,9 @@ export default function AdminHomeworkReviewPage() {
   const handleJarvixAnalyze = async () => {
     setIsAnalyzing(true);
     try {
-      const resp = await apiClient.post(`/curator/homework/${submissionId}/ai-analyze`);
-      const { verdict, comment: aiComment } = resp.data;
-      setComment(aiComment || "");
-      toast.success(verdict === "approved" ? "Джарвикс: принять" : "Джарвикс: на доработку");
+      await apiClient.post(`/curator/homework/${submissionId}/ai-analyze`);
+      await queryClient.invalidateQueries({ queryKey: ["admin", "homework", submissionId] });
+      toast.success("Анализ Джарвикса сохранён");
     } catch (err: any) {
       const msg = err?.response?.data?.error || "Ошибка анализа";
       toast.error(msg);
@@ -256,6 +259,46 @@ export default function AdminHomeworkReviewPage() {
                  <p className="text-sm text-muted-foreground">
                     Заявка с лендинга: <strong>{submission.landingBlock.page.title}</strong>
                  </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Блок анализа Джарвикса — только для куратора/админа */}
+          {submission.aiSuggestedComment && (
+            <Card className="border-violet-200 bg-violet-50/50">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-violet-600" />
+                    <CardTitle className="text-base text-violet-900">Анализ Джарвикса</CardTitle>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      variant={submission.aiSuggestedVerdict === "approved" ? "default" : "destructive"}
+                      className={submission.aiSuggestedVerdict === "approved" ? "bg-green-600" : ""}
+                    >
+                      {submission.aiSuggestedVerdict === "approved" ? "Рекомендует принять" : "Рекомендует на доработку"}
+                    </Badge>
+                    {submission.aiAnalyzedAt && (
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(submission.aiAnalyzedAt).toLocaleString("ru-RU")}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-violet-900 whitespace-pre-wrap leading-relaxed">
+                  {submission.aiSuggestedComment}
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-violet-300 text-violet-700 hover:bg-violet-100"
+                  onClick={() => setComment(submission.aiSuggestedComment || "")}
+                >
+                  Использовать этот комментарий
+                </Button>
               </CardContent>
             </Card>
           )}

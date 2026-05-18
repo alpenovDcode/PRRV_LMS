@@ -253,6 +253,11 @@ model HomeworkSubmission {
   // Auto-Review fields
   autoResponseScheduledAt DateTime? @map("auto_response_scheduled_at")
   responseTemplateIndex   Int?      @map("response_template_index")
+
+  // AI-анализ от Джарвикса — виден только куратору/админу, студенту не отправляется
+  aiSuggestedVerdict  String?   @map("ai_suggested_verdict")
+  aiSuggestedComment  String?   @map("ai_suggested_comment") @db.Text
+  aiAnalyzedAt        DateTime? @map("ai_analyzed_at")
   
   createdAt      DateTime          @default(now()) @map("created_at")
   updatedAt      DateTime          @updatedAt @map("updated_at")
@@ -1323,6 +1328,29 @@ model BriefCase {
 // 'portrait' | 'selfie' | 'context' | 'review' | 'education' |
 // 'materials' | 'style_example'.
 // review-файлы могут быть привязаны к конкретному кейсу (caseId).
+// Очередь AI-проверки ДЗ. Запись создаётся при сабмите вместо after()+sleep.
+// Cron /api/tg-cron/homework-queue забирает записи где checkAfter <= now.
+model HomeworkAIQueue {
+  id            String   @id @default(uuid())
+  submissionId  String   @unique @map("submission_id")
+  lessonTitle   String   @map("lesson_title") @db.Text
+  studentName   String   @map("student_name")
+  studentAnswer String   @map("student_answer") @db.Text
+  aiPrompt      String   @map("ai_prompt") @db.Text
+  aiContext     String?  @map("ai_context") @db.Text
+  imageFiles    Json     @map("image_files")
+  lessonContent Json?    @map("lesson_content")
+  checkAfter    DateTime @map("check_after")
+  status        String   @default("waiting") // waiting | processing
+  attempts      Int      @default(0)
+  lastError     String?  @map("last_error") @db.Text
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([status, checkAfter])
+  @@map("homework_ai_queue")
+}
+
 model BriefFile {
   id          String   @id @default(uuid())
   briefId     String   @map("brief_id")

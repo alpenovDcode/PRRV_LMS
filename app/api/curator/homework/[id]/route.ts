@@ -30,7 +30,7 @@ export async function GET(
                   },
                 },
               },
-            },
+            } as any,
             landingBlock: {
               include: { page: true }
             },
@@ -77,7 +77,15 @@ export async function GET(
             id: submission.lesson.id,
             title: submission.lesson.title,
             content: submission.lesson.content,
+            // @ts-ignore
+            aiPrompt: submission.lesson.aiPrompt || null,
           } : null,
+          // @ts-ignore
+          aiSuggestedVerdict: (submission as any).aiSuggestedVerdict || null,
+          // @ts-ignore
+          aiSuggestedComment: (submission as any).aiSuggestedComment || null,
+          // @ts-ignore
+          aiAnalyzedAt: (submission as any).aiAnalyzedAt?.toISOString() || null,
           landing: submission.landingBlock ? {
              id: submission.landingBlock.id,
              title: submission.landingBlock.page?.title || "Лендинг",
