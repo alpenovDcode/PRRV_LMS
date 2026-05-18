@@ -4,11 +4,17 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { useRouter } from "next/navigation";
 
+// Tariff codes match Prisma's UserTariff enum (VR / LR / SR).
+// We use the string form here to avoid importing @prisma/client into a
+// client component bundle.
+export type UserTariffCode = "VR" | "LR" | "SR";
+
 interface User {
   id: string;
   email: string;
   fullName: string | null;
   role: string;
+  tariff: UserTariffCode | null;
   avatarUrl: string | null;
   phone: string | null;
   about: string | null;

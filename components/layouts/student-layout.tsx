@@ -23,12 +23,24 @@ import { useState, useEffect } from "react";
 import { NotificationsPopover } from "@/components/notifications-popover";
 import { apiClient } from "@/lib/api-client";
 
-const navigation = [
+// Пункт `requiredTariffs` ограничивает видимость для не-LR тарифов.
+// Если поле не задано — пункт виден всем. Админы видят всё.
+const navigation: Array<{
+  name: string;
+  href: string;
+  icon: typeof Home;
+  requiredTariffs?: Array<"VR" | "LR" | "SR">;
+}> = [
   { name: "Главная", href: "/dashboard", icon: Home },
   { name: "Мои материалы", href: "/courses", icon: BookOpen },
   { name: "Календарь", href: "/dashboard/calendar", icon: Calendar },
   { name: "Домашнее задание", href: "/dashboard/homework", icon: FileText },
-  { name: "Бриф для упаковки", href: "/dashboard/brief", icon: ClipboardList },
+  {
+    name: "Бриф для упаковки",
+    href: "/dashboard/brief",
+    icon: ClipboardList,
+    requiredTariffs: ["LR"],
+  },
   { name: "Вопросы наставнику", href: "/dashboard/questions", icon: MessageCircle },
   { name: "Настройки профиля", href: "/profile", icon: Settings },
 ];
@@ -96,7 +108,18 @@ export function StudentLayout({ children }: { children: React.ReactNode }) {
 
           {/* Navigation */}
           <nav className="flex-1 space-y-2 px-3 py-4 overflow-y-auto">
-            {navigation.map((item) => {
+            {navigation
+              // Скрываем пункты, недоступные на текущем тарифе. Админы
+              // видят всё, плюс пункт виден если у него нет ограничения.
+              .filter((item) => {
+                if (!item.requiredTariffs) return true;
+                if (user?.role === "admin") return true;
+                if (!user?.tariff) return false;
+                return item.requiredTariffs.includes(
+                  user.tariff as "VR" | "LR" | "SR",
+                );
+              })
+              .map((item) => {
               const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
               return (
                 <Link

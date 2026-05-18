@@ -3,14 +3,21 @@ import { withAuth } from "@/lib/api-middleware";
 import { db } from "@/lib/db";
 import { ApiResponse } from "@/types";
 import { briefUpdateSchema } from "@/lib/brief";
+import { requireTariff, tariffDeniedResponse } from "@/lib/tariff-guard";
 
 export const dynamic = "force-dynamic";
+
+// Бриф для упаковки — фича тарифа «Лидер рынка» (LR). Сами endpoint'ы
+// проверяют тариф ниже; sidebar дополнительно прячет пункт меню.
+const BRIEF_TARIFFS = ["LR"] as const;
 
 // GET /api/brief — мой бриф. Если его ещё нет — создать пустой черновик.
 export async function GET(request: NextRequest) {
   return withAuth(request, async (req) => {
     try {
       const userId = req.user!.userId;
+      const guard = await requireTariff(userId, [...BRIEF_TARIFFS]);
+      if (!guard.ok) return tariffDeniedResponse(guard);
 
       let brief = await db.brief.findUnique({
         where: { userId },
@@ -52,6 +59,8 @@ export async function PATCH(request: NextRequest) {
   return withAuth(request, async (req) => {
     try {
       const userId = req.user!.userId;
+      const guard = await requireTariff(userId, [...BRIEF_TARIFFS]);
+      if (!guard.ok) return tariffDeniedResponse(guard);
       const body = await request.json();
       const parsed = briefUpdateSchema.safeParse(body);
 
@@ -119,6 +128,8 @@ export async function DELETE(request: NextRequest) {
   return withAuth(request, async (req) => {
     try {
       const userId = req.user!.userId;
+      const guard = await requireTariff(userId, [...BRIEF_TARIFFS]);
+      if (!guard.ok) return tariffDeniedResponse(guard);
       await db.brief.deleteMany({ where: { userId } });
       const fresh = await db.brief.create({
         data: { userId },

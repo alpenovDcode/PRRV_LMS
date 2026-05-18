@@ -3,6 +3,7 @@ import { withAuth } from "@/lib/api-middleware";
 import { db } from "@/lib/db";
 import { deleteFile } from "@/lib/storage";
 import { ApiResponse } from "@/types";
+import { requireTariff, tariffDeniedResponse } from "@/lib/tariff-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,8 @@ export async function DELETE(
   return withAuth(request, async (req) => {
     try {
       const userId = req.user!.userId;
+      const guard = await requireTariff(userId, ["LR"]);
+      if (!guard.ok) return tariffDeniedResponse(guard);
       const file = await db.briefFile.findUnique({
         where: { id: fileId },
         include: { brief: { select: { userId: true, status: true } } },
