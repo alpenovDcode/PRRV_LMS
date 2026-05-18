@@ -10,14 +10,15 @@ export const dynamic = "force-dynamic";
 // GET /api/admin/briefs/[id] — полный бриф с кейсами и файлами.
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   return withAuth(
     request,
     async () => {
       try {
         const brief = await db.brief.findUnique({
-          where: { id: params.id },
+          where: { id },
           include: {
             user: {
               select: {
@@ -67,14 +68,15 @@ export async function GET(
 // (вместе с кейсами и файлами; файлы из стораджа удаляем best-effort).
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   return withAuth(
     request,
     async () => {
       try {
         const brief = await db.brief.findUnique({
-          where: { id: params.id },
+          where: { id },
           include: { files: { select: { fileUrl: true } } },
         });
         if (!brief) {
@@ -84,7 +86,7 @@ export async function DELETE(
           );
         }
 
-        await db.brief.delete({ where: { id: params.id } });
+        await db.brief.delete({ where: { id } });
 
         await Promise.all(
           brief.files.map((f) => deleteFile(f.fileUrl).catch(() => null))

@@ -23,12 +23,13 @@ async function loadCaseOrForbidden(caseId: string, userId: string) {
 // PATCH /api/brief/cases/[caseId] — обновить поля одного кейса.
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { caseId: string } }
+  { params }: { params: Promise<{ caseId: string }> }
 ) {
+  const { caseId } = await params;
   return withAuth(request, async (req) => {
     try {
       const userId = req.user!.userId;
-      const guard = await loadCaseOrForbidden(params.caseId, userId);
+      const guard = await loadCaseOrForbidden(caseId, userId);
       if (guard.error === "NOT_FOUND") {
         return NextResponse.json<ApiResponse>(
           { success: false, error: { code: "NOT_FOUND", message: "Кейс не найден" } },
@@ -58,7 +59,7 @@ export async function PATCH(
       }
 
       const updated = await db.briefCase.update({
-        where: { id: params.caseId },
+        where: { id: caseId },
         data: parsed.data,
       });
 
@@ -84,12 +85,13 @@ export async function PATCH(
 // см. SetNull в схеме).
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { caseId: string } }
+  { params }: { params: Promise<{ caseId: string }> }
 ) {
+  const { caseId } = await params;
   return withAuth(request, async (req) => {
     try {
       const userId = req.user!.userId;
-      const guard = await loadCaseOrForbidden(params.caseId, userId);
+      const guard = await loadCaseOrForbidden(caseId, userId);
       if (guard.error === "NOT_FOUND") {
         return NextResponse.json<ApiResponse>(
           { success: false, error: { code: "NOT_FOUND", message: "Кейс не найден" } },
@@ -103,7 +105,7 @@ export async function DELETE(
         );
       }
 
-      await db.briefCase.delete({ where: { id: params.caseId } });
+      await db.briefCase.delete({ where: { id: caseId } });
       return NextResponse.json<ApiResponse>({ success: true }, { status: 200 });
     } catch (error) {
       console.error("Delete brief case error:", error);

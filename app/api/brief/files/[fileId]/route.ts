@@ -9,13 +9,14 @@ export const dynamic = "force-dynamic";
 // DELETE /api/brief/files/[fileId]
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { fileId: string } }
+  { params }: { params: Promise<{ fileId: string }> }
 ) {
+  const { fileId } = await params;
   return withAuth(request, async (req) => {
     try {
       const userId = req.user!.userId;
       const file = await db.briefFile.findUnique({
-        where: { id: params.fileId },
+        where: { id: fileId },
         include: { brief: { select: { userId: true, status: true } } },
       });
       if (!file || file.brief.userId !== userId) {
@@ -34,7 +35,7 @@ export async function DELETE(
         );
       }
 
-      await db.briefFile.delete({ where: { id: params.fileId } });
+      await db.briefFile.delete({ where: { id: fileId } });
       // Best-effort удаление из стораджа — игнорируем ошибки.
       await deleteFile(file.fileUrl).catch(() => null);
 
