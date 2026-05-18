@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
           success: false,
           error: {
             code: "INTERNAL_ERROR",
-            message: error?.message || "Не удалось загрузить файл",
+            message: "Не удалось загрузить файл. Попробуйте ещё раз.",
           },
         },
         { status: 500 }
