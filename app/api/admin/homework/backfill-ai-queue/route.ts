@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/api-middleware";
 import { db } from "@/lib/db";
+import { Prisma } from "@prisma/client";
 
 export async function POST(request: NextRequest) {
   return withAuth(request, async (req) => {
@@ -53,7 +54,7 @@ export async function POST(request: NextRequest) {
           imageFiles: lesson.hasImageAnalysis
             ? ((sub.files as string[]) || [])
             : [],
-          lessonContent: lesson.content ?? null,
+          lessonContent: lesson.content ?? Prisma.JsonNull,
           checkAfter: new Date(), // проверяем немедленно
           status: "waiting",
         },

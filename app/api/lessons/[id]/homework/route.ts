@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse, after } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/api-middleware";
 import { db } from "@/lib/db";
 import { ApiResponse } from "@/types";
+import { Prisma } from "@prisma/client";
 import { notifyHomeworkSubmitted } from "@/lib/notifications";
 import { sanitizeText } from "@/lib/sanitize";
 import { logAction } from "@/lib/audit";
@@ -270,24 +271,29 @@ export async function POST(
         });
       // Запускаем AI-проверку только если авто-ответ не задан
       } else if (lesson.aiPrompt) {
-        const aiParams = {
-          submissionId: submission.id,
-          studentAnswer: sanitizedContent,
-          aiPrompt: lesson.aiPrompt,
-          aiContext: lesson.aiContext ?? null,
-          imageFiles: lesson.hasImageAnalysis ? (files || []) : [],
-          lessonTitle: lesson.title,
-          lessonContent: lesson.content ?? null,
-          studentName: submission.user.fullName ?? submission.user.email,
-        };
-        // after() гарантирует завершение задачи даже после отправки ответа клиенту
-        after(async () => {
-          const { checkHomeworkWithAI } = await import("@/lib/ai/homework-checker");
-          try {
-            await checkHomeworkWithAI(aiParams);
-          } catch (err) {
-            console.error("AI homework check failed:", err);
-          }
+        const delayMs = parseInt(process.env.AI_CHECK_DELAY_MS || "1200000");
+        const checkAfter = new Date(Date.now() + delayMs);
+        await db.homeworkAIQueue.upsert({
+          where: { submissionId: submission.id },
+          create: {
+            submissionId: submission.id,
+            lessonTitle: lesson.title,
+            studentName: submission.user.fullName ?? submission.user.email,
+            studentAnswer: sanitizedContent,
+            aiPrompt: lesson.aiPrompt,
+            aiContext: lesson.aiContext ?? null,
+            imageFiles: lesson.hasImageAnalysis ? (files || []) : [],
+            lessonContent: lesson.content ?? Prisma.JsonNull,
+            checkAfter,
+          },
+          update: {
+            studentAnswer: sanitizedContent,
+            imageFiles: lesson.hasImageAnalysis ? (files || []) : [],
+            checkAfter,
+            status: "waiting",
+            attempts: 0,
+            lastError: null,
+          },
         });
       }
 
