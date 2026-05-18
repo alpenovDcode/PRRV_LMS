@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, CircleCheck, X, FileText, User, Clock, Upload, Trash, Paperclip } from "lucide-react";
+import { ArrowLeft, CircleCheck, X, FileText, User, Clock, Upload, Trash, Paperclip, Sparkles } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -76,6 +76,7 @@ export default function AdminHomeworkReviewPage() {
   const [curatorFiles, setCuratorFiles] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const { data: submission, isLoading } = useQuery<HomeworkSubmission>({
     queryKey: ["admin", "homework", submissionId],
@@ -146,6 +147,21 @@ export default function AdminHomeworkReviewPage() {
 
   const handleReject = () => {
     reviewMutation.mutate({ status: "rejected", comment });
+  };
+
+  const handleJarvixAnalyze = async () => {
+    setIsAnalyzing(true);
+    try {
+      const resp = await apiClient.post(`/curator/homework/${submissionId}/ai-analyze`);
+      const { verdict, comment: aiComment } = resp.data;
+      setComment(aiComment || "");
+      toast.success(verdict === "approved" ? "Джарвикс: принять" : "Джарвикс: на доработку");
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || "Ошибка анализа";
+      toast.error(msg);
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -459,6 +475,18 @@ export default function AdminHomeworkReviewPage() {
                   </div>
                 )}
               </div>
+
+              {submission.lesson?.aiPrompt && (
+                <Button
+                  variant="outline"
+                  className="w-full border-violet-300 text-violet-700 hover:bg-violet-50 hover:text-violet-800 hover:border-violet-400"
+                  onClick={handleJarvixAnalyze}
+                  disabled={isAnalyzing || reviewMutation.isPending}
+                >
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  {isAnalyzing ? "Джарвикс анализирует..." : "Проверка от Джарвикса"}
+                </Button>
+              )}
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">Комментарий (необязательно)</label>
