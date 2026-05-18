@@ -8,9 +8,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { Send, Lock, Star } from "lucide-react";
+import { Send, Lock, Star, Mic, Loader2, BellRing } from "lucide-react";
 import { ImageUploader, QuestionAttachment } from "@/components/questions/image-uploader";
 import { ImageLightbox } from "@/components/questions/image-lightbox";
+import { AudioRecorder } from "@/components/ui/audio-recorder";
+import { AudioMessage } from "@/components/questions/audio-message";
 
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
   open: { label: "Ожидает наставника", color: "bg-amber-100 text-amber-800" },
@@ -32,6 +34,9 @@ export function QuestionChatThread({ questionId, viewerRole, viewerId }: Props) 
   const [rating, setRating] = useState<number>(0);
   const [ratingComment, setRatingComment] = useState("");
   const [showRating, setShowRating] = useState(false);
+  const [isVoiceMode, setIsVoiceMode] = useState(false);
+  const [isUploadingAudio, setIsUploadingAudio] = useState(false);
+  const [subjectExpanded, setSubjectExpanded] = useState(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
 
   // Lightbox: collect all images from all messages, open by url
@@ -88,6 +93,12 @@ export function QuestionChatThread({ questionId, viewerRole, viewerId }: Props) 
     onError: () => toast.error("Не удалось закрыть"),
   });
 
+  const callMentor = useMutation({
+    mutationFn: async () => (await apiClient.post(`/questions/${questionId}/call-mentor`, {})).data,
+    onSuccess: () => toast.success("Наставник уведомлён!"),
+    onError: (e: any) => toast.error(e?.response?.data?.error?.message || "Не удалось вызвать наставника"),
+  });
+
   const rate = useMutation({
     mutationFn: async () =>
       (await apiClient.post(`/questions/${questionId}/rate`, { rating, comment: ratingComment })).data.data,
@@ -99,6 +110,32 @@ export function QuestionChatThread({ questionId, viewerRole, viewerId }: Props) 
     },
     onError: () => toast.error("Не удалось сохранить оценку"),
   });
+
+  const uploadAudio = async (blob: Blob) => {
+    setIsUploadingAudio(true);
+    try {
+      const ext = blob.type.includes("ogg") ? "ogg" : blob.type.includes("mp4") || blob.type.includes("m4a") ? "m4a" : "webm";
+      const file = new File([blob], `voice-${Date.now()}.${ext}`, { type: blob.type });
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("category", "audio");
+      const res = await apiClient.post("/upload", fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      const data = res.data?.data;
+      if (data?.url) {
+        setPendingAttachments((prev) => [
+          ...prev,
+          { url: data.url, name: data.originalName || data.name || file.name, type: blob.type, size: blob.size },
+        ]);
+        setIsVoiceMode(false);
+      }
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error?.message || "Не удалось загрузить голосовое сообщение");
+    } finally {
+      setIsUploadingAudio(false);
+    }
+  };
 
   if (isLoading || !question) {
     return <div className="flex h-full items-center justify-center text-gray-500">Загрузка диалога...</div>;
@@ -116,9 +153,15 @@ export function QuestionChatThread({ questionId, viewerRole, viewerId }: Props) 
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="border-b px-4 py-3 bg-white">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <h2 className="font-semibold text-gray-900 truncate">{question.subject}</h2>
+        <div className="grid items-start gap-3" style={{ gridTemplateColumns: "minmax(0,1fr) auto" }}>
+          <div className="overflow-hidden">
+            <h2
+              className={cn("font-semibold text-gray-900 cursor-pointer hover:text-gray-600", subjectExpanded ? "" : "truncate")}
+              onClick={() => setSubjectExpanded((v) => !v)}
+              title={subjectExpanded ? undefined : question.subject}
+            >
+              {question.subject}
+            </h2>
             <div className="flex items-center gap-2 mt-1 flex-wrap text-xs text-gray-500">
               <Badge className={status.color + " border-0"}>{status.label}</Badge>
               <span>Студент: {question.student?.fullName || question.student?.email}</span>
@@ -131,6 +174,17 @@ export function QuestionChatThread({ questionId, viewerRole, viewerId }: Props) 
             </div>
           </div>
           <div className="flex gap-2">
+            {isStudent && !isClosed && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => callMentor.mutate()}
+                disabled={callMentor.isPending}
+                className="text-orange-600 border-orange-300 hover:bg-orange-50"
+              >
+                <BellRing className="h-4 w-4 mr-1" /> Вызвать наставника
+              </Button>
+            )}
             {canTake && (
               <Button size="sm" onClick={() => take.mutate()} disabled={take.isPending}>
                 Взять в работу
@@ -201,18 +255,25 @@ export function QuestionChatThread({ questionId, viewerRole, viewerId }: Props) 
           });
 
           return messages.map((m: any) => {
-            const mine = m.authorId === viewerId;
-            const authorName = m.author?.fullName || m.author?.email || "—";
+            const isAI = Boolean(m.isAiReply);
+            const mine = !isAI && m.authorId === viewerId;
+            const authorName = isAI
+              ? (m.aiSenderName || "Джарвикс")
+              : (m.author?.fullName || m.author?.email || "—");
             const atts = (Array.isArray(m.attachments) ? m.attachments : []) as any[];
             return (
               <div key={m.id} className={cn("flex", mine ? "justify-end" : "justify-start")}>
                 <div
                   className={cn(
                     "max-w-[75%] rounded-lg px-3 py-2 shadow-sm",
-                    mine ? "bg-blue-600 text-white" : "bg-white text-gray-900 border"
+                    mine
+                      ? "bg-blue-600 text-white"
+                      : isAI
+                      ? "bg-violet-50 text-gray-900 border border-violet-200"
+                      : "bg-white text-gray-900 border"
                   )}
                 >
-                  <div className={cn("text-xs mb-1 opacity-80", mine ? "text-blue-100" : "text-gray-500")}>
+                  <div className={cn("text-xs mb-1 opacity-80", mine ? "text-blue-100" : isAI ? "text-violet-500" : "text-gray-500")}>
                     {authorName} · {new Date(m.createdAt).toLocaleString("ru-RU")}
                   </div>
                   {m.content && (
@@ -221,7 +282,11 @@ export function QuestionChatThread({ questionId, viewerRole, viewerId }: Props) 
                   {atts.length > 0 && (
                     <div className={cn("flex flex-wrap gap-2", m.content ? "mt-2" : "")}>
                       {atts.map((a: any, i: number) => {
-                        const isImage = !a.type || String(a.type).startsWith("image/") || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(a.url || "");
+                        const isAudio = String(a.type).startsWith("audio/");
+                        const isImage = !isAudio && (!a.type || String(a.type).startsWith("image/") || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(a.url || ""));
+                        if (isAudio && a.url) {
+                          return <AudioMessage key={i} url={a.url} mine={mine} />;
+                        }
                         if (isImage && a.url) {
                           const idxInAll = allImages.findIndex((img) => img.url === a.url);
                           return (
@@ -294,18 +359,36 @@ export function QuestionChatThread({ questionId, viewerRole, viewerId }: Props) 
           <div className="space-y-2">
             {pendingAttachments.length > 0 && (
               <div className="flex flex-wrap gap-2">
-                {pendingAttachments.map((a, i) => (
-                  <div key={i} className="relative group">
-                    <img src={a.url} alt={a.name} className="h-16 w-16 object-cover rounded border" />
-                    <button
-                      type="button"
-                      onClick={() => setPendingAttachments((arr) => arr.filter((_, idx) => idx !== i))}
-                      className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-red-500 text-white flex items-center justify-center text-xs"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
+                {pendingAttachments.map((a, i) => {
+                  const isAudio = String(a.type).startsWith("audio/");
+                  if (isAudio) {
+                    return (
+                      <div key={i} className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-lg text-sm text-gray-700">
+                        <Mic className="h-4 w-4 text-gray-500 shrink-0" />
+                        <span className="truncate max-w-[140px]">Голосовое сообщение</span>
+                        <button
+                          type="button"
+                          onClick={() => setPendingAttachments((arr) => arr.filter((_, idx) => idx !== i))}
+                          className="ml-1 text-gray-400 hover:text-red-500"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div key={i} className="relative group">
+                      <img src={a.url} alt={a.name} className="h-16 w-16 object-cover rounded border" />
+                      <button
+                        type="button"
+                        onClick={() => setPendingAttachments((arr) => arr.filter((_, idx) => idx !== i))}
+                        className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-red-500 text-white flex items-center justify-center text-xs"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             )}
             <div className="flex gap-2">
@@ -330,7 +413,32 @@ export function QuestionChatThread({ questionId, viewerRole, viewerId }: Props) 
                 <Send className="h-4 w-4" />
               </Button>
             </div>
-            <ImageUploader attachments={pendingAttachments} onChange={setPendingAttachments} compact />
+            <div className="flex items-center gap-4">
+              <ImageUploader attachments={pendingAttachments.filter(a => !String(a.type).startsWith("audio/"))} onChange={(imgs) => setPendingAttachments((prev) => [...prev.filter(a => String(a.type).startsWith("audio/")), ...imgs])} compact />
+              <button
+                type="button"
+                onClick={() => setIsVoiceMode((v) => !v)}
+                disabled={isUploadingAudio}
+                className={cn(
+                  "inline-flex items-center gap-2 text-sm disabled:opacity-50 transition-colors",
+                  isVoiceMode ? "text-red-500 hover:text-red-600" : "text-blue-600 hover:text-blue-700"
+                )}
+              >
+                {isUploadingAudio ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Mic className="h-4 w-4" />
+                )}
+                {isUploadingAudio ? "Загрузка..." : isVoiceMode ? "Отмена" : "Голосовое"}
+              </button>
+            </div>
+            {isVoiceMode && (
+              <AudioRecorder
+                onRecordingComplete={uploadAudio}
+                onClear={() => {}}
+                className="w-full"
+              />
+            )}
           </div>
         ) : null}
       </div>
