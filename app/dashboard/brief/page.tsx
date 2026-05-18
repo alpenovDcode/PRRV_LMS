@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
+import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -20,6 +22,7 @@ import {
   Plus,
   Trash2,
   RefreshCw,
+  Lock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { FileUploader, type BriefFileItem } from "./_components/file-uploader";
@@ -83,13 +86,39 @@ const STEPS: { key: StepKey; title: string; color: string }[] = [
 
 export default function BriefPage() {
   const qc = useQueryClient();
+  const { user, isLoading: authLoading } = useAuth();
+
+  // Бриф доступен только на тарифе «Лидер рынка» (LR). Админы видят
+  // всегда (для проверки), остальные — только при tariff === "LR".
+  // API endpoints дополнительно валидируют тариф на бэкенде —
+  // это просто чтобы юзер не тратил сетевые запросы и видел понятный
+  // экран вместо вечного скелетона.
+  const hasAccess =
+    user?.role === "admin" || user?.tariff === "LR";
+
   const { data: brief, isLoading } = useQuery<BriefData>({
     queryKey: ["brief"],
     queryFn: async () => {
       const r = await apiClient.get("/brief");
       return r.data.data;
     },
+    // Не дёргаем API если тарифа нет — иначе на консоли будут 403'ки.
+    enabled: hasAccess,
   });
+
+  if (authLoading) {
+    return (
+      <div className="container mx-auto max-w-3xl px-4 py-8 space-y-4">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-2 w-full" />
+        <Skeleton className="h-96 w-full" />
+      </div>
+    );
+  }
+
+  if (!hasAccess) {
+    return <TariffLockedScreen />;
+  }
 
   // Если бриф ещё не открывали — спрашиваем «продолжить или начать заново».
   // Если currentStep=1 и нет ни одного поля — это новый бриф, сразу в форму.
@@ -166,6 +195,45 @@ export default function BriefPage() {
       {step === 5 && <Block5 brief={brief} onBack={() => setStep(4)} onNext={() => setStep(6)} />}
       {step === 6 && <Block6 brief={brief} onBack={() => setStep(5)} onNext={() => setStep(7)} />}
       {step === 7 && <FinalSummary brief={brief} onEdit={(s) => setStep(s)} />}
+    </div>
+  );
+}
+
+// Экран-заглушка для пользователей, чей тариф ниже LR. Показывает
+// причину блокировки и CTA вернуться на дашборд. Соответствующие API-
+// endpoints возвращают TARIFF_REQUIRED 403, но мы прячем заглушку
+// до того, как UI пошлёт запросы, чтобы не было гонок и пустых
+// скелетонов.
+function TariffLockedScreen() {
+  return (
+    <div className="container mx-auto max-w-2xl px-4 py-16">
+      <Card>
+        <CardContent className="space-y-5 pt-8 text-center">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+            <Lock className="h-8 w-8 text-primary" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold">Доступ только для «Лидер рынка»</h2>
+            <p className="text-sm text-muted-foreground">
+              Бриф для упаковки — расширенная функция для оформления вашей
+              карточки на агрегаторах. Сейчас она входит только в тариф{" "}
+              <strong>«Лидер рынка»</strong>.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Чтобы получить доступ — обратитесь к куратору, и мы поможем
+              перейти на нужный тариф.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+            <Button asChild>
+              <Link href="/dashboard">Вернуться на главную</Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href="/dashboard/questions">Написать куратору</Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

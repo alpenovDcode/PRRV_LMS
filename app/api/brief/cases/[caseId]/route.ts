@@ -3,6 +3,7 @@ import { withAuth } from "@/lib/api-middleware";
 import { db } from "@/lib/db";
 import { ApiResponse } from "@/types";
 import { briefCaseUpdateSchema } from "@/lib/brief";
+import { requireTariff, tariffDeniedResponse } from "@/lib/tariff-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -29,14 +30,16 @@ export async function PATCH(
   return withAuth(request, async (req) => {
     try {
       const userId = req.user!.userId;
-      const guard = await loadCaseOrForbidden(caseId, userId);
-      if (guard.error === "NOT_FOUND") {
+      const tariffGuard = await requireTariff(userId, ["LR"]);
+      if (!tariffGuard.ok) return tariffDeniedResponse(tariffGuard);
+      const caseGuard = await loadCaseOrForbidden(caseId, userId);
+      if (caseGuard.error === "NOT_FOUND") {
         return NextResponse.json<ApiResponse>(
           { success: false, error: { code: "NOT_FOUND", message: "Кейс не найден" } },
           { status: 404 }
         );
       }
-      if (guard.error === "FORBIDDEN") {
+      if (caseGuard.error === "FORBIDDEN") {
         return NextResponse.json<ApiResponse>(
           { success: false, error: { code: "FORBIDDEN", message: "Бриф уже завершён" } },
           { status: 403 }
@@ -91,14 +94,16 @@ export async function DELETE(
   return withAuth(request, async (req) => {
     try {
       const userId = req.user!.userId;
-      const guard = await loadCaseOrForbidden(caseId, userId);
-      if (guard.error === "NOT_FOUND") {
+      const tariffGuard = await requireTariff(userId, ["LR"]);
+      if (!tariffGuard.ok) return tariffDeniedResponse(tariffGuard);
+      const caseGuard = await loadCaseOrForbidden(caseId, userId);
+      if (caseGuard.error === "NOT_FOUND") {
         return NextResponse.json<ApiResponse>(
           { success: false, error: { code: "NOT_FOUND", message: "Кейс не найден" } },
           { status: 404 }
         );
       }
-      if (guard.error === "FORBIDDEN") {
+      if (caseGuard.error === "FORBIDDEN") {
         return NextResponse.json<ApiResponse>(
           { success: false, error: { code: "FORBIDDEN", message: "Бриф уже завершён" } },
           { status: 403 }
