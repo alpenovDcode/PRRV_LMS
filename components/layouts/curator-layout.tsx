@@ -16,6 +16,7 @@ import {
   Users,
   MessageSquare,
   MessageCircle,
+  ClipboardList,
 } from "lucide-react";
 import { useState } from "react";
 import { NotificationsPopover } from "@/components/notifications-popover";
@@ -24,6 +25,7 @@ const curatorNavigation = [
   { name: "Курсы", href: "/curator/courses", icon: BookOpen },
   { name: "Пользователи", href: "/curator/users", icon: Users },
   { name: "Входящие ДЗ", href: "/curator/homework", icon: Inbox },
+  { name: "Брифы упаковки", href: "/curator/briefs", icon: ClipboardList },
   { name: "Вопросы наставнику", href: "/curator/questions", icon: MessageCircle },
   { name: "Обсуждения", href: "/curator/comments", icon: MessageSquare },
 ];

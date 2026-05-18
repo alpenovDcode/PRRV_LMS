@@ -61,6 +61,7 @@ model User {
   questionsAsked          Question[]              @relation("QuestionStudent")
   questionsAssigned       Question[]              @relation("QuestionCurator")
   questionMessages        QuestionMessage[]
+  brief                   Brief?
 
   @@index([email])
   @@map("users")
@@ -1238,3 +1239,108 @@ model TgMediaFile {
   @@index([botId, fileUniqueId])
   @@map("tg_media_files")
 }
+
+// =====================================================================
+// Brief — анкета-бриф ученика (репетитора) для оформления визуальной
+// упаковки на агрегаторах. Перенесено из Python-бота upakovka_pod_kluch.
+// Один бриф на одного пользователя. Сохраняется пошагово (черновик),
+// после завершения попадает в админ-панель /admin/briefs.
+// =====================================================================
+model Brief {
+  id                 String   @id @default(uuid())
+  userId             String   @unique @map("user_id")
+
+  // 'in_progress' | 'completed'
+  status             String   @default("in_progress")
+
+  // Для возобновления заполнения с того места, где остановились.
+  // Соответствует ключу блока: 1..6, или 7 = финальный экран.
+  currentStep        Int      @default(1) @map("current_step")
+
+  // БЛОК 1: Основная информация
+  fio                String?
+  subject            String?
+  targetAudience     String?  @map("target_audience") @db.Text
+  painsGoals         String?  @map("pains_goals") @db.Text
+
+  // БЛОК 4: Инфографика
+  utp                String?  @db.Text
+  educationText      String?  @map("education_text") @db.Text
+  experience         String?  @db.Text
+  achievements       String?  @db.Text
+  methods            String?  @db.Text
+  formats            String?  @db.Text
+
+  // БЛОК 5: Как проходит обучение
+  adIntro            String?  @map("ad_intro") @db.Text
+  adProcess          String?  @map("ad_process") @db.Text
+  adResult           String?  @map("ad_result") @db.Text
+
+  // БЛОК 6: Визуальные предпочтения
+  existingStyle      String?  @map("existing_style") @db.Text
+  preferredStyle     String?  @map("preferred_style") @db.Text
+  characterImage     String?  @map("character_image") @db.Text
+  cardImpression     String?  @map("card_impression") @db.Text
+  colorPreferences   String?  @map("color_preferences") @db.Text
+
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  completedAt        DateTime? @map("completed_at")
+
+  user               User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cases              BriefCase[]
+  files              BriefFile[]
+
+  @@index([status, completedAt])
+  @@map("briefs")
+}
+
+model BriefCase {
+  id          String   @id @default(uuid())
+  briefId     String   @map("brief_id")
+  orderIndex  Int      @default(0) @map("order_index")
+
+  name        String?
+  age         String?
+  goal        String?  @db.Text
+  beforeText  String?  @map("before_text") @db.Text
+  duration    String?
+  problems    String?  @db.Text
+  afterText   String?  @map("after_text") @db.Text
+  reviewText  String?  @map("review_text") @db.Text
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  brief       Brief        @relation(fields: [briefId], references: [id], onDelete: Cascade)
+  files       BriefFile[]
+
+  @@index([briefId, orderIndex])
+  @@map("brief_cases")
+}
+
+// Загруженные файлы к брифу. file_type соответствует категории в боте:
+// 'portrait' | 'selfie' | 'context' | 'review' | 'education' |
+// 'materials' | 'style_example'.
+// review-файлы могут быть привязаны к конкретному кейсу (caseId).
+model BriefFile {
+  id          String   @id @default(uuid())
+  briefId     String   @map("brief_id")
+  caseId      String?  @map("case_id")
+
+  fileType    String   @map("file_type")
+  fileUrl     String   @map("file_url") @db.Text
+  fileName    String?  @map("file_name")
+  mimeType    String?  @map("mime_type")
+  fileSize    Int?     @map("file_size")
+
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  brief       Brief      @relation(fields: [briefId], references: [id], onDelete: Cascade)
+  case        BriefCase? @relation(fields: [caseId], references: [id], onDelete: SetNull)
+
+  @@index([briefId, fileType])
+  @@index([caseId])
+  @@map("brief_files")
+}
+
