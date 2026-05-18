@@ -28,6 +28,7 @@ import {
   Mail,
   Plus,
   Bot,
+  ClipboardList,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -38,6 +39,7 @@ const adminNavigation = [
   { name: "Группы", href: "/admin/groups", icon: Layers },
   { name: "Видео-библиотека", href: "/admin/video-library", icon: Film },
   { name: "Входящие ДЗ", href: "/admin/homework", icon: Inbox },
+  { name: "Брифы упаковки", href: "/admin/briefs", icon: ClipboardList },
   { name: "Вопросы наставникам", href: "/admin/questions", icon: MessageCircle },
   { name: "Статистика вопросов", href: "/admin/questions/stats", icon: BarChart },
   { name: "Обсуждения", href: "/admin/comments", icon: MessageSquare },

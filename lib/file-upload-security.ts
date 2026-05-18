@@ -207,6 +207,19 @@ export interface FileValidationResult {
   sanitizedFilename?: string;
 }
 
+// Человеко-понятное описание разрешённых форматов для пользователя.
+const CATEGORY_DESCRIPTIONS: Record<keyof typeof ALLOWED_MIME_TYPES, string> = {
+  images: "изображения (JPG, PNG, GIF, WebP, SVG)",
+  documents: "документы (PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT) и изображения",
+  videos: "видео (MP4, MPEG, MOV, AVI, WebM)",
+  archives: "архивы (ZIP, RAR, 7Z)",
+  audio: "аудио (MP3, WAV, OGG, WebM, M4A)",
+};
+
+function describeCategory(category: keyof typeof ALLOWED_MIME_TYPES): string {
+  return CATEGORY_DESCRIPTIONS[category] || ALLOWED_MIME_TYPES[category].join(", ");
+}
+
 export async function validateFile(
   file: File,
   options: FileValidationOptions
@@ -217,7 +230,7 @@ export async function validateFile(
   if (!validateMimeType(file.type, category)) {
     return {
       valid: false,
-      error: `Invalid file type. Allowed types: ${ALLOWED_MIME_TYPES[category].join(", ")}`,
+      error: `Недопустимый формат файла. Разрешено: ${describeCategory(category)}.`,
     };
   }
 
@@ -226,7 +239,7 @@ export async function validateFile(
     const limitMB = FILE_SIZE_LIMITS[sizeCategory] / (1024 * 1024);
     return {
       valid: false,
-      error: `File too large. Maximum size: ${limitMB}MB`,
+      error: `Файл слишком большой. Максимальный размер: ${limitMB} МБ.`,
     };
   }
 
@@ -236,7 +249,7 @@ export async function validateFile(
     if (!magicBytesValid) {
       return {
         valid: false,
-        error: "File content does not match declared type",
+        error: "Содержимое файла не соответствует его типу. Возможно, файл повреждён или имеет неверное расширение.",
       };
     }
   }

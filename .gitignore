@@ -162,3 +162,7 @@ _debug/
 data/knowledge_base.json
 
 .env.example
+
+# Claude Code (worktrees, settings, local artifacts)
+.claude/worktrees/
+.claude/settings.local.json

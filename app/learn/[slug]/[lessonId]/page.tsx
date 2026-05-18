@@ -299,6 +299,7 @@ export default function LessonPlayerPage() {
     mutationFn: async (file: File) => {
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("category", "images");
       const response = await apiClient.post("/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
@@ -313,20 +314,30 @@ export default function LessonPlayerPage() {
     },
   });
 
+  const ALLOWED_HOMEWORK_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png"];
+  const isAllowedHomeworkImage = (file: File) =>
+    ALLOWED_HOMEWORK_IMAGE_TYPES.includes(file.type);
+
+  const uploadOnlyImages = (files: File[]) => {
+    const rejected = files.filter((f) => !isAllowedHomeworkImage(f));
+    if (rejected.length > 0) {
+      toast.error(
+        `К ДЗ можно прикреплять только JPG и PNG. Отклонено: ${rejected
+          .map((f) => f.name)
+          .join(", ")}`
+      );
+    }
+    files.filter(isAllowedHomeworkImage).forEach((f) => uploadFileMutation.mutate(f));
+  };
+
   const handleFileDrop = async (e: React.DragEvent) => {
     e.preventDefault();
-    const files = Array.from(e.dataTransfer.files);
-    for (const file of files) {
-      uploadFileMutation.mutate(file);
-    }
+    uploadOnlyImages(Array.from(e.dataTransfer.files));
   };
 
   const handleFileInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      const files = Array.from(e.target.files);
-      for (const file of files) {
-        uploadFileMutation.mutate(file);
-      }
+      uploadOnlyImages(Array.from(e.target.files));
     }
   };
 
@@ -745,15 +756,16 @@ export default function LessonPlayerPage() {
                                 id="homework-file-input"
                                 type="file"
                                 multiple
+                                accept="image/jpeg,image/jpg,image/png"
                                 onChange={handleFileInput}
                                 className="hidden"
                               />
                               <span className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-gray-300 bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3">
-                                Выбрать файлы
+                                Выбрать изображения
                               </span>
                             </label>
                             <p className="text-xs text-gray-500 mt-2">
-                              Поддерживаются: PDF, DOC, DOCX, TXT, XLS, XLSX, PPT, PPTX, изображения (JPG, PNG, GIF, WebP, SVG)
+                              К ДЗ можно прикрепить только изображения: JPG, PNG
                             </p>
                           </div>
 

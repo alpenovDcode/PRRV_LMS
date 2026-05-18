@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     
     if (!token || !payload) {
       return NextResponse.json<ApiResponse>(
-        { success: false, error: { code: "UNAUTHORIZED", message: "Unauthorized" } },
+        { success: false, error: { code: "UNAUTHORIZED", message: "Требуется авторизация" } },
         { status: 401 }
       );
     }
@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
         success: false, 
         error: { 
           code: "INTERNAL_ERROR", 
-          message: error?.message || "Failed to upload file" 
+          message: "Не удалось загрузить файл. Попробуйте ещё раз." 
         } 
       },
       { status: 500 }
