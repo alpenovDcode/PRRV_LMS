@@ -5,6 +5,7 @@ import { saveFile } from "@/lib/storage";
 import { validateFile } from "@/lib/file-upload-security";
 import { ApiResponse } from "@/types";
 import { BRIEF_FILE_TYPES, BriefFileType } from "@/lib/brief";
+import { requireTariff, tariffDeniedResponse } from "@/lib/tariff-guard";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -31,6 +32,8 @@ export async function POST(request: NextRequest) {
   return withAuth(request, async (req) => {
     try {
       const userId = req.user!.userId;
+      const guard = await requireTariff(userId, ["LR"]);
+      if (!guard.ok) return tariffDeniedResponse(guard);
       const formData = await request.formData();
       const file = formData.get("file") as File | null;
       const fileType = formData.get("fileType") as string | null;

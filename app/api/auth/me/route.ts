@@ -13,6 +13,7 @@ export async function GET(request: NextRequest) {
           email: true,
           fullName: true,
           role: true,
+          tariff: true,
           avatarUrl: true,
           phone: true,
           about: true,

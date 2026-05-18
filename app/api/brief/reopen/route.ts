@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/api-middleware";
 import { db } from "@/lib/db";
 import { ApiResponse } from "@/types";
+import { requireTariff, tariffDeniedResponse } from "@/lib/tariff-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,8 @@ export async function POST(request: NextRequest) {
   return withAuth(request, async (req) => {
     try {
       const userId = req.user!.userId;
+      const guard = await requireTariff(userId, ["LR"]);
+      if (!guard.ok) return tariffDeniedResponse(guard);
       const brief = await db.brief.findUnique({ where: { userId } });
       if (!brief) {
         return NextResponse.json<ApiResponse>(
