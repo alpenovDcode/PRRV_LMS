@@ -365,6 +365,20 @@ async function recordFailure(
       properties: { errorCode: result.error_code, description: result.description },
     }).catch(() => {});
   }
+  // Special-case token decrypt failures so admin sees a clear error
+  // ("Не расшифровать токен"), not a generic send_failed lost in noise.
+  const isDecryptFailure = (result.description ?? "").startsWith("token decrypt failed");
+  if (isDecryptFailure) {
+    trackEvent({
+      type: "token_decrypt.failed",
+      botId: opts.botId,
+      subscriberId: opts.subscriberId,
+      properties: {
+        description: result.description,
+        hint: "Проверь TG_TOKEN_ENC_KEY в env — он не должен меняться после первичной настройки.",
+      },
+    }).catch(() => {});
+  }
   trackEvent({
     type: "message.send_failed",
     botId: opts.botId,
@@ -373,6 +387,8 @@ async function recordFailure(
       errorCode: result.error_code,
       description: result.description,
       classification: cls,
+      sourceType: opts.sourceType,
+      sourceId: opts.sourceId,
     },
   }).catch(() => {});
   return {

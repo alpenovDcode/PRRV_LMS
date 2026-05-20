@@ -548,6 +548,20 @@ async function executeNode(
         return { done: false, nextNodeId: node.next };
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
+        // Detailed log entry — surfaces in admin's «Логи» page.
+        trackEvent({
+          type: "http_request.failed",
+          botId: bot.id,
+          subscriberId: subscriber.id,
+          properties: {
+            flowId: bundle.flow.id,
+            nodeId: node.id,
+            method: node.method,
+            url: node.url,
+            error: msg,
+            recovered: Boolean(node.onError),
+          },
+        }).catch(() => {});
         if (node.onError) {
           await db.tgFlowRun.update({
             where: { id: run.id },
@@ -651,6 +665,16 @@ async function tickRun(runId: string, maxSteps = 50): Promise<void> {
           finishedAt: new Date(),
         },
       });
+      trackEvent({
+        type: "flow.node_not_found",
+        botId: bot.id,
+        subscriberId: subscriber.id,
+        properties: {
+          flowId: flow.id,
+          missingNodeId: nextId,
+          previousNodeId: bundle.run.currentNodeId,
+        },
+      }).catch(() => {});
       return;
     }
     bundle.run.currentNodeId = node.id;

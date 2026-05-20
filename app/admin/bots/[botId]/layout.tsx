@@ -15,6 +15,7 @@ import {
   LineChart,
   ListChecks,
   FormInput,
+  FileText,
 } from "lucide-react";
 
 export default function BotDetailLayout({ children }: { children: React.ReactNode }) {
@@ -45,6 +46,7 @@ export default function BotDetailLayout({ children }: { children: React.ReactNod
     { href: `/admin/bots/${botId}/fields`, label: "Поля", icon: FormInput },
     { href: `/admin/bots/${botId}/links`, label: "Ссылки/UTM", icon: Link2 },
     { href: `/admin/bots/${botId}/analytics`, label: "Аналитика", icon: LineChart },
+    { href: `/admin/bots/${botId}/logs`, label: "Логи", icon: FileText },
   ];
 
   return (

@@ -39,7 +39,20 @@ export async function POST(
 
     const secret = request.headers.get("x-telegram-bot-api-secret-token") ?? "";
     if (!secret || !constantTimeEqual(secret, bot.webhookSecret)) {
-      // Don't leak which side mismatched. Pretend everything's fine.
+      // Don't leak which side mismatched. Pretend everything's fine,
+      // but log to «Логи» so admin sees mismatches in dashboard.
+      const { trackEvent } = await import("@/lib/tg/events");
+      trackEvent({
+        type: "webhook.invalid_secret",
+        botId: bot.id,
+        properties: {
+          hasSecret: Boolean(secret),
+          ip: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+              request.headers.get("x-real-ip") ||
+              null,
+          userAgent: request.headers.get("user-agent"),
+        },
+      }).catch(() => undefined);
       return NextResponse.json({ ok: true });
     }
 

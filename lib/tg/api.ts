@@ -87,7 +87,20 @@ async function callApi<T>(
   body: Record<string, unknown>,
   timeoutMs = 10_000
 ): Promise<TgApiResult<T>> {
-  const token = decryptToken(encryptedToken);
+  // Decryption can throw if TG_TOKEN_ENC_KEY was rotated without
+  // migrating stored tokens. Surface as a clear ERROR-severity event
+  // so admin sees it in the «Логи» page instead of a vague send-failed.
+  let token: string;
+  try {
+    token = decryptToken(encryptedToken);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      ok: false,
+      error_code: 0,
+      description: `token decrypt failed: ${msg}`,
+    };
+  }
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
