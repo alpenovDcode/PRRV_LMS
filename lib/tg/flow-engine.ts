@@ -914,29 +914,17 @@ export async function deliverButtonClickToWaitingRun(args: {
     const subscriber = await db.tgSubscriber.findUnique({ where: { id: args.subscriberId } });
     const bot = await db.tgBot.findUnique({ where: { id: args.botId } });
     if (!subscriber || !bot) return false;
-    const evalCtx = buildEvalContext({
-      subscriber: snapSubscriber(subscriber),
-      bot: snapBot(bot),
-      run: undefined,
-    });
 
-    // 1. Run inline onClick actions (tags, list, set_variable), if any.
-    if (button.onClick) {
-      await executeInlineActions(button.onClick, {
-        botId: args.botId,
-        subscriberId: args.subscriberId,
-        evalCtx,
-      });
-    }
-
-    // 2. Advance the active waiting_reply run — BUT ONLY if the button
-    //    we just clicked actually belongs to the message immediately
-    //    before this wait_reply. Otherwise old buttons (still visible
-    //    in chat scroll) could pollute the current wait_reply's saveAs.
+    // Look up the active waiting_reply run FIRST. We need its id to:
+    //   1. Pass as runId to executeInlineActions so onClick can write
+    //      to deal-scope variables (without runId, deal.x writes silently
+    //      fail with "no run context").
+    //   2. Decide whether to advance the wait_reply after onClick.
     //
-    //    The check: the source message node's `next` must equal the
-    //    waiting_reply's currentNodeId. That guarantees this button was
-    //    on the message that put the user into this exact wait_reply.
+    // The advance-condition: this button must come from the message
+    // immediately before this wait_reply (node.next === waitingRun.
+    // currentNodeId). Otherwise old buttons in chat scroll would
+    // pollute saveAs.
     const waitingRun = await db.tgFlowRun.findFirst({
       where: {
         subscriberId: args.subscriberId,
@@ -945,6 +933,25 @@ export async function deliverButtonClickToWaitingRun(args: {
       },
       orderBy: { startedAt: "desc" },
     });
+
+    const evalCtx = buildEvalContext({
+      subscriber: snapSubscriber(subscriber),
+      bot: snapBot(bot),
+      run: waitingRun ? snapRun(waitingRun) : undefined,
+    });
+
+    // 1. Run inline onClick actions (tags, list, set_variable), if any.
+    if (button.onClick) {
+      await executeInlineActions(button.onClick, {
+        botId: args.botId,
+        subscriberId: args.subscriberId,
+        runId: waitingRun?.id,
+        evalCtx,
+      });
+    }
+
+    // 2. Advance the active waiting_reply run if the button belongs to
+    //    the message that put the user into this wait_reply.
     if (waitingRun && waitingRun.currentNodeId && node.next === waitingRun.currentNodeId) {
       const wnode = findNode(graph, waitingRun.currentNodeId);
       if (wnode && wnode.type === "wait_reply") {
