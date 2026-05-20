@@ -277,19 +277,31 @@ function checkValidation(
 
 // -- position model -------------------------------------------------
 
+// Composite key `flowId:nodeId` used as positionGroupId. Qualifying
+// the position by flow is important: without it, two different flows
+// that happen to use the same node id (e.g. both call their entry
+// point "welcome") would cross-cancel each other's parked runs when
+// any of them transitions positions.
+// Exported for tests. The composite "flowId:nodeId" disambiguates
+// positions across flows that happen to share node IDs.
+export function positionKey(flowId: string | null | undefined, nodeId: string | null | undefined): string | null {
+  if (!flowId || !nodeId) return null;
+  return `${flowId}:${nodeId}`;
+}
+
 // Cancel sleeping / waiting runs that were scheduled FROM a position
 // the subscriber has now left. The run actively being advanced is
 // excluded by id so it can continue its work.
 async function cancelPositionBoundRuns(
   subscriberId: string,
-  oldPositionNodeId: string | null,
+  oldPositionKey: string | null,
   excludeRunId: string,
 ): Promise<number> {
-  if (!oldPositionNodeId) return 0;
+  if (!oldPositionKey) return 0;
   const cancelled = await db.tgFlowRun.updateMany({
     where: {
       subscriberId,
-      positionGroupId: oldPositionNodeId,
+      positionGroupId: oldPositionKey,
       id: { not: excludeRunId },
       status: { in: ["sleeping", "waiting_reply", "queued"] },
     },
@@ -305,8 +317,9 @@ async function cancelPositionBoundRuns(
 async function enterPosition(bundle: RunBundle, node: FlowNode): Promise<void> {
   if (!isPositionalNode(node)) return;
   const { subscriber, flow } = bundle;
-  const previousPosition = subscriber.currentPositionNodeId;
-  if (previousPosition === node.id && subscriber.currentPositionFlowId === flow.id) {
+  const previousFlowId = subscriber.currentPositionFlowId;
+  const previousNodeId = subscriber.currentPositionNodeId;
+  if (previousNodeId === node.id && previousFlowId === flow.id) {
     return;
   }
   await db.tgSubscriber.update({
@@ -321,14 +334,19 @@ async function enterPosition(bundle: RunBundle, node: FlowNode): Promise<void> {
   bundle.subscriber.currentPositionNodeId = node.id;
   bundle.subscriber.currentPositionAt = new Date();
 
-  if (previousPosition && previousPosition !== node.id) {
-    const cancelled = await cancelPositionBoundRuns(subscriber.id, previousPosition, bundle.run.id);
+  const oldKey = positionKey(previousFlowId, previousNodeId);
+  if (oldKey) {
+    const cancelled = await cancelPositionBoundRuns(subscriber.id, oldKey, bundle.run.id);
     if (cancelled > 0) {
       trackEvent({
         type: "flow.position_runs_cancelled",
         botId: bundle.bot.id,
         subscriberId: subscriber.id,
-        properties: { fromNode: previousPosition, toNode: node.id, count: cancelled },
+        properties: {
+          fromPosition: oldKey,
+          toPosition: positionKey(flow.id, node.id),
+          count: cancelled,
+        },
       }).catch(() => {});
     }
   }
@@ -336,7 +354,12 @@ async function enterPosition(bundle: RunBundle, node: FlowNode): Promise<void> {
     type: "flow.position_entered",
     botId: bundle.bot.id,
     subscriberId: subscriber.id,
-    properties: { flowId: flow.id, nodeId: node.id, previousNodeId: previousPosition },
+    properties: {
+      flowId: flow.id,
+      nodeId: node.id,
+      previousFlowId,
+      previousNodeId,
+    },
   }).catch(() => {});
 }
 
@@ -417,7 +440,7 @@ async function executeNode(
           status: "sleeping",
           resumeAt,
           currentNodeId: node.id,
-          positionGroupId: subscriber.currentPositionNodeId ?? null,
+          positionGroupId: positionKey(subscriber.currentPositionFlowId, subscriber.currentPositionNodeId),
         },
       });
       return { done: true };
@@ -431,7 +454,7 @@ async function executeNode(
           resumeAt,
           currentNodeId: node.id,
           waitingForVar: node.saveAs,
-          positionGroupId: subscriber.currentPositionNodeId ?? null,
+          positionGroupId: positionKey(subscriber.currentPositionFlowId, subscriber.currentPositionNodeId),
         },
       });
       return { done: true };
@@ -676,7 +699,7 @@ export async function startFlowRun(args: {
       context: (args.triggerInfo ?? {}) as object,
       // Inherit subscriber's current position so any wait/sleep this run
       // schedules can be auto-cancelled if the subscriber moves on.
-      positionGroupId: subscriber.currentPositionNodeId ?? null,
+      positionGroupId: positionKey(subscriber.currentPositionFlowId, subscriber.currentPositionNodeId),
     },
   });
   await db.tgFlow.update({
@@ -1041,7 +1064,21 @@ export async function processDueRuns(maxBatch = 100): Promise<{ processed: numbe
     if (r.status === "waiting_reply") {
       // wait_reply timed out — follow .timeoutNext or complete the run.
       const flow = await db.tgFlow.findUnique({ where: { id: r.flowId } });
-      if (!flow) continue;
+      if (!flow) {
+        // Flow was deleted while the run was parked. Cancel the run so
+        // cron stops churning on it every tick.
+        await db.tgFlowRun.update({
+          where: { id: r.id },
+          data: {
+            status: "cancelled",
+            finishedAt: new Date(),
+            lastError: "flow deleted",
+            resumeAt: null,
+          },
+        });
+        processed++;
+        continue;
+      }
       const graph = parseGraph(flow);
       const node = findNode(graph, r.currentNodeId);
       const next = node && node.type === "wait_reply" ? node.timeoutNext ?? null : null;
@@ -1068,7 +1105,20 @@ export async function processDueRuns(maxBatch = 100): Promise<{ processed: numbe
       // tickRun doesn't re-execute the delay node and reset its
       // resumeAt (infinite loop bug fixed here).
       const flow = await db.tgFlow.findUnique({ where: { id: r.flowId } });
-      if (!flow) continue;
+      if (!flow) {
+        // Flow was deleted — cancel to stop cron churn.
+        await db.tgFlowRun.update({
+          where: { id: r.id },
+          data: {
+            status: "cancelled",
+            finishedAt: new Date(),
+            lastError: "flow deleted",
+            resumeAt: null,
+          },
+        });
+        processed++;
+        continue;
+      }
       const graph = parseGraph(flow);
       const node = findNode(graph, r.currentNodeId);
       const next = node && node.type === "delay" ? node.next ?? null : null;

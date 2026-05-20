@@ -593,12 +593,22 @@ export async function handleUpdate(bot: TgBot, update: TgUpdate): Promise<void> 
   }
 
   // 2) Deliver reply to a waiting run, if any.
-  const delivered = await deliverReplyToWaitingRun({
-    subscriberId: subscriber.id,
-    botId: bot.id,
-    text,
-  });
-  if (delivered) return;
+  //
+  // EXCEPT for slash-commands — they are "global navigation" (/start,
+  // /help, /cancel) and should always reach the trigger matcher,
+  // regardless of whether the user is parked in a wait_reply node.
+  // Without this exception, typing /start while parked in an email-
+  // wait_reply would have the validator complain "❌ Не email" and the
+  // user would be stuck (no way to restart short of timeout).
+  const isCommand = cmd !== null;
+  if (!isCommand) {
+    const delivered = await deliverReplyToWaitingRun({
+      subscriberId: subscriber.id,
+      botId: bot.id,
+      text,
+    });
+    if (delivered) return;
+  }
 
   // 3) Match triggers and start flow runs.
   const fresh = await db.tgSubscriber.findUnique({ where: { id: subscriber.id } });
