@@ -26,6 +26,8 @@ import { TRIGGER_NODE_ID } from "@/lib/tg/flow-editor-converter";
 import { MediaAttachmentsEditor } from "@/components/admin/tg/media-picker";
 import { InlineActionsEditor } from "@/components/admin/tg/inline-actions-editor";
 import type { InlineActions } from "@/lib/tg/flow-schema";
+import { TelegramPreview } from "./telegram-preview";
+import { TG_LIMITS, lengthSeverity, tgLen } from "@/lib/tg/limits";
 
 // ============================================================================
 // Generic helpers
@@ -684,15 +686,50 @@ function MessageEditor({
     });
   };
 
+  const hasMedia =
+    (payload.attachments?.length ?? 0) > 0 || !!payload.photoUrl;
+  const textLimit = hasMedia
+    ? TG_LIMITS.MEDIA_CAPTION
+    : TG_LIMITS.MESSAGE_TEXT;
+  const textLen = tgLen(payload.text ?? "");
+  const textSev = lengthSeverity(textLen, textLimit);
+
   return (
     <>
       <div>
-        <Label>Текст</Label>
+        <div className="flex items-center justify-between">
+          <Label>Текст</Label>
+          <span
+            className={`text-[10px] font-mono ${
+              textSev === "error"
+                ? "text-red-600"
+                : textSev === "warn"
+                  ? "text-amber-700"
+                  : "text-zinc-500"
+            }`}
+          >
+            {textLen.toLocaleString("ru-RU")} / {textLimit.toLocaleString("ru-RU")}
+            {hasMedia && " (caption)"}
+          </span>
+        </div>
         <Textarea
           rows={5}
           value={payload.text}
           onChange={(e) => onChange({ ...payload, text: e.target.value })}
+          className={
+            textSev === "error"
+              ? "border-red-400 focus-visible:ring-red-400"
+              : textSev === "warn"
+                ? "border-amber-400 focus-visible:ring-amber-400"
+                : ""
+          }
         />
+        {textSev === "error" && (
+          <div className="text-[10px] text-red-600 mt-1">
+            Telegram отрежет всё, что превышает {textLimit} символов
+            {hasMedia ? " (для медиа caption — 1024)" : ""}.
+          </div>
+        )}
         <div className="text-[10px] text-zinc-500 mt-1">
           Поддерживает <code>{`{{user.first_name}}`}</code>, теги{" "}
           <code>&lt;b&gt;</code>, <code>&lt;i&gt;</code>, <code>&lt;a&gt;</code>.
@@ -788,6 +825,7 @@ function MessageEditor({
           )}
         </div>
       </div>
+      <TelegramPreview payload={payload} />
     </>
   );
 }
@@ -822,15 +860,35 @@ function ButtonEditor({
     ? "tag_rm"
     : "custom";
 
+  const btnTextSev = lengthSeverity(tgLen(button.text), TG_LIMITS.BUTTON_TEXT);
+
   return (
     <div className="border border-zinc-200 rounded bg-white p-2 space-y-2">
       <div className="flex gap-2">
-        <Input
-          className="flex-1"
-          value={button.text}
-          onChange={(e) => onChange({ ...button, text: e.target.value })}
-          placeholder="Текст кнопки"
-        />
+        <div className="flex-1">
+          <Input
+            value={button.text}
+            onChange={(e) => onChange({ ...button, text: e.target.value })}
+            placeholder="Текст кнопки"
+            className={
+              btnTextSev === "error"
+                ? "border-red-400 focus-visible:ring-red-400"
+                : btnTextSev === "warn"
+                  ? "border-amber-400 focus-visible:ring-amber-400"
+                  : ""
+            }
+          />
+          {btnTextSev !== "ok" && (
+            <div
+              className={`text-[10px] font-mono mt-0.5 ${
+                btnTextSev === "error" ? "text-red-600" : "text-amber-700"
+              }`}
+            >
+              {tgLen(button.text)} / {TG_LIMITS.BUTTON_TEXT}
+              {btnTextSev === "error" && " — Telegram отрежет"}
+            </div>
+          )}
+        </div>
         <Button variant="ghost" size="sm" onClick={onRemove}>
           <Trash2 className="h-3 w-3 text-red-500" />
         </Button>
