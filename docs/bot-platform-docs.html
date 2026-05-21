@@ -1,0 +1,2131 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Bot Platform MVP — техническая документация · Proryv LMS</title>
+<style>
+  :root {
+    --brand: #6d28d9;
+    --brand-light: #ede9fe;
+    --brand-soft: #f5f3ff;
+    --ink: #18181b;
+    --muted: #71717a;
+    --line: #e4e4e7;
+    --bg-code: #f4f4f5;
+    --bg-warn: #fffbeb;
+    --line-warn: #fcd34d;
+    --bg-info: #eff6ff;
+    --line-info: #93c5fd;
+    --bg-ok: #ecfdf5;
+    --line-ok: #6ee7b7;
+    --new-bg: #fdf4ff;
+    --new-line: #d946ef;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "SF Pro Text",
+      "Helvetica Neue", Arial, sans-serif;
+    color: var(--ink);
+    background: #ffffff;
+    line-height: 1.55;
+    font-size: 15px;
+  }
+  .page {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 32px;
+  }
+  /* Header */
+  .header {
+    background: linear-gradient(110deg, var(--brand) 0%, #8b5cf6 100%);
+    color: #fff;
+    padding: 14px 32px;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.05);
+  }
+  .header .inner {
+    max-width: 1180px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .header .right { opacity: 0.85; font-weight: 400; }
+  /* Hero */
+  .hero {
+    padding: 56px 0 32px;
+  }
+  .hero h1 {
+    font-size: 44px;
+    line-height: 1.05;
+    margin: 0 0 6px;
+    letter-spacing: -0.02em;
+  }
+  .hero .subtitle {
+    color: var(--muted);
+    font-size: 18px;
+    margin-bottom: 28px;
+  }
+  .hero .lede {
+    font-size: 16px;
+    color: #3f3f46;
+    max-width: 780px;
+  }
+  /* Layout: TOC + content */
+  .layout {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    gap: 48px;
+    padding-bottom: 80px;
+  }
+  @media (max-width: 980px) {
+    .layout { grid-template-columns: 1fr; }
+    nav.toc { position: static !important; height: auto !important; }
+  }
+  nav.toc {
+    position: sticky;
+    top: 60px;
+    height: calc(100vh - 80px);
+    overflow-y: auto;
+    font-size: 13px;
+  }
+  nav.toc h3 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin: 16px 0 8px;
+    font-weight: 600;
+  }
+  nav.toc ol {
+    list-style: none;
+    padding-left: 0;
+    margin: 0 0 12px;
+  }
+  nav.toc li { margin: 0; }
+  nav.toc a {
+    display: block;
+    padding: 4px 8px;
+    color: #3f3f46;
+    text-decoration: none;
+    border-radius: 4px;
+    border-left: 2px solid transparent;
+  }
+  nav.toc a:hover { background: var(--brand-soft); color: var(--brand); }
+  nav.toc .new {
+    color: var(--new-line);
+    font-weight: 600;
+  }
+  nav.toc .new::after {
+    content: "NEW";
+    background: var(--new-line);
+    color: white;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 3px;
+    margin-left: 6px;
+    vertical-align: 2px;
+  }
+  /* Content */
+  main { min-width: 0; }
+  h2 {
+    color: var(--brand);
+    font-size: 30px;
+    margin: 56px 0 16px;
+    padding-top: 8px;
+    border-top: 3px solid var(--brand-light);
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+  }
+  h2:first-of-type { margin-top: 8px; }
+  h2 .badge-new {
+    display: inline-block;
+    background: var(--new-line);
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    vertical-align: 6px;
+    margin-left: 8px;
+    letter-spacing: 0.05em;
+  }
+  h3 {
+    font-size: 20px;
+    margin: 28px 0 10px;
+    color: #27272a;
+    font-weight: 600;
+  }
+  h4 {
+    font-size: 15px;
+    margin: 16px 0 6px;
+    color: #27272a;
+    font-weight: 600;
+  }
+  p { margin: 8px 0; }
+  ul, ol { margin: 8px 0; padding-left: 22px; }
+  ul li, ol li { margin: 4px 0; }
+  code {
+    font-family: "SF Mono", Monaco, Consolas, "Liberation Mono", monospace;
+    font-size: 13px;
+    background: var(--bg-code);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: #18181b;
+  }
+  pre {
+    background: var(--bg-code);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 12px 14px;
+    overflow-x: auto;
+    font-size: 12.5px;
+    line-height: 1.5;
+    margin: 12px 0;
+  }
+  pre code { background: transparent; padding: 0; font-size: inherit; }
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 13.5px;
+  }
+  th {
+    text-align: left;
+    color: var(--brand);
+    font-weight: 600;
+    padding: 8px 10px;
+    border-bottom: 2px solid var(--line);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: 0; }
+  /* Callouts */
+  .callout {
+    border-left: 4px solid var(--line-info);
+    background: var(--bg-info);
+    padding: 12px 16px;
+    border-radius: 0 6px 6px 0;
+    margin: 16px 0;
+    font-size: 14px;
+  }
+  .callout.warn { border-color: var(--line-warn); background: var(--bg-warn); }
+  .callout.ok { border-color: var(--line-ok); background: var(--bg-ok); }
+  .callout.new {
+    border-color: var(--new-line);
+    background: var(--new-bg);
+  }
+  .callout strong { color: var(--brand); }
+  .callout.warn strong { color: #92400e; }
+  /* Tag chips */
+  .chip {
+    display: inline-block;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--brand-light);
+    color: var(--brand);
+    font-weight: 600;
+    margin-right: 4px;
+    vertical-align: 2px;
+  }
+  .chip.new { background: var(--new-bg); color: var(--new-line); }
+  .chip.ok { background: var(--bg-ok); color: #047857; }
+  .chip.warn { background: var(--bg-warn); color: #92400e; }
+  /* Meta box */
+  .meta {
+    background: var(--brand-soft);
+    border-radius: 8px;
+    padding: 18px 22px;
+    margin: 0 0 24px;
+    font-size: 13.5px;
+  }
+  .meta dl {
+    display: grid;
+    grid-template-columns: 160px 1fr;
+    gap: 6px 16px;
+    margin: 0;
+  }
+  .meta dt { color: var(--muted); }
+  .meta dd { margin: 0; }
+  /* Diagrams */
+  .diagram {
+    background: var(--brand-soft);
+    padding: 18px;
+    border-radius: 8px;
+    font-family: "SF Mono", Monaco, monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    white-space: pre;
+    overflow-x: auto;
+    margin: 12px 0;
+    border: 1px solid var(--line);
+  }
+  /* Footer */
+  footer {
+    margin-top: 64px;
+    padding: 24px 32px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 13px;
+    text-align: center;
+  }
+  a { color: var(--brand); }
+  a:hover { text-decoration: underline; }
+  /* Print */
+  @media print {
+    .header, nav.toc { display: none; }
+    .layout { grid-template-columns: 1fr; padding: 0; }
+    body { font-size: 11pt; }
+    h2 { page-break-before: always; }
+    h2:first-of-type { page-break-before: avoid; }
+    pre, table, .callout { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="inner">
+    <span>Proryv LMS · Bot Platform MVP</span>
+    <span class="right">Техническая документация · v2.0 · 2026-05-21</span>
+  </div>
+</div>
+
+<div class="page">
+
+<section class="hero">
+  <h1>Bot Platform</h1>
+  <div class="subtitle">SaleBot-альтернатива внутри Proryv LMS</div>
+  <p class="lede">
+    Документ описывает полностью реализованный модуль бот-платформы
+    (Telegram-first), интегрированный в Proryv LMS как замена связке
+    SaleBot + BotHelp + Битрикс24. Покрывает архитектуру, схему БД,
+    движок выполнения, expression-эвалюатор, медиа-библиотеку, списки,
+    типизированные кастомные поля, авто-захват file_id, redirect-трекинг,
+    аудит, rate-limit, компактные воронки с inline-действиями,
+    операционные риски, UX-полноту редактора, bulk-операции на
+    подписчиках, A/B-эксперименты, import/export флоу, hot-reload и
+    operator live-chat.
+  </p>
+
+  <div class="meta">
+    <dl>
+      <dt>Версия MVP</dt>
+      <dd>v2.0 — итерации 1, 2, 2b, 2c, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13</dd>
+      <dt>Дата сборки</dt>
+      <dd>2026-05-21</dd>
+      <dt>Объём кода</dt>
+      <dd>~13 800 строк TS + 16 миграций</dd>
+      <dt>Тестов</dt>
+      <dd>173 unit + integration (все зелёные)</dd>
+      <dt>Стек</dt>
+      <dd>Next.js 16 · Prisma 5.22 · PostgreSQL 16 · Redis 7 · React Flow 12</dd>
+      <dt>Лицензия</dt>
+      <dd>Внутреннее ПО Proryv LMS</dd>
+    </dl>
+  </div>
+</section>
+
+<div class="layout">
+
+<nav class="toc">
+  <h3>Содержание</h3>
+  <ol>
+    <li><a href="#intro">1. Введение и цели</a></li>
+    <li><a href="#arch">2. Архитектура и стек</a></li>
+    <li><a href="#data">3. Модель данных</a></li>
+    <li><a href="#iter1">4. Итерация 1 — Фундамент</a></li>
+    <li><a href="#iter2">5. Итерация 2 — Медиа</a></li>
+    <li><a href="#iter2b">6. Итерация 2b — Списки</a></li>
+    <li><a href="#iter2c">7. Итерация 2c — Кастомные поля</a></li>
+    <li><a href="#iter3">8. Итерация 3 — UX completion</a></li>
+    <li><a href="#iter4">9. Итерация 4 — Hardening</a></li>
+    <li><a href="#iter5">10. Итерация 5 — Inline-действия</a></li>
+  </ol>
+  <h3>Новое (v2.0)</h3>
+  <ol start="11">
+    <li><a href="#iter6" class="new">11. Iter 6 — Логи + audit fixes</a></li>
+    <li><a href="#iter7" class="new">12. Iter 7 — A/B split + аналитика</a></li>
+    <li><a href="#iter8" class="new">13. Iter 8 — CSV / Schedule / Merge</a></li>
+    <li><a href="#iter9" class="new">14. Iter 9 — Operator live-chat</a></li>
+    <li><a href="#iter10" class="new">15. Iter 10 — Операционные риски</a></li>
+    <li><a href="#iter11" class="new">16. Iter 11 — UX редактора</a></li>
+    <li><a href="#iter12" class="new">17. Iter 12 — UX подписчиков</a></li>
+    <li><a href="#iter13" class="new">18. Iter 13 — Templates / Export / Hot-reload</a></li>
+    <li><a href="#homework" class="new">19. Async AI-checker</a></li>
+  </ol>
+  <h3>Справочное</h3>
+  <ol start="20">
+    <li><a href="#deploy">20. Развёртывание</a></li>
+    <li><a href="#api">21. Справочник API</a></li>
+    <li><a href="#examples">22. Примеры воронок</a></li>
+    <li><a href="#diag">23. Диагностика</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<!-- ====================== 1. INTRO ====================== -->
+<h2 id="intro">1. Введение и цели</h2>
+
+<h3>Зачем это построено</h3>
+<p>
+  Proryv LMS оперирует онлайн-обучением: курсы, рассылки, домашние задания,
+  наставники. До этого MVP воронки и автокоммуникации с лидами/учениками
+  строились через связку из <strong>SaleBot</strong> (конструктор воронок),
+  <strong>BotHelp</strong> (рассылки), <strong>Битрикс24</strong> (CRM/сделки)
+  и <strong>Google Sheets</strong> (склейка). Главная боль такой связки —
+  данные передаются между четырьмя системами и постоянно расходятся:
+  статистика не бьётся, кастомные поля нельзя добавить там где нужно,
+  рассылки идут отдельной системой без знания контекста ученика.
+</p>
+<p>
+  Цель MVP — заменить SaleBot и BotHelp на встроенный модуль
+  <strong>Bot Platform</strong> внутри LMS. Воронки, рассылки, теги,
+  списки, кастомные поля живут в одной БД с курсами, ДЗ и учениками. CRM
+  получает прямой доступ к этим данным без промежуточной синхронизации.
+</p>
+
+<h3>Какие воронки нужно строить</h3>
+<p>На старте — пять типовых сценариев:</p>
+<ul>
+  <li><strong>Автовебинарные / автоинтенсивные</strong> — даты-смещения, напоминания, дожимы</li>
+  <li><strong>Запускные</strong> — серия касаний под старт курса</li>
+  <li><strong>Видео-выдача</strong> — медиа-сообщения с кружочками и голосовыми</li>
+  <li><strong>Трекинг кликов по ссылкам</strong> — ветка «перешёл / не перешёл»</li>
+  <li><strong>Анкеты</strong> — сбор email/телефона с regex-валидацией</li>
+</ul>
+
+<h3>Что НЕ копировалось из SaleBot</h3>
+<p>Намеренно опущены фичи, которые в Proryv LMS не нужны или решаются другими модулями:</p>
+<ul>
+  <li>Поддержка прочих мессенджеров (VK/WA/Instagram/Max) — только Telegram</li>
+  <li>Семантическое сравнение фраз через AI — fuzzy / regex закрывают 95% случаев</li>
+  <li>Python-код в Action-ноде — security/sandboxing сложна и не оправдана</li>
+  <li>Сложный CRM-pipelines UI — это отдельный модуль LMS</li>
+</ul>
+
+<div class="callout new">
+  <strong>v2.0 (май 2026)</strong> — после первичного MVP добавлены:
+  Iter 6-13 (audit fixes, логи в UI, A/B-эксперименты, funnel-level
+  аналитика, CSV-импорт, schedule-flow, merge subscribers, operator
+  live-chat, 429-retry, health-check, cron heartbeat, ротация секретов,
+  live preview сообщений, семантическая валидация флоу, copy/paste нод,
+  deal-scope viewer, bulk-операции, trigger stats, import/export флоу,
+  hot-reload и +3 шаблона). См. разделы 11–19.
+</div>
+
+<!-- ====================== 2. ARCH ====================== -->
+<h2 id="arch">2. Архитектура и стек</h2>
+
+<h3>Технологический стек</h3>
+<table>
+  <tr><th>Слой</th><th>Технология</th><th>Где живёт</th></tr>
+  <tr><td>Web framework</td><td>Next.js 16 (App Router)</td><td><code>app/</code></td></tr>
+  <tr><td>Язык</td><td>TypeScript (strict)</td><td>—</td></tr>
+  <tr><td>ORM</td><td>Prisma 5.22</td><td><code>prisma/</code></td></tr>
+  <tr><td>БД</td><td>PostgreSQL 16</td><td>Контейнер postgres</td></tr>
+  <tr><td>Кэш / rate-limit / heartbeat</td><td>Redis 7</td><td>Контейнер redis</td></tr>
+  <tr><td>Визуальный редактор</td><td>React Flow (@xyflow/react 12)</td><td><code>components/admin/tg/flow-editor/</code></td></tr>
+  <tr><td>Валидация схем</td><td>zod 3</td><td><code>lib/tg/flow-schema.ts</code></td></tr>
+  <tr><td>Шифрование токенов</td><td>AES-256-GCM (node:crypto)</td><td><code>lib/tg/crypto.ts</code></td></tr>
+  <tr><td>Telegram API</td><td>fetch (без grammY)</td><td><code>lib/tg/api.ts</code></td></tr>
+  <tr><td>Тестирование</td><td>vitest 1</td><td><code>lib/tg/__tests__/</code></td></tr>
+  <tr><td>Reverse proxy</td><td>nginx</td><td><code>nginx/</code></td></tr>
+  <tr><td>Деплой</td><td>Docker Compose, blue/green</td><td><code>docker-compose.prod.yml</code></td></tr>
+</table>
+
+<h3>Высокоуровневая схема</h3>
+
+<div class="diagram">
+┌──────────────────┐   сообщение   ┌────────────────┐   запрос   ┌──────────────────┐
+│ Подписчик в TG   │ ────────────▶ │ Telegram Bot   │ ◀──────── │ Админ в админке  │
+└──────────────────┘                │ API            │            │ prrv.tech/admin  │
+                                    └──────┬─────────┘            └────────┬─────────┘
+                                           │ update                        │
+                                           ▼                               ▼
+                       ┌────────────────────────────┐    ┌────────────────────────────┐
+                       │ POST /api/tg-webhook/[id]  │    │ GET/POST /api/admin/tg/*   │
+                       │ X-Telegram-Bot-Api-Secret  │    │ JWT + rate-limit + audit   │
+                       └─────────────┬──────────────┘    └─────────────┬──────────────┘
+                                     │                                 │
+              ┌──────────────────────┴─────────────────────────────────┘
+              ▼
+   ┌─────────────────────────────────────────────────────────┐
+   │  Flow Engine (lib/tg/flow-engine.ts)                    │
+   │  executeNode → expr/evaluator → sender → inline-actions │
+   └─────────┬───────────────────┬───────────────────┬───────┘
+             │                   │                   │
+             ▼                   ▼                   ▼
+   ┌─────────────────┐  ┌────────────────┐  ┌────────────────────┐
+   │ PostgreSQL      │  │ Redis          │  │ Cloudflare R2 / TG │
+   │ Tg* модели      │  │ rate-limit,    │  │ медиа через        │
+   │ (Prisma)        │  │ idempotency,   │  │ file_id            │
+   │                 │  │ cron-heartbeat │  │                    │
+   └─────────────────┘  └────────────────┘  └────────────────────┘
+
+                       ▲                              ▲
+                       │ tick каждые 20с              │
+              ┌────────┴─────────┐          ┌─────────┴─────────┐
+              │ tg-cron sidecar  │          │ AI-checker        │
+              │ POST /tg-cron    │          │ kickoff+callback  │
+              │ /tick (Bearer)   │          │ (см. §19)         │
+              └──────────────────┘          └───────────────────┘
+</div>
+<p>
+  <em>Рисунок 1 — Высокоуровневая архитектура. tg-cron sidecar
+  регулярно дёргает <code>/api/tg-cron/tick</code> (теперь пишет heartbeat
+  в Redis). Flow Engine — ядро, оркеструющее БД, Redis и медиа-хранилище.
+  AI-checker — внешний сервис, общающийся с LMS через async callback
+  (см. §19).</em>
+</p>
+
+<h3>Поток входящего сообщения</h3>
+<p>Когда подписчик пишет боту, Telegram отправляет <strong>update</strong> на наш webhook. Дальнейший путь:</p>
+<ul>
+  <li>Verify <code>X-Telegram-Bot-Api-Secret-Token</code> через <code>timingSafeEqual</code></li>
+  <li>Идемпотентность через Redis SETNX на <code>update_id</code> (TTL 1ч)</li>
+  <li>Upsert TgSubscriber по (botId, chatId)</li>
+  <li>Авто-захват медиа от админов в TgMediaFile (Iter 2)</li>
+  <li>Захват контактов/локации в client.phone, client.location_* (Iter 3)</li>
+  <li><strong>Operator takeover gate</strong> (Iter 9) — если оператор взял диалог в ручной режим и сообщение НЕ слэш-команда, ранний return: триггеры и wait_reply не отрабатывают</li>
+  <li>Доставка ответа в активный wait_reply → валидация → onSave bundle</li>
+  <li>Матчинг триггеров активных флоу → start_flow_run с priority/onlyOnce/onlyOnCallback</li>
+</ul>
+
+<h3>Поток выполнения флоу</h3>
+<p>Flow Engine в <code>lib/tg/flow-engine.ts</code> — ядро. Каждый TgFlowRun — конечный автомат со статусами:</p>
+<table>
+  <tr><th>Статус</th><th>Значение</th></tr>
+  <tr><td><code>queued</code></td><td>Готов исполняться, ждёт ближайший tick</td></tr>
+  <tr><td><code>running</code></td><td>В процессе (короткоживущий)</td></tr>
+  <tr><td><code>sleeping</code></td><td>В <code>delay</code>-ноде, проснётся в <code>resumeAt</code></td></tr>
+  <tr><td><code>waiting_reply</code></td><td>В <code>wait_reply</code>, ждёт текст/timeout</td></tr>
+  <tr><td><code>completed</code></td><td>Дошёл до <code>end</code>-ноды</td></tr>
+  <tr><td><code>failed</code></td><td>Ошибка (<code>lastError</code> записан)</td></tr>
+  <tr><td><code>cancelled</code></td><td>Отменён (вручную, position-change-cancel или <strong>hot-reload</strong> в Iter 13)</td></tr>
+</table>
+<p>Движение между статусами идёт через два пути:</p>
+<ul>
+  <li><strong>Реактивно</strong> — webhook принёс ответ или клик → <code>deliverReplyToWaitingRun</code> / <code>deliverButtonClickToWaitingRun</code></li>
+  <li><strong>По таймеру</strong> — tg-cron sidecar дёргает <code>/api/tg-cron/tick</code> каждые 20с → <code>processDueRuns()</code> подбирает runs с <code>resumeAt ≤ now()</code></li>
+</ul>
+
+<!-- ====================== 3. DATA ====================== -->
+<h2 id="data">3. Модель данных</h2>
+
+<p>
+  Все таблицы префиксированы <code>tg_</code>. Изолированы от основной
+  LMS-схемы — никаких пересечений с курсами, ДЗ и пользователями LMS.
+  Связь с курсами/учениками идёт по chatId и через CRM-bridge.
+</p>
+
+<h3>Полный список моделей</h3>
+<table>
+  <tr><th>Модель</th><th>Назначение</th><th>Iter</th></tr>
+  <tr><td>TgBot</td><td>Подключённый Telegram-бот: токен, webhook, настройки</td><td>1</td></tr>
+  <tr><td>TgSubscriber</td><td>Подписчик бота: chatId, тэги, переменные, позиция, operator-takeover</td><td>1 / 9</td></tr>
+  <tr><td>TgMessage</td><td>Лог всех in/out сообщений</td><td>1</td></tr>
+  <tr><td>TgFlow</td><td>Воронка: graph (JSON), triggers (JSON)</td><td>1</td></tr>
+  <tr><td>TgFlowRun</td><td>Активный/завершённый запуск воронки</td><td>1</td></tr>
+  <tr><td>TgBroadcast</td><td>Рассылка с таргетингом</td><td>1</td></tr>
+  <tr><td>TgBroadcastRecipient</td><td>Получатель рассылки + статус доставки</td><td>1</td></tr>
+  <tr><td>TgTrackingLink</td><td>/start-payload ссылка (UTM-вход)</td><td>1</td></tr>
+  <tr><td>TgEvent</td><td>Аналитические события + cron heartbeat fallback</td><td>1 / 10</td></tr>
+  <tr><td>TgMediaFile</td><td>Кэш Telegram file_id</td><td>2</td></tr>
+  <tr><td>TgList</td><td>Именованный сегмент подписчиков</td><td>2b</td></tr>
+  <tr><td>TgSubscriberList</td><td>Join: подписчик ↔ список</td><td>2b</td></tr>
+  <tr><td>TgCustomField</td><td>Схема типизированного доп-поля</td><td>2c</td></tr>
+  <tr><td>TgRedirectLink</td><td>/r/&lt;slug&gt; для click-tracking</td><td>3</td></tr>
+  <tr><td>TgAuditLog</td><td>Лог мутирующих админ-действий</td><td>4</td></tr>
+  <tr><td><strong>TgScheduledFlow</strong> <span class="chip new">NEW</span></td><td>Отложенный запуск флоу для сегмента в указанный момент</td><td>8</td></tr>
+</table>
+
+<h3>Ключевые поля TgSubscriber</h3>
+<table>
+  <tr><th>Поле</th><th>Тип</th><th>Назначение</th></tr>
+  <tr><td><code>chatId</code></td><td>string</td><td>Telegram chat_id (int64 как строка)</td></tr>
+  <tr><td><code>tags</code></td><td>string[]</td><td>Свободные тэги, GIN-индекс</td></tr>
+  <tr><td><code>variables</code></td><td>Json</td><td><code>client.x</code> — переменные подписчика</td></tr>
+  <tr><td><code>customFields</code></td><td>Json</td><td><code>field.x</code> — типизированные поля (Iter 2c)</td></tr>
+  <tr><td><code>currentPositionFlowId</code></td><td>string?</td><td>Текущая флоу (позиция)</td></tr>
+  <tr><td><code>currentPositionNodeId</code></td><td>string?</td><td>Текущая нода (позиция)</td></tr>
+  <tr><td><code>currentPositionAt</code></td><td>DateTime?</td><td>Когда юзер вошёл в позицию</td></tr>
+  <tr><td><code>firedOnceTriggers</code></td><td>string[]</td><td>flowId:nodeIdx — onlyOnce защёлки</td></tr>
+  <tr><td><code>isBlocked</code></td><td>bool</td><td>true когда юзер заблокировал бота</td></tr>
+  <tr><td><code>firstTouchSlug / lastTouchSlug</code></td><td>string?</td><td>UTM-атрибуция через /start payload</td></tr>
+  <tr><td><strong><code>operatorTakeoverAt</code></strong> <span class="chip new">NEW</span></td><td>DateTime?</td><td>Когда оператор «взял» диалог в ручной режим. TTL 24ч</td></tr>
+  <tr><td><strong><code>operatorAssigneeId</code></strong> <span class="chip new">NEW</span></td><td>string?</td><td>userId оператора, который держит чат</td></tr>
+</table>
+
+<h3>Ключевые поля TgFlowRun</h3>
+<table>
+  <tr><th>Поле</th><th>Назначение</th></tr>
+  <tr><td><code>status</code></td><td>queued / running / sleeping / waiting_reply / completed / failed / cancelled</td></tr>
+  <tr><td><code>currentNodeId</code></td><td>Текущая нода в графе</td></tr>
+  <tr><td><code>resumeAt</code></td><td>Когда крон должен подобрать этот run</td></tr>
+  <tr><td><code>waitingForVar</code></td><td>В какую переменную сохранится reply на wait_reply</td></tr>
+  <tr><td><code>context</code></td><td><code>deal.x</code> — переменные конкретного run, видны в чате через deal-scope viewer (Iter 12). Содержит <code>_abVariant</code> после прохождения split-ноды</td></tr>
+  <tr><td><code>positionGroupId</code></td><td>Iter 1: id позиционной ноды для авто-отмены при смене позиции (составной ключ <code>flowId:nodeId</code>)</td></tr>
+  <tr><td><code>lastError</code></td><td>Диагностика при failed (включая <em>«node removed during hot-reload»</em> в Iter 13)</td></tr>
+</table>
+
+<h3>Ключевые поля TgScheduledFlow <span class="chip new">NEW</span></h3>
+<table>
+  <tr><th>Поле</th><th>Назначение</th></tr>
+  <tr><td><code>flowId</code></td><td>Какой флоу запускать</td></tr>
+  <tr><td><code>filter</code></td><td>JSON: <code>{allActive, tagsAny, tagsAll, excludeTags, subscriberIds}</code></td></tr>
+  <tr><td><code>scheduledAt</code></td><td>Момент запуска (UTC)</td></tr>
+  <tr><td><code>status</code></td><td>scheduled → running → completed / cancelled / failed</td></tr>
+  <tr><td><code>totalLaunched / totalFailed</code></td><td>Сводка после выполнения</td></tr>
+</table>
+
+<!-- ====================== 4. ITER 1 ====================== -->
+<h2 id="iter1">4. Итерация 1 — Фундамент</h2>
+
+<p>
+  Самая важная итерация — закладывает <em>позиционную модель</em>
+  (аналог SaleBot-овской «позиции воронки»), безопасный
+  expression-движок и продвинутую систему переменных. Без этого всё
+  остальное невозможно.
+</p>
+
+<h3>Позиционная модель — главное</h3>
+<p>
+  Каждая <strong>message-нода</strong> по умолчанию является
+  <strong>позицией</strong> (<code>isPosition: true</code>). Когда
+  подписчик приходит в позиционную ноду, на нём обновляются
+  <code>currentPositionFlowId/NodeId/At</code> в БД, и
+  <strong>отменяются</strong> все запланированные (sleeping /
+  waiting_reply) runs, у которых <code>positionGroupId</code> равен
+  предыдущей позиции. Это автоматически реализует «дожимы с
+  автоотменой» — добавил delay-стрелку из Step A в side-effect-сообщение,
+  и оно <strong>не отправится</strong>, если юзер успел дойти до Step B.
+</p>
+
+<div class="callout">
+  <strong>Iter 6 fix:</strong> ключ позиции теперь составной —
+  <code>flowId:nodeId</code> (см. <code>positionKey()</code> в
+  <code>lib/tg/flow-engine.ts</code>). Раньше два разных флоу с
+  одинаковым <code>nodeId</code> кросс-отменяли runs друг друга.
+</div>
+
+<h3>Expression Engine</h3>
+<p>
+  Шаблоны <code>{{...}}</code> в сообщениях и условиях исполняются
+  <strong>собственным AST-эвалюатором</strong>. Никакого <code>eval()</code>,
+  <code>new Function()</code> или <code>vm.runInNewContext</code> — это
+  убирает целый класс RCE-уязвимостей при копи-пасте чужих флоу.
+</p>
+<p>Эвалюатор состоит из трёх файлов в <code>lib/tg/expr/</code>:</p>
+<ul>
+  <li><strong>tokenizer.ts</strong> — лексер на 200 строк, понимает числа, строки, идентификаторы (включая кириллицу), операторы</li>
+  <li><strong>parser.ts</strong> — Pratt-парсер с таблицей приоритетов; AST как plain JSON</li>
+  <li><strong>evaluator.ts</strong> — обход AST + диспатч в whitelist функций</li>
+  <li><strong>functions.ts</strong> — реестр 30+ безопасных функций (даты, строки, regex, массивы)</li>
+</ul>
+
+<h3>30+ встроенных функций</h3>
+<table>
+  <tr><th>Категория</th><th>Функции</th></tr>
+  <tr><td>Даты</td><td>addDays · addMonth · addYear · addMinutes · weekday_date · month_date · time_interval · current_date_n_days_ago</td></tr>
+  <tr><td>Строки</td><td>lower · upper · substring · contains · startswith · endswith · splitter · replace · normalizePhone · urlencode</td></tr>
+  <tr><td>Regex</td><td>findall · similar</td></tr>
+  <tr><td>Математика</td><td>abs · ceil · floor · round · max · min · random · pow · sqrt · int · is_int · is_float</td></tr>
+  <tr><td>Списки/Массивы</td><td>in_array · arr_len · sum_array · array_slice · remove_duplicates · select_random_from_list</td></tr>
+  <tr><td>Логика</td><td>if (тернарный) · and · or · not</td></tr>
+</table>
+
+<h3>Прямая арифметика дат и времени</h3>
+<p>Оператор <code>+</code> и <code>-</code> понимает даты и время:</p>
+<pre><code>{{'01.05.2026' + 7}}            → '08.05.2026'
+{{'15.05.2026' - '10.05.2026'}}  → 5 (дней)
+{{'10:00' + 90}}                 → '11:30'
+{{addDays(current_date, 3)}}     → дата через 3 дня</code></pre>
+
+<h3>4 области переменных</h3>
+<p>Любая переменная адресуется через префикс scope-а. Без префикса по умолчанию — <code>client</code>.</p>
+<table>
+  <tr><th>Scope</th><th>Хранилище</th><th>Пример</th></tr>
+  <tr><td><code>client.x</code></td><td>TgSubscriber.variables[x]</td><td><code>{{client.email}}</code></td></tr>
+  <tr><td><code>project.x</code></td><td>TgBot.projectVariables[x]</td><td><code>{{project.brand}}</code></td></tr>
+  <tr><td><code>deal.x</code></td><td>TgFlowRun.context[x]</td><td><code>{{deal.utm}}</code></td></tr>
+  <tr><td><code>field.x</code></td><td>TgSubscriber.customFields[x] (типизировано)</td><td><code>{{field.phone}}</code></td></tr>
+  <tr><td><code>const.x</code></td><td>TgBot.constants[x]</td><td><code>{{const.tax}}</code></td></tr>
+</table>
+
+<h3>15 встроенных переменных (без scope)</h3>
+<table>
+  <tr><th>Имя</th><th>Значение</th></tr>
+  <tr><td>platform_id</td><td>chatId подписчика (SaleBot-алиас)</td></tr>
+  <tr><td>client_id</td><td>TgSubscriber.id</td></tr>
+  <tr><td>question</td><td>Последнее входящее сообщение</td></tr>
+  <tr><td>first_name / last_name / username</td><td>Имя из Telegram-профиля</td></tr>
+  <tr><td>full_name</td><td>first_name + last_name</td></tr>
+  <tr><td>language_code</td><td>Из Telegram</td></tr>
+  <tr><td>messenger</td><td>«Telegram» (константа)</td></tr>
+  <tr><td>current_date / current_time</td><td>Сегодня и сейчас в локальном tz бота</td></tr>
+  <tr><td>next_day / weekday</td><td>Завтра / номер дня недели</td></tr>
+  <tr><td>date_of_creation / time_of_creation</td><td>Подписался когда</td></tr>
+  <tr><td>timestamp / now / today</td><td>Unix ts / dd.mm.yyyy</td></tr>
+  <tr><td>message_id</td><td>Текущая нода флоу</td></tr>
+</table>
+
+<h3>Расширенные настройки триггеров</h3>
+<table>
+  <tr><th>Поле</th><th>Назначение</th></tr>
+  <tr><td><code>priority</code></td><td>Число от -1000 до +1000. Выше — раньше срабатывает</td></tr>
+  <tr><td><code>onlyOnce</code></td><td>Триггер сработает максимум один раз для подписчика</td></tr>
+  <tr><td><code>onlyOnCallback</code></td><td>Срабатывает только когда вход — клик кнопки, не текст</td></tr>
+  <tr><td><code>exclusions</code></td><td>Строки-исключения: даже при совпадении триггер не сработает</td></tr>
+  <tr><td><code>matchMode</code></td><td>fuzzy / keyword / exact / regex — для keyword-триггеров</td></tr>
+</table>
+
+<div class="callout">
+  <strong>Iter 6 fix:</strong> слэш-команды (<code>/start</code>, <code>/help</code>)
+  больше не «съедаются» активным <code>wait_reply</code> — они всегда
+  попадают в trigger-matcher. Раньше юзер в email-wait_reply,
+  написавший <code>/start</code>, получал «❌ Не email» и не мог
+  выйти из ловушки.
+</div>
+
+<h3>Regex-валидация в wait_reply</h3>
+<p>
+  Нода <code>wait_reply</code> поддерживает поле <code>validation</code> с
+  regex-паттерном, кастомным <code>errorMessage</code> (шаблонизируется через
+  expression-движок), и веткой <code>onInvalidNext</code> на случай
+  невалидного ответа.
+</p>
+<pre><code>validation: {
+  pattern: "^[\\w.+-]+@[\\w.-]+\\.[A-Za-z]{2,}$",
+  flags: "i",
+  errorMessage: "❌ Не похоже на email. Пример: ivan@example.com",
+  onInvalidNext: "back-to-ask"
+}</code></pre>
+<p>
+  Плюс библиотека из 16 готовых regex-пресетов в
+  <code>lib/tg/regex-presets.ts</code>: телефон РФ, email, URL, UUID,
+  дата dd.mm.yyyy, ФИО, и т.д. В UI редактора выбираются одним кликом.
+</p>
+
+<!-- ====================== 5. ITER 2 ====================== -->
+<h2 id="iter2">5. Итерация 2 — Медиа-библиотека</h2>
+
+<p>
+  Цель — превратить процесс «приложить картинку к сообщению» из
+  трёхшагового (залить на S3 → получить URL → вставить) в одношаговый:
+  <strong>админ кидает медиа в бота, оно сразу в библиотеке</strong>.
+</p>
+
+<h3>Все 7 типов медиа Telegram</h3>
+<table>
+  <tr><th>Тип</th><th>Telegram API</th><th>Заметка</th></tr>
+  <tr><td>photo</td><td>sendPhoto</td><td>Любое изображение</td></tr>
+  <tr><td>video</td><td>sendVideo</td><td>До 50 МБ через upload; через file_id — без лимита</td></tr>
+  <tr><td>video_note</td><td>sendVideoNote</td><td>Кружочек. Подпись не поддерживается Telegram-ом</td></tr>
+  <tr><td>voice</td><td>sendVoice</td><td>Голосовое (.ogg/opus)</td></tr>
+  <tr><td>audio</td><td>sendAudio</td><td>Любая аудио-дорожка</td></tr>
+  <tr><td>document</td><td>sendDocument</td><td>PDF / архив / любой файл</td></tr>
+  <tr><td>animation</td><td>sendAnimation</td><td>GIF / MP4 loop</td></tr>
+</table>
+
+<h3>Альбомы</h3>
+<p>
+  Если в payload-е 2+ медиа-вложения и все они photo или video — sender
+  автоматически отправляет их через <code>sendMediaGroup</code> (альбом).
+  Telegram показывает только подпись первого элемента — это его API, не
+  наше ограничение.
+</p>
+<p>
+  Если медиа смешанные (например, photo + voice) — первый элемент идёт с
+  текстом и кнопками, остальные — отдельными сообщениями fire-and-forget.
+</p>
+
+<h3>Авто-захват file_id</h3>
+<p>
+  В настройках бота есть поле <code>adminChatIds</code> — массив Telegram
+  chat_id-ов, которым разрешён авто-захват. Когда такой админ
+  отправляет медиа боту:
+</p>
+<ul>
+  <li>Сообщение <strong>не попадает</strong> в триггеры и флоу (short-circuit)</li>
+  <li>Медиа извлекается через <code>extractMedia()</code> — для photo берётся самая большая версия</li>
+  <li>Запись в TgMediaFile идемпотентна по (botId, fileUniqueId)</li>
+  <li>Бот отвечает HTML-ack с указанием file_id, размера и kind</li>
+</ul>
+
+<h3>Почему file_id, а не URL</h3>
+<table>
+  <tr><th>Аспект</th><th>URL</th><th>file_id</th></tr>
+  <tr><td>Размер</td><td>До 5 МБ для photo, 20 МБ для документов</td><td>Без ограничений (Telegram CDN)</td></tr>
+  <tr><td>Скорость</td><td>Telegram качает по URL — задержка</td><td>Мгновенно</td></tr>
+  <tr><td>Цена</td><td>Свой S3-bucket / Cloudflare R2</td><td>Бесплатно — Telegram хранит</td></tr>
+  <tr><td>Уникальность</td><td>Зависит от вашей системы</td><td>Стабильный ID на боте</td></tr>
+  <tr><td>Стандартное использование</td><td>Stock-картинки, внешние ассеты</td><td>Всё что зашло через бота</td></tr>
+</table>
+
+<h3>Медиа-пикер в редакторе</h3>
+<p>
+  Компонент <code>components/admin/tg/media-picker.tsx</code> — модальный
+  диалог с превью через media-proxy
+  (<code>/api/admin/tg/bots/[botId]/media/[fileId]</code>). Поддерживает:
+</p>
+<ul>
+  <li>Фильтрацию по типу медиа с эмодзи-чипами и счётчиками</li>
+  <li>Поиск по title и filename</li>
+  <li>Multi-select — для альбомов</li>
+  <li>Pagination через cursor (60 элементов на страницу)</li>
+  <li>Server-side countsByKind для отображения в чипах</li>
+  <li>URL-fallback кнопкой «+ URL» для разовых внешних картинок</li>
+</ul>
+
+<!-- ====================== 6. ITER 2b ====================== -->
+<h2 id="iter2b">6. Итерация 2b — Списки и реактивные триггеры</h2>
+
+<h3>Списки против тегов</h3>
+<p>
+  <strong>Тэг</strong> — свободная строка-метка на подписчике (<code>tags: String[]</code>
+  с GIN-индексом). Идеально для «has_email», «cold», «vip-3-месяца».
+  Создаётся «налету», ничем не предконфигурится.
+</p>
+<p>
+  <strong>Список (TgList)</strong> — именованный сегмент с id, иконкой,
+  описанием и member-counter. Идеально для «Подписан на интенсив
+  04-2026», «Активные VIP», «Архив 2024». Это первоклассная сущность
+  для рассылок: в targeting рассылки выбираешь список по id, а не пишешь
+  predicate.
+</p>
+
+<h3>API ops</h3>
+<p>Все мутации списков идут через <code>lib/tg/lists.ts</code>:</p>
+<ul>
+  <li><code>addSubscriberToList()</code> — идемпотентно, увеличивает memberCount, фаер'ит <code>list_joined</code> триггеры</li>
+  <li><code>removeSubscriberFromList()</code> — то же, уменьшает счётчик, фаер'ит <code>list_left</code></li>
+  <li><code>moveSubscriberToList()</code> — удалить из A, добавить в B (две транзакции, не атомарно)</li>
+  <li><code>isSubscriberInList()</code> — для условий</li>
+</ul>
+
+<h3>Реактивные триггеры — 4 типа</h3>
+<table>
+  <tr><th>Тип триггера</th><th>Когда фаер'ится</th></tr>
+  <tr><td><code>tag_added</code></td><td>На подписчика повесили тэг X (откуда угодно — флоу, API, рассылка)</td></tr>
+  <tr><td><code>tag_removed</code></td><td>С подписчика сняли тэг X</td></tr>
+  <tr><td><code>list_joined</code></td><td>Подписчика добавили в список X</td></tr>
+  <tr><td><code>list_left</code></td><td>Подписчика удалили из списка X</td></tr>
+</table>
+<p>
+  Реактивные триггеры — мощный инструмент для архитектуры без длинных
+  линейных воронок. Тэг <code>has_email</code> вешается из 5 разных
+  мест (флоу A, флоу B, импорт CSV, ручной ввод оператором), и есть
+  <strong>одна</strong> воронка-реакция «после сохранения email —
+  приветственное письмо», которая стартует автоматически в любом из
+  этих случаев.
+</p>
+
+<h3>Expression-функции для списков</h3>
+<p>В условиях и шаблонах доступны:</p>
+<ul>
+  <li><code>in_list(listId)</code> — true если подписчик в списке (мгновенный lookup, list memberships подгружаются в condition-node)</li>
+  <li><code>{{lists}}</code> — массив id всех списков, в которых подписчик состоит</li>
+  <li><code>list_size(listId)</code> — реализовано как заглушка (возвращает 0), для реальных counts — отдельный API</li>
+</ul>
+
+<!-- ====================== 7. ITER 2c ====================== -->
+<h2 id="iter2c">7. Итерация 2c — Типизированные кастомные поля</h2>
+
+<h3>Зачем</h3>
+<p>
+  Обычные <code>variables</code> на подписчике — это нетипизированный
+  JSON-bag. Туда можно записать что угодно. Это удобно для разработчиков,
+  но проблемно для оператора, который смотрит на карточку лида и видит
+  хаос разнотипных значений.
+</p>
+<p>
+  <strong>Кастомные поля (TgCustomField)</strong> добавляют схему: у
+  бота есть набор предопределённых типизированных полей. Каждое поле
+  имеет тип (text/number/date/email/phone/select/boolean/url),
+  опциональную regex-валидацию и флаг <code>isRequired</code>.
+</p>
+
+<h3>8 типов с автовалидацией</h3>
+<table>
+  <tr><th>Тип</th><th>Coercion / валидация</th></tr>
+  <tr><td>text</td><td>Просто строка до 4096 символов</td></tr>
+  <tr><td>number</td><td>parseFloat с запятой как разделитель</td></tr>
+  <tr><td>date</td><td>dd.mm.yyyy / dd-mm-yyyy / dd/mm/yyyy</td></tr>
+  <tr><td>email</td><td>Email-regex</td></tr>
+  <tr><td>phone</td><td>Нормализация: убирает не-цифры, 8 → 7</td></tr>
+  <tr><td>select</td><td>Один из <code>options[].value</code></td></tr>
+  <tr><td>boolean</td><td>true/yes/да/1 → true; false/no/нет/0 → false</td></tr>
+  <tr><td>url</td><td>URL-regex (https?://...)</td></tr>
+</table>
+<p>На все типы можно положить ещё один <code>validationRegex</code> — например, email строго в корпоративном домене.</p>
+
+<h3>Использование во флоу</h3>
+<p>
+  Чтобы сохранить ответ в <code>field.x</code>, в
+  <code>wait_reply.saveAs</code> указывается <code>field.&lt;key&gt;</code>.
+  Движок при сохранении смотрит, есть ли в боте поле с таким key, и если
+  есть — применяет валидацию. Если невалидно — отправляется errorMessage,
+  и run идёт по <code>onInvalidNext</code> (или остаётся в waiting_reply
+  ждать новый ответ).
+</p>
+<pre><code>// На стороне БД пользователя:
+TgCustomField {
+  key: "phone",
+  type: "phone",        // ← автовалидация: 8→7, цифры only
+  isRequired: true,
+  validationRegex: null
+}
+
+// В графе воронки:
+{
+  type: "wait_reply",
+  saveAs: "field.phone",  // ← триггерит валидацию выше
+  validation: {           // ← опционально, поверх типа
+    pattern: "^\\+?7\\d{10}$",
+    errorMessage: "Телефон в формате +79991234567"
+  }
+}</code></pre>
+
+<!-- ====================== 8. ITER 3 ====================== -->
+<h2 id="iter3">8. Итерация 3 — UX completion</h2>
+
+<h3>Reply-keyboard</h3>
+<p>
+  На каждом сообщении свойство <code>keyboardMode</code>: <code>inline</code>
+  (по умолчанию — кнопки прямо под сообщением с callback'ами),
+  <code>reply</code> (постоянная клавиатура под полем ввода — нажатие
+  отправляет текст кнопки как обычное сообщение), <code>remove</code>
+  (отдать ReplyKeyboardRemove и убрать клавиатуру).
+</p>
+<p>
+  Reply-keyboard — единственный способ запросить <strong>телефон</strong>
+  (<code>request_contact: true</code>) или <strong>геолокацию</strong>
+  (<code>request_location: true</code>). В ButtonEditor для этого есть
+  отдельные типы — 📞 Запросить телефон и 📍 Запросить геолокацию.
+</p>
+
+<h3>Авто-захват контакта и локации</h3>
+<p>
+  Когда подписчик жмёт кнопку «Поделиться телефоном», Telegram
+  присылает <code>message.contact</code>. Inbound handler:
+</p>
+<ul>
+  <li>Сохраняет <code>client.phone</code>, <code>client.phone_first_name</code>, <code>client.phone_last_name</code></li>
+  <li>Фаер'ит event <code>subscriber.contact_received</code></li>
+  <li>Подставляет номер телефона в extractedText, чтобы активный wait_reply считал его обычным ответом и сохранил по своим правилам</li>
+</ul>
+<p>
+  С локацией аналогично: <code>client.location_lat</code> и
+  <code>client.location_lon</code>, плюс координаты как extractedText в
+  формате <code>lat,lon</code>.
+</p>
+
+<h3>Redirect-трекинг URL-кнопок</h3>
+<p>
+  Когда юзер кликает URL-кнопку в сообщении бота, Telegram открывает
+  ссылку <strong>напрямую</strong> в браузере — мы об этом ничего не
+  знаем. Чтобы получать аналитику кликов, при отправке сообщения движок
+  <strong>переписывает</strong> все URL-кнопки на короткие
+  <code>/r/&lt;slug&gt;?s=&lt;subscriberId&gt;</code>.
+</p>
+<ul>
+  <li>На клик: <code>/r/&lt;slug&gt;</code> логирует TgRedirectLink.clickCount, фаер'ит redirect.clicked event, делает 302 на оригинальный URL</li>
+  <li>Slug — 10 base62 символов; per-subscriber переиспользуется</li>
+  <li>Можно отключить per-button через <code>trackClicks: false</code></li>
+  <li>После этого в условиях работает <code>tag_added('clicked-X')</code> или просто условие по TgEvent в аналитике</li>
+</ul>
+
+<h3>Визуальная семантика стрелок</h3>
+<p>В React Flow редакторе рёбра имеют два стиля:</p>
+<ul>
+  <li><strong>Сплошные серые</strong> — переход по действию юзера (нажал кнопку, прислал слово, прошёл регекс)</li>
+  <li><strong>Пунктирные amber-жёлтые animated</strong> — переход по времени (delay-нода, timeout wait_reply)</li>
+</ul>
+<p>
+  Это визуальная карта воронки: с одного взгляда видно, где юзер
+  «активный», а где система ждёт в фоне. SaleBot-spec называл эту
+  конвенцию обязательной.
+</p>
+
+<!-- ====================== 9. ITER 4 ====================== -->
+<h2 id="iter4">9. Итерация 4 — Production hardening</h2>
+
+<h3>Аудит-лог</h3>
+<p>
+  Каждое мутирующее действие в админ-API пишется в TgAuditLog с полями:
+  <code>actor</code> (user_id + email), <code>botId</code>,
+  <code>action</code> (формат <code>tg.&lt;entity&gt;.&lt;verb&gt;</code>),
+  <code>details</code> (JSON), <code>outcome</code> (ok/denied/failed),
+  IP, User-Agent. Чтения <strong>не пишут</strong> — слишком шумно.
+</p>
+<p>
+  Обёртка <code>withAdminApi()</code> в <code>lib/tg/admin-api.ts</code>
+  подключает аудит автоматически при 2xx-ответе: достаточно прописать
+  <code>auditAction</code> при определении endpoint-а.
+</p>
+<pre><code>return withAdminApi(request, async (req) => {
+  // ... business logic
+}, {
+  rateLimitScope: "write",
+  auditAction: "tg.flow.update",
+  botId: params.botId,
+});</code></pre>
+
+<h3>Rate-limit</h3>
+<p>Per-user token-bucket в Redis. Три scope-а с разными лимитами:</p>
+<table>
+  <tr><th>Scope</th><th>Refill</th><th>Burst</th><th>Применение</th></tr>
+  <tr><td>default</td><td>10 req/sec</td><td>30 запросов</td><td>GET-эндпоинты</td></tr>
+  <tr><td>write</td><td>4 req/sec</td><td>12 запросов</td><td>POST/PATCH/DELETE</td></tr>
+  <tr><td>broadcast</td><td>0.2 req/sec</td><td>2 запроса</td><td>Создание рассылок</td></tr>
+</table>
+<p>
+  При превышении возвращается 429 Rate Limited с заголовком Retry-After.
+  При недоступности Redis rate-limit <strong>fails OPEN</strong> — лучше
+  пропустить пару лишних запросов, чем заблокировать админку из-за
+  инцидента с кэшем.
+</p>
+
+<h3>Безопасность</h3>
+<p>Меры защиты:</p>
+<ul>
+  <li>Токены ботов шифруются AES-256-GCM при сохранении в БД</li>
+  <li>Webhook проверяет <code>X-Telegram-Bot-Api-Secret-Token</code> через timingSafeEqual</li>
+  <li>Идемпотентность update-ов через Redis SETNX (TTL 1 ч)</li>
+  <li>HTML-санитайзер для исходящих сообщений: whitelist &lt;b&gt;, &lt;i&gt;, &lt;u&gt;, &lt;s&gt;, &lt;a&gt;, &lt;code&gt;, &lt;pre&gt;, &lt;span&gt;</li>
+  <li>Авто-захват медиа работает только из chat_id-ов в whitelist bot.adminChatIds</li>
+  <li>Expression-движок — без eval, без host-функций</li>
+  <li>152-ФЗ: вся PII (телефоны, email, имена) хранится в локальной БД клиента</li>
+</ul>
+
+<!-- ====================== 10. ITER 5 ====================== -->
+<h2 id="iter5">10. Итерация 5 — Компактные воронки (inline-действия)</h2>
+
+<h3>Проблема: воронка из 5 шагов = 25 нод</h3>
+<p>
+  Классическая SaleBot-подобная модель: каждое атомарное действие
+  (add_tag, set_variable, add_to_list) — отдельная нода на холсте. В
+  реальной воронке из 5 шагов между ними висит 15-20 узких
+  side-effect-нод. Холст превращается в кашу.
+</p>
+
+<h3>Решение: inline-действия</h3>
+<p>
+  Узкие действия теперь живут как <strong>inline-настройки</strong> на
+  родительском узле через бандл InlineActions:
+</p>
+<table>
+  <tr><th>Где живёт</th><th>Когда исполняется</th></tr>
+  <tr><td><code>message.payload.onSend</code></td><td>После успешной отправки сообщения</td></tr>
+  <tr><td><code>wait_reply.onSave</code></td><td>После сохранения ответа + валидации</td></tr>
+  <tr><td><code>button.onClick</code></td><td>При клике на callback-кнопку</td></tr>
+  <tr><td>actions-нода (отдельная)</td><td>Fallback на редкий случай side-effect без сообщения</td></tr>
+</table>
+<p>Бандл содержит 5 типов атомарных операций:</p>
+<ul>
+  <li><code>addTags: string[]</code> — добавить тэги</li>
+  <li><code>removeTags: string[]</code></li>
+  <li><code>addToLists: string[]</code> — id списков</li>
+  <li><code>removeFromLists: string[]</code></li>
+  <li><code>setVariables: {key, value, asExpression?}[]</code></li>
+</ul>
+<p>Порядок исполнения <strong>детерминированный</strong>:</p>
+<ul>
+  <li>setVariables — первыми, чтобы последующие могли использовать через шаблоны</li>
+  <li>addTags → removeTags → addToLists → removeFromLists</li>
+</ul>
+
+<h3>Палитра редактора</h3>
+<p>
+  С Iter 5 палитра сокращена с 13 до 9 типов нод. Старые узкие ноды
+  (add_tag, remove_tag, add_to_list, remove_from_list, set_variable)
+  <strong>остались в схеме</strong> для обратной совместимости с уже
+  сохранёнными флоу, но удалены из палитры. Новые флоу собираются через
+  inline.
+</p>
+
+<h3>Чип ⚙ N на нодах canvas</h3>
+<p>
+  На каждой message- и wait_reply-ноде в редакторе показывается чип
+  «⚙ N» — количество inline-действий. Видно с одного взгляда, что эта
+  нода не только отправляет сообщение, но ещё что-то делает.
+</p>
+
+<h3>onClick — техническая сторона</h3>
+<p>
+  Telegram callback несёт только <code>callback_data</code> (до 64 байт).
+  Если у кнопки задан onClick, движок генерит синтетический callback
+  вида <code>act:&lt;rowIdx&gt;:&lt;colIdx&gt;</code>. При получении callback'а из
+  webhook'а handler ищет исходное сообщение через tg_message.tgMessageId,
+  оттуда берёт <code>sourceId = flowId:nodeId</code>, парсит граф,
+  достаёт <code>node.payload.buttonRows[row][col].onClick</code> и
+  исполняет.
+</p>
+
+<div class="callout">
+  <strong>Iter 6 fix:</strong> button-onClick теперь может писать в
+  <code>deal.x</code>-переменные. Раньше путь callback не передавал
+  runId в executeInlineActions, и записи в deal-scope молча падали
+  (см. <em>NPS-тест 5⭐ → detractor</em>).
+</div>
+
+<!-- ====================== 11. ITER 6 ====================== -->
+<h2 id="iter6">11. Итерация 6 — Audit fixes + страница «Логи» <span class="badge-new">NEW</span></h2>
+
+<p>
+  После прохождения первого продакшен-цикла обнаружились три
+  критичных бага в движке и был добавлен отдельный UI для просмотра
+  событий.
+</p>
+
+<h3>Bug 1 — Cross-flow position collision</h3>
+<p>
+  <code>positionGroupId</code> хранил только <code>nodeId</code>. Два
+  разных флоу с нодами одинакового id («msg-1») кросс-отменяли runs
+  друг у друга. Фикс: составной ключ <code>positionKey()</code>:
+</p>
+<pre><code>export function positionKey(
+  flowId: string | null | undefined,
+  nodeId: string | null | undefined
+): string | null {
+  if (!flowId || !nodeId) return null;
+  return `${flowId}:${nodeId}`;
+}</code></pre>
+
+<h3>Bug 2 — /start eaten by wait_reply</h3>
+<p>
+  Юзер в email-wait_reply пишет <code>/start</code> → раньше попадал в
+  валидатор «❌ Не email» и был заблокирован. Фикс: в
+  <code>handleUserMessage()</code> слэш-команды (распознаются через
+  <code>parseCommand()</code>) пропускают
+  <code>deliverReplyToWaitingRun</code> и идут сразу в trigger-matcher.
+</p>
+
+<h3>Bug 3 — Deleted-flow cron churn</h3>
+<p>
+  Удаление флоу не отменяло его sleeping runs. Tick по
+  <code>resumeAt</code> подтягивал их → находил <code>!flow</code> →
+  пометит run failed, но через короткое время другой tick снова
+  подбирал runs со stale resumeAt. Фикс: <code>processDueRuns</code>
+  теперь явно фильтрует runs у живых флоу + при попытке
+  выполнить <code>!flow</code> сразу cancel вместо fail.
+</p>
+
+<h3>Страница «Логи» в админке</h3>
+<p>
+  Новый эндпоинт <code>/api/admin/tg/bots/[botId]/logs</code> + страница
+  <code>/admin/bots/[botId]/logs</code> — просмотр TgEvent с
+  фильтрами:
+</p>
+<ul>
+  <li>Поиск по типу события и payload-у (JSON contains)</li>
+  <li>Фильтр по уровню (info / warn / error — выводится из типа события)</li>
+  <li>Фильтр по subscriber-id, flow-id</li>
+  <li>Cursor-pagination</li>
+  <li>Русскоязычный каталог событий (32 типа): <em>«Отправлено сообщение»</em>, <em>«Получен ответ»</em>, <em>«wait_reply таймаут»</em>, <em>«Отказ от ретрая»</em>, и т.д.</li>
+</ul>
+<p>
+  Сам <code>flow-engine</code> при <code>trackEvent</code> теперь
+  добавляет в properties контекст для UI: для <code>message.send_failed</code>
+  пишет classification (retry/blocked/fatal) и source (flow/manual/broadcast),
+  для <code>flow.node_not_found</code> — какая нода и предыдущая,
+  для <code>token_decrypt.failed</code> — отдельный hint с
+  «проверь TG_TOKEN_ENC_KEY».
+</p>
+
+<!-- ====================== 12. ITER 7 ====================== -->
+<h2 id="iter7">12. Итерация 7 — A/B split + funnel-level аналитика <span class="badge-new">NEW</span></h2>
+
+<h3>Split-нода</h3>
+<p>
+  Новый тип ноды для A/B (или N-way) тестирования. Каждой ветке задан
+  <code>weight</code> (целое ≥ 1). Engine складывает все веса, бросает
+  random в этом диапазоне, выбирает ветку первого попадания (weighted
+  random).
+</p>
+<table>
+  <tr><th>Веса</th><th>Распределение</th></tr>
+  <tr><td><code>[1, 1]</code></td><td>50/50</td></tr>
+  <tr><td><code>[3, 1]</code></td><td>75/25</td></tr>
+  <tr><td><code>[1, 1, 1, 1]</code></td><td>по 25% каждая</td></tr>
+</table>
+<p>
+  Выбранный <code>label</code> ветки записывается в
+  <code>run.context._abVariant</code>. Downstream condition-ноды могут
+  ветвиться по варианту (<code>deal._abVariant == 'A'</code>), а аналитика
+  агрегирует по нему.
+</p>
+<p>
+  В редакторе split-нода имеет per-branch handle справа — каждая ветка
+  тянется в свой next отдельной стрелкой.
+</p>
+
+<h3>Подсветка unreachable нод</h3>
+<p>
+  Редактор делает BFS от триггерной псевдо-ноды по графу. Ноды,
+  не достижимые из триггера, рендерятся полупрозрачными
+  (<code>opacity: 0.4</code>) + grayscale. Сверху холста баннер:
+  <em>«Недостижимые ноды: 3 — не подключены к графу через стрелки»</em>.
+</p>
+
+<h3>Funnel-summary endpoint</h3>
+<p>
+  <code>GET /admin/tg/bots/[botId]/analytics/funnel-summary?period=...</code> —
+  сводная таблица по всем флоу с метриками:
+</p>
+<ul>
+  <li><code>entered</code> — уникальные подписчики, у которых
+    <code>flow.node_executed</code> хитнул startNode флоу</li>
+  <li><code>completed</code> — уникальные с событием <code>flow.completed</code></li>
+  <li><code>conversionRate</code> = completed / entered × 100</li>
+  <li><code>medianTimeSec</code> — медиана длины run-а от первого
+    node_executed до completed (P50 через <code>PERCENTILE_DISC(0.5)</code>)</li>
+</ul>
+
+<h3>A/B-variants endpoint</h3>
+<p>
+  <code>GET /admin/tg/bots/[botId]/analytics/ab-variants?flowId=...</code> —
+  для каждого split-узла во флоу:
+</p>
+<ul>
+  <li>Список вариантов с entered (из <code>flow.ab_split</code>) и completed (join по subscriber_id с <code>flow.completed</code>)</li>
+  <li><code>conversionRate</code> per variant</li>
+  <li><code>winner</code> — label с максимальной конверсией (если ≥ 1 завершение в выборке)</li>
+</ul>
+<p>
+  UI: расширенная вкладка «Воронки» аналитики — сверху сводная таблица
+  по всем флоу с цветовой подсветкой низкой конверсии, снизу выбранного
+  флоу — секция «A/B-эксперименты» с горизонтальным bar-chart’ом по
+  каждому split-узлу, победитель помечен 🏆 trophy-иконкой.
+</p>
+
+<div class="callout warn">
+  <strong>Статистическая значимость.</strong> Для уверенности в победе
+  варианта нужно ≥ 50–100 подписчиков на ветку. Меньше — шум. UI
+  показывает абсолютные числа рядом с процентами, чтобы это было видно.
+</div>
+
+<!-- ====================== 13. ITER 8 ====================== -->
+<h2 id="iter8">13. Итерация 8 — CSV-импорт + Schedule-flow + Merge subscribers <span class="badge-new">NEW</span></h2>
+
+<h3>CSV-импорт подписчиков</h3>
+<p>
+  <code>POST /admin/tg/bots/[botId]/subscribers/import-csv</code> +
+  страница <code>/subscribers/import</code>. Распознаваемые колонки
+  (case-insensitive, любой порядок):
+</p>
+<table>
+  <tr><th>Колонка</th><th>Назначение</th></tr>
+  <tr><td><code>chatId</code></td><td><strong>Обязательная.</strong> Telegram numeric id</td></tr>
+  <tr><td><code>firstName / lastName / username</code></td><td>—</td></tr>
+  <tr><td><code>languageCode</code></td><td>ru/en/...</td></tr>
+  <tr><td><code>tags</code></td><td>Через <code>;</code> или <code>|</code>: <code>vip;promo2025</code></td></tr>
+  <tr><td><code>customFields</code></td><td>Пары k=v: <code>age=25;city=Moscow</code></td></tr>
+</table>
+<p>
+  Match по (botId, chatId): найден → апдейт + merge tags (union),
+  merge customFields (новые ключи поверх); не найден → создаём.
+  Собственный CSV-парсер в <code>lib/tg/csv-parse.ts</code> —
+  auto-detect разделителя <code>,</code> vs <code>;</code>, поддержка
+  quoted-полей с экранированием. Лимит 10 000 строк за запрос.
+  Dry-run preview перед записью в БД.
+</p>
+
+<h3>Schedule-flow — запуск в указанный момент</h3>
+<p>
+  Новая модель <code>TgScheduledFlow</code> — отложенный запуск флоу для
+  отфильтрованной аудитории. Use-cases: «дожим VIP-сегмента в субботу
+  10:00», «приветственный флоу для всех с тегом intensive-04 в день
+  старта».
+</p>
+<p>
+  Воркер <code>processScheduledFlows()</code> подключён к
+  <code>/tg-cron/tick</code>: за тик подбирает до 5 due-записей,
+  атомарно переводит в running, поднимает <code>startFlowRun</code> для
+  каждого подписчика батчами по 50.
+</p>
+<pre><code>POST /admin/tg/bots/[botId]/scheduled-flows
+{
+  "flowId": "...",
+  "name": "Дожим VIP 1 июня 10:00",
+  "scheduledAt": "2026-06-01T07:00:00Z",  // UTC
+  "filter": {
+    "allActive": false,
+    "tagsAny": ["vip"],
+    "excludeTags": ["cold"]
+  }
+}</code></pre>
+<p>
+  UI на <code>/admin/bots/[botId]/scheduled-flows</code>: форма «когда +
+  кому» и таблица истории со статусами (scheduled / running /
+  completed / cancelled / failed) и счётчиком <code>totalLaunched</code>.
+</p>
+
+<h3>Merge subscribers</h3>
+<p>
+  Кейсы: пользователь зашёл с двух аккаунтов, миграция из другой
+  платформы создала дубль, CSV-импорт натворил дубликатов.
+  <code>POST /subscribers/merge</code> объединяет N записей в одну
+  primary:
+</p>
+<ol>
+  <li><code>tg_messages</code>, <code>tg_flow_runs</code>, <code>tg_events</code>, <code>tg_redirect_links</code> — простой <code>updateMany(subscriberId → primaryId)</code></li>
+  <li><code>tg_broadcast_recipients</code>, <code>tg_subscriber_lists</code> — конфликты по уникальным ключам (broadcastId+sub, listId+sub) сначала удаляются у secondary, потом remap</li>
+  <li>На primary мержим: <code>tags</code> (union), <code>customFields</code> + <code>variables</code> (новые ключи поверх старых), <code>firstTouchAt</code> (берём самый ранний)</li>
+  <li>Secondary удаляются</li>
+</ol>
+<p>
+  Всё в одной транзакции (<code>$transaction</code>, timeout 60с). UI
+  на <code>/subscribers/merge</code>: автодетект групп по совпадающему
+  username + ручной поиск с явным выбором primary и secondary.
+</p>
+
+<!-- ====================== 14. ITER 9 ====================== -->
+<h2 id="iter9">14. Итерация 9 — Operator live-chat <span class="badge-new">NEW</span></h2>
+
+<p>
+  Минимально-жизнеспособная версия «передать диалог человеку». Оператор
+  кнопкой «Взять диалог» в карточке подписчика отключает автоматику
+  бота для этого пользователя.
+</p>
+
+<h3>Поля на подписчике</h3>
+<ul>
+  <li><code>operatorTakeoverAt: DateTime?</code> — когда оператор взял диалог</li>
+  <li><code>operatorAssigneeId: string?</code> — userId оператора</li>
+</ul>
+<p>
+  Оператор «активен», если <code>operatorTakeoverAt</code> установлен и
+  моложе 24 часов. Авто-release через 24ч защищает от ситуации
+  «оператор забыл вернуть бота».
+</p>
+
+<h3>Логика в inbound</h3>
+<p>В <code>handleUserMessage</code> добавлен ранний return:</p>
+<pre><code>if (operatorActive && !isCommand) {
+  // Сообщение остаётся в логе (storeInboundMessage уже отработал
+  // выше), но никаких авто-флоу не запускаем.
+  return;
+}</code></pre>
+<p>
+  Слэш-команды (<code>/start</code>, <code>/help</code>) — исключение:
+  они работают как «выход» в обычный режим (юзер сам стартует флоу).
+</p>
+
+<h3>Endpoints</h3>
+<table>
+  <tr><th>URL</th><th>Что делает</th></tr>
+  <tr><td><code>POST /subscribers/[id]/operator</code></td><td><code>{action: takeover|release}</code></td></tr>
+  <tr><td><code>GET /bots/[botId]/inbox</code></td><td>3 секции: active takeover, waiting (inbound без нашего outbound за 24ч), recent</td></tr>
+</table>
+
+<h3>UI</h3>
+<ul>
+  <li>В шапке чата подписчика — кнопка «Взять диалог» / «Вернуть бота» + бэйдж «Ручной режим» рядом с именем</li>
+  <li>Отдельная страница <code>/admin/bots/[botId]/inbox</code> с polling каждые 15 сек и тремя списками</li>
+  <li>Tab «Inbox» в основной навигации бота</li>
+</ul>
+
+<!-- ====================== 15. ITER 10 ====================== -->
+<h2 id="iter10">15. Итерация 10 — Операционные риски <span class="badge-new">NEW</span></h2>
+
+<p>
+  Серия мер «закрыть сюрпризы в продакшене» — то, что обычно ломается
+  ночью с пятницы на субботу.
+</p>
+
+<h3>429 retry + retry-after</h3>
+<p>
+  <code>callApi</code> в <code>lib/tg/api.ts</code> переписан с
+  поддержкой retry:
+</p>
+<ul>
+  <li>На <strong>429</strong>: один inline-ретрай с уважением <code>retry_after</code>, но только если ожидание ≤ 10 сек (иначе возвращаем ошибку наверх — пусть broadcast worker планирует на nextAttemptAt с правильной отсрочкой). Случайный джиттер 0–200 мс сверху, чтобы параллельные процессы не били ровно в одну ms.</li>
+  <li>На <strong>5xx и сетевые ошибки</strong>: до 2 ретраев с linear backoff (300 мс × попытка).</li>
+</ul>
+<p>
+  В <code>SendResult</code> теперь пробрасывается <code>retryAfterSec</code>.
+  Broadcast worker берёт <code>max(свой backoff, retry_after + 5с буфер)</code>
+  вместо фиксированных задержек — не долбит API раньше времени и не
+  провоцирует новые 429.
+</p>
+
+<h3>Health-check бота</h3>
+<p>
+  <code>GET /admin/tg/bots/[botId]/health</code> вызывает
+  <code>getMe</code> + <code>getWebhookInfo</code> и сверяет с БД.
+  Возвращает структурированный список issues:
+</p>
+<table>
+  <tr><th>Code</th><th>Severity</th><th>Что значит</th></tr>
+  <tr><td><code>TOKEN_INVALID</code></td><td>error</td><td>getMe не сработал — токен невалиден или сеть</td></tr>
+  <tr><td><code>TOKEN_MISMATCH</code></td><td>error</td><td>getMe вернул @other_bot, в БД сохранён @our_bot</td></tr>
+  <tr><td><code>WEBHOOK_NOT_SET</code></td><td>error</td><td>Webhook не установлен — апдейты не приходят</td></tr>
+  <tr><td><code>WEBHOOK_DRIFT</code></td><td>warn</td><td>Telegram держит webhook на другом URL, чем у нас в БД</td></tr>
+  <tr><td><code>WEBHOOK_LAST_ERROR</code></td><td>warn</td><td>Telegram пишет ошибку доставки</td></tr>
+  <tr><td><code>WEBHOOK_BACKLOG</code></td><td>warn</td><td><code>pending_update_count</code> &gt; 50</td></tr>
+</table>
+<p>
+  На странице бота — карточка «Состояние бота в Telegram» с
+  автообновлением раз в 5 минут.
+</p>
+
+<h3>Cron heartbeat</h3>
+<p>
+  Если внешний крон сдох (сеть, контейнер, env var не выставлен) —
+  раньше об этом узнавали только когда подписчики начинали жаловаться
+  «дожимы не приходят». Теперь:
+</p>
+<ul>
+  <li>Каждый tick <code>writeCronHeartbeat()</code> пишет в Redis
+    ключ <code>tg:cron:last_tick</code> (TTL 1ч):
+    <code>{at, runs, broadcasts, scheduledFlows, durationMs}</code></li>
+  <li>Если Redis недоступен — fallback в TgEvent type=<code>cron.heartbeat</code></li>
+  <li>Порог тревоги — 5 минут без heartbeat'а</li>
+  <li><code>GET /admin/tg/cron-status</code> — статус «жив»/«молчит N мин»/«никогда не пинговал»</li>
+  <li>Карточка «Состояние крона» на странице бота с polling раз в минуту</li>
+</ul>
+
+<h3>Ротация секретов</h3>
+<p>
+  <strong>Bot-токен.</strong> <code>POST /bots/[botId]/rotate-token</code>:
+</p>
+<ol>
+  <li>Валидирует новый токен через <code>getMe</code></li>
+  <li>Требует тот же <code>bot_user_id</code> — защита от случайной перецепки на чужого бота</li>
+  <li>Переустанавливает webhook на новом токене (с тем же webhookSecret) <strong>до</strong> записи в БД</li>
+  <li>Только при успехе — апдейтит <code>tokenEncrypted</code></li>
+</ol>
+<p>
+  <strong>Webhook secret.</strong>
+  <code>POST /bots/[botId]/rotate-webhook-secret</code>: генерим новый
+  64-байт secret → setWebhook с ним → только при успехе обновляем БД.
+  Старый secret до этого момента валиден, callback-апдейты не отвалятся
+  посредине.
+</p>
+
+<!-- ====================== 16. ITER 11 ====================== -->
+<h2 id="iter11">16. Итерация 11 — UX редактора <span class="badge-new">NEW</span></h2>
+
+<h3>Live preview сообщений</h3>
+<p>
+  Компонент <code>components/admin/tg/flow-editor/telegram-preview.tsx</code>
+  рендерит payload сообщения как Telegram-бабл рядом с редактором:
+</p>
+<ul>
+  <li>HTML после <code>sanitizeTelegramHtml</code> (тот же что и при отправке)</li>
+  <li>Inline-кнопки в синем стиле, reply-keyboard внизу серым</li>
+  <li>Медиа-чипы с типом и file_id/URL</li>
+  <li><strong>Placeholders <code>{{x}}</code> подсвечены</strong> как фиолетовые чипы — автор видит, где будет подстановка</li>
+</ul>
+
+<h3>Length warnings (Telegram limits)</h3>
+<p><code>lib/tg/limits.ts</code> хранит все API-лимиты в одном месте:</p>
+<table>
+  <tr><th>Поле</th><th>Лимит</th></tr>
+  <tr><td>message text</td><td>4096</td></tr>
+  <tr><td>media caption</td><td>1024</td></tr>
+  <tr><td>button text</td><td>64</td></tr>
+  <tr><td>callback_data</td><td>64</td></tr>
+</table>
+<p>
+  Функция <code>lengthSeverity(used, limit)</code> возвращает
+  <code>ok</code> / <code>warn</code> (≥ 90%) / <code>error</code>
+  (&gt; 100%). В UI:
+</p>
+<ul>
+  <li>Счётчик «1234 / 4096» под текстом, автоматически переключается на 1024 если у сообщения есть медиа</li>
+  <li>Рамка инпута краснеет/желтеет на пороге</li>
+  <li>Подпись «Telegram отрежет» при error</li>
+  <li>То же на тексте каждой кнопки</li>
+</ul>
+
+<h3>Semantic validation</h3>
+<p>
+  <code>lib/tg/flow-validator.ts</code> — функция <code>validateFlow()</code>
+  ловит логические дыры, которые Zod не видит:
+</p>
+<table>
+  <tr><th>Code</th><th>Описание</th></tr>
+  <tr><td><code>NO_TRIGGERS</code></td><td>У флоу нет триггеров — не запустится сам</td></tr>
+  <tr><td><code>MESSAGE_DEAD_END</code></td><td>Сообщение без next и без exit-кнопок</td></tr>
+  <tr><td><code>WAIT_REPLY_NO_TIMEOUT</code></td><td>wait_reply без timeoutSeconds — юзер может застрять до /start</td></tr>
+  <tr><td><code>WAIT_REPLY_NO_NEXT</code></td><td>wait_reply без next — куда идти после ответа?</td></tr>
+  <tr><td><code>CONDITION_NO_DEFAULT</code></td><td>«иначе» провалится молча</td></tr>
+  <tr><td><code>CONDITION_DEAD</code></td><td>Ни у одного правила нет next — нода-тупик</td></tr>
+  <tr><td><code>HTTP_NO_ON_ERROR</code></td><td>5xx завалит run без fallback</td></tr>
+  <tr><td><code>HTTP_NO_NEXT</code></td><td>Успешный ответ ведёт в никуда</td></tr>
+  <tr><td><code>SPLIT_DUPLICATE_LABELS</code></td><td>A/B аналитика сольётся</td></tr>
+  <tr><td><code>SPLIT_BRANCH_DISCONNECTED</code></td><td>Ветка без next</td></tr>
+  <tr><td><code>CONTACT_BUTTON_INLINE</code></td><td>request_contact в inline-keyboard — Telegram игнорирует</td></tr>
+  <tr><td><code>GOTO_NO_FLOW</code></td><td>goto_flow без flowId</td></tr>
+  <tr><td><code>ACTIONS_EMPTY</code></td><td>Actions-нода ничего не делает</td></tr>
+  <tr><td><code>UNREACHABLE</code></td><td>Нода не достижима из триггера</td></tr>
+</table>
+<p>
+  В редакторе — плавающая панелька внизу холста со счётчиком ошибок и
+  warnings. Развёрнутая — список с прыжком на ноду по клику. 7
+  unit-тестов для типовых сценариев.
+</p>
+
+<h3>Copy/paste/duplicate нод</h3>
+<ul>
+  <li><strong>Cmd/Ctrl-C</strong> — копирует выделенную ноду в in-memory clipboard</li>
+  <li><strong>Cmd/Ctrl-V</strong> — вставляет рядом с новой ID</li>
+  <li><strong>Cmd/Ctrl-D</strong> — «duplicate» одной кнопкой (без промежуточного copy)</li>
+  <li>Кнопка-дубль на тулбаре редактора для discoverability</li>
+</ul>
+<p>
+  Важный нюанс: outbound-ссылки (<code>next</code>, <code>timeoutNext</code>,
+  <code>onError</code>, <code>defaultNext</code>, <code>rules[].next</code>,
+  <code>branches[].next</code>) в клоне <strong>сбрасываются</strong>.
+  Иначе копия ведёт в те же таргеты, что оригинал, и автор путается.
+  Шорткаты игнорируются если фокус в input/textarea — чтобы не ломать
+  обычный Cmd-C по тексту.
+</p>
+
+<!-- ====================== 17. ITER 12 ====================== -->
+<h2 id="iter12">17. Итерация 12 — UX подписчиков <span class="badge-new">NEW</span></h2>
+
+<h3>Deal-scope viewer в чате</h3>
+<p>
+  В <code>ActiveRun</code> API теперь включает поле <code>context</code>
+  (per-run JSON). В сайдбаре чата секция «Активные сценарии и
+  deal-scope»:
+</p>
+<ul>
+  <li>Каждый run — раскрывающаяся строка</li>
+  <li><code>_abVariant</code> вынесен <strong>отдельной розовой плашкой</strong> «A/B: variant_label» рядом с именем флоу — критично для аналитики A/B, всегда видно без разворачивания</li>
+  <li>Остальные <code>deal.x</code> — внутри collapse: <code>deal.foo = bar</code></li>
+</ul>
+
+<h3>Bulk-операции</h3>
+<p>
+  <code>POST /admin/tg/bots/[botId]/subscribers/bulk</code> принимает
+  либо <code>subscriberIds[]</code>, либо <code>filter</code> (тот же
+  shape что у GET):
+</p>
+<table>
+  <tr><th>Action</th><th>Эффект</th></tr>
+  <tr><td><code>add_tag</code></td><td>params.tag</td></tr>
+  <tr><td><code>remove_tag</code></td><td>params.tag</td></tr>
+  <tr><td><code>start_flow</code></td><td>params.flowId — батчи по 50, чтобы не утроить TG rate-limit</td></tr>
+  <tr><td><code>block</code></td><td>Помечает isBlocked + unsubscribedAt</td></tr>
+  <tr><td><code>unblock</code></td><td>Сбрасывает isBlocked</td></tr>
+</table>
+<p>
+  Лимит <strong>5000</strong> подписчиков на запрос — защита от
+  storm-а <code>startFlowRun</code> и долгих транзакций.
+</p>
+<p>
+  UI на странице подписчиков: чекбокс-колонка, sticky-панель действий
+  при выборе ≥ 1 подписчика, кнопка «Выбрать всех по фильтру» с
+  подтверждением и баннером «применится ко ВСЕМ».
+</p>
+
+<h3>Trigger stats</h3>
+<p>
+  <code>GET /admin/tg/bots/[botId]/analytics/triggers</code> агрегирует
+  <code>flow.entered</code> события по:
+</p>
+<ul>
+  <li><code>byType</code> — глобально (command / keyword / regex / subscribed / tracking_link / default_start / button_callback / goto_flow / bulk_action / scheduled_flow / manual_api)</li>
+  <li><code>byFlow</code> — per-flow breakdown</li>
+  <li><code>deadTriggerTypes</code> — для каждого флоу: сконфигурированные триггеры, которые ни разу не сработали в окне</li>
+</ul>
+<p>
+  Новая вкладка «Триггеры» в аналитике: bar-chart по типам глобально +
+  per-flow карточки. Мёртвые триггеры подсвечены красным с эмодзи 💀 —
+  частая ситуация когда keyword настроен с опечаткой и никто её не
+  пишет.
+</p>
+
+<!-- ====================== 18. ITER 13 ====================== -->
+<h2 id="iter13">18. Итерация 13 — Templates / Import-Export / Hot-reload <span class="badge-new">NEW</span></h2>
+
+<h3>Import / Export флоу</h3>
+<p>
+  <code>lib/tg/flow-export.ts</code> определяет portable JSON формат с
+  <code>formatVersion: 1</code> и Zod-схемой <code>flowExportSchema</code>.
+  Содержит <code>name</code>, <code>description</code>,
+  <code>graph</code>, <code>triggers</code> + meta:
+  <code>exportedAt</code>, <code>sourceBotUsername</code>,
+  <code>sourceFlowId</code>.
+</p>
+<p>
+  <code>analyzeImportWarnings()</code> ловит проблемы переноса между
+  ботами:
+</p>
+<table>
+  <tr><th>Code</th><th>Что не пройдёт автоматически</th></tr>
+  <tr><td><code>MEDIA_FILE_ID</code></td><td>file_id привязан к боту — в новом нужно загружать медиа заново</td></tr>
+  <tr><td><code>GOTO_FLOW_ID</code></td><td>flowId локален — переподключите вручную</td></tr>
+  <tr><td><code>ACTION_LIST_ID</code></td><td>listIds в onClick/onSend/onSave/actions локальны</td></tr>
+  <tr><td><code>TRIGGER_TRACKING_LINK</code></td><td>payloads → нужны соответствующие tracking-links в новом боте</td></tr>
+</table>
+<p>
+  Эндпоинты:
+</p>
+<ul>
+  <li><code>GET /flows/[flowId]/export</code> — отдаёт файл с
+    <code>Content-Disposition: attachment; filename="*.flow.json"</code>.
+    <code>?download=0</code> — inline для копи-пасты.</li>
+  <li><code>POST /flows/import</code> — принимает строку JSON или объект; <code>dryRun=true</code> для preview без записи. Импортированный флоу создаётся <strong>выключенным</strong> — admin должен переподключить зависимости</li>
+</ul>
+<p>
+  UI: кнопка «Скачать JSON» на каждой карточке флоу + диалог «Импорт» с
+  file-upload, textarea и dry-run preview списком warnings.
+</p>
+
+<h3>+3 шаблона (всего 7)</h3>
+<p>В <code>lib/tg/flow-templates.ts</code> добавлены:</p>
+<ul>
+  <li><strong>NPS-опрос (5⭐)</strong> — кнопки 1–5 пишут <code>deal.nps</code>, condition ветвит promoter/detractor с разными тегами и финальными сообщениями</li>
+  <li><strong>Онбординг покупателя курса</strong> — день 0 (welcome) → +1д → +3д → +7д с напоминаниями</li>
+  <li><strong>Брошенная корзина</strong> — 3 касания (+30 мин, +2 ч, +24 ч) с проверкой тега <code>cart_pending</code> на каждом этапе</li>
+</ul>
+<p>
+  В сумме 7 шаблонов: welcome, lead-magnet, quiz, NPS, course-onboarding,
+  abandoned-cart, blank.
+</p>
+
+<h3>Hot-reload runs</h3>
+<p>
+  При сохранении графа через PATCH active runs могут указывать на
+  ноды, которые исчезли. Раньше на следующем тике они падали с
+  «node not found» и засоряли логи. Теперь:
+</p>
+<ol>
+  <li>В <code>PATCH /flows/[flowId]</code> после записи графа находим runs со статусом queued/sleeping/waiting_reply, у которых <code>currentNodeId</code> не в новом <code>nodeIds</code></li>
+  <li>Помечаем их <code>cancelled</code> с понятным <code>lastError = "node removed during hot-reload"</code></li>
+  <li>Фаер'им событие <code>flow.hot_reload_cancelled_runs</code> с <code>missingNodeIds[]</code></li>
+  <li>API возвращает <code>cancelledRuns</code> в response</li>
+</ol>
+<p>
+  Перед сохранением UI зовёт
+  <code>POST /flows/[flowId]/hot-reload-preview</code> и показывает
+  confirm-диалог: <em>«Будут отменены 3 активных run-а — их текущая
+  нода исчезла из графа: msg-old (2), wait-x (1). Продолжить?»</em>.
+</p>
+
+<!-- ====================== 19. AI CHECKER ====================== -->
+<h2 id="homework">19. Async AI-checker для homework <span class="badge-new">NEW</span></h2>
+
+<p>
+  Не часть бот-платформы напрямую, но связано — это альтернативный
+  pattern для длительных внешних запросов, которые применим и для других
+  long-running операций (AI-генерация ответов и т.п.).
+</p>
+
+<h3>Зачем async</h3>
+<p>
+  Claude Code CLI на одно задание (особенно с картинками) тратит
+  2–5 минут. ngrok-free режет любое HTTP-соединение на 2 минутах.
+  Синхронный POST к AI-checker → <code>client_timeout</code> /
+  <code>upstream_timeout</code> срабатывает раньше, чем CLI заканчивает.
+</p>
+<p>
+  Решение — <strong>kickoff + callback</strong>. LMS даёт AI-checker
+  задание и URL для callback, AI-checker сразу подтверждает приём
+  (HTTP 202), считает в фоне, потом POST-ит результат на callback.
+</p>
+
+<h3>Поля схемы (homework_submissions)</h3>
+<table>
+  <tr><th>Поле</th><th>Назначение</th></tr>
+  <tr><td><code>ai_analysis_started_at</code></td><td>Момент, когда LMS успешно передал работу AI-checker. Если выставлено, а <code>analyzedAt</code> и <code>error</code> ещё null — анализ в процессе, фронт делает polling</td></tr>
+  <tr><td><code>ai_analysis_error</code></td><td>Текст ошибки, если AI-checker не смог обработать (или связь оборвалась)</td></tr>
+</table>
+
+<h3>Endpoints</h3>
+<table>
+  <tr><th>URL</th><th>Кто вызывает</th></tr>
+  <tr><td><code>POST /api/curator/homework/[id]/ai-analyze</code></td><td>Куратор из UI. LMS вызывает AI-checker с callbackUrl, возвращает 202 куратору</td></tr>
+  <tr><td><code>POST /api/internal/ai-callback/[id]</code></td><td>AI-checker пишет сюда результат. Проверка <code>X-Callback-Secret</code> через timingSafeEqual</td></tr>
+  <tr><td><code>GET /api/curator/homework/[id]</code></td><td>Polling: возвращает <code>aiAnalysisStartedAt</code>/<code>aiAnalysisError</code>/<code>aiSuggested*</code></td></tr>
+</table>
+
+<h3>Контракт AI-checker</h3>
+<p>Полная спецификация в <code>docs/AI_CHECKER_CONTRACT.md</code>. Ключевые требования:</p>
+<ul>
+  <li>Принимать POST с payload и callbackUrl + callbackSecret</li>
+  <li>Возвращать 202 в течение 15 секунд</li>
+  <li>POST-ить результат на callbackUrl с тем же secret в заголовке</li>
+  <li>Legacy sync-режим (мгновенный ответ) сохранён для обратной совместимости</li>
+</ul>
+
+<h3>nginx</h3>
+<p>
+  Отдельный location для AI-эндпоинтов с
+  <code>proxy_read_timeout 5m</code> (вместо стандартных 60с) — иначе
+  большие homework-submissions проксируются с обрывом.
+</p>
+
+<!-- ====================== 20. DEPLOY ====================== -->
+<h2 id="deploy">20. Развёртывание и эксплуатация</h2>
+
+<h3>Обязательные env-переменные</h3>
+<table>
+  <tr><th>Переменная</th><th>Назначение</th></tr>
+  <tr><td><code>DATABASE_URL</code></td><td>Postgres connection string</td></tr>
+  <tr><td><code>DIRECT_URL</code></td><td>То же, для Prisma migrations</td></tr>
+  <tr><td><code>REDIS_URL</code></td><td>Redis для rate-limit, idempotency, <strong>cron heartbeat</strong></td></tr>
+  <tr><td><code>TG_TOKEN_ENC_KEY</code></td><td>AES-256-GCM ключ. Генерируется один раз: <code>openssl rand -hex 32</code>. <strong>Не менять</strong> после первичной настройки — иначе все сохранённые токены не расшифруются</td></tr>
+  <tr><td><code>TG_CRON_SECRET</code></td><td>Bearer для <code>/api/tg-cron/tick</code>. tg-cron sidecar использует</td></tr>
+  <tr><td><code>NEXT_PUBLIC_APP_URL</code></td><td>База для <code>/r/&lt;slug&gt;</code> редиректов и webhook URL</td></tr>
+  <tr><td><code>JWT_SECRET / JWT_REFRESH_SECRET</code></td><td>Сессии админ-API</td></tr>
+  <tr><td><code>AI_CHECKER_URL / AI_CHECKER_KEY</code></td><td>Адрес и API-key AI-checker для homework analysis</td></tr>
+  <tr><td><code>AI_CALLBACK_SECRET</code></td><td>Секрет для проверки callback от AI-checker. Если не задан — используется AI_CHECKER_KEY</td></tr>
+</table>
+
+<h3>Docker Compose</h3>
+<p><code>docker-compose.yml</code> определяет 5 сервисов: postgres, redis, app (Next.js), tg-cron (сайдкар-крон), nginx.</p>
+<p>
+  <strong>Критичный сервис tg-cron</strong> — без него таймауты wait_reply
+  и delay-ноды не срабатывают, runs зависают в waiting_reply / sleeping
+  навсегда. <strong>Iter 10</strong> добавил heartbeat-карточку на странице
+  бота, которая прозрачно показывает, если sidecar сдох.
+</p>
+<pre><code>tg-cron:
+  image: curlimages/curl:8.10.1
+  restart: unless-stopped
+  depends_on:
+    app:
+      condition: service_healthy
+  environment:
+    TG_CRON_SECRET: ${TG_CRON_SECRET}
+  entrypoint:
+    - sh
+    - -c
+    - |
+      while true; do
+        curl -fsS -X POST \
+          -H "Authorization: Bearer $$TG_CRON_SECRET" \
+          http://app:3000/api/tg-cron/tick;
+        sleep 20;
+      done</code></pre>
+
+<h3>Миграции БД</h3>
+<p>Применить после <code>git pull</code>:</p>
+<pre><code>docker compose exec app npx prisma migrate deploy</code></pre>
+<p>
+  Все 16 миграций <strong>аддитивные</strong> — никаких DROP или ALTER
+  TYPE. Откат через <code>prisma migrate resolve --rolled-back</code> +
+  ручной DROP TABLE при необходимости.
+</p>
+
+<div class="callout new">
+  <strong>v2.0 миграции</strong> — три новых, нужны для Iter 8–9:
+  <ul>
+    <li><code>20260520000000_add_tg_scheduled_flows</code> — таблица tg_scheduled_flows для Iter 8</li>
+    <li><code>20260520120000_add_operator_takeover</code> — поля operator_takeover_at/operator_assignee_id на tg_subscribers для Iter 9</li>
+    <li><code>20260518110000_add_jarvis_async_analysis</code> — поля на homework_submissions для async AI-checker (§19)</li>
+  </ul>
+</div>
+
+<h3>Бэкап и DR</h3>
+<table>
+  <tr><th>Что бэкапить</th><th>Как</th><th>Ретенция</th></tr>
+  <tr><td>PostgreSQL</td><td><code>pg_dump</code> ежедневно</td><td>Минимум 30 дней</td></tr>
+  <tr><td><code>TG_TOKEN_ENC_KEY</code></td><td>Секрет-менеджер (1Password / Vault)</td><td>Бесконечно</td></tr>
+  <tr><td><code>JWT_SECRET</code></td><td>Секрет-менеджер</td><td>Бесконечно</td></tr>
+  <tr><td><code>AI_CALLBACK_SECRET</code></td><td>Секрет-менеджер</td><td>Бесконечно</td></tr>
+</table>
+<div class="callout warn">
+  <strong>Внимание.</strong> Что нельзя восстановить без бэкапа БД:
+  история диалогов (TgMessage), текущая позиция подписчиков в воронках,
+  запланированные дожимы (sleeping flow_runs), tg_audit_log, scheduled
+  flows и состояние operator-takeover.
+</div>
+
+<!-- ====================== 21. API ====================== -->
+<h2 id="api">21. Справочник API</h2>
+
+<h3>Public Endpoints</h3>
+<table>
+  <tr><th>URL</th><th>Что делает</th><th>Auth</th></tr>
+  <tr><td>POST /api/tg-webhook/[botId]</td><td>Webhook Telegram-а</td><td>X-Telegram-Bot-Api-Secret-Token</td></tr>
+  <tr><td>GET /r/[slug]</td><td>Redirect-tracking click</td><td>—</td></tr>
+  <tr><td>POST /api/tg-cron/tick</td><td>Драйв флоу-движка, рассылок и scheduled-flows + heartbeat</td><td>Bearer TG_CRON_SECRET</td></tr>
+  <tr><td>POST /api/internal/ai-callback/[id]</td><td>Callback от AI-checker (Iter 19)</td><td>X-Callback-Secret</td></tr>
+</table>
+
+<h3>Admin endpoints — Bots</h3>
+<table>
+  <tr><th>URL</th><th>Метод</th><th>Описание</th></tr>
+  <tr><td>/api/admin/tg/bots</td><td>GET, POST</td><td>Список ботов / создать бота</td></tr>
+  <tr><td>/api/admin/tg/bots/[botId]</td><td>GET, PATCH, DELETE</td><td>Управление ботом</td></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/health <span class="chip new">NEW</span></td><td>GET</td><td>getMe + getWebhookInfo + issues[]</td></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/rotate-token <span class="chip new">NEW</span></td><td>POST</td><td>Заменить bot-токен (с защитой от перецепки)</td></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/rotate-webhook-secret <span class="chip new">NEW</span></td><td>POST</td><td>Сгенерировать новый webhook secret</td></tr>
+  <tr><td>/api/admin/tg/cron-status <span class="chip new">NEW</span></td><td>GET</td><td>Heartbeat-статус cron sidecar</td></tr>
+</table>
+
+<h3>Admin endpoints — Flows</h3>
+<table>
+  <tr><th>URL</th><th>Метод</th></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/flows</td><td>GET, POST</td></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/flows/[flowId]</td><td>GET, PATCH (с hot-reload), DELETE</td></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/flows/[flowId]/export <span class="chip new">NEW</span></td><td>GET — скачать JSON-экспорт</td></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/flows/[flowId]/hot-reload-preview <span class="chip new">NEW</span></td><td>POST — preview cancellation перед save</td></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/flows/import <span class="chip new">NEW</span></td><td>POST — импорт JSON в новый флоу</td></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/scheduled-flows <span class="chip new">NEW</span></td><td>GET, POST</td></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/scheduled-flows/[id] <span class="chip new">NEW</span></td><td>DELETE (cancel / delete history)</td></tr>
+</table>
+
+<h3>Admin endpoints — Subscribers</h3>
+<table>
+  <tr><th>URL</th><th>Что</th></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/subscribers</td><td>Список (cursor-pagination, фильтры)</td></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/subscribers/[id]</td><td>Карточка лида</td></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/subscribers/[id]/context</td><td>Полный контекст (атрибуция, статы, история)</td></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/subscribers/[id]/messages</td><td>Cursor-paginated message history</td></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/subscribers/[id]/operator <span class="chip new">NEW</span></td><td>POST — takeover / release</td></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/subscribers/bulk <span class="chip new">NEW</span></td><td>POST — bulk add_tag / remove_tag / start_flow / block / unblock</td></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/subscribers/import-csv <span class="chip new">NEW</span></td><td>POST — CSV-импорт (до 10к строк, dry-run)</td></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/subscribers/merge <span class="chip new">NEW</span></td><td>POST — объединить дубликаты; GET — автодетект</td></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/inbox <span class="chip new">NEW</span></td><td>GET — список диалогов для оператора (3 секции)</td></tr>
+</table>
+
+<h3>Admin endpoints — Media library</h3>
+<table>
+  <tr><th>URL</th><th>Что</th></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/media/[fileId]</td><td>Прокси байтов через media-proxy</td></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/media-library</td><td>GET: список (фильтр kind, q, cursor)</td></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/media-library/[mediaId]</td><td>PATCH (rename), DELETE</td></tr>
+</table>
+
+<h3>Admin endpoints — Lists и Fields</h3>
+<table>
+  <tr><th>URL</th><th>Что</th></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/lists</td><td>GET, POST — CRUD списков</td></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/lists/[listId]</td><td>PATCH, DELETE</td></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/custom-fields</td><td>GET, POST — CRUD типизированных полей</td></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/custom-fields/[fieldId]</td><td>PATCH, DELETE</td></tr>
+</table>
+
+<h3>Admin endpoints — Broadcasts &amp; Analytics</h3>
+<table>
+  <tr><th>URL</th><th>Что</th></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/broadcasts</td><td>GET, POST — рассылки</td></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/broadcasts/[id]</td><td>PATCH (запуск, отмена)</td></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/analytics/funnel</td><td>Per-flow funnel: per-node count, drop, time-in-node</td></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/analytics/funnel-summary <span class="chip new">NEW</span></td><td>Cross-flow обзор: entered/completed/conversion/медианное время</td></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/analytics/ab-variants <span class="chip new">NEW</span></td><td>Per-experiment A/B breakdown с winner-детектом</td></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/analytics/triggers <span class="chip new">NEW</span></td><td>byType + byFlow + deadTriggerTypes</td></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/analytics/cohorts</td><td>Когортный анализ</td></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/tracking-links</td><td>GET, POST — UTM /start ссылки</td></tr>
+  <tr><td>/api/admin/tg/bots/[botId]/logs <span class="chip new">NEW</span></td><td>GET — TgEvent с фильтрами и русским каталогом типов</td></tr>
+</table>
+
+<!-- ====================== 22. EXAMPLES ====================== -->
+<h2 id="examples">22. Примеры воронок</h2>
+
+<h3>Простая регистрация на интенсив</h3>
+<p>
+  Самый частый сценарий: <code>/start</code> → запрос email с
+  валидацией → подтверждение с напоминанием за сутки до старта.
+</p>
+<pre><code>{
+  "version": 1,
+  "startNodeId": "welcome",
+  "nodes": [
+    {
+      "id": "welcome",
+      "type": "message",
+      "payload": {
+        "text": "Привет, {{first_name}}! Старт {{addDays(current_date, 3)}}.",
+        "onSend": {
+          "addTags": ["intensive-started"],
+          "setVariables": [
+            { "key": "deal.started_at", "value": "{{now}}" }
+          ]
+        }
+      },
+      "next": "ask-email"
+    },
+    {
+      "id": "ask-email",
+      "type": "wait_reply",
+      "saveAs": "field.email",
+      "timeoutSeconds": 1800,
+      "timeoutNext": "timeout",
+      "validation": {
+        "pattern": "^[\\w.+-]+@[\\w.-]+\\.[A-Za-z]{2,}$",
+        "errorMessage": "Введите email"
+      },
+      "onSave": {
+        "addTags": ["has-email", "registered"]
+      },
+      "next": "confirm"
+    },
+    {
+      "id": "confirm",
+      "type": "message",
+      "payload": {
+        "text": "Готово! Ссылку пришлём на {{client.email}}."
+      },
+      "next": "delay-day-before"
+    },
+    {
+      "id": "delay-day-before",
+      "type": "delay",
+      "seconds": 172800,
+      "next": "reminder"
+    },
+    {
+      "id": "reminder",
+      "type": "message",
+      "isPosition": false,
+      "payload": { "text": "Завтра в 19:00!" },
+      "next": "end"
+    },
+    { "id": "end", "type": "end" }
+  ]
+}</code></pre>
+
+<h3>Триггеры на эту воронку</h3>
+<pre><code>[
+  { "type": "command", "command": "start" },
+  {
+    "type": "keyword",
+    "keywords": ["интенсив", "регистрация"],
+    "matchMode": "fuzzy"
+  }
+]</code></pre>
+
+<h3>Что делает движок</h3>
+<ul>
+  <li>Юзер пишет <code>/start</code> или «интенсив»/«регистрация»</li>
+  <li><code>welcome</code> отправляется. На юзере вешается тэг <code>intensive-started</code>, в run-контекст пишется timestamp</li>
+  <li>Юзер пишет email. Если не email → бот: «Введите email». Если email → сохраняется в <code>field.email</code> (с автовалидацией типа email), вешаются тэги <code>has-email</code>, <code>registered</code></li>
+  <li><code>confirm</code> подтверждает регистрацию</li>
+  <li>Run переходит в sleeping с <code>resumeAt = now + 2 дня</code></li>
+  <li>Если юзер за эти 2 дня <strong>уходит в другую позиционную ноду</strong> (например, повторно стартует флоу) — sleeping run автоматически отменяется. Иначе — через 2 дня tg-cron подбирает и отправляет reminder</li>
+</ul>
+
+<h3>A/B-тест заголовка приветствия <span class="chip new">NEW</span></h3>
+<pre><code>{
+  "version": 1,
+  "startNodeId": "split-greeting",
+  "nodes": [
+    {
+      "id": "split-greeting",
+      "type": "split",
+      "branches": [
+        { "label": "casual",   "weight": 1, "next": "msg-casual" },
+        { "label": "formal",   "weight": 1, "next": "msg-formal" }
+      ]
+    },
+    {
+      "id": "msg-casual",
+      "type": "message",
+      "payload": { "text": "Привет, {{first_name}}! Хочу показать..." },
+      "next": "ask-action"
+    },
+    {
+      "id": "msg-formal",
+      "type": "message",
+      "payload": { "text": "Здравствуйте! Рады, что вы заинтересовались..." },
+      "next": "ask-action"
+    },
+    {
+      "id": "ask-action",
+      "type": "wait_reply",
+      "saveAs": "deal.intent",
+      "timeoutSeconds": 86400,
+      "next": "thanks"
+    },
+    {
+      "id": "thanks",
+      "type": "message",
+      "payload": { "text": "Спасибо! Свяжемся в течение дня." },
+      "next": "end"
+    },
+    { "id": "end", "type": "end" }
+  ]
+}</code></pre>
+<p>
+  Аналитика покажет конверсию (доля дошедших до <code>end</code>) для
+  каждого варианта на странице «Воронки» → «A/B-эксперименты».
+</p>
+
+<!-- ====================== 23. DIAG ====================== -->
+<h2 id="diag">23. Диагностика проблем</h2>
+
+<h3>«Бот не отвечает»</h3>
+<ul>
+  <li>Открой <code>/admin/bots/&lt;id&gt;</code> → карточка <strong>«Состояние бота в Telegram»</strong> (Iter 10). Должно быть зелёным</li>
+  <li>Если <code>TOKEN_MISMATCH</code> — кто-то засунул в БД токен от другого бота. Используй ротацию (карточка «Ротация секретов»)</li>
+  <li>Если <code>WEBHOOK_NOT_SET</code> или <code>WEBHOOK_DRIFT</code> — кнопка «Переустановить webhook»</li>
+  <li>Если ошибка Unauthorized 401 от Telegram — токен ротировали. Через карточку «Ротация секретов» вставь новый токен</li>
+</ul>
+
+<h3>«Таймауты wait_reply не срабатывают» / «дожимы не уходят»</h3>
+<p><strong>Самая частая причина — не настроен tg-cron sidecar.</strong></p>
+<ul>
+  <li>Открой <code>/admin/bots/&lt;id&gt;</code> → карточка <strong>«Состояние крона»</strong> (Iter 10). Если красная — крон не пингует</li>
+  <li>Проверь логи: <code>docker compose logs --tail=10 tg-cron</code> — должны быть строки с <code>{"ok":true,...}</code></li>
+  <li>Если sidecar не поднялся: <code>docker compose ps tg-cron</code> — статус должен быть Up</li>
+  <li>Если <code>TG_CRON_SECRET</code> пустая → endpoint возвращает 503. Сгенерируй: <code>openssl rand -hex 32</code></li>
+  <li>Если sidecar бьёт но получает 401 — TG_CRON_SECRET в шелле и в .env не совпадают</li>
+  <li>Ручной тест: <code>curl -X POST -H "Authorization: Bearer $TG_CRON_SECRET" https://prrv.tech/api/tg-cron/tick</code></li>
+</ul>
+
+<h3>«Telegram возвращает 429 / Too Many Requests» <span class="chip new">NEW</span></h3>
+<ul>
+  <li>Это не ошибка, это normal rate-limiting. С Iter 10 движок автоматически ретрает с <code>retry_after</code> при ожидании ≤ 10с</li>
+  <li>Если retry_after &gt; 10с (TG наказал нас за burst) — broadcast worker сам отложит на <code>now + retry_after + 5с буфер</code></li>
+  <li>Проверь страницу «Логи» — события <code>message.send_failed</code> с classification=retry</li>
+  <li>Если 429 постоянны — посмотри частоту рассылок, может стоит дробить большие на батчи</li>
+</ul>
+
+<h3>«Рассылка зависла в sending»</h3>
+<ul>
+  <li>Проверь cron — он мог упасть посредине (карточка «Состояние крона»)</li>
+  <li>В БД: <code>UPDATE tg_broadcasts SET status='draft' WHERE id='...';</code> и пересоздай</li>
+</ul>
+
+<h3>«Токены ботов перестали расшифровываться»</h3>
+<p>Симптом: <code>invalid auth tag</code> в логах. <strong>Корень:</strong> ротировали TG_TOKEN_ENC_KEY без миграции.</p>
+<ul>
+  <li>Откатить env обратно — если старый ключ ещё помнишь</li>
+  <li>Если потерян безвозвратно — токены ботов вводить заново через интерфейс создания (или ротации, если бот уже создан)</li>
+</ul>
+
+<h3>«В медиа-библиотеке пусто, хотя я кидал админу медиа»</h3>
+<ul>
+  <li>Проверь, что твой chat_id в <code>bot.adminChatIds</code> в БД</li>
+  <li>Узнать свой chat_id: написать @userinfobot</li>
+  <li>Добавить через: <code>/admin/bots/&lt;id&gt;</code> → карточка «Авто-захват медиа»</li>
+</ul>
+
+<h3>«Кнопки не реагируют»</h3>
+<ul>
+  <li>URL-кнопки работают всегда. Проблема обычно с callback'ами</li>
+  <li>Проверь что webhook на боте установлен (карточка «Состояние вебхука»)</li>
+  <li>Проверь логи приложения: ищи <code>callback_query</code> или <code>btn:noop</code></li>
+</ul>
+
+<h3>«Saved flow и куча failed runs после редактирования» <span class="chip new">NEW</span></h3>
+<p>
+  С Iter 13 hot-reload runs мониторит исчезновение нод и cancel-ит
+  затронутые runs ещё на этапе PATCH:
+</p>
+<ul>
+  <li>В UI редактора перед сохранением показывается confirm с количеством затронутых runs</li>
+  <li>Если случайно сохранил без confirm — посмотри в «Логи» событие <code>flow.hot_reload_cancelled_runs</code> для аудита</li>
+  <li>Runs со статусом cancelled и <code>lastError = "node removed during hot-reload"</code> — это они, а не баг</li>
+</ul>
+
+<h3>«В сайдбаре чата активные сценарии без deal-vars» <span class="chip new">NEW</span></h3>
+<ul>
+  <li>Iter 12 показывает <code>run.context</code> в раскрывающейся строке. Если поле пусто — у run-а ещё нет deal-переменных, это норма для свежих runs</li>
+  <li>Если ждёшь A/B-вариант: <code>_abVariant</code> попадает в контекст только после прохождения split-ноды</li>
+</ul>
+
+<h3>«Я случайно нажал bulk-action — как откатить?» <span class="chip new">NEW</span></h3>
+<ul>
+  <li>Откат точечно: для add_tag → запусти remove_tag с тем же набором</li>
+  <li>start_flow откатить нельзя — runs уже создались. Если они в sleeping/waiting_reply, можно массово cancel через SQL</li>
+  <li>block легко обратим через unblock-вариант той же bulk-операции</li>
+  <li>Все bulk-действия пишут в TgAuditLog как <code>subscribers.bulk_action</code> — там видна выборка</li>
+</ul>
+
+<h3>Полезные SQL-запросы</h3>
+<pre><code>-- Все runs подписчика
+SELECT status, current_node_id, resume_at, started_at, finished_at, last_error
+FROM tg_flow_runs
+WHERE subscriber_id = '&lt;subId&gt;'
+ORDER BY started_at DESC;
+
+-- Последние аудит-события за сутки
+SELECT action, actor_email, bot_id, details, created_at
+FROM tg_audit_log
+WHERE created_at &gt;= now() - interval '24 hour'
+ORDER BY created_at DESC
+LIMIT 100;
+
+-- Топ-теги по подписчикам
+SELECT t.tag, count(*) as n
+FROM tg_subscribers, unnest(tags) as t(tag)
+WHERE bot_id = '&lt;botId&gt;'
+GROUP BY t.tag
+ORDER BY n DESC
+LIMIT 20;
+
+-- Размер библиотеки медиа по типам
+SELECT kind, count(*), sum(file_size)
+FROM tg_media_files
+WHERE bot_id = '&lt;botId&gt;'
+GROUP BY kind;
+
+-- NEW: Сколько runs у каждого scheduled-flow
+SELECT name, status, total_launched, total_failed,
+       scheduled_at, started_at, finished_at, last_error
+FROM tg_scheduled_flows
+WHERE bot_id = '&lt;botId&gt;'
+ORDER BY scheduled_at DESC
+LIMIT 50;
+
+-- NEW: Кого оператор сейчас «держит» в ручном режиме
+SELECT id, chat_id, first_name, username,
+       operator_takeover_at, operator_assignee_id
+FROM tg_subscribers
+WHERE bot_id = '&lt;botId&gt;'
+  AND operator_takeover_at &gt; now() - interval '24 hour'
+ORDER BY operator_takeover_at DESC;
+
+-- NEW: A/B variant breakdown руками (если UI недоступен)
+SELECT
+  properties-&gt;&gt;'variant' AS variant,
+  count(*) AS entered,
+  count(DISTINCT subscriber_id) AS unique_entered
+FROM tg_events
+WHERE bot_id = '&lt;botId&gt;'
+  AND type = 'flow.ab_split'
+  AND properties-&gt;&gt;'flowId' = '&lt;flowId&gt;'
+  AND properties-&gt;&gt;'nodeId' = '&lt;splitNodeId&gt;'
+  AND occurred_at &gt;= now() - interval '30 day'
+GROUP BY 1
+ORDER BY entered DESC;
+
+-- NEW: Когда последний раз тикал крон (если Redis недоступен)
+SELECT occurred_at, properties
+FROM tg_events
+WHERE type = 'cron.heartbeat'
+ORDER BY occurred_at DESC
+LIMIT 5;</code></pre>
+
+</main>
+</div> <!-- .layout -->
+
+<footer>
+  Документ обновлён 2026-05-21. Источники: 19 коммитов в main, схема в
+  <code>prisma/schema.prisma</code>, движок в <code>lib/tg/</code>,
+  runbook в <code>docs/bot-platform-ops.md</code>, AI-checker контракт
+  в <code>docs/AI_CHECKER_CONTRACT.md</code>. ·
+  Bot Platform v2.0 · Proryv LMS
+</footer>
+
+</div> <!-- .page -->
+</body>
+</html>
