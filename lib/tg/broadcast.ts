@@ -298,8 +298,14 @@ async function sendOne(
     }).catch(() => {});
   } else {
     // Exponential backoff: 30s, 2min, 10min.
+    // НО: если Telegram явно сказал retry_after (429), уважаем его —
+    // долбить API раньше времени бессмысленно и провоцирует ещё больше
+    // 429. Берём максимум из «нашего» backoff’а и retry_after + 5с буфер.
     const delaysMs = [30_000, 120_000, 600_000];
-    const next = new Date(Date.now() + (delaysMs[attempts - 1] ?? 600_000));
+    const ourDelay = delaysMs[attempts - 1] ?? 600_000;
+    const tgDelay = (res.retryAfterSec ?? 0) * 1000;
+    const delay = Math.max(ourDelay, tgDelay + 5_000);
+    const next = new Date(Date.now() + delay);
     await db.tgBroadcastRecipient.update({
       where: { id: rec.id },
       data: {

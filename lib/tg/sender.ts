@@ -42,6 +42,10 @@ export interface SendResult {
   tgMessageId?: string;
   errorCode?: number;
   errorMessage?: string;
+  // Если Telegram вернул 429 с retry_after, пробрасываем сюда секунды.
+  // broadcast worker умножает это (а не свой фиксированный backoff),
+  // чтобы не долбить API раньше, чем разрешили.
+  retryAfterSec?: number;
 }
 
 // Build the reply_markup field according to the payload's keyboardMode.
@@ -396,5 +400,7 @@ async function recordFailure(
     blocked,
     errorCode: result.error_code,
     errorMessage: result.description,
+    retryAfterSec:
+      result.error_code === 429 ? result.parameters?.retry_after : undefined,
   };
 }

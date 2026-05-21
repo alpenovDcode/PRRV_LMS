@@ -254,10 +254,16 @@ model HomeworkSubmission {
   autoResponseScheduledAt DateTime? @map("auto_response_scheduled_at")
   responseTemplateIndex   Int?      @map("response_template_index")
 
-  // AI-анализ от Джарвикса — виден только куратору/админу, студенту не отправляется
-  aiSuggestedVerdict  String?   @map("ai_suggested_verdict")
-  aiSuggestedComment  String?   @map("ai_suggested_comment") @db.Text
-  aiAnalyzedAt        DateTime? @map("ai_analyzed_at")
+  // AI-анализ от Джарвикса — виден только куратору/админу, студенту не отправляется.
+  // aiAnalysisStartedAt / aiAnalysisError — состояние async-обработки:
+  //  startedAt set, analyzedAt null, error null  → в процессе (polling)
+  //  analyzedAt set                              → готово
+  //  error set                                   → провалилось, можно перезапустить
+  aiSuggestedVerdict   String?   @map("ai_suggested_verdict")
+  aiSuggestedComment   String?   @map("ai_suggested_comment") @db.Text
+  aiAnalyzedAt         DateTime? @map("ai_analyzed_at")
+  aiAnalysisStartedAt  DateTime? @map("ai_analysis_started_at")
+  aiAnalysisError      String?   @map("ai_analysis_error") @db.Text
   
   createdAt      DateTime          @default(now()) @map("created_at")
   updatedAt      DateTime          @updatedAt @map("updated_at")
@@ -793,6 +799,7 @@ model TgBot {
   lists           TgList[]
   customFields    TgCustomField[]
   redirectLinks   TgRedirectLink[]
+  scheduledFlows  TgScheduledFlow[]
 
   @@index([username])
   @@map("tg_bots")
@@ -838,6 +845,14 @@ model TgSubscriber {
   // Prevents re-entry. Empty in practice for most subscribers.
   firedOnceTriggers     String[] @default([]) @map("fired_once_triggers")
 
+  // -- Operator live-chat takeover --------------------------------------
+  // Когда оператор берёт диалог «в ручной режим», auto-trigger’ы флоу и
+  // delivery в wait_reply отключаются: бот не перебивает живого человека.
+  // takeoverAt — момент, когда взяли в работу. Авто-release через 24ч,
+  // чтобы случайно не оставить чат заблокированным навсегда.
+  operatorTakeoverAt    DateTime? @map("operator_takeover_at")
+  operatorAssigneeId    String?   @map("operator_assignee_id")
+
   // Typed custom fields ("доп. поля" in SaleBot terms). Stored as
   // {key: value} with schema defined at the bot level (TgCustomField,
   // added in Iter 2). For Iter 1 this is just a free-form JSON bag —
@@ -855,6 +870,7 @@ model TgSubscriber {
   @@index([botId, isBlocked])
   @@index([botId, lastSeenAt])
   @@index([botId, currentPositionFlowId, currentPositionNodeId])
+  @@index([botId, operatorTakeoverAt])
   @@index([tags], type: Gin)
   @@map("tg_subscribers")
 }
@@ -997,6 +1013,43 @@ model TgBroadcastRecipient {
   @@index([broadcastId, status])
   @@index([status, nextAttemptAt])
   @@map("tg_broadcast_recipients")
+}
+
+// Scheduled-flow — запуск целого флоу для отфильтрованной аудитории в
+// заданный момент времени. Это «отложенный лидмагнит» или «дожим в
+// субботу 10:00»: в отличие от broadcast (одно сообщение), здесь
+// поднимается полноценный flow run для каждого подписчика.
+//
+// Статусы:
+//   scheduled — запланирован, ждёт момента
+//   running   — воркер начал поднимать runs
+//   completed — все runs созданы (или filter оказался пустым)
+//   cancelled — отменён вручную
+//   failed    — ошибка материализации
+model TgScheduledFlow {
+  id              String   @id @default(uuid())
+  botId           String   @map("bot_id")
+  flowId          String   @map("flow_id")
+  name            String
+  // То же содержимое, что у broadcast.filter (BroadcastFilter shape):
+  // { allActive, tagsAny, tagsAll, excludeTags, subscriberIds }
+  filter          Json
+  scheduledAt     DateTime @map("scheduled_at")
+  status          String   @default("scheduled")
+  startedAt       DateTime? @map("started_at")
+  finishedAt      DateTime? @map("finished_at")
+  totalLaunched   Int      @default(0) @map("total_launched")
+  totalFailed     Int      @default(0) @map("total_failed")
+  lastError       String?  @map("last_error") @db.Text
+  createdById     String?  @map("created_by_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  bot             TgBot    @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@index([botId, status])
+  @@index([status, scheduledAt])
+  @@map("tg_scheduled_flows")
 }
 
 model TgTrackingLink {

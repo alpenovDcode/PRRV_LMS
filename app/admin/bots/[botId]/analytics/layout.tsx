@@ -21,6 +21,7 @@ export default function AnalyticsSubLayout({
   const tabs = [
     { href: `/admin/bots/${botId}/analytics`, label: "Обзор" },
     { href: `/admin/bots/${botId}/analytics/funnels`, label: "Воронки" },
+    { href: `/admin/bots/${botId}/analytics/triggers`, label: "Триггеры" },
     { href: `/admin/bots/${botId}/analytics/utm`, label: "UTM" },
     { href: `/admin/bots/${botId}/analytics/cohorts`, label: "Когорты" },
     { href: `/admin/bots/${botId}/analytics/broadcasts`, label: "Рассылки" },

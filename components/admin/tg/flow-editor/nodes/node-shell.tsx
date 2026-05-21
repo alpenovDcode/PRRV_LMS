@@ -17,6 +17,7 @@ export const NODE_HEAD_COLORS: Record<string, string> = {
   goto_flow: "bg-purple-50 text-purple-700",
   note: "bg-yellow-50 text-yellow-800",
   actions: "bg-violet-50 text-violet-700",
+  split: "bg-pink-50 text-pink-700",
   end: "bg-zinc-100 text-zinc-600",
 };
 

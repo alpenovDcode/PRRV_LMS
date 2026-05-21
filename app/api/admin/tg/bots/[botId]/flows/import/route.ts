@@ -1,0 +1,174 @@
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { db } from "@/lib/db";
+import { withAuth } from "@/lib/api-middleware";
+import {
+  flowExportSchema,
+  analyzeImportWarnings,
+} from "@/lib/tg/flow-export";
+import { trackEvent } from "@/lib/tg/events";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+const inputSchema = z.object({
+  // Сам экспорт. Может прилететь как объект или строкой (часто
+  // удобнее: вставил JSON в textarea — отправил «как есть»).
+  data: z.union([flowExportSchema, z.string().min(2)]),
+  // Опционально: переопределить имя/описание на стороне импорта.
+  name: z.string().min(1).max(120).optional(),
+  description: z.string().max(500).optional(),
+  // dryRun=true — только проверка + warnings, без записи в БД.
+  dryRun: z.boolean().optional().default(false),
+});
+
+export async function POST(
+  request: NextRequest,
+  { params: paramsP }: { params: Promise<{ botId: string }> }
+) {
+  const params = await paramsP;
+  return withAuth(
+    request,
+    async (req) => {
+      const body = await req.json().catch(() => null);
+      const parsed = inputSchema.safeParse(body);
+      if (!parsed.success) {
+        return NextResponse.json(
+          { success: false, error: { code: "BAD_INPUT", message: parsed.error.message } },
+          { status: 400 }
+        );
+      }
+
+      // Если data — строка, парсим и валидируем уже как FlowExport.
+      let exp;
+      if (typeof parsed.data.data === "string") {
+        let asJson: unknown;
+        try {
+          asJson = JSON.parse(parsed.data.data);
+        } catch (e) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: {
+                code: "INVALID_JSON",
+                message: `Невалидный JSON: ${e instanceof Error ? e.message : String(e)}`,
+              },
+            },
+            { status: 400 }
+          );
+        }
+        const parsedExp = flowExportSchema.safeParse(asJson);
+        if (!parsedExp.success) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: {
+                code: "BAD_EXPORT",
+                message: `Файл не похож на flow-export: ${parsedExp.error.message}`,
+              },
+            },
+            { status: 400 }
+          );
+        }
+        exp = parsedExp.data;
+      } else {
+        exp = parsed.data.data;
+      }
+
+      const warnings = analyzeImportWarnings(exp);
+
+      // Sanity-check: все ссылки внутри графа разрешаются. (Zod-схема
+      // уже не пропустит мусор, но битые ссылки между нодами проверяем
+      // как в POST /flows.)
+      const nodeIds = new Set(exp.graph.nodes.map((n) => n.id));
+      if (!nodeIds.has(exp.graph.startNodeId)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: "BAD_GRAPH",
+              message: `startNodeId «${exp.graph.startNodeId}» не найден в нодах`,
+            },
+          },
+          { status: 400 }
+        );
+      }
+      for (const n of exp.graph.nodes) {
+        const refs: Array<string | undefined> = [];
+        if ("next" in n) refs.push(n.next);
+        if (n.type === "wait_reply") refs.push(n.timeoutNext);
+        if (n.type === "condition") {
+          refs.push(n.defaultNext);
+          for (const r of n.rules) refs.push(r.next);
+        }
+        if (n.type === "http_request") refs.push(n.onError);
+        if (n.type === "split") {
+          for (const b of n.branches) refs.push(b.next);
+        }
+        for (const r of refs) {
+          if (r && !nodeIds.has(r)) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: {
+                  code: "BAD_GRAPH",
+                  message: `node «${n.id}» ссылается на несуществующую ноду «${r}»`,
+                },
+              },
+              { status: 400 }
+            );
+          }
+        }
+      }
+
+      if (parsed.data.dryRun) {
+        return NextResponse.json({
+          success: true,
+          data: {
+            dryRun: true,
+            name: parsed.data.name ?? exp.name,
+            nodeCount: exp.graph.nodes.length,
+            triggerCount: exp.triggers.length,
+            warnings,
+          },
+        });
+      }
+
+      const flow = await db.tgFlow.create({
+        data: {
+          botId: params.botId,
+          name: parsed.data.name ?? exp.name,
+          description: parsed.data.description ?? exp.description ?? null,
+          graph: exp.graph as object,
+          triggers: exp.triggers as object,
+          isActive: false, // импорт по умолчанию выключенный — пусть админ
+                           // сначала проверит и подключит зависимости
+        },
+      });
+
+      trackEvent({
+        type: "flow.imported",
+        botId: params.botId,
+        properties: {
+          flowId: flow.id,
+          sourceBotUsername: exp.sourceBotUsername ?? null,
+          sourceFlowId: exp.sourceFlowId ?? null,
+          warningCount: warnings.length,
+          userId: req.user?.userId ?? null,
+        },
+      }).catch(() => {});
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          id: flow.id,
+          name: flow.name,
+          nodeCount: exp.graph.nodes.length,
+          triggerCount: exp.triggers.length,
+          warnings,
+        },
+      });
+    },
+    { roles: ["admin"] }
+  );
+}

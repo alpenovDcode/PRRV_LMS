@@ -296,6 +296,38 @@ export const noteNodeSchema = baseNode.extend({
   text: z.string().max(4096).optional(),
 });
 
+// A/B split (или N-way) — случайным образом распределяет подписчиков
+// между ветками с заданным весом. Используется для A/B-тестирования
+// формулировок, дизайна кнопок, последовательности шагов.
+//
+// Алгоритм: каждой ветке задан weight (целое число ≥ 1). Engine
+// складывает все веса, бросает random в этом диапазоне, выбирает ветку
+// первого попадания (классический weighted random). Веса не обязаны
+// в сумме давать 100 — отношение важно, не абсолютные значения.
+// Например, [1, 1] = 50/50, [3, 1] = 75/25, [1, 1, 1, 1] = по 25% каждая.
+//
+// Решение фиксируется в run.context: после выполнения split-ноды в
+// deal._abVariant сохраняется label выбранной ветки. Это позволяет
+// downstream condition-нодам ветвиться по варианту, а аналитике —
+// агрегировать конверсию каждого A/B-варианта.
+export const splitNodeSchema = baseNode.extend({
+  type: z.literal("split"),
+  branches: z
+    .array(
+      z.object({
+        // Человекочитаемая метка варианта — попадает в deal._abVariant и
+        // в аналитику. Если несколько split-нод в одном флоу, используй
+        // разные label-ы чтобы не перезаписать друг друга. Можно
+        // префиксировать: "headline-v1", "headline-v2".
+        label: z.string().min(1).max(64),
+        weight: z.number().int().min(1).max(1000),
+        next: z.string().optional(),
+      }),
+    )
+    .min(2)
+    .max(10),
+});
+
 // Generic "side-effects only" node. Fallback for the rare case where
 // you need a standalone block of tag/variable/list ops without an
 // adjacent message. 95% of flows should use onSend on a message instead —
@@ -319,6 +351,7 @@ export const flowNodeSchema = z.discriminatedUnion("type", [
   endNodeSchema,
   noteNodeSchema,
   actionsNodeSchema,
+  splitNodeSchema,
 ]);
 export type FlowNode = z.infer<typeof flowNodeSchema>;
 

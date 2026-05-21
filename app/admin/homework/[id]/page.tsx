@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, CircleCheck, X, FileText, User, Clock, Upload, Trash, Paperclip, Sparkles } from "lucide-react";
+import { ArrowLeft, CircleCheck, X, FileText, User, Clock, Upload, Trash, Paperclip, Sparkles, Loader2, AlertCircle } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
@@ -33,6 +33,10 @@ interface HomeworkSubmission {
   aiSuggestedVerdict?: "approved" | "rejected" | null;
   aiSuggestedComment?: string | null;
   aiAnalyzedAt?: string | null;
+  // Async-анализ: фронт polling-ит submission пока aiAnalysisStartedAt
+  // выставлен, а aiAnalyzedAt и aiAnalysisError ещё null.
+  aiAnalysisStartedAt?: string | null;
+  aiAnalysisError?: string | null;
   user: {
     id: string;
     fullName: string | null;
@@ -80,7 +84,10 @@ export default function AdminHomeworkReviewPage() {
   const [curatorFiles, setCuratorFiles] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  // isKickingOff — пока POST на /ai-analyze ещё не вернулся. После
+  // того как он вернул 202, состояние "анализируется" определяется
+  // полями submission'а (aiAnalysisStartedAt без aiAnalyzedAt/Error).
+  const [isKickingOff, setIsKickingOff] = useState(false);
 
   const { data: submission, isLoading } = useQuery<HomeworkSubmission>({
     queryKey: ["admin", "homework", submissionId],
@@ -88,7 +95,56 @@ export default function AdminHomeworkReviewPage() {
       const response = await apiClient.get(`/curator/homework/${submissionId}`);
       return response.data.data;
     },
+    // Polling пока идёт async-анализ. Когда analyzedAt появится или
+    // упадёт error — refetchInterval вернёт false и polling остановится.
+    refetchInterval: (query) => {
+      const data = query.state.data as HomeworkSubmission | undefined;
+      if (!data) return false;
+      const inProgress =
+        !!data.aiAnalysisStartedAt &&
+        !data.aiAnalyzedAt &&
+        !data.aiAnalysisError;
+      return inProgress ? 10_000 : false;
+    },
+    refetchIntervalInBackground: false,
   });
+
+  // Текущее состояние анализа: pending → запрос ещё не отправлен,
+  // queued → AI-checker принял задачу, polling идёт.
+  const isAnalysisInProgress =
+    isKickingOff ||
+    (!!submission?.aiAnalysisStartedAt &&
+      !submission?.aiAnalyzedAt &&
+      !submission?.aiAnalysisError);
+
+  // Тост когда анализ завершается во время polling-а. Используем ref
+  // на предыдущее значение aiAnalyzedAt, чтобы триггериться только на
+  // переходе null → не-null.
+  const prevAnalyzedAtRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (!submission) return;
+    const prev = prevAnalyzedAtRef.current;
+    if (prev === undefined) {
+      prevAnalyzedAtRef.current = submission.aiAnalyzedAt ?? null;
+      return;
+    }
+    if (!prev && submission.aiAnalyzedAt) {
+      toast.success("Джарвикс закончил проверку");
+    }
+    if (
+      !submission.aiAnalyzedAt &&
+      submission.aiAnalysisError &&
+      prev !== submission.aiAnalysisError
+    ) {
+      // Ошибка прилетела — показываем её один раз.
+      toast.error(
+        submission.aiAnalysisError.length > 200
+          ? submission.aiAnalysisError.slice(0, 200) + "..."
+          : submission.aiAnalysisError
+      );
+    }
+    prevAnalyzedAtRef.current = submission.aiAnalyzedAt ?? null;
+  }, [submission?.aiAnalyzedAt, submission?.aiAnalysisError]);
 
   const reviewMutation = useMutation({
     mutationFn: async ({ status, comment }: { status: "approved" | "rejected"; comment?: string }) => {
@@ -154,16 +210,35 @@ export default function AdminHomeworkReviewPage() {
   };
 
   const handleJarvixAnalyze = async () => {
-    setIsAnalyzing(true);
+    setIsKickingOff(true);
     try {
-      await apiClient.post(`/curator/homework/${submissionId}/ai-analyze`);
-      await queryClient.invalidateQueries({ queryKey: ["admin", "homework", submissionId] });
-      toast.success("Анализ Джарвикса сохранён");
+      const resp = await apiClient.post(
+        `/curator/homework/${submissionId}/ai-analyze`,
+        undefined,
+        // Принимаем 202 как успех (axios иначе бросит в catch).
+        { validateStatus: (s) => s >= 200 && s < 300 }
+      );
+
+      await queryClient.invalidateQueries({
+        queryKey: ["admin", "homework", submissionId],
+      });
+
+      // 202 → async kickoff, ждём callback (polling в useQuery подхватит).
+      // 200 + status: "done" → legacy sync, результат уже в БД.
+      if (resp.status === 202 || resp.data?.status === "queued") {
+        toast.info(
+          "Анализ запущен. Это может занять 1-5 минут — страница обновится сама."
+        );
+      } else if (resp.data?.status === "done") {
+        toast.success("Анализ Джарвикса сохранён");
+      } else {
+        toast.success("Анализ запущен");
+      }
     } catch (err: any) {
       const msg = err?.response?.data?.error || "Ошибка анализа";
       toast.error(msg);
     } finally {
-      setIsAnalyzing(false);
+      setIsKickingOff(false);
     }
   };
 
@@ -520,15 +595,55 @@ export default function AdminHomeworkReviewPage() {
               </div>
 
               {submission.lesson?.aiPrompt && (
-                <Button
-                  variant="outline"
-                  className="w-full border-violet-300 text-violet-700 hover:bg-violet-50 hover:text-violet-800 hover:border-violet-400"
-                  onClick={handleJarvixAnalyze}
-                  disabled={isAnalyzing || reviewMutation.isPending}
-                >
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  {isAnalyzing ? "Джарвикс анализирует..." : "Проверка от Джарвикса"}
-                </Button>
+                <div className="space-y-2">
+                  <Button
+                    variant="outline"
+                    className="w-full border-violet-300 text-violet-700 hover:bg-violet-50 hover:text-violet-800 hover:border-violet-400"
+                    onClick={handleJarvixAnalyze}
+                    disabled={isAnalysisInProgress || reviewMutation.isPending}
+                  >
+                    {isAnalysisInProgress ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="mr-2 h-4 w-4" />
+                    )}
+                    {isAnalysisInProgress
+                      ? "Джарвикс анализирует..."
+                      : submission.aiAnalyzedAt
+                        ? "Перезапустить анализ"
+                        : "Проверка от Джарвикса"}
+                  </Button>
+
+                  {/* Inline-статус async-анализа */}
+                  {isAnalysisInProgress && (
+                    <div className="flex items-start gap-2 rounded-md border border-violet-200 bg-violet-50/70 p-2 text-xs text-violet-800">
+                      <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin" />
+                      <span>
+                        Запущен в{" "}
+                        {submission.aiAnalysisStartedAt
+                          ? new Date(
+                              submission.aiAnalysisStartedAt
+                            ).toLocaleTimeString("ru-RU")
+                          : "—"}
+                        . Обычно занимает 1-5 минут. Можно закрыть вкладку
+                        и вернуться позже — результат сохранится.
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Ошибка прошлого анализа */}
+                  {!isAnalysisInProgress && submission.aiAnalysisError && (
+                    <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+                      <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      <span>
+                        Прошлая проверка завершилась с ошибкой:{" "}
+                        {submission.aiAnalysisError.length > 160
+                          ? submission.aiAnalysisError.slice(0, 160) + "…"
+                          : submission.aiAnalysisError}
+                      </span>
+                    </div>
+                  )}
+                </div>
               )}
 
               <div className="space-y-2">

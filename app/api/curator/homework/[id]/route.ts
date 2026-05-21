@@ -80,6 +80,10 @@ export async function GET(
           aiSuggestedVerdict: submission.aiSuggestedVerdict || null,
           aiSuggestedComment: submission.aiSuggestedComment || null,
           aiAnalyzedAt: submission.aiAnalyzedAt?.toISOString() || null,
+          // Поля async-анализа (для polling на фронте)
+          aiAnalysisStartedAt:
+            submission.aiAnalysisStartedAt?.toISOString() || null,
+          aiAnalysisError: submission.aiAnalysisError || null,
           landing: submission.landingBlock ? {
              id: submission.landingBlock.id,
              title: submission.landingBlock.page?.title || "Лендинг",

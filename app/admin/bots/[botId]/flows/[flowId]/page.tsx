@@ -116,6 +116,7 @@ export default function FlowEditorPage() {
   const save = useMutation({
     mutationFn: async () => {
       const body: Record<string, unknown> = { name, description, isActive };
+      let graphForPreview: unknown = null;
       if (rawMode) {
         let pg: unknown;
         let pt: unknown;
@@ -127,6 +128,7 @@ export default function FlowEditorPage() {
         }
         body.graph = pg;
         body.triggers = pt;
+        graphForPreview = pg;
       } else {
         if (!working) throw new Error("Граф не готов");
         if (working.warnings.length > 0) {
@@ -134,11 +136,54 @@ export default function FlowEditorPage() {
         }
         body.graph = working.graph;
         body.triggers = working.triggers;
+        graphForPreview = working.graph;
       }
+
+      // Hot-reload preview — спрашиваем сервер, сколько активных runs
+      // умрёт после сохранения, если currentNodeId исчез из графа.
+      // Если ≥ 1 — подтверждение, иначе сразу пишем.
+      try {
+        const prev = await apiClient.post(
+          `/admin/tg/bots/${botId}/flows/${flowId}/hot-reload-preview`,
+          { graph: graphForPreview }
+        );
+        const p = prev.data?.data as {
+          activeRuns: number;
+          willCancel: number;
+          byMissingNode: Array<{ nodeId: string; count: number }>;
+        };
+        if (p && p.willCancel > 0) {
+          const detail = p.byMissingNode
+            .map((b) => `${b.nodeId} (${b.count})`)
+            .join(", ");
+          const proceed = confirm(
+            `Будут отменены ${p.willCancel} активных run(ов) — их текущая нода исчезла из графа.\n\nИсчезающие ноды: ${detail}\n\nПродолжить сохранение?`
+          );
+          if (!proceed) throw new Error("Отменено пользователем");
+        }
+      } catch (e) {
+        // Если preview упал — это не повод НЕ сохранять. Но если ошибка
+        // была «Отменено пользователем» — пробрасываем.
+        if (
+          e instanceof Error &&
+          e.message === "Отменено пользователем"
+        )
+          throw e;
+        // иначе игнорируем — пишем без подтверждения
+      }
+
       return apiClient.patch(`/admin/tg/bots/${botId}/flows/${flowId}`, body);
     },
-    onSuccess: () => {
-      toast.success("Сохранено");
+    onSuccess: (res) => {
+      const cancelled =
+        (res?.data?.data as { cancelledRuns?: number })?.cancelledRuns ?? 0;
+      if (cancelled > 0) {
+        toast.success(
+          `Сохранено. Отменено активных runs: ${cancelled} (изменился граф).`
+        );
+      } else {
+        toast.success("Сохранено");
+      }
       queryClient.invalidateQueries({ queryKey: ["tg-flow", botId, flowId] });
     },
     onError: (e: unknown) => {

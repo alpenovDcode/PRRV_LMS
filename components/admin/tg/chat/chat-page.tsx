@@ -2,15 +2,16 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, MessageSquare } from "lucide-react";
+import { ArrowLeft, Bot, MessageSquare, UserCheck } from "lucide-react";
 import { LeadSidebar, type SubscriberDetail } from "./lead-sidebar";
 import { ChatThread } from "./chat-thread";
 import { MessageInput } from "./message-input";
 import type { ChatMessage } from "./message-bubble";
+import { toast } from "sonner";
 
 interface SubscriberPayload {
   subscriber: SubscriberDetail;
@@ -70,6 +71,32 @@ export function ChatPage({ botId, subscriberId }: Props) {
     });
   }
 
+  // Operator takeover — пауза автоматики бота на этого подписчика.
+  const operatorAction = useMutation({
+    mutationFn: async (action: "takeover" | "release") => {
+      const r = await apiClient.post(
+        `/admin/tg/bots/${botId}/subscribers/${subscriberId}/operator`,
+        { action }
+      );
+      return { action, data: r.data?.data };
+    },
+    onSuccess: ({ action }) => {
+      toast.success(
+        action === "takeover"
+          ? "Диалог взят в ручной режим. Бот не будет реагировать на ответы."
+          : "Бот вернулся в работу."
+      );
+      queryClient.invalidateQueries({ queryKey: ["tg-sub", botId, subscriberId] });
+    },
+    onError: () => toast.error("Не удалось переключить режим"),
+  });
+
+  const operatorActive = (() => {
+    if (!sub.operatorTakeoverAt) return false;
+    const ageMs = Date.now() - new Date(sub.operatorTakeoverAt).getTime();
+    return ageMs < 24 * 60 * 60 * 1000;
+  })();
+
   function handleSent(text: string) {
     const optimistic: ChatMessage = {
       id: `optimistic-${Date.now()}`,
@@ -114,7 +141,34 @@ export function ChatPage({ botId, subscriberId }: Props) {
             ) : (
               <Badge>active</Badge>
             )}
+            {operatorActive && (
+              <Badge className="bg-purple-100 text-purple-800 border border-purple-300">
+                <UserCheck className="h-3 w-3 mr-1" />
+                Ручной режим
+              </Badge>
+            )}
           </div>
+        </div>
+        <div>
+          {operatorActive ? (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={operatorAction.isPending}
+              onClick={() => operatorAction.mutate("release")}
+            >
+              <Bot className="mr-1 h-4 w-4" /> Вернуть бота
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={operatorAction.isPending}
+              onClick={() => operatorAction.mutate("takeover")}
+            >
+              <UserCheck className="mr-1 h-4 w-4" /> Взять диалог
+            </Button>
+          )}
         </div>
       </header>
 

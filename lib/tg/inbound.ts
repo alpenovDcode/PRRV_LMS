@@ -580,6 +580,23 @@ export async function handleUpdate(bot: TgBot, update: TgUpdate): Promise<void> 
   const cmd = startCmd.isStart ? { command: "start", rest: startCmd.payload ?? "" } : parseCommand(text);
   const commandPayload = startCmd.isStart ? startCmd.payload : cmd?.rest || undefined;
 
+  // 0) Operator live-chat takeover — если оператор «взял» этот диалог,
+  // мы НЕ обрабатываем триггеры и не доставляем reply в wait_reply, чтобы
+  // бот не перебивал человека. Слэш-команды (/start, /help) — исключение:
+  // они работают как «выход» из режима оператора.
+  // Авто-release через 24ч на случай, если оператор забыл вернуть бота.
+  const OPERATOR_TAKEOVER_TTL_MS = 24 * 60 * 60 * 1000;
+  const takeoverAt = subscriber.operatorTakeoverAt;
+  const operatorActive =
+    !!takeoverAt &&
+    Date.now() - takeoverAt.getTime() < OPERATOR_TAKEOVER_TTL_MS;
+  const isCommand = cmd !== null;
+  if (operatorActive && !isCommand) {
+    // Сообщение просто остаётся в логе (storeInboundMessage уже отработал
+    // в вызывающем коде); никаких авто-флоу не запускаем.
+    return;
+  }
+
   // 1) /start <payload> — apply tracking link first so trigger matchers see fresh tags.
   let linkFlowId: string | undefined;
   if (startCmd.isStart && startCmd.payload) {
@@ -600,7 +617,6 @@ export async function handleUpdate(bot: TgBot, update: TgUpdate): Promise<void> 
   // Without this exception, typing /start while parked in an email-
   // wait_reply would have the validator complain "❌ Не email" and the
   // user would be stuck (no way to restart short of timeout).
-  const isCommand = cmd !== null;
   if (!isCommand) {
     const delivered = await deliverReplyToWaitingRun({
       subscriberId: subscriber.id,

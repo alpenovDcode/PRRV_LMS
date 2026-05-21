@@ -54,10 +54,12 @@ import { HttpRequestNode } from "./nodes/http-request-node";
 import { GotoFlowNode } from "./nodes/goto-flow-node";
 import { NoteNode } from "./nodes/note-node";
 import { ActionsNode } from "./nodes/actions-node";
+import { SplitNode } from "./nodes/split-node";
 import { EndNode } from "./nodes/end-node";
 import { TriggerNode } from "./nodes/trigger-node";
 import { Button } from "@/components/ui/button";
-import { Undo2, Redo2 } from "lucide-react";
+import { Undo2, Redo2, AlertTriangle, ChevronDown, ChevronUp, Copy } from "lucide-react";
+import { validateFlow, type FlowIssue } from "@/lib/tg/flow-validator";
 
 const nodeTypes = {
   trigger: TriggerNode,
@@ -72,6 +74,7 @@ const nodeTypes = {
   goto_flow: GotoFlowNode,
   note: NoteNode,
   actions: ActionsNode,
+  split: SplitNode,
   end: EndNode,
 };
 
@@ -145,6 +148,16 @@ function defaultSchemaNodeFor(type: string, id: string): FlowNode | null {
     case "actions":
       // Standalone action-bundle — rare; usually inline onSend covers it.
       return { id, type: "actions", label: "Действия", actions: {} };
+    case "split":
+      return {
+        id,
+        type: "split",
+        label: "A/B split",
+        branches: [
+          { label: "A", weight: 1, next: "" },
+          { label: "B", weight: 1, next: "" },
+        ],
+      };
     case "end":
       return { id, type: "end", label: "Конец" };
     default:
@@ -226,6 +239,64 @@ function FlowEditorInner({
   const [edges, setEdges] = useState<Edge[]>(() => decorateEdges(initial.edges));
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  // BFS over the current graph from the synthetic TRIGGER node. Any
+  // schema node not in this set is unreachable — the user added it but
+  // didn't wire it in, so the engine will never execute it.
+  // We dim such nodes on the canvas and surface a counter in the toolbar,
+  // so the author notices dead branches before deploying.
+  const reachableIds = useMemo(() => {
+    const visited = new Set<string>([TRIGGER_NODE_ID]);
+    const adjacency = new Map<string, string[]>();
+    for (const e of edges) {
+      const arr = adjacency.get(e.source) ?? [];
+      arr.push(e.target);
+      adjacency.set(e.source, arr);
+    }
+    const queue: string[] = [TRIGGER_NODE_ID];
+    while (queue.length > 0) {
+      const id = queue.shift()!;
+      for (const next of adjacency.get(id) ?? []) {
+        if (!visited.has(next)) {
+          visited.add(next);
+          queue.push(next);
+        }
+      }
+    }
+    return visited;
+  }, [edges]);
+
+  // Apply visual dimming to unreachable nodes. We attach React Flow
+  // node.style for opacity + grayscale, plus a flag in data the node
+  // component can use to show a small "🚫 не доступна" badge.
+  const displayedNodes = useMemo(() => {
+    return nodes.map((n) => {
+      // End-node and trigger pseudo-node are always reachable from the
+      // user's perspective (or irrelevant for this check).
+      if (n.id === TRIGGER_NODE_ID || n.type === "end") return n;
+      const isReachable = reachableIds.has(n.id);
+      if (isReachable) return n;
+      return {
+        ...n,
+        style: {
+          ...(n.style ?? {}),
+          opacity: 0.4,
+          filter: "grayscale(0.7)",
+        },
+        data: {
+          ...(n.data ?? {}),
+          _unreachable: true,
+        },
+      };
+    });
+  }, [nodes, reachableIds]);
+
+  // Count of unreachable schema nodes (excluding trigger pseudo-node).
+  const unreachableCount = useMemo(() => {
+    return nodes.filter(
+      (n) => n.id !== TRIGGER_NODE_ID && !reachableIds.has(n.id) && n.type !== "end"
+    ).length;
+  }, [nodes, reachableIds]);
+
   const reactFlowWrapper = useRef<HTMLDivElement | null>(null);
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
 
@@ -259,6 +330,10 @@ function FlowEditorInner({
     debounceRef.current = setTimeout(() => snapshot(), 500);
   }, [snapshot]);
 
+  // Semantic-issues state — то, что обнаружил validateFlow на последнем
+  // propagateChange. Структурные ошибки (битые ref’ы) уже в warnings.
+  const [semanticIssues, setSemanticIssues] = useState<FlowIssue[]>([]);
+
   // Propagate every meaningful change up.
   const propagateChange = useCallback(
     (nextNodes: Node[], nextEdges: Edge[]) => {
@@ -275,6 +350,16 @@ function FlowEditorInner({
         sourceHandle: (e.sourceHandle as string | null | undefined) ?? undefined,
       }));
       const result = reactFlowToGraph(editorNodes, editorEdges);
+      // Семантическая валидация поверх структурной. validateFlow требует
+      // валидный по Zod граф — структурные ошибки уже в result.warnings.
+      // Если граф не валидируется (warnings есть про graph: ...), всё
+      // равно пробуем — большинство проверок устойчивы к частичным дырам.
+      try {
+        const issues = validateFlow(result.graph, result.triggers);
+        setSemanticIssues(issues);
+      } catch {
+        setSemanticIssues([]);
+      }
       onChange(result);
     },
     [onChange]
@@ -430,6 +515,92 @@ function FlowEditorInner({
     [edges, propagateChange, debouncedSnapshot]
   );
 
+  // Clipboard для copy/paste/duplicate. Храним «голую» схему ноды,
+  // не визуальную обвязку — позиция и id задаются заново на paste.
+  const clipboardRef = useRef<FlowNode | null>(null);
+
+  // Дубликат текущей ноды на канвасе. Новый id, лёгкий offset, ВСЕ
+  // outbound-ссылки (next/timeoutNext/onError/defaultNext/branches[].next/
+  // rules[].next) сбрасываются — копия начинается как «висящая» нода,
+  // автор подключит вручную.
+  const duplicateSchema = useCallback(
+    (src: FlowNode, position: { x: number; y: number }) => {
+      const id = makeId(src.type);
+      const clone = JSON.parse(JSON.stringify(src)) as FlowNode;
+      clone.id = id;
+      // Сбросить исходящие ссылки — иначе склонированная нода ведёт
+      // в те же таргеты, что оригинал, и getting confused.
+      if ("next" in clone) clone.next = undefined;
+      if (clone.type === "wait_reply") clone.timeoutNext = undefined;
+      if (clone.type === "http_request") clone.onError = undefined;
+      if (clone.type === "condition") {
+        clone.defaultNext = undefined;
+        clone.rules = clone.rules.map((r) => ({ ...r, next: "" }));
+      }
+      if (clone.type === "split") {
+        clone.branches = clone.branches.map((b) => ({ ...b, next: undefined }));
+      }
+      const newNode: Node = {
+        id,
+        type: clone.type,
+        position,
+        data: { schemaNode: clone } as unknown as Record<string, unknown>,
+      };
+      setNodes((nds) => {
+        const next = [...nds, newNode];
+        propagateChange(next, edges);
+        return next;
+      });
+      snapshot();
+      setSelectedId(id);
+    },
+    [edges, propagateChange, snapshot]
+  );
+
+  const copySelected = useCallback(() => {
+    if (!selectedId || selectedId === TRIGGER_NODE_ID) return false;
+    const node = nodes.find((n) => n.id === selectedId);
+    if (!node) return false;
+    const schema = (node.data as unknown as SchemaNodeData).schemaNode;
+    if (!schema) return false;
+    clipboardRef.current = schema;
+    return true;
+  }, [nodes, selectedId]);
+
+  const pasteFromClipboard = useCallback(() => {
+    if (!clipboardRef.current) return;
+    const src = clipboardRef.current;
+    // Позиция новой ноды — относительно исходной (если она ещё на холсте)
+    // со смещением +40,+40, либо центр канваса как fallback.
+    let pos: { x: number; y: number } = { x: 0, y: 0 };
+    const original = nodes.find((n) => {
+      const s = (n.data as unknown as SchemaNodeData).schemaNode;
+      return s && s.id === src.id;
+    });
+    if (original) {
+      pos = { x: original.position.x + 40, y: original.position.y + 40 };
+    } else if (rfInstance && reactFlowWrapper.current) {
+      const rect = reactFlowWrapper.current.getBoundingClientRect();
+      pos = rfInstance.screenToFlowPosition({
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+      });
+    }
+    duplicateSchema(src, pos);
+  }, [nodes, duplicateSchema, rfInstance]);
+
+  const duplicateSelected = useCallback(() => {
+    if (!selectedId || selectedId === TRIGGER_NODE_ID) return;
+    const node = nodes.find((n) => n.id === selectedId);
+    if (!node) return;
+    const schema = (node.data as unknown as SchemaNodeData).schemaNode;
+    if (!schema) return;
+    duplicateSchema(schema, {
+      x: node.position.x + 40,
+      y: node.position.y + 40,
+    });
+  }, [nodes, selectedId, duplicateSchema]);
+
   const deleteNode = useCallback(
     (id: string) => {
       if (id === TRIGGER_NODE_ID) return;
@@ -499,17 +670,40 @@ function FlowEditorInner({
     const handler = (e: KeyboardEvent) => {
       const meta = e.metaKey || e.ctrlKey;
       if (!meta) return;
+      // Игнорируем шорткаты, если фокус в редактируемом поле — иначе
+      // Cmd-C в textarea не скопирует выделенный текст.
+      const target = e.target as HTMLElement | null;
+      const inEditable =
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable);
+      if (inEditable) return;
+
       if (e.key === "z" && !e.shiftKey) {
         e.preventDefault();
         undo();
       } else if ((e.key === "z" && e.shiftKey) || e.key === "y") {
         e.preventDefault();
         redo();
+      } else if (e.key === "c") {
+        // Cmd/Ctrl-C — копируем выделенную ноду в наш «буфер» (in-memory).
+        if (copySelected()) e.preventDefault();
+      } else if (e.key === "v") {
+        // Cmd/Ctrl-V — вставляем из «буфера» (новый id, sibling-позиция).
+        if (clipboardRef.current) {
+          e.preventDefault();
+          pasteFromClipboard();
+        }
+      } else if (e.key === "d") {
+        // Cmd/Ctrl-D — клонировать текущую (без промежуточного copy).
+        e.preventDefault();
+        duplicateSelected();
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [undo, redo]);
+  }, [undo, redo, copySelected, pasteFromClipboard, duplicateSelected]);
 
   // ----- Render -----
 
@@ -539,9 +733,30 @@ function FlowEditorInner({
           <Button variant="outline" size="sm" onClick={redo} title="Redo (Cmd/Ctrl-Shift-Z)">
             <Redo2 className="h-4 w-4" />
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={duplicateSelected}
+            disabled={!selectedId || selectedId === TRIGGER_NODE_ID}
+            title="Дублировать ноду (Cmd/Ctrl-D). Cmd-C / Cmd-V — копировать/вставить."
+          >
+            <Copy className="h-4 w-4" />
+          </Button>
         </div>
+        {unreachableCount > 0 && (
+          <div className="absolute top-12 left-1/2 -translate-x-1/2 z-10 bg-amber-50 border border-amber-300 text-amber-900 text-xs px-3 py-1.5 rounded-md shadow-sm flex items-center gap-2 pointer-events-none">
+            <span>⚠</span>
+            <span>
+              Недостижимые ноды: <strong>{unreachableCount}</strong> — не подключены к графу через стрелки
+            </span>
+          </div>
+        )}
+        <SemanticIssuesPanel
+          issues={semanticIssues}
+          onJumpTo={(nodeId) => setSelectedId(nodeId)}
+        />
         <ReactFlow
-          nodes={nodes}
+          nodes={displayedNodes}
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
@@ -578,6 +793,90 @@ export function FlowEditor(props: FlowEditorProps) {
     <ReactFlowProvider>
       <FlowEditorInner {...props} />
     </ReactFlowProvider>
+  );
+}
+
+// Плавающая панелька со списком семантических проблем флоу. Свёрнута
+// по умолчанию (счётчик в шапке), разворачивается кликом. Каждая
+// проблема — кнопка, прыгающая на соответствующую ноду в редакторе.
+function SemanticIssuesPanel({
+  issues,
+  onJumpTo,
+}: {
+  issues: FlowIssue[];
+  onJumpTo: (nodeId: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  if (issues.length === 0) return null;
+  const errs = issues.filter((i) => i.severity === "error");
+  const warns = issues.filter((i) => i.severity === "warn");
+  const anyError = errs.length > 0;
+
+  return (
+    <div
+      className={`absolute bottom-3 left-3 z-10 rounded-md border shadow-md text-xs max-w-md ${
+        anyError
+          ? "bg-red-50 border-red-300"
+          : "bg-amber-50 border-amber-300"
+      }`}
+    >
+      <button
+        type="button"
+        onClick={() => setExpanded((e) => !e)}
+        className={`w-full flex items-center justify-between gap-2 px-3 py-1.5 ${
+          anyError ? "text-red-900" : "text-amber-900"
+        }`}
+      >
+        <span className="flex items-center gap-2">
+          <AlertTriangle className="h-3.5 w-3.5" />
+          {anyError ? (
+            <span>
+              Ошибок: <strong>{errs.length}</strong>
+              {warns.length > 0 && (
+                <span className="text-amber-700">
+                  , warnings: <strong>{warns.length}</strong>
+                </span>
+              )}
+            </span>
+          ) : (
+            <span>
+              Замечаний: <strong>{warns.length}</strong>
+            </span>
+          )}
+        </span>
+        {expanded ? (
+          <ChevronDown className="h-3.5 w-3.5" />
+        ) : (
+          <ChevronUp className="h-3.5 w-3.5" />
+        )}
+      </button>
+      {expanded && (
+        <div className="max-h-72 overflow-y-auto border-t border-current/20 px-2 py-2 space-y-1.5">
+          {/* Errors сверху, потом warnings */}
+          {[...errs, ...warns].map((iss, idx) => (
+            <button
+              type="button"
+              key={`${iss.code}-${iss.nodeId ?? "_"}-${idx}`}
+              onClick={() => iss.nodeId && onJumpTo(iss.nodeId)}
+              disabled={!iss.nodeId}
+              className={`w-full text-left rounded px-2 py-1 hover:bg-white/60 disabled:cursor-default disabled:hover:bg-transparent ${
+                iss.severity === "error"
+                  ? "text-red-900"
+                  : "text-amber-900"
+              }`}
+            >
+              <div className="font-mono text-[10px] uppercase opacity-70">
+                {iss.code}
+                {iss.nodeId && (
+                  <span className="ml-1 text-zinc-500">→ {iss.nodeId}</span>
+                )}
+              </div>
+              <div className="leading-snug">{iss.message}</div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

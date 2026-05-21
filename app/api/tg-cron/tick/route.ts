@@ -11,6 +11,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { processDueRuns } from "@/lib/tg/flow-engine";
 import { processBroadcasts } from "@/lib/tg/broadcast";
+import { processScheduledFlows } from "@/lib/tg/scheduled-flow";
+import { writeCronHeartbeat } from "@/lib/tg/cron-heartbeat";
 import { timingSafeEqual } from "crypto";
 
 export const runtime = "nodejs";
@@ -54,10 +56,27 @@ async function handle(request: NextRequest) {
     console.error("[tg-cron] processBroadcasts failed", e);
     return { processed: 0, error: String(e) };
   });
+  const scheduledFlows = await processScheduledFlows().catch((e) => {
+    console.error("[tg-cron] processScheduledFlows failed", e);
+    return { processed: 0, error: String(e) };
+  });
+  const durationMs = Date.now() - start;
+  // Heartbeat: пишем «я живой» в Redis, чтобы админка показала статус.
+  // Любая ошибка тут не должна валить тик — heartbeat обнимает свои
+  // catch’и сам, но на всякий случай ещё одно .catch() сверху.
+  writeCronHeartbeat({
+    at: Date.now(),
+    runs: "processed" in runs ? runs.processed : 0,
+    broadcasts: "processed" in broadcasts ? broadcasts.processed : 0,
+    scheduledFlows:
+      "processed" in scheduledFlows ? scheduledFlows.processed : 0,
+    durationMs,
+  }).catch(() => {});
   return NextResponse.json({
     ok: true,
-    durationMs: Date.now() - start,
+    durationMs,
     runs,
     broadcasts,
+    scheduledFlows,
   });
 }

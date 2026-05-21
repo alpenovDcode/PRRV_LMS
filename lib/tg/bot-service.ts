@@ -108,6 +108,78 @@ export async function refreshWebhook(botId: string): Promise<{ ok: boolean; erro
   return { ok: true };
 }
 
+// Ротация токена бота. Используется когда BotFather выдал новый
+// (после revoke) — мы валидируем его через getMe, требуем тот же id
+// бота (нельзя «перецепить» админку на другого бота), сохраняем
+// зашифрованную версию и переустанавливаем webhook с тем же
+// webhookSecret (то есть TG-сторона тоже узнает новый токен).
+export async function rotateToken(
+  botId: string,
+  newToken: string
+): Promise<{ ok: boolean; error?: string }> {
+  const bot = await db.tgBot.findUnique({ where: { id: botId } });
+  if (!bot) return { ok: false, error: "Bot not found" };
+  const token = newToken.trim();
+  if (!isValidTokenFormat(token)) {
+    return { ok: false, error: "Неверный формат токена" };
+  }
+  const newEncrypted = encryptToken(token);
+  const me = await tgGetMe(newEncrypted);
+  if (!me.ok || !me.result) {
+    return {
+      ok: false,
+      error: me.description ?? "Telegram getMe не сработал на новом токене",
+    };
+  }
+  if (String(me.result.id) !== bot.botUserId) {
+    return {
+      ok: false,
+      error: `Новый токен принадлежит другому боту (@${me.result.username}). Менять токен можно только в пределах того же бота — это защита от случайной замены.`,
+    };
+  }
+  // Сначала пробуем установить webhook на новом токене — если сломаемся,
+  // не оставим БД с битым шифр-блобом.
+  const webhookUrl = buildWebhookUrl(botId);
+  const setRes = await tgSetWebhook(newEncrypted, webhookUrl, bot.webhookSecret);
+  if (!setRes.ok) {
+    return {
+      ok: false,
+      error: `setWebhook на новом токене не прошёл: ${setRes.description}`,
+    };
+  }
+  await db.tgBot.update({
+    where: { id: botId },
+    data: {
+      tokenEncrypted: newEncrypted,
+      tokenPrefix: tokenPrefix(token),
+      // username/title могли поменяться в Telegram — синхронизируем.
+      username: me.result.username,
+    },
+  });
+  return { ok: true };
+}
+
+// Ротация webhook secret. Generate fresh secret, setWebhook с ним, и
+// только если Telegram принял — обновляем БД (старый секрет до этого
+// момента ещё валиден, на случай если запрос упадёт в середине).
+export async function rotateWebhookSecret(
+  botId: string
+): Promise<{ ok: boolean; error?: string }> {
+  const bot = await db.tgBot.findUnique({ where: { id: botId } });
+  if (!bot) return { ok: false, error: "Bot not found" };
+  const newSecret = generateWebhookSecret();
+  const webhookUrl = buildWebhookUrl(botId);
+  const setRes = await tgSetWebhook(bot.tokenEncrypted, webhookUrl, newSecret);
+  if (!setRes.ok) {
+    return { ok: false, error: setRes.description ?? "setWebhook failed" };
+  }
+  await db.tgBot.update({
+    where: { id: botId },
+    data: { webhookSecret: newSecret },
+  });
+  return { ok: true };
+}
+
 export async function getWebhookInfo(botId: string) {
   const bot = await db.tgBot.findUnique({ where: { id: botId } });
   if (!bot) return { ok: false, error: "Bot not found" } as const;
