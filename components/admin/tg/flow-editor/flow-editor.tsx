@@ -54,6 +54,7 @@ import { HttpRequestNode } from "./nodes/http-request-node";
 import { GotoFlowNode } from "./nodes/goto-flow-node";
 import { NoteNode } from "./nodes/note-node";
 import { ActionsNode } from "./nodes/actions-node";
+import { SplitNode } from "./nodes/split-node";
 import { EndNode } from "./nodes/end-node";
 import { TriggerNode } from "./nodes/trigger-node";
 import { Button } from "@/components/ui/button";
@@ -72,6 +73,7 @@ const nodeTypes = {
   goto_flow: GotoFlowNode,
   note: NoteNode,
   actions: ActionsNode,
+  split: SplitNode,
   end: EndNode,
 };
 
@@ -145,6 +147,16 @@ function defaultSchemaNodeFor(type: string, id: string): FlowNode | null {
     case "actions":
       // Standalone action-bundle — rare; usually inline onSend covers it.
       return { id, type: "actions", label: "Действия", actions: {} };
+    case "split":
+      return {
+        id,
+        type: "split",
+        label: "A/B split",
+        branches: [
+          { label: "A", weight: 1, next: "" },
+          { label: "B", weight: 1, next: "" },
+        ],
+      };
     case "end":
       return { id, type: "end", label: "Конец" };
     default:
@@ -225,6 +237,64 @@ function FlowEditorInner({
   const [nodes, setNodes] = useState<Node[]>(() => enrich(initial.nodes));
   const [edges, setEdges] = useState<Edge[]>(() => decorateEdges(initial.edges));
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // BFS over the current graph from the synthetic TRIGGER node. Any
+  // schema node not in this set is unreachable — the user added it but
+  // didn't wire it in, so the engine will never execute it.
+  // We dim such nodes on the canvas and surface a counter in the toolbar,
+  // so the author notices dead branches before deploying.
+  const reachableIds = useMemo(() => {
+    const visited = new Set<string>([TRIGGER_NODE_ID]);
+    const adjacency = new Map<string, string[]>();
+    for (const e of edges) {
+      const arr = adjacency.get(e.source) ?? [];
+      arr.push(e.target);
+      adjacency.set(e.source, arr);
+    }
+    const queue: string[] = [TRIGGER_NODE_ID];
+    while (queue.length > 0) {
+      const id = queue.shift()!;
+      for (const next of adjacency.get(id) ?? []) {
+        if (!visited.has(next)) {
+          visited.add(next);
+          queue.push(next);
+        }
+      }
+    }
+    return visited;
+  }, [edges]);
+
+  // Apply visual dimming to unreachable nodes. We attach React Flow
+  // node.style for opacity + grayscale, plus a flag in data the node
+  // component can use to show a small "🚫 не доступна" badge.
+  const displayedNodes = useMemo(() => {
+    return nodes.map((n) => {
+      // End-node and trigger pseudo-node are always reachable from the
+      // user's perspective (or irrelevant for this check).
+      if (n.id === TRIGGER_NODE_ID || n.type === "end") return n;
+      const isReachable = reachableIds.has(n.id);
+      if (isReachable) return n;
+      return {
+        ...n,
+        style: {
+          ...(n.style ?? {}),
+          opacity: 0.4,
+          filter: "grayscale(0.7)",
+        },
+        data: {
+          ...(n.data ?? {}),
+          _unreachable: true,
+        },
+      };
+    });
+  }, [nodes, reachableIds]);
+
+  // Count of unreachable schema nodes (excluding trigger pseudo-node).
+  const unreachableCount = useMemo(() => {
+    return nodes.filter(
+      (n) => n.id !== TRIGGER_NODE_ID && !reachableIds.has(n.id) && n.type !== "end"
+    ).length;
+  }, [nodes, reachableIds]);
 
   const reactFlowWrapper = useRef<HTMLDivElement | null>(null);
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
@@ -540,8 +610,16 @@ function FlowEditorInner({
             <Redo2 className="h-4 w-4" />
           </Button>
         </div>
+        {unreachableCount > 0 && (
+          <div className="absolute top-12 left-1/2 -translate-x-1/2 z-10 bg-amber-50 border border-amber-300 text-amber-900 text-xs px-3 py-1.5 rounded-md shadow-sm flex items-center gap-2 pointer-events-none">
+            <span>⚠</span>
+            <span>
+              Недостижимые ноды: <strong>{unreachableCount}</strong> — не подключены к графу через стрелки
+            </span>
+          </div>
+        )}
         <ReactFlow
-          nodes={nodes}
+          nodes={displayedNodes}
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}

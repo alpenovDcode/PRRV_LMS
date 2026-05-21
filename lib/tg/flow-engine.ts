@@ -594,6 +594,43 @@ async function executeNode(
       });
       return { done: true };
     }
+    case "split": {
+      // Weighted random — складываем все веса, бросаем число в этом
+      // диапазоне, идём по веткам слева направо и выбираем первую,
+      // в которой попадаем.
+      const totalWeight = node.branches.reduce((s, b) => s + b.weight, 0);
+      const roll = Math.random() * totalWeight;
+      let cumulative = 0;
+      let chosen = node.branches[0];
+      for (const branch of node.branches) {
+        cumulative += branch.weight;
+        if (roll < cumulative) {
+          chosen = branch;
+          break;
+        }
+      }
+      // Зафиксировать выбранный вариант в run.context, чтобы downstream-
+      // ноды и аналитика могли по нему ветвиться / агрегировать.
+      const ctxData = (run.context as Record<string, unknown>) ?? {};
+      const newCtx = { ...ctxData, _abVariant: chosen.label };
+      await db.tgFlowRun.update({
+        where: { id: run.id },
+        data: { context: newCtx as Prisma.InputJsonValue },
+      });
+      bundle.run.context = newCtx as object;
+      trackEvent({
+        type: "flow.ab_split",
+        botId: bot.id,
+        subscriberId: subscriber.id,
+        properties: {
+          flowId: bundle.flow.id,
+          nodeId: node.id,
+          variant: chosen.label,
+          totalBranches: node.branches.length,
+        },
+      }).catch(() => {});
+      return { done: false, nextNodeId: chosen.next };
+    }
     case "end":
     default:
       await db.tgFlowRun.update({

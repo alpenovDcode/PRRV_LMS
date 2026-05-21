@@ -628,6 +628,13 @@ export function PropertiesPanel({
         />
       )}
 
+      {sNode.type === "split" && (
+        <SplitEditor
+          node={sNode}
+          onChange={(patch) => update(patch as Partial<FlowNode>)}
+        />
+      )}
+
       {sNode.type === "end" && (
         <div className="text-sm text-zinc-500 p-3 bg-zinc-50 rounded border border-zinc-200">
           Терминальная нода — никакой настройки.
@@ -1392,6 +1399,131 @@ function TriggersEditor({
         <Button size="sm" variant="outline" onClick={() => addTrigger("subscribed")}>
           + subscribed
         </Button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// A/B-split editor — список веток с label + weight. Соединение «куда ведёт
+// ветка» делается перетягиванием стрелки из правого handle’а ноды на холсте,
+// поэтому здесь редактируем только метаданные веток.
+// ============================================================================
+
+type SplitNodeT = Extract<FlowNode, { type: "split" }>;
+type SplitBranch = SplitNodeT["branches"][number];
+
+function SplitEditor({
+  node,
+  onChange,
+}: {
+  node: SplitNodeT;
+  onChange: (patch: Partial<SplitNodeT>) => void;
+}) {
+  const branches = node.branches;
+  const totalWeight = branches.reduce((s, b) => s + b.weight, 0) || 1;
+
+  const setBranch = (idx: number, patch: Partial<SplitBranch>) => {
+    onChange({
+      branches: branches.map((b, i) => (i === idx ? { ...b, ...patch } : b)),
+    } as Partial<SplitNodeT>);
+  };
+  const removeBranch = (idx: number) => {
+    if (branches.length <= 2) return;
+    onChange({
+      branches: branches.filter((_, i) => i !== idx),
+    } as Partial<SplitNodeT>);
+  };
+  const addBranch = () => {
+    if (branches.length >= 10) return;
+    const nextLetter = String.fromCharCode(65 + branches.length); // A, B, C ...
+    onChange({
+      branches: [
+        ...branches,
+        { label: nextLetter, weight: 1, next: undefined } as SplitBranch,
+      ],
+    } as Partial<SplitNodeT>);
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <Label className="mb-0">Ветки</Label>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={addBranch}
+          disabled={branches.length >= 10}
+        >
+          <Plus className="h-3 w-3" /> ветка
+        </Button>
+      </div>
+      <div className="text-[10px] text-zinc-500">
+        Каждая ветка получает свой handle справа — протяните стрелку на нужную
+        следующую ноду. Веса задают пропорцию: <code>[1, 1]</code> = 50/50,{" "}
+        <code>[3, 1]</code> = 75/25. После прохождения split-ноды выбранный{" "}
+        <code>label</code> попадает в <code>deal._abVariant</code> — по нему
+        можно ветвиться в условиях и фильтровать аналитику.
+      </div>
+      <div className="space-y-2">
+        {branches.map((b, idx) => (
+          <div
+            key={idx}
+            className="border border-zinc-200 rounded p-2 space-y-2 bg-zinc-50/50"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-zinc-500">
+                Ветка {idx + 1} ·{" "}
+                <span className="font-mono">
+                  {Math.round((b.weight / totalWeight) * 100)}%
+                </span>
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => removeBranch(idx)}
+                disabled={branches.length <= 2}
+                title={
+                  branches.length <= 2
+                    ? "Минимум 2 ветки"
+                    : "Удалить ветку"
+                }
+              >
+                <Trash2 className="h-3 w-3 text-red-500" />
+              </Button>
+            </div>
+            <div>
+              <Label className="text-[11px]">Метка (label)</Label>
+              <Input
+                value={b.label}
+                maxLength={64}
+                onChange={(e) => setBranch(idx, { label: e.target.value })}
+                placeholder="например, A, headline-v1"
+              />
+            </div>
+            <div>
+              <Label className="text-[11px]">Вес</Label>
+              <Input
+                type="number"
+                min={1}
+                max={1000}
+                value={b.weight}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value, 10);
+                  if (Number.isFinite(v) && v >= 1 && v <= 1000) {
+                    setBranch(idx, { weight: v });
+                  }
+                }}
+              />
+            </div>
+            {!b.next && (
+              <div className="text-[10px] text-amber-600">
+                Ветка не подключена — соедините handle на правом крае ноды с
+                нужным шагом.
+              </div>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );

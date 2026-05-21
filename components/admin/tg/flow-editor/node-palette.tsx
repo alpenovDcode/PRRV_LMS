@@ -20,6 +20,7 @@ export const PALETTE_ITEMS: PaletteItem[] = [
   { type: "delay", icon: "⏰", label: "Задержка", color: "text-amber-600" },
   { type: "wait_reply", icon: "⌛", label: "Ждать ответ", color: "text-rose-600" },
   { type: "condition", icon: "⚡", label: "Условие", color: "text-fuchsia-600" },
+  { type: "split", icon: "🎲", label: "A/B split", color: "text-pink-600" },
   { type: "http_request", icon: "🌐", label: "HTTP-запрос", color: "text-lime-600" },
   { type: "actions", icon: "🎯", label: "Действия", color: "text-violet-600" },
   { type: "goto_flow", icon: "↪", label: "Прыжок", color: "text-purple-600" },

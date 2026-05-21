@@ -199,6 +199,22 @@ export function graphToReactFlow(
           });
         }
         break;
+      case "split": {
+        const totalW = node.branches.reduce((s, b) => s + b.weight, 0) || 1;
+        node.branches.forEach((branch, idx) => {
+          if (branch.next) {
+            edges.push({
+              id: `e-${node.id}-branch-${idx}-${branch.next}`,
+              source: node.id,
+              sourceHandle: `branch-${idx}`,
+              target: branch.next,
+              label: `${branch.label} ${Math.round((branch.weight / totalW) * 100)}%`,
+              style: "solid",
+            });
+          }
+        });
+        break;
+      }
       case "end":
         // no outgoing
         break;
@@ -319,6 +335,16 @@ export function reactFlowToGraph(
       const defEdge = outs.find((e) => e.sourceHandle === "default");
       cloned.defaultNext = defEdge?.target;
       return cloned;
+    } else if (next.type === "split") {
+      const cloned = {
+        ...next,
+        branches: next.branches.map((b) => ({ ...b })),
+      };
+      cloned.branches.forEach((branch, idx) => {
+        const edge = outs.find((e) => e.sourceHandle === `branch-${idx}`);
+        if (edge) branch.next = edge.target;
+      });
+      return cloned;
     }
     // end: no outbound
 
@@ -358,6 +384,9 @@ export function reactFlowToGraph(
     if (n.type === "condition") {
       refs.push(["defaultNext", n.defaultNext]);
       n.rules.forEach((r, i) => refs.push([`rules[${i}].next`, r.next]));
+    }
+    if (n.type === "split") {
+      n.branches.forEach((b, i) => refs.push([`branches[${i}].next`, b.next]));
     }
     for (const [field, ref] of refs) {
       if (ref && !nodeIds.has(ref)) {
