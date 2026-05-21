@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { processDueRuns } from "@/lib/tg/flow-engine";
 import { processBroadcasts } from "@/lib/tg/broadcast";
+import { processScheduledFlows } from "@/lib/tg/scheduled-flow";
 import { timingSafeEqual } from "crypto";
 
 export const runtime = "nodejs";
@@ -54,10 +55,15 @@ async function handle(request: NextRequest) {
     console.error("[tg-cron] processBroadcasts failed", e);
     return { processed: 0, error: String(e) };
   });
+  const scheduledFlows = await processScheduledFlows().catch((e) => {
+    console.error("[tg-cron] processScheduledFlows failed", e);
+    return { processed: 0, error: String(e) };
+  });
   return NextResponse.json({
     ok: true,
     durationMs: Date.now() - start,
     runs,
     broadcasts,
+    scheduledFlows,
   });
 }

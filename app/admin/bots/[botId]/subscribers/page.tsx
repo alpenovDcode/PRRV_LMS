@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search, Upload, GitMerge } from "lucide-react";
 
 interface Subscriber {
   id: string;
@@ -45,6 +45,23 @@ export default function SubscribersPage() {
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => router.push(`/admin/bots/${botId}/subscribers/import`)}
+        >
+          <Upload className="h-4 w-4 mr-1" /> Импорт CSV
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => router.push(`/admin/bots/${botId}/subscribers/merge`)}
+        >
+          <GitMerge className="h-4 w-4 mr-1" /> Объединить дубли
+        </Button>
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Фильтры</CardTitle>

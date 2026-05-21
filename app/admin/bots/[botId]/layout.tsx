@@ -16,6 +16,7 @@ import {
   ListChecks,
   FormInput,
   FileText,
+  CalendarClock,
 } from "lucide-react";
 
 export default function BotDetailLayout({ children }: { children: React.ReactNode }) {
@@ -42,6 +43,7 @@ export default function BotDetailLayout({ children }: { children: React.ReactNod
     { href: `/admin/bots/${botId}/subscribers`, label: "Подписчики", icon: Users },
     { href: `/admin/bots/${botId}/flows`, label: "Сценарии", icon: Workflow },
     { href: `/admin/bots/${botId}/broadcasts`, label: "Рассылки", icon: Send },
+    { href: `/admin/bots/${botId}/scheduled-flows`, label: "Расписание", icon: CalendarClock },
     { href: `/admin/bots/${botId}/lists`, label: "Списки", icon: ListChecks },
     { href: `/admin/bots/${botId}/fields`, label: "Поля", icon: FormInput },
     { href: `/admin/bots/${botId}/links`, label: "Ссылки/UTM", icon: Link2 },
