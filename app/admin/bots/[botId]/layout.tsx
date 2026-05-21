@@ -17,6 +17,7 @@ import {
   FormInput,
   FileText,
   CalendarClock,
+  Inbox,
 } from "lucide-react";
 
 export default function BotDetailLayout({ children }: { children: React.ReactNode }) {
@@ -40,6 +41,7 @@ export default function BotDetailLayout({ children }: { children: React.ReactNod
 
   const tabs = [
     { href: `/admin/bots/${botId}`, label: "Обзор", icon: BarChart3 },
+    { href: `/admin/bots/${botId}/inbox`, label: "Inbox", icon: Inbox },
     { href: `/admin/bots/${botId}/subscribers`, label: "Подписчики", icon: Users },
     { href: `/admin/bots/${botId}/flows`, label: "Сценарии", icon: Workflow },
     { href: `/admin/bots/${botId}/broadcasts`, label: "Рассылки", icon: Send },

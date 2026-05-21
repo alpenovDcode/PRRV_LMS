@@ -845,6 +845,14 @@ model TgSubscriber {
   // Prevents re-entry. Empty in practice for most subscribers.
   firedOnceTriggers     String[] @default([]) @map("fired_once_triggers")
 
+  // -- Operator live-chat takeover --------------------------------------
+  // Когда оператор берёт диалог «в ручной режим», auto-trigger’ы флоу и
+  // delivery в wait_reply отключаются: бот не перебивает живого человека.
+  // takeoverAt — момент, когда взяли в работу. Авто-release через 24ч,
+  // чтобы случайно не оставить чат заблокированным навсегда.
+  operatorTakeoverAt    DateTime? @map("operator_takeover_at")
+  operatorAssigneeId    String?   @map("operator_assignee_id")
+
   // Typed custom fields ("доп. поля" in SaleBot terms). Stored as
   // {key: value} with schema defined at the bot level (TgCustomField,
   // added in Iter 2). For Iter 1 this is just a free-form JSON bag —
@@ -862,6 +870,7 @@ model TgSubscriber {
   @@index([botId, isBlocked])
   @@index([botId, lastSeenAt])
   @@index([botId, currentPositionFlowId, currentPositionNodeId])
+  @@index([botId, operatorTakeoverAt])
   @@index([tags], type: Gin)
   @@map("tg_subscribers")
 }

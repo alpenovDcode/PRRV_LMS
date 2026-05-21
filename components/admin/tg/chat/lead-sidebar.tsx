@@ -25,6 +25,8 @@ export interface SubscriberDetail {
   firstTouchAt: string | null;
   lastTouchSlug: string | null;
   lastTouchAt: string | null;
+  operatorTakeoverAt: string | null;
+  operatorAssigneeId: string | null;
 }
 
 interface ActiveRun {
