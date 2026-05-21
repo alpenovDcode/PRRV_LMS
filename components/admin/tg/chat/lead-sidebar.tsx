@@ -35,6 +35,10 @@ interface ActiveRun {
   flow: { name: string };
   currentNodeId: string | null;
   resumeAt: string | null;
+  // Deal-scope: per-run JSON. Может содержать _abVariant (A/B-вариант),
+  // результаты http_request, временные переменные между шагами.
+  context?: Record<string, unknown>;
+  startedAt?: string;
 }
 
 // Shape of /context endpoint response — see
@@ -447,27 +451,21 @@ export function LeadSidebar({ botId, subscriberId, subscriber, activeRuns }: Pro
 
       <section className="space-y-2">
         <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-          Активные сценарии
+          Активные сценарии и deal-scope
         </Label>
         {!activeRuns.length ? (
           <div className="text-xs text-muted-foreground">нет активных</div>
         ) : (
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             {activeRuns.map((r) => (
-              <div
-                key={r.id}
-                className="flex items-center justify-between border-b py-1 text-xs last:border-0"
-              >
-                <span className="truncate" style={{ maxWidth: 160 }}>
-                  {r.flow.name}
-                </span>
-                <Badge variant="outline" className="text-[10px]">
-                  {r.status}
-                </Badge>
-              </div>
+              <ActiveRunRow key={r.id} run={r} />
             ))}
           </div>
         )}
+        <div className="text-[10px] text-muted-foreground">
+          Deal-scope (<code>{`{{deal.x}}`}</code>) живёт внутри одного запуска
+          сценария. <code>_abVariant</code> хранит выбранную ветку A/B-split’а.
+        </div>
       </section>
 
       <section className="space-y-2">
@@ -685,4 +683,84 @@ function TouchBlock({ label, touch }: { label: string; touch: TouchInfo }) {
       ) : null}
     </div>
   );
+}
+
+// Раскладка одного активного run’а: статус + название флоу + (если есть)
+// раскрывающийся блок с deal-scope-переменными. _abVariant вынесен
+// отдельным «чипом» наверху, потому что это самое важное поле для
+// аналитики и понимания «по какой ветке сейчас идёт пользователь».
+function ActiveRunRow({ run }: { run: ActiveRun }) {
+  const [open, setOpen] = useState(false);
+  const ctx = run.context ?? {};
+  const entries = Object.entries(ctx);
+  const abVariant = typeof ctx._abVariant === "string" ? ctx._abVariant : null;
+  const hasOther = entries.some(([k]) => k !== "_abVariant");
+
+  return (
+    <div className="rounded border border-zinc-200 bg-zinc-50/40 p-1.5 text-xs">
+      <button
+        type="button"
+        onClick={() => entries.length > 0 && setOpen((v) => !v)}
+        className="w-full flex items-center justify-between gap-2"
+        disabled={entries.length === 0}
+      >
+        <div className="flex items-center gap-1.5 min-w-0">
+          {entries.length > 0 &&
+            (open ? (
+              <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground" />
+            ))}
+          <span className="truncate font-medium" style={{ maxWidth: 140 }}>
+            {run.flow.name}
+          </span>
+          {abVariant && (
+            <Badge className="bg-pink-100 text-pink-800 border-pink-300 text-[9px] font-mono">
+              A/B: {abVariant}
+            </Badge>
+          )}
+        </div>
+        <Badge variant="outline" className="text-[10px] shrink-0">
+          {run.status}
+        </Badge>
+      </button>
+      {open && hasOther && (
+        <div className="mt-1.5 space-y-0.5 border-t border-zinc-200 pt-1.5">
+          {entries
+            .filter(([k]) => k !== "_abVariant")
+            .map(([k, v]) => (
+              <div
+                key={k}
+                className="flex items-start justify-between gap-2 text-[11px]"
+              >
+                <span className="font-mono text-zinc-600">deal.{k}</span>
+                <span
+                  className="truncate font-mono text-zinc-800"
+                  style={{ maxWidth: 140 }}
+                  title={typeof v === "string" ? v : JSON.stringify(v)}
+                >
+                  {formatDealValue(v)}
+                </span>
+              </div>
+            ))}
+        </div>
+      )}
+      {open && !hasOther && !abVariant && (
+        <div className="mt-1 text-[10px] text-muted-foreground italic">
+          deal-scope пуст
+        </div>
+      )}
+    </div>
+  );
+}
+
+function formatDealValue(v: unknown): string {
+  if (v === null || v === undefined) return "—";
+  if (typeof v === "string") return v;
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  try {
+    return JSON.stringify(v);
+  } catch {
+    return String(v);
+  }
 }
