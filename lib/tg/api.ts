@@ -81,6 +81,20 @@ export interface TgMessageResult {
   date: number;
 }
 
+// Максимум секунд, которые мы готовы ждать внутри одного `callApi`,
+// получая 429 retry_after. Если Telegram говорит «жди 30 минут» — мы
+// не блокируем веб-процесс полтора часа, а возвращаем ошибку наверх;
+// broadcast worker запланирует ретрай через nextAttemptAt, flow engine
+// провалит шаг и аналитика покажет «retry» в логах.
+const MAX_INLINE_RETRY_WAIT_SEC = 10;
+// Сколько раз пытаемся при сетевых/5xx ошибках. На 429 ретрай — отдельный
+// (с уважением retry_after), здесь именно «связь сорвалась/таймаут».
+const NETWORK_RETRY_ATTEMPTS = 2;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function callApi<T>(
   encryptedToken: string,
   method: string,
@@ -101,26 +115,79 @@ async function callApi<T>(
       description: `token decrypt failed: ${msg}`,
     };
   }
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-  try {
-    const res = await fetch(`${TELEGRAM_API}/bot${token}/${method}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: ctrl.signal,
-    });
-    const json = (await res.json()) as TgApiResult<T>;
-    return json;
-  } catch (e) {
-    return {
-      ok: false,
-      error_code: 0,
-      description: e instanceof Error ? e.message : String(e),
-    };
-  } finally {
+
+  let lastNetworkErr: unknown = null;
+  // 1 «настоящий» запрос + ретраи на сетевые/5xx + опциональный 429-ретрай.
+  for (let attempt = 0; attempt <= NETWORK_RETRY_ATTEMPTS; attempt++) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    let json: TgApiResult<T> | null = null;
+    try {
+      const res = await fetch(`${TELEGRAM_API}/bot${token}/${method}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: ctrl.signal,
+      });
+      json = (await res.json()) as TgApiResult<T>;
+    } catch (e) {
+      lastNetworkErr = e;
+      clearTimeout(timer);
+      // Сетевой сбой — даём шанс ретраю с маленьким backoff.
+      if (attempt < NETWORK_RETRY_ATTEMPTS) {
+        await sleep(200 * (attempt + 1));
+        continue;
+      }
+      return {
+        ok: false,
+        error_code: 0,
+        description: e instanceof Error ? e.message : String(e),
+      };
+    }
     clearTimeout(timer);
+
+    // 429 → respect retry_after. Делаем ровно ОДИН инлайн-ретрай и только
+    // если ожидание разумное (<= MAX_INLINE_RETRY_WAIT_SEC). Иначе
+    // отдаём ошибку наверх — пусть worker планирует на nextAttemptAt.
+    if (
+      !json.ok &&
+      json.error_code === 429 &&
+      attempt === 0 // только первый 429, чтобы не зациклиться
+    ) {
+      const retryAfter = json.parameters?.retry_after ?? 1;
+      if (retryAfter <= MAX_INLINE_RETRY_WAIT_SEC) {
+        // Чуть-чуть джиттера сверху, чтобы не бить параллельные процессы
+        // ровно в одну миллисекунду.
+        await sleep(retryAfter * 1000 + Math.floor(Math.random() * 200));
+        continue;
+      }
+      // Слишком долгий retry_after — возвращаем как есть.
+      return json;
+    }
+
+    // 5xx — тоже ретрай (один раз).
+    if (
+      !json.ok &&
+      json.error_code !== undefined &&
+      json.error_code >= 500 &&
+      attempt < NETWORK_RETRY_ATTEMPTS
+    ) {
+      await sleep(300 * (attempt + 1));
+      continue;
+    }
+
+    return json;
   }
+
+  // Сюда обычно не доходим — все ветки выше возвращают раньше.
+  return {
+    ok: false,
+    error_code: 0,
+    description:
+      lastNetworkErr instanceof Error
+        ? lastNetworkErr.message
+        : "exhausted retries",
+  };
 }
 
 export function tgSendMessage(
