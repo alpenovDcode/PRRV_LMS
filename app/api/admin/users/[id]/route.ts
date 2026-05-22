@@ -39,6 +39,7 @@ export async function GET(
             email: true,
             fullName: true,
             role: true,
+            tariff: true,
             avatarUrl: true,
             emailVerified: true,
             createdAt: true,
@@ -313,10 +314,13 @@ export async function PATCH(
       try {
         const { id } = await params;
         const body = await request.json();
-        const { email, fullName, role, password, phone, about, avatarUrl, track, telegram, isBlocked, frozenUntil } = z.object({
+        const { email, fullName, role, tariff, password, phone, about, avatarUrl, track, telegram, isBlocked, frozenUntil } = z.object({
           email: z.string().email().optional(),
           fullName: z.string().optional(),
           role: z.enum(["student", "admin", "curator"]).optional(),
+          // Тариф студента (VR/LR/SR). nullable — чтобы можно было
+          // снять тариф, optional — чтобы не трогать если не передан.
+          tariff: z.enum(["VR", "LR", "SR"]).nullable().optional(),
           password: z.string().min(6).optional(),
           phone: z.string().optional(),
           telegram: z.string().optional(),
@@ -371,6 +375,8 @@ export async function PATCH(
         if (email !== undefined) updateData.email = email;
         if (fullName !== undefined) updateData.fullName = fullName;
         if (role !== undefined) updateData.role = role;
+        // tariff: undefined → не трогаем; null → снимаем; "VR"/"LR"/"SR" → ставим.
+        if (tariff !== undefined) updateData.tariff = tariff;
         if (phone !== undefined) updateData.phone = phone;
         if (telegram !== undefined) updateData.telegram = telegram;
         if (about !== undefined) updateData.about = about;
@@ -402,6 +408,7 @@ export async function PATCH(
             email: true,
             fullName: true,
             role: true,
+            tariff: true,
             updatedAt: true,
             phone: true,
             telegram: true,
@@ -427,6 +434,7 @@ export async function PATCH(
           isBlocked: isBlocked !== undefined ? isBlocked : existingUser.isBlocked,
           frozenUntil: frozenUntil !== undefined ? frozenUntil : existingUser.frozenUntil,
           passwordChanged: !!password,
+          ...(tariff !== undefined && { tariffChangedTo: tariff }),
         });
 
         return NextResponse.json<ApiResponse>(
