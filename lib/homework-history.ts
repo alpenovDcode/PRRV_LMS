@@ -6,6 +6,33 @@ import { sanitizeText } from "./sanitize";
  * Логика версионности домашних заданий
  */
 
+// Санитизация контента домашки с учётом «анкетных» уроков.
+//
+// ВАЖНО: уроки типа certification_form / тесты-анкеты присылают
+// content как сериализованный JSON со всеми ответами — 47+ вопросов
+// сертификации легко дают 11–14 КБ. Стандартный sanitizeText режет
+// строку на MAX_LENGTH=10000 (lib/content-sanitization.ts) и ломает
+// JSON посередине — ответы становятся нечитаемыми.
+//
+// Решение (то же, что в app/api/lessons/[id]/homework/route.ts):
+// если content — валидный JSON, храним as-is с hard-cap 200 КБ;
+// иначе — обычная санитизация. XSS-риска нет: viewer не рендерит
+// content как HTML, React экранирует строковые ответы.
+async function sanitizeHomeworkContent(content: string): Promise<string> {
+  const trimmed = content.trim();
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+    try {
+      JSON.parse(trimmed);
+      return trimmed.length <= 200_000
+        ? trimmed
+        : trimmed.substring(0, 200_000);
+    } catch {
+      // Похоже на JSON, но не парсится — фолбэк на санитайзер.
+    }
+  }
+  return sanitizeText(content);
+}
+
 /**
  * Создает новую версию домашнего задания
  */
@@ -31,8 +58,8 @@ export async function createHomeworkVersion(
     throw new Error("Submission not found");
   }
 
-  // Санитизируем контент
-  const sanitizedContent = await sanitizeText(content);
+  // Санитизируем контент (JSON-анкеты сохраняем целиком, не обрезаем).
+  const sanitizedContent = await sanitizeHomeworkContent(content);
 
   // Создаем запись в истории
   const history = await db.homeworkHistory.create({
@@ -90,7 +117,9 @@ export async function updateHomeworkWithHistory(
     await tx.homeworkSubmission.update({
       where: { id: submissionId },
       data: {
-        content: updates.content ? await sanitizeText(updates.content) : undefined,
+        content: updates.content
+          ? await sanitizeHomeworkContent(updates.content)
+          : undefined,
         files: updates.files || undefined,
         status: updates.status || undefined,
         curatorComment: updates.curatorComment
