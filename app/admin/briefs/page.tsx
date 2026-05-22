@@ -30,9 +30,26 @@ interface BriefSummary {
   filesCount: number;
 }
 
+// Бейдж статуса брифа. Ключевой случай — бриф, который был завершён,
+// а затем переоткрыт на правки (status=in_progress, но completedAt
+// уже проставлен): куратор должен видеть «На правках», а не думать,
+// что анкета пропала.
+function briefStatusBadge(status: string, completedAt: string | null) {
+  if (status === "completed") {
+    return { label: "Завершён", variant: "default" as const };
+  }
+  if (completedAt) {
+    return { label: "На правках у ученика", variant: "secondary" as const };
+  }
+  return { label: "Черновик", variant: "secondary" as const };
+}
+
 export default function AdminBriefsPage() {
+  // По умолчанию показываем ВСЕ брифы. Раньше дефолтом был таб
+  // «Завершённые» — и переоткрытый на правки бриф «исчезал» из списка,
+  // хотя данные в БД целы. См. фикс пропажи анкет.
   const [status, setStatus] = useState<"completed" | "in_progress" | "all">(
-    "completed"
+    "all"
   );
 
   const { data, isLoading } = useQuery<BriefSummary[]>({
@@ -128,11 +145,10 @@ export default function AdminBriefsPage() {
                         </span>
                       </td>
                       <td className="py-3">
-                        <Badge
-                          variant={b.status === "completed" ? "default" : "secondary"}
-                        >
-                          {b.status === "completed" ? "Завершён" : "В работе"}
-                        </Badge>
+                        {(() => {
+                          const sb = briefStatusBadge(b.status, b.completedAt);
+                          return <Badge variant={sb.variant}>{sb.label}</Badge>;
+                        })()}
                       </td>
                       <td className="py-3 text-muted-foreground">
                         {format(
