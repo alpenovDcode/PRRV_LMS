@@ -18,6 +18,7 @@ export interface SubscriberDetail {
   username: string | null;
   tags: string[];
   variables: Record<string, unknown>;
+  customFields: Record<string, unknown>;
   isBlocked: boolean;
   lastSeenAt: string | null;
   subscribedAt: string;
@@ -29,7 +30,7 @@ export interface SubscriberDetail {
   operatorAssigneeId: string | null;
 }
 
-interface ActiveRun {
+export interface ActiveRun {
   id: string;
   status: string;
   flow: { name: string };
@@ -318,38 +319,8 @@ export function LeadSidebar({ botId, subscriberId, subscriber, activeRuns }: Pro
         )}
       </section>
 
-      {/* Source / UTM — rich version with resolved tracking links */}
-      <section className="space-y-1.5">
-        <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-          Атрибуция
-        </Label>
-        {!ctx?.touches.first && !ctx?.touches.last && (
-          <div className="text-xs text-muted-foreground">органика (без UTM)</div>
-        )}
-        {ctx?.touches.first && (
-          <TouchBlock label="First touch" touch={ctx.touches.first} />
-        )}
-        {ctx?.touches.last &&
-          ctx.touches.last.slug !== ctx.touches.first?.slug && (
-            <TouchBlock label="Last touch" touch={ctx.touches.last} />
-          )}
-      </section>
-
-      {/* Aggregate stats */}
-      <section className="space-y-1.5">
-        <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-          Статистика
-        </Label>
-        <div className="grid grid-cols-2 gap-1.5 text-xs">
-          <StatTile label="входящие" value={ctx?.stats.messagesIn ?? "—"} />
-          <StatTile label="исходящие" value={ctx?.stats.messagesOut ?? "—"} />
-          <StatTile label="клики кнопок" value={ctx?.stats.buttonClicks ?? "—"} />
-          <StatTile
-            label="на боте"
-            value={humanizeDurationSince(subscriber.subscribedAt)}
-          />
-        </div>
-      </section>
+      {/* Атрибуция/Статистика переехали во вкладку «Маркетинг»,
+          история сценариев и лента событий — во вкладку «История». */}
 
       <section className="space-y-2">
         <Label className="text-xs uppercase tracking-wide text-muted-foreground">Теги</Label>
@@ -449,6 +420,27 @@ export function LeadSidebar({ botId, subscriberId, subscriber, activeRuns }: Pro
         </div>
       </section>
 
+      {Object.keys(subscriber.customFields ?? {}).length > 0 && (
+        <section className="space-y-2">
+          <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+            Кастомные поля
+          </Label>
+          <div className="space-y-1 text-xs">
+            {Object.entries(subscriber.customFields ?? {}).map(([k, v]) => (
+              <div
+                key={k}
+                className="flex items-center justify-between gap-2 border-b py-1 last:border-0"
+              >
+                <span className="font-mono text-muted-foreground">field.{k}</span>
+                <span className="truncate" style={{ maxWidth: 130 }}>
+                  {v === null || v === undefined || v === "" ? "—" : String(v)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       <section className="space-y-2">
         <Label className="text-xs uppercase tracking-wide text-muted-foreground">
           Активные сценарии и deal-scope
@@ -506,121 +498,8 @@ export function LeadSidebar({ botId, subscriberId, subscriber, activeRuns }: Pro
         </Button>
       </section>
 
-      {/* Flow history — completed / cancelled / failed runs */}
-      <section className="space-y-2">
-        <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-          История сценариев
-        </Label>
-        {!ctx?.flowHistory.length ? (
-          <div className="text-xs text-muted-foreground">пока пусто</div>
-        ) : (
-          <div className="space-y-1">
-            {ctx.flowHistory.map((r) => (
-              <div
-                key={r.id}
-                className="flex items-center justify-between gap-2 border-b py-1 text-xs last:border-0"
-                title={r.lastError ?? formatAbsolute(r.startedAt)}
-              >
-                <span className="truncate" style={{ maxWidth: 140 }}>
-                  {r.flow.name}
-                </span>
-                <span className="flex items-center gap-1.5 text-[10px]">
-                  <Badge variant={statusBadgeVariant(r.status)} className="text-[10px]">
-                    {r.status}
-                  </Badge>
-                  <span className="text-muted-foreground">
-                    {new Date(r.finishedAt ?? r.startedAt).toLocaleDateString("ru-RU", {
-                      day: "2-digit",
-                      month: "2-digit",
-                    })}
-                  </span>
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* Broadcasts received */}
-      <section className="space-y-2">
-        <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-          Полученные рассылки
-        </Label>
-        {!ctx?.broadcasts.length ? (
-          <div className="text-xs text-muted-foreground">пока пусто</div>
-        ) : (
-          <div className="space-y-1">
-            {ctx.broadcasts.map((b) => (
-              <div
-                key={b.id}
-                className="flex items-center justify-between gap-2 border-b py-1 text-xs last:border-0"
-                title={b.errorMessage ?? formatAbsolute(b.sentAt)}
-              >
-                <span className="truncate" style={{ maxWidth: 140 }}>
-                  {b.broadcast.name}
-                </span>
-                <span className="flex items-center gap-1.5 text-[10px]">
-                  <Badge variant={statusBadgeVariant(b.status)} className="text-[10px]">
-                    {b.status}
-                  </Badge>
-                  <span className="text-muted-foreground">
-                    {b.sentAt
-                      ? new Date(b.sentAt).toLocaleDateString("ru-RU", {
-                          day: "2-digit",
-                          month: "2-digit",
-                        })
-                      : "—"}
-                  </span>
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* Events timeline — collapsible since it's noisy */}
-      <section className="space-y-1">
-        <button
-          type="button"
-          onClick={() => setEventsOpen((v) => !v)}
-          className="flex w-full items-center gap-1 text-xs uppercase tracking-wide text-muted-foreground hover:text-foreground"
-        >
-          {eventsOpen ? (
-            <ChevronDown className="h-3 w-3" />
-          ) : (
-            <ChevronRight className="h-3 w-3" />
-          )}
-          Лента событий
-          {ctx?.events?.length ? (
-            <span className="ml-1 text-muted-foreground">({ctx.events.length})</span>
-          ) : null}
-        </button>
-        {eventsOpen && (
-          <div className="max-h-72 space-y-0.5 overflow-y-auto pl-4 text-[11px]">
-            {!ctx?.events.length ? (
-              <div className="text-muted-foreground">пусто</div>
-            ) : (
-              ctx.events.map((e) => (
-                <div
-                  key={e.id}
-                  className="flex items-baseline justify-between gap-2 border-b py-0.5 last:border-0"
-                  title={`${e.type} · ${formatAbsolute(e.occurredAt)}`}
-                >
-                  <span className="truncate" style={{ maxWidth: 200 }}>
-                    {describeEvent(e)}
-                  </span>
-                  <span className="shrink-0 text-muted-foreground text-[10px]">
-                    {new Date(e.occurredAt).toLocaleTimeString("ru-RU", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-        )}
-      </section>
+      {/* История сценариев, рассылки и лента событий переехали во
+          вкладки «История» и «Маркетинг» — см. lead-dossier.tsx. */}
     </aside>
   );
 }
