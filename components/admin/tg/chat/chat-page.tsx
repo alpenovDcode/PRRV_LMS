@@ -7,7 +7,8 @@ import { apiClient } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Bot, MessageSquare, UserCheck, Info, X } from "lucide-react";
-import { LeadSidebar, type SubscriberDetail } from "./lead-sidebar";
+import { type SubscriberDetail } from "./lead-sidebar";
+import { LeadDossier } from "./lead-dossier";
 import { ChatThread } from "./chat-thread";
 import { MessageInput } from "./message-input";
 import type { ChatMessage } from "./message-bubble";
@@ -202,7 +203,7 @@ export function ChatPage({ botId, subscriberId, embedded = false }: Props) {
           </div>
           {showInfo && (
             <div className="w-80 shrink-0 overflow-y-auto border-l border-zinc-200 bg-white p-3">
-              <LeadSidebar
+              <LeadDossier
                 botId={botId}
                 subscriberId={subscriberId}
                 subscriber={sub}
@@ -246,7 +247,7 @@ export function ChatPage({ botId, subscriberId, embedded = false }: Props) {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[20rem_minmax(0,1fr)]">
         <div className="lg:sticky lg:top-4 lg:self-start">
-          <LeadSidebar
+          <LeadDossier
             botId={botId}
             subscriberId={subscriberId}
             subscriber={sub}
