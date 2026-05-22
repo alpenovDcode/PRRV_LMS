@@ -42,6 +42,29 @@ export function ChatPage({ botId, subscriberId }: Props) {
     },
   });
 
+  // ВАЖНО: все хуки объявляются ДО любых ранних return. Иначе при
+  // переходе loading → loaded меняется число вызванных хуков и React
+  // падает с ошибкой #310 «Rendered fewer hooks than expected».
+  // Operator takeover — пауза автоматики бота на этого подписчика.
+  const operatorAction = useMutation({
+    mutationFn: async (action: "takeover" | "release") => {
+      const r = await apiClient.post(
+        `/admin/tg/bots/${botId}/subscribers/${subscriberId}/operator`,
+        { action }
+      );
+      return { action, data: r.data?.data };
+    },
+    onSuccess: ({ action }) => {
+      toast.success(
+        action === "takeover"
+          ? "Диалог взят в ручной режим. Бот не будет реагировать на ответы."
+          : "Бот вернулся в работу."
+      );
+      queryClient.invalidateQueries({ queryKey: ["tg-sub", botId, subscriberId] });
+    },
+    onError: () => toast.error("Не удалось переключить режим"),
+  });
+
   if (isLoading) {
     return (
       <div className="flex h-[calc(100vh-220px)] items-center justify-center text-sm text-muted-foreground">
@@ -71,26 +94,7 @@ export function ChatPage({ botId, subscriberId }: Props) {
     });
   }
 
-  // Operator takeover — пауза автоматики бота на этого подписчика.
-  const operatorAction = useMutation({
-    mutationFn: async (action: "takeover" | "release") => {
-      const r = await apiClient.post(
-        `/admin/tg/bots/${botId}/subscribers/${subscriberId}/operator`,
-        { action }
-      );
-      return { action, data: r.data?.data };
-    },
-    onSuccess: ({ action }) => {
-      toast.success(
-        action === "takeover"
-          ? "Диалог взят в ручной режим. Бот не будет реагировать на ответы."
-          : "Бот вернулся в работу."
-      );
-      queryClient.invalidateQueries({ queryKey: ["tg-sub", botId, subscriberId] });
-    },
-    onError: () => toast.error("Не удалось переключить режим"),
-  });
-
+  // operatorActive — обычное вычисление (НЕ хук), может быть после return.
   const operatorActive = (() => {
     if (!sub.operatorTakeoverAt) return false;
     const ageMs = Date.now() - new Date(sub.operatorTakeoverAt).getTime();
