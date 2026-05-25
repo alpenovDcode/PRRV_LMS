@@ -11,18 +11,23 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { formatDate } from "@/lib/utils";
 import { formatActivityDetails } from "@/lib/activity-formatter";
-import { 
-  Phone, 
-  MapPin, 
-  Users, 
-  Calendar, 
-  MessageSquare, 
+import {
+  Phone,
+  MapPin,
+  Users,
+  Calendar,
+  MessageSquare,
   ArrowLeft,
   BookOpen,
   CircleCheck,
   LogIn,
   Pencil,
-  Download
+  Download,
+  Bot,
+  Tag,
+  Link2,
+  TrendingUp,
+  Hash,
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -53,6 +58,24 @@ import { AccessManager } from "./_components/access-manager";
 
 type UserRole = "student" | "admin" | "curator";
 
+interface TgSubscriberInfo {
+  id: string;
+  chatId: string;
+  tgUserId: string;
+  firstName: string | null;
+  lastName: string | null;
+  username: string | null;
+  tags: string[];
+  variables: Record<string, unknown>;
+  customFields: Record<string, unknown>;
+  firstTouchSlug: string | null;
+  firstTouchAt: string | null;
+  lastTouchSlug: string | null;
+  lastTouchAt: string | null;
+  subscribedAt: string;
+  bot: { id: string; title: string; username: string };
+}
+
 interface AdminUserDetail {
   id: string;
   email: string;
@@ -70,7 +93,7 @@ interface AdminUserDetail {
     group: {
       id: string;
       name: string;
-    }
+    };
   }[];
   enrollments: {
     id: string;
@@ -92,6 +115,7 @@ interface AdminUserDetail {
     userSessions: number;
   };
   activity: ActivityItem[];
+  tgSubscribers: TgSubscriberInfo[];
 }
 
 interface ActivityItem {
@@ -646,6 +670,7 @@ export default function AdminUserDetailPage() {
 
             {/* Right Column: Content */}
             <div className="lg:col-span-2 space-y-6">
+
               {/* Course Enrollment & Progress */}
               <Card className="border-none shadow-sm bg-white">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -687,21 +712,20 @@ export default function AdminUserDetailPage() {
                   <CardTitle className="text-lg font-bold text-gray-900">Последняя активность</CardTitle>
                 </CardHeader>
                 <CardContent>
-                   {/* ... Keep activity content ... */}
                   <div className="space-y-6">
                     {user.activity && user.activity.length > 0 ? (
                       user.activity.map((activity) => (
                         <div key={activity.id} className="flex gap-4">
                           <div className={`h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                            activity.type === 'homework' ? 'bg-green-100 text-green-600' :
-                            activity.type === 'comment' ? 'bg-blue-100 text-blue-600' :
-                            activity.type === 'lesson_completed' ? 'bg-green-100 text-green-600' :
-                            'bg-purple-100 text-purple-600'
+                            activity.type === "homework" ? "bg-green-100 text-green-600" :
+                            activity.type === "comment" ? "bg-blue-100 text-blue-600" :
+                            activity.type === "lesson_completed" ? "bg-green-100 text-green-600" :
+                            "bg-purple-100 text-purple-600"
                           }`}>
-                            {activity.type === 'homework' ? <CircleCheck className="h-5 w-5" /> :
-                            activity.type === 'comment' ? <MessageSquare className="h-5 w-5" /> :
-                            activity.type === 'lesson_completed' ? <CircleCheck className="h-5 w-5" /> :
-                            <LogIn className="h-5 w-5" />}
+                            {activity.type === "homework" ? <CircleCheck className="h-5 w-5" /> :
+                             activity.type === "comment" ? <MessageSquare className="h-5 w-5" /> :
+                             activity.type === "lesson_completed" ? <CircleCheck className="h-5 w-5" /> :
+                             <LogIn className="h-5 w-5" />}
                           </div>
                           <div>
                             <h4 className="font-semibold text-gray-900">{activity.title}</h4>
@@ -721,6 +745,195 @@ export default function AdminUserDetailPage() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Telegram Subscribers — UTM / attribution / custom fields */}
+              {user.tgSubscribers && user.tgSubscribers.length > 0 && (
+                <Card className="border-none shadow-sm bg-white">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-2">
+                      <Bot className="h-5 w-5 text-blue-500" />
+                      <CardTitle className="text-lg font-bold text-gray-900">
+                        Telegram-профили ({user.tgSubscribers.length})
+                      </CardTitle>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Связанные подписчики бота — источники, UTM-метки, кастомные поля
+                    </p>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {user.tgSubscribers.map((sub, idx) => {
+                      const vars = (sub.variables as Record<string, unknown>) ?? {};
+                      const cf = (sub.customFields as Record<string, unknown>) ?? {};
+
+                      const UTM_KEYS = ["utm_source","utm_medium","utm_campaign","utm_content","utm_term"];
+                      const SKIP_KEYS = new Set(["email","phone","utm_source","utm_medium","utm_campaign","utm_content","utm_term"]);
+
+                      const utmEntries = UTM_KEYS.map(k => [k, vars[k]] as const).filter(([,v]) => v != null && v !== "");
+                      const otherVars = Object.entries(vars).filter(([k, v]) => !SKIP_KEYS.has(k) && v != null && v !== "");
+                      const cfEntries = Object.entries(cf).filter(([, v]) => v != null && v !== "");
+
+                      return (
+                        <div key={sub.id} className={idx > 0 ? "pt-6 border-t border-gray-100" : ""}>
+                          {/* Bot + TG profile header */}
+                          <div className="flex items-start justify-between mb-4">
+                            <div>
+                              <div className="flex items-center gap-2 mb-1">
+                                <Link
+                                  href={`/admin/bots/${sub.bot.id}`}
+                                  className="text-sm font-semibold text-blue-600 hover:underline"
+                                >
+                                  @{sub.bot.username}
+                                </Link>
+                                <span className="text-xs text-muted-foreground">{sub.bot.title}</span>
+                              </div>
+                              <div className="flex items-center gap-3 text-sm text-gray-700">
+                                {sub.username && (
+                                  <a
+                                    href={`https://t.me/${sub.username}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1 text-blue-500 hover:underline"
+                                  >
+                                    <MessageSquare className="h-3.5 w-3.5" />
+                                    @{sub.username}
+                                  </a>
+                                )}
+                                {(sub.firstName || sub.lastName) && (
+                                  <span className="text-gray-600">
+                                    {[sub.firstName, sub.lastName].filter(Boolean).join(" ")}
+                                  </span>
+                                )}
+                                <span className="text-xs text-muted-foreground font-mono">
+                                  id: {sub.chatId}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="text-right text-xs text-muted-foreground">
+                              <div>Подписался</div>
+                              <div className="font-medium text-gray-700">
+                                {new Date(sub.subscribedAt).toLocaleDateString("ru-RU")}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Tags */}
+                          {sub.tags.length > 0 && (
+                            <div className="mb-4">
+                              <div className="flex items-center gap-1.5 mb-1.5">
+                                <Tag className="h-3.5 w-3.5 text-muted-foreground" />
+                                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Теги</span>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {sub.tags.map((t) => (
+                                  <Badge key={t} variant="secondary" className="text-xs bg-orange-50 text-orange-700 border-orange-200">
+                                    {t}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Attribution */}
+                          {(sub.firstTouchSlug || sub.lastTouchSlug) && (
+                            <div className="mb-4 p-3 rounded-lg bg-gray-50 border border-gray-100">
+                              <div className="flex items-center gap-1.5 mb-2">
+                                <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
+                                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Атрибуция</span>
+                              </div>
+                              <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
+                                {sub.firstTouchSlug && (
+                                  <>
+                                    <span className="text-muted-foreground">Первый касание</span>
+                                    <span className="font-medium text-gray-800 font-mono text-xs">{sub.firstTouchSlug}</span>
+                                  </>
+                                )}
+                                {sub.firstTouchAt && (
+                                  <>
+                                    <span className="text-muted-foreground">Дата</span>
+                                    <span className="text-gray-700 text-xs">{new Date(sub.firstTouchAt).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
+                                  </>
+                                )}
+                                {sub.lastTouchSlug && sub.lastTouchSlug !== sub.firstTouchSlug && (
+                                  <>
+                                    <span className="text-muted-foreground">Последний касание</span>
+                                    <span className="font-medium text-gray-800 font-mono text-xs">{sub.lastTouchSlug}</span>
+                                  </>
+                                )}
+                                {sub.lastTouchAt && sub.lastTouchSlug !== sub.firstTouchSlug && (
+                                  <>
+                                    <span className="text-muted-foreground">Дата</span>
+                                    <span className="text-gray-700 text-xs">{new Date(sub.lastTouchAt).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* UTM */}
+                          {utmEntries.length > 0 && (
+                            <div className="mb-4">
+                              <div className="flex items-center gap-1.5 mb-2">
+                                <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
+                                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">UTM-метки</span>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {utmEntries.map(([key, val]) => (
+                                  <div key={key} className="flex items-center justify-between p-2 rounded-md bg-blue-50 border border-blue-100">
+                                    <span className="text-xs text-blue-600 font-medium">{key.replace("utm_", "")}</span>
+                                    <span className="text-xs font-semibold text-blue-900 ml-2 truncate max-w-[120px]" title={String(val)}>
+                                      {String(val)}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Other variables */}
+                          {otherVars.length > 0 && (
+                            <div className="mb-4">
+                              <div className="flex items-center gap-1.5 mb-2">
+                                <Hash className="h-3.5 w-3.5 text-muted-foreground" />
+                                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Переменные бота</span>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                {otherVars.map(([key, val]) => (
+                                  <div key={key} className="flex items-center justify-between px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-100">
+                                    <span className="text-xs text-muted-foreground font-mono">{key}</span>
+                                    <span className="text-xs font-medium text-gray-800 ml-2 truncate max-w-[140px]" title={String(val)}>
+                                      {String(val)}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Custom fields */}
+                          {cfEntries.length > 0 && (
+                            <div>
+                              <div className="flex items-center gap-1.5 mb-2">
+                                <Hash className="h-3.5 w-3.5 text-muted-foreground" />
+                                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Кастомные поля</span>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                {cfEntries.map(([key, val]) => (
+                                  <div key={key} className="flex items-center justify-between px-2.5 py-1.5 rounded-md bg-purple-50 border border-purple-100">
+                                    <span className="text-xs text-purple-600 font-mono">{key}</span>
+                                    <span className="text-xs font-medium text-purple-900 ml-2 truncate max-w-[140px]" title={String(val)}>
+                                      {String(val)}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </CardContent>
+                </Card>
+              )}
             </div>
            </div>
         </TabsContent>
