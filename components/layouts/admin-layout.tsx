@@ -31,6 +31,7 @@ import {
   ClipboardList,
   Package,
   ShoppingCart,
+  Radio,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -48,6 +49,7 @@ const adminNavigation = [
   { name: "Уведомления", href: "/admin/notifications", icon: Bell },
   { name: "Рассылки", href: "/admin/broadcasts", icon: Send },
   { name: "Боты (Telegram)", href: "/admin/bots", icon: Bot },
+  { name: "Каналы (Instagram/МАКС)", href: "/admin/messaging", icon: Radio },
   { name: "Аналитика", href: "/admin/analytics", icon: BarChart },
   { name: "Детальная аналитика", href: "/admin/analytics/detailed", icon: TrendingUp },
   { name: "Мониторинг", href: "/admin/monitoring/errors", icon: AlertTriangle },
