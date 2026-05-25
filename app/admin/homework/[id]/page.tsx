@@ -223,12 +223,13 @@ export default function AdminHomeworkReviewPage() {
         queryKey: ["admin", "homework", submissionId],
       });
 
-      // 202 → async kickoff, ждём callback (polling в useQuery подхватит).
+      // 202 → async kickoff (или fallback в очередь), ждём callback.
       // 200 + status: "done" → legacy sync, результат уже в БД.
       if (resp.status === 202 || resp.data?.status === "queued") {
-        toast.info(
-          "Анализ запущен. Это может занять 1-5 минут — страница обновится сама."
-        );
+        const msg =
+          resp.data?.message ??
+          "Анализ запущен. Это может занять 1-5 минут — страница обновится сама.";
+        toast.info(msg);
       } else if (resp.data?.status === "done") {
         toast.success("Анализ Джарвикса сохранён");
       } else {

@@ -1507,6 +1507,12 @@ model HomeworkAIQueue {
   lessonContent Json?    @map("lesson_content")
   checkAfter    DateTime @map("check_after")
   status        String   @default("waiting") // waiting | processing
+  /// Режим обработки:
+  ///   "auto_approve" — legacy путь: AI-checker сам решает, статус ДЗ переходит
+  ///                    напрямую через /api/homework/ai-result (без куратора).
+  ///   "suggest"      — путь «Проверка от Джарвикса»: AI-checker даёт вердикт
+  ///                    в ai_suggested_* через async callback, куратор решает.
+  mode          String   @default("auto_approve")
   attempts      Int      @default(0)
   lastError     String?  @map("last_error") @db.Text
   createdAt     DateTime @default(now()) @map("created_at")

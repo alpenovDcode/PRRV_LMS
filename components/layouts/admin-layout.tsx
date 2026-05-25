@@ -29,6 +29,8 @@ import {
   Plus,
   Bot,
   ClipboardList,
+  Package,
+  ShoppingCart,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -53,6 +55,8 @@ const adminNavigation = [
   { name: "Сертификаты", href: "/admin/certificates", icon: Award },
   { name: "Email шаблоны", href: "/admin/email-templates", icon: Mail },
   { name: "Лендинги", href: "/admin/landings", icon: LayoutDashboard }, // Using LayoutDashboard temporarily or until a better icon is imported
+  { name: "Офферы", href: "/admin/offers", icon: Package },
+  { name: "Заказы", href: "/admin/orders", icon: ShoppingCart },
   { name: "Настройки", href: "/admin/settings", icon: Settings }
 ];
 
