@@ -5,8 +5,17 @@ import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
-export default async function LandingPage({ params }: { params: Promise<{ slug: string[] }> }) {
+export default async function LandingPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string[] }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { slug: slugArray } = await params;
+  const sp = searchParams ? await searchParams : {};
+  // ?sid=<TgSubscriber.id> — injected by bot flow nodes via {{client_id}}
+  const subscriberId = typeof sp?.sid === "string" ? sp.sid : undefined;
   const slug = slugArray.join("/");
   
   const page = await prisma.landingPage.findUnique({
@@ -70,11 +79,12 @@ export default async function LandingPage({ params }: { params: Promise<{ slug: 
 
   return (
     <div className="min-h-screen bg-white text-gray-900 font-sans">
-       <LandingPageClient 
-          slug={slug} 
-          blocks={visibleBlocks} 
-          initialSubmissions={initialSubmissions} 
+       <LandingPageClient
+          slug={slug}
+          blocks={visibleBlocks}
+          initialSubmissions={initialSubmissions}
           settings={page.settings}
+          subscriberId={subscriberId}
        />
     </div>
   );

@@ -14,6 +14,28 @@ import { bitrixCall } from "@/lib/tg/bitrix-sync";
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Optional subscriber context forwarded from the bot flow that sent the
+ * landing link.  Populated when the visitor arrived via ?sid=<subscriberId>.
+ */
+export interface SubscriberContext {
+  id: string;
+  chatId: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  username?: string | null;
+  tags: string[];
+  /** subscriber.variables — may contain utm_source / utm_medium / etc. */
+  variables: Record<string, unknown>;
+  customFields: Record<string, unknown>;
+  firstTouchSlug?: string | null;
+  firstTouchAt?: Date | null;
+  lastTouchSlug?: string | null;
+  lastTouchAt?: Date | null;
+  botTitle?: string;
+  botUsername?: string;
+}
+
 export interface LandingBitrixInput {
   webhookUrl: string;
   /** Bitrix24 funnel (category) ID, "0" for default */
@@ -35,6 +57,8 @@ export interface LandingBitrixInput {
   allBlocks: Array<{ id: string; type: string; content: any }>;
   /** The block that was submitted (form block) */
   landingBlock: { id: string; type: string; content: any } | null;
+  /** Telegram subscriber context — present when visitor came via bot link */
+  subscriberContext?: SubscriberContext;
 }
 
 export interface LandingBitrixResult {
@@ -134,6 +158,56 @@ function buildExtraFields(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Subscriber context helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+const UTM_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"];
+
+/**
+ * Extract UTM parameters from subscriber variables (both top-level and nested).
+ */
+function extractUtm(variables: Record<string, unknown>): Record<string, string> {
+  const utm: Record<string, string> = {};
+  for (const key of UTM_KEYS) {
+    const val = variables[key];
+    if (typeof val === "string" && val.trim()) utm[key] = val.trim();
+  }
+  return utm;
+}
+
+/**
+ * Build a human-readable summary of the Telegram subscriber origin for deal
+ * comments / extra fields.
+ */
+function buildSubscriberNote(ctx: SubscriberContext): string {
+  const lines: string[] = ["📱 **Telegram-подписчик**"];
+  const name = [ctx.firstName, ctx.lastName].filter(Boolean).join(" ");
+  if (name) lines.push(`Имя: ${name}`);
+  if (ctx.username) lines.push(`@${ctx.username}`);
+  lines.push(`Chat ID: ${ctx.chatId}`);
+  if (ctx.botTitle) lines.push(`Бот: ${ctx.botTitle}${ctx.botUsername ? ` (@${ctx.botUsername})` : ""}`);
+
+  const utm = extractUtm(ctx.variables);
+  if (Object.keys(utm).length > 0) {
+    lines.push("");
+    lines.push("UTM:");
+    for (const [k, v] of Object.entries(utm)) lines.push(`  ${k}: ${v}`);
+  }
+
+  if (ctx.firstTouchSlug) {
+    lines.push("");
+    lines.push(`Первое касание: /${ctx.firstTouchSlug}${ctx.firstTouchAt ? ` (${ctx.firstTouchAt.toLocaleDateString("ru-RU")})` : ""}`);
+  }
+  if (ctx.lastTouchSlug && ctx.lastTouchSlug !== ctx.firstTouchSlug) {
+    lines.push(`Последнее касание: /${ctx.lastTouchSlug}${ctx.lastTouchAt ? ` (${ctx.lastTouchAt.toLocaleDateString("ru-RU")})` : ""}`);
+  }
+
+  if (ctx.tags.length > 0) lines.push(`Теги: ${ctx.tags.join(", ")}`);
+
+  return lines.join("\n");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Main sync function
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -153,6 +227,7 @@ export async function syncLandingToBitrix(
     answers,
     allBlocks,
     landingBlock,
+    subscriberContext,
   } = input;
 
   // Ensure base URL ends with /
@@ -186,10 +261,14 @@ export async function syncLandingToBitrix(
       const newContact: Record<string, unknown> = {
         NAME: fullName || "Студент",
         EMAIL: [{ VALUE: email, VALUE_TYPE: "WORK" }],
-        SOURCE_ID: "WEB",
+        SOURCE_ID: subscriberContext ? "BOTCLIENT" : "WEB",
         OPENED: "Y",
       };
       if (phone) newContact["PHONE"] = [{ VALUE: phone, VALUE_TYPE: "WORK" }];
+      // Enrich contact with Telegram username if available
+      if (subscriberContext?.username) {
+        newContact["IM"] = [{ VALUE: `@${subscriberContext.username}`, VALUE_TYPE: "TELEGRAM" }];
+      }
       contactId = String(
         await bitrixCall(base, "crm.contact.add", { fields: newContact })
       );
@@ -247,7 +326,22 @@ export async function syncLandingToBitrix(
 
     const qaString = buildQaString(data, answers, allBlocks);
     const extraFields = buildExtraFields(pageSettings, qaString, data, answers, allBlocks, landingBlock);
-    const comment = `📢 **Новая активность**\nКлиент отправил форму: "${landingTitle}"\n\n${qaString}`;
+
+    // Merge subscriber UTM variables into deal extra fields if configured
+    if (subscriberContext) {
+      const utm = extractUtm(subscriberContext.variables);
+      const utmFieldMap: Record<string, string> = pageSettings?.bitrix?.utmFieldMap ?? {};
+      for (const [utmKey, fieldId] of Object.entries(utmFieldMap)) {
+        if (utm[utmKey]) extraFields[fieldId] = utm[utmKey];
+      }
+      // tgChatIdFieldId: optional custom field for storing Telegram chat ID
+      if (pageSettings?.bitrix?.tgChatIdFieldId) {
+        extraFields[pageSettings.bitrix.tgChatIdFieldId] = subscriberContext.chatId;
+      }
+    }
+
+    const subscriberNote = subscriberContext ? "\n\n" + buildSubscriberNote(subscriberContext) : "";
+    const comment = `📢 **Новая активность**\nКлиент отправил форму: "${landingTitle}"\n\n${qaString}${subscriberNote}`;
 
     if (masterDealId) {
       // ── 6a. Update master deal + merge duplicates + close leftovers ───────

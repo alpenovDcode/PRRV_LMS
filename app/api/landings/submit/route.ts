@@ -6,11 +6,11 @@ import { v4 as uuidv4 } from "uuid";
 import { cookies } from "next/headers";
 import { gradeHomework } from "@/lib/ai-grader";
 import { notifyHomeworkSubmitted } from "@/lib/notifications";
-import { syncLandingToBitrix } from "@/lib/landings/bitrix-sync";
+import { syncLandingToBitrix, type SubscriberContext } from "@/lib/landings/bitrix-sync";
 
 export async function POST(req: Request) {
   try {
-    const { blockId, data, answers } = await req.json();
+    const { blockId, data, answers, subscriberId } = await req.json();
 
     // ── Email / name key detection ──────────────────────────────────────────
     const emailKey = Object.keys(data).find((k) =>
@@ -27,10 +27,42 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Email required" }, { status: 400 });
     }
 
-    // ── 1. Fetch block info ─────────────────────────────────────────────────
+    // ── 1. Fetch block info + optional subscriber context ───────────────────
     const block = await prisma.landingBlock.findUnique({ where: { id: blockId } });
     const blockContent = block?.content as any;
     const targetRole: string = blockContent?.role || "student";
+
+    // Resolve TgSubscriber context (present when user arrived via bot link)
+    let subscriberContext: SubscriberContext | undefined;
+    if (subscriberId && typeof subscriberId === "string") {
+      try {
+        const sub = await prisma.tgSubscriber.findUnique({
+          where: { id: subscriberId },
+          include: { bot: { select: { id: true, title: true, username: true } } },
+        });
+        if (sub) {
+          subscriberContext = {
+            id: sub.id,
+            chatId: sub.chatId,
+            firstName: sub.firstName,
+            lastName: sub.lastName,
+            username: sub.username,
+            tags: sub.tags,
+            variables: (sub.variables as Record<string, unknown>) ?? {},
+            customFields: (sub.customFields as Record<string, unknown>) ?? {},
+            firstTouchSlug: sub.firstTouchSlug,
+            firstTouchAt: sub.firstTouchAt,
+            lastTouchSlug: sub.lastTouchSlug,
+            lastTouchAt: sub.lastTouchAt,
+            botTitle: sub.bot?.title,
+            botUsername: sub.bot?.username,
+          };
+        }
+      } catch {
+        // Non-critical: log and continue without subscriber enrichment
+        console.warn("[submit] Failed to fetch subscriber context for id:", subscriberId);
+      }
+    }
 
     // ── 2. Find or create user (race-condition-safe) ─────────────────────────
     const validRoles = ["student", "teacher", "admin", "curator"];
@@ -111,10 +143,24 @@ export async function POST(req: Request) {
           },
         });
 
-        // Link TgSubscriber ↔ LMS User by email (fire-and-forget)
-        import("@/lib/tg/user-linker")
-          .then((m) => m.linkLmsUserToSubscribers(user.id, email))
-          .catch(() => {});
+        // ── TgSubscriber ↔ LMS User linking ────────────────────────────────
+        if (subscriberContext) {
+          // Direct link: we already know the exact subscriber — no email scan needed.
+          // Idempotent: skips if lmsUserId is already set.
+          try {
+            await prisma.tgSubscriber.updateMany({
+              where: { id: subscriberContext.id, lmsUserId: null },
+              data: { lmsUserId: user.id },
+            });
+          } catch (e: any) {
+            log(`[WARN] Failed to set lmsUserId on subscriber: ${e.message}`);
+          }
+        } else {
+          // Fallback: scan all subscribers whose variables.email matches (fire-and-forget)
+          import("@/lib/tg/user-linker")
+            .then((m) => m.linkLmsUserToSubscribers(user.id, email))
+            .catch(() => {});
+        }
 
         // ── Welcome email ───────────────────────────────────────────────────
         if (isNewUser) {
@@ -314,6 +360,7 @@ export async function POST(req: Request) {
             answers: answers ?? {},
             allBlocks,
             landingBlock,
+            subscriberContext,
           });
 
           if (result.ok) {

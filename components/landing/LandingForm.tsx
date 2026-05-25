@@ -3,7 +3,18 @@
 import { useState, useEffect } from "react";
 import { Loader2, CheckCircle, X } from "lucide-react";
 
-export default function LandingForm({ block, answers, initialSubmission }: { block: any, answers?: Record<string, string>, initialSubmission?: any }) {
+export default function LandingForm({
+  block,
+  answers,
+  initialSubmission,
+  subscriberId,
+}: {
+  block: any;
+  answers?: Record<string, string>;
+  initialSubmission?: any;
+  /** TgSubscriber.id — present when the visitor came via a bot link with ?sid= */
+  subscriberId?: string;
+}) {
   const [formData, setFormData] = useState<any>({});
   const [status, setStatus] = useState<"idle" | "submitting" | "waiting" | "completed">("idle");
   const [submissionId, setSubmissionId] = useState<string | null>(null);
@@ -98,7 +109,8 @@ export default function LandingForm({ block, answers, initialSubmission }: { blo
         body: JSON.stringify({
            blockId: block.id,
            data: formData,
-           answers: answers || {}
+           answers: answers || {},
+           ...(subscriberId ? { subscriberId } : {}),
         }),
       });
       const data = await res.json();
