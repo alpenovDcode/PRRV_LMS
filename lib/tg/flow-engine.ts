@@ -79,16 +79,30 @@ function findNode(graph: FlowGraph, id: string | null | undefined): FlowNode | u
 }
 
 async function buildCtxAsync(bundle: RunBundle, inboundText?: string | null): Promise<EvalContext> {
-  const memberships = await db.tgSubscriberList.findMany({
-    where: { subscriberId: bundle.subscriber.id },
-    select: { listId: true },
-  });
+  const [memberships, listSizeRows] = await Promise.all([
+    db.tgSubscriberList.findMany({
+      where: { subscriberId: bundle.subscriber.id },
+      select: { listId: true },
+    }),
+    db.$queryRaw<Array<{ list_id: string; cnt: bigint }>>`
+      SELECT l.id AS list_id, COUNT(sl.subscriber_id)::bigint AS cnt
+      FROM tg_lists l
+      LEFT JOIN tg_subscriber_lists sl ON sl.list_id = l.id
+      WHERE l.bot_id = ${bundle.bot.id}
+      GROUP BY l.id
+    `,
+  ]);
+  const listSizes: Record<string, number> = {};
+  for (const row of listSizeRows) {
+    listSizes[row.list_id] = Number(row.cnt);
+  }
   return buildEvalContext({
     subscriber: snapSubscriber(bundle.subscriber),
     bot: snapBot(bundle.bot),
     run: snapRun(bundle.run),
     inboundText,
     listMembershipIds: memberships.map((m) => m.listId),
+    listSizes,
   });
 }
 
@@ -184,6 +198,10 @@ async function addTag(subscriberId: string, tag: string, botId: string) {
   }).catch(() => {});
   // Fire tag_added triggers across all active flows of this bot.
   await fireTagTriggers({ botId, subscriberId, tag, kind: "tag_added" });
+  // Bitrix24 tag trigger: fire-and-forget, never blocks flow execution.
+  import("./bitrix-sync")
+    .then((m) => m.maybeSyncOnTagAdded(botId, subscriberId, tag))
+    .catch(() => {});
 }
 
 async function removeTag(subscriberId: string, tag: string, botId: string) {

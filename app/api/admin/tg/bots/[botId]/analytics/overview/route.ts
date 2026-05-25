@@ -37,6 +37,7 @@ export async function GET(
         growthRows,
         topEvents,
         topSourcesRaw,
+        linkedInPeriod,
       ] = await Promise.all([
         db.tgSubscriber.count({ where: { botId } }),
         db.tgSubscriber.count({ where: { botId, lastSeenAt: { gte: weekAgo } } }),
@@ -82,6 +83,14 @@ export async function GET(
           ORDER BY count DESC
           LIMIT 5
         `,
+        // count of new subscribers in period who have an LMS user linked
+        db.tgSubscriber.count({
+          where: {
+            botId,
+            subscribedAt: { gte: from, lte: to },
+            lmsUserId: { not: null },
+          },
+        }),
       ]);
 
       // Pre-compute cumulative subscribers at the start of the period
@@ -121,7 +130,9 @@ export async function GET(
               sentInPeriod,
               receivedInPeriod,
               blocked,
-              conversionToPayment: null,
+              conversionToPayment: newInPeriod > 0
+                ? Math.round((linkedInPeriod / newInPeriod) * 100) / 100
+                : 0,
             },
             growth,
             topEvents: topEvents.map((r) => ({ type: r.type, count: Number(r.count) })),

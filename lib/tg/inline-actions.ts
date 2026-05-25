@@ -25,6 +25,7 @@ import { renderTemplate, evalValueExpr } from "./vars";
 import type { Prisma } from "@prisma/client";
 import { trackEvent } from "./events";
 import { parseScopedKey } from "./scoped-key";
+import { maybeSyncOnTagAdded } from "./bitrix-sync";
 
 export interface InlineActionsCtx {
   botId: string;
@@ -59,6 +60,12 @@ async function setVariable(
       where: { id: ctx.subscriberId },
       data: { variables: next as Prisma.InputJsonValue },
     });
+    // Auto-link to LMS user when email/phone is set
+    if (k === "email" || k === "phone") {
+      import("./user-linker")
+        .then((m) => m.tryLinkSubscriberToUser(ctx.subscriberId))
+        .catch(() => {});
+    }
   } else if (scope === "field") {
     const field = await db.tgCustomField.findFirst({
       where: { botId: ctx.botId, key: k },
@@ -123,6 +130,8 @@ async function addTag(ctx: InlineActionsCtx, tag: string): Promise<void> {
     tag,
     kind: "tag_added",
   });
+  // Bitrix24 tag trigger: fire-and-forget so sync never blocks flow execution.
+  maybeSyncOnTagAdded(ctx.botId, ctx.subscriberId, tag).catch(() => {});
 }
 
 async function removeTag(ctx: InlineActionsCtx, tag: string): Promise<void> {
