@@ -191,11 +191,26 @@ export default function LandingConstructor({
   const [bitrixFields, setBitrixFields] = useState<any[]>([]);
   const [bitrixFunnels, setBitrixFunnels] = useState<any[]>([]);
   const [loadingFields, setLoadingFields] = useState(false);
+  const [bitrixLoading, setBitrixLoading] = useState(true);
+  const [bitrixError, setBitrixError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/admin/lessons/all').then(r => r.json()).then(d => setLessons(Array.isArray(d) ? d : []));
-    fetch('/api/bitrix/fields').then(r => r.json()).then(d => { if (Array.isArray(d)) setBitrixFields(d); });
-    fetch('/api/bitrix/funnels').then(r => r.json()).then(d => { if (Array.isArray(d)) setBitrixFunnels(d); });
+
+    setBitrixLoading(true);
+    setBitrixError(null);
+    Promise.all([
+      fetch('/api/bitrix/funnels').then(r => r.json()),
+      fetch('/api/bitrix/fields').then(r => r.json()),
+    ]).then(([funnels, fields]) => {
+      if (Array.isArray(funnels)) setBitrixFunnels(funnels);
+      else setBitrixError(funnels?.error || "Не удалось загрузить воронки из Bitrix24");
+      if (Array.isArray(fields)) setBitrixFields(fields);
+    }).catch(() => {
+      setBitrixError("Ошибка подключения к Bitrix24 — проверьте BITRIX24_WEBHOOK_URL");
+    }).finally(() => {
+      setBitrixLoading(false);
+    });
   }, []);
 
   const addBlock = (type: string) => {
@@ -328,63 +343,99 @@ export default function LandingConstructor({
                           </div>
 
                           <div className="p-6 bg-white rounded-[2rem] border border-gray-100 shadow-sm space-y-5">
-                              <label className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] block">Интеграция Bitrix24</label>
-
-                              <div className="space-y-2">
-                                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block px-1">Воронка</label>
-                                 <select
-                                    className="w-full p-4 border border-gray-100 rounded-2xl text-sm bg-white text-gray-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 outline-none transition-all shadow-sm font-medium"
-                                    value={settings?.bitrix?.funnelId ?? ""}
-                                    onChange={e => {
-                                       const funnelId = e.target.value;
-                                       setSettings({ ...settings, bitrix: { ...settings.bitrix, funnelId, targetStageId: "" } });
-                                    }}
-                                 >
-                                    <option value="">— Выберите воронку —</option>
-                                    {bitrixFunnels.map((f: any) => (
-                                       <option key={f.id} value={f.id}>{f.name}</option>
-                                    ))}
-                                 </select>
+                              {/* Header + enable toggle */}
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <label className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] block">Интеграция Bitrix24</label>
+                                  <p className="text-[10px] text-gray-400 mt-0.5">
+                                    {bitrixLoading ? "Подключение к Bitrix24..." :
+                                     bitrixError ? "⚠ Нет подключения" :
+                                     bitrixFunnels.length ? `✓ ${bitrixFunnels.length} воронок загружено` : ""}
+                                  </p>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer scale-110">
+                                  <input
+                                    type="checkbox"
+                                    className="sr-only peer"
+                                    checked={settings?.bitrix?.enabled !== false}
+                                    onChange={e => setSettings({ ...settings, bitrix: { ...settings.bitrix, enabled: e.target.checked } })}
+                                  />
+                                  <div className="w-12 h-6 bg-gray-100 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-6 shadow-inner"></div>
+                                </label>
                               </div>
 
-                              {settings?.bitrix?.funnelId !== undefined && settings?.bitrix?.funnelId !== "" && (
-                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block px-1">Стадия сделки</label>
+                              {/* Error state */}
+                              {bitrixError && (
+                                <div className="p-3 bg-red-50 rounded-2xl border border-red-100 text-[11px] text-red-600 font-medium">
+                                  {bitrixError}
+                                </div>
+                              )}
+
+                              {/* Config — only show when enabled */}
+                              {settings?.bitrix?.enabled !== false && !bitrixError && (
+                                <>
+                                  <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block px-1">Воронка</label>
                                     <select
-                                       className="w-full p-4 border border-gray-100 rounded-2xl text-sm bg-white text-gray-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 outline-none transition-all shadow-sm font-medium"
-                                       value={settings?.bitrix?.targetStageId ?? ""}
-                                       onChange={e => setSettings({ ...settings, bitrix: { ...settings.bitrix, targetStageId: e.target.value } })}
+                                      className="w-full p-4 border border-gray-100 rounded-2xl text-sm bg-white text-gray-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 outline-none transition-all shadow-sm font-medium disabled:opacity-50"
+                                      value={settings?.bitrix?.funnelId ?? ""}
+                                      disabled={bitrixLoading}
+                                      onChange={e => {
+                                        const funnelId = e.target.value;
+                                        setSettings({ ...settings, bitrix: { ...settings.bitrix, funnelId, targetStageId: "" } });
+                                      }}
                                     >
-                                       <option value="">— Выберите стадию —</option>
-                                       {(bitrixFunnels.find((f: any) => String(f.id) === String(settings?.bitrix?.funnelId))?.stages || []).map((s: any) => (
-                                          <option key={s.id} value={s.id}>{s.name}</option>
-                                       ))}
+                                      <option value="">— Выберите воронку —</option>
+                                      {bitrixFunnels.map((f: any) => (
+                                        <option key={f.id} value={f.id}>{f.name}</option>
+                                      ))}
                                     </select>
-                                 </div>
+                                  </div>
+
+                                  {settings?.bitrix?.funnelId && (
+                                    <div className="space-y-2">
+                                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block px-1">Стадия сделки</label>
+                                      <select
+                                        className="w-full p-4 border border-gray-100 rounded-2xl text-sm bg-white text-gray-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 outline-none transition-all shadow-sm font-medium"
+                                        value={settings?.bitrix?.targetStageId ?? ""}
+                                        onChange={e => setSettings({ ...settings, bitrix: { ...settings.bitrix, targetStageId: e.target.value } })}
+                                      >
+                                        <option value="">— Выберите стадию —</option>
+                                        {(bitrixFunnels.find((f: any) => String(f.id) === String(settings?.bitrix?.funnelId))?.stages || []).map((s: any) => (
+                                          <option key={s.id} value={s.id}>{s.name}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  )}
+
+                                  <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block px-1">Поле сделки для ответов</label>
+                                    <select
+                                      className="w-full p-4 border border-gray-100 rounded-2xl text-sm bg-white text-gray-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 outline-none transition-all shadow-sm font-medium"
+                                      value={settings?.bitrix?.globalAnswerFieldId ?? ""}
+                                      onChange={e => setSettings({ ...settings, bitrix: { ...settings.bitrix, globalAnswerFieldId: e.target.value || undefined } })}
+                                    >
+                                      <option value="">— Не записывать —</option>
+                                      {bitrixFields.map((f: any) => (
+                                        <option key={f.id} value={f.id}>{f.label}</option>
+                                      ))}
+                                    </select>
+                                    <p className="text-[10px] text-gray-400 px-1">Все ответы из форм запишутся в это поле сделки одним текстом.</p>
+                                  </div>
+
+                                  {settings?.bitrix?.funnelId && settings?.bitrix?.targetStageId && (
+                                    <div className="p-4 bg-green-50 rounded-2xl border border-green-100 text-[11px] text-green-700 font-medium">
+                                      ✓ Лиды пойдут в воронку <strong>{bitrixFunnels.find((f: any) => String(f.id) === String(settings.bitrix.funnelId))?.name ?? settings.bitrix.funnelId}</strong>
+                                    </div>
+                                  )}
+
+                                  {!settings?.bitrix?.funnelId && !bitrixLoading && bitrixFunnels.length > 0 && (
+                                    <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 text-[11px] text-amber-700 font-medium">
+                                      Выберите воронку — без неё лиды будут попадать в воронку из ENV по умолчанию.
+                                    </div>
+                                  )}
+                                </>
                               )}
-
-                              {!bitrixFunnels.length && (
-                                 <p className="text-[10px] text-gray-400 px-1">Загрузка воронок...</p>
-                              )}
-
-                              <div className="space-y-2">
-                                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block px-1">Поле сделки для ответов</label>
-                                 <select
-                                    className="w-full p-4 border border-gray-100 rounded-2xl text-sm bg-white text-gray-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 outline-none transition-all shadow-sm font-medium"
-                                    value={settings?.bitrix?.globalAnswerFieldId ?? ""}
-                                    onChange={e => setSettings({ ...settings, bitrix: { ...settings.bitrix, globalAnswerFieldId: e.target.value || undefined } })}
-                                 >
-                                    <option value="">— Не записывать —</option>
-                                    {bitrixFields.map((f: any) => (
-                                       <option key={f.id} value={f.id}>{f.label}</option>
-                                    ))}
-                                 </select>
-                                 <p className="text-[10px] text-gray-400 px-1">Все ответы из форм лендинга запишутся в это поле сделки одним текстом.</p>
-                              </div>
-
-                              <div className="p-5 bg-blue-50/50 rounded-2xl border border-blue-100 italic text-[11px] text-blue-700 leading-relaxed font-medium">
-                                 Сделки и контакты будут создаваться автоматически при заполнении форм.
-                              </div>
                           </div>
 
                           <div className="p-6 bg-white rounded-[2rem] border border-gray-100 shadow-sm space-y-4">
