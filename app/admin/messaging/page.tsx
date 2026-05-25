@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Instagram, MessageSquare, Plus, RefreshCw, Trash2, AlertTriangle, CheckCircle, Users } from "lucide-react";
+import Link from "next/link";
+import { Instagram, MessageSquare, Plus, RefreshCw, Trash2, AlertTriangle, CheckCircle, Users, GitBranch } from "lucide-react";
 
 interface MessagingBot {
   id: string;
@@ -212,6 +213,12 @@ export default function MessagingPage() {
                       {expiry && <span className={`text-xs ${expiry.color}`}>{expiry.label}</span>}
                     </div>
                   </div>
+                  <Link
+                    href={`/admin/messaging/${bot.id}/flows`}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                  >
+                    <GitBranch className="w-3 h-3" /> Воронки
+                  </Link>
                   <button
                     onClick={() => handleDisconnect(bot)}
                     className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"

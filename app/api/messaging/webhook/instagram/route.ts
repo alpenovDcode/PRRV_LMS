@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { decrypt } from "@/lib/messaging/encryption";
 import { fetchSubscriberProfile } from "@/lib/messaging/instagram/api";
 import { IG_APP_SECRET, IG_WEBHOOK_VERIFY_TOKEN } from "@/lib/messaging/instagram/config";
+import { dispatchInbound } from "@/lib/messaging/engine/dispatcher";
 
 const MAX_BODY_BYTES = 64 * 1024;
 
@@ -174,10 +175,25 @@ async function processInboundEvent(
     });
   }
 
-  // TODO: маршрут в flow-движок когда абстрактный движок будет готов.
-  // Пока просто логируем, чтобы видеть что webhook работает.
-  console.log(
-    `[ig-webhook] message from ${senderIgsid} (${subscriber.username ?? "?"}): ` +
-      (text ?? quickReplyPayload ?? "<non-text>")
-  );
+  // Маршрутизация в flow-engine (Этап 1)
+  if (text || quickReplyPayload) {
+    try {
+      const result = await dispatchInbound({
+        subscriberId: subscriber.id,
+        botId: bot.id,
+        triggerType: "keyword_dm",
+        text: text ?? "",
+        payload: quickReplyPayload,
+      });
+      if (result.resumed) {
+        console.log(`[ig-webhook] resumed flow for ${senderIgsid}`);
+      } else if (result.triggeredFlowId) {
+        console.log(`[ig-webhook] triggered flow ${result.triggeredFlowId} for ${senderIgsid}`);
+      } else {
+        console.log(`[ig-webhook] no match for "${(text ?? quickReplyPayload ?? "").slice(0, 50)}"`);
+      }
+    } catch (e) {
+      console.error("[ig-webhook] dispatch failed:", e);
+    }
+  }
 }

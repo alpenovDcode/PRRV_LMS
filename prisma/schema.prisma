@@ -1022,6 +1022,7 @@ model MessagingBot {
   owner             User             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
   subscribers       MessagingSubscriber[]
+  flows             MessagingFlow[]
 
   createdAt         DateTime         @default(now()) @map("created_at")
   updatedAt         DateTime         @updatedAt @map("updated_at")
@@ -1050,6 +1051,7 @@ model MessagingSubscriber {
   /// Связь с пользователем LMS (если матчится по email/телефону позже)
   lmsUserId      String?      @map("lms_user_id")
   lmsUser        User?        @relation(fields: [lmsUserId], references: [id], onDelete: SetNull)
+  flowRuns       MessagingFlowRun[]
 
   @@unique([botId, externalUserId])
   @@index([botId])
@@ -1070,6 +1072,116 @@ model MessagingOAuthState {
 
   @@index([expiresAt])
   @@map("messaging_oauth_states")
+}
+
+// ─── Channel-agnostic flow infrastructure ──────────────────────────────────
+//
+// Универсальная инфраструктура воронок (flows) для MessagingBot.
+// Работает поверх любого канала через BotProvider абстракцию.
+
+enum MessagingTriggerType {
+  /// Запуск по ключевому слову в DM (Instagram + МАКС + любой канал с DM)
+  keyword_dm
+  /// Запуск по ключевому слову в комментарии к посту (Instagram)
+  keyword_comment
+  /// Запуск по ответу на сторис (Instagram)
+  story_reply
+  /// Запуск по упоминанию в сторис/посте (Instagram)
+  mention
+  /// Запуск при первом контакте подписчика
+  subscriber_joined
+  /// Ручной запуск через API/UI
+  manual
+}
+
+enum MessagingFlowRunStatus {
+  running          // активный, исполняется узел
+  waiting_reply    // ждём ответа подписчика
+  completed        // дошёл до end-узла
+  cancelled        // прерван (новый flow запущен, пользователь заблокирован, etc.)
+  failed           // упал с ошибкой (см. lastError)
+}
+
+/// Воронка. graph — JSON со схемой узлов и переходов:
+///   {
+///     "startNodeId": "n1",
+///     "nodes": {
+///       "n1": { "type": "send_text", "text": "Привет!", "next": "n2" },
+///       "n2": { "type": "wait_reply", "timeoutSec": 86400, "onReply": "n3", "onTimeout": "n4" },
+///       "n3": { "type": "condition", "match": { "keyword": "цена" }, "onMatch": "n4", "onNoMatch": "n5" },
+///       "n4": { "type": "send_quick_replies", "text": "Выбери:", "buttons": [{"title":"A","payload":"a"}], "next": "n6" },
+///       "n5": { "type": "end" }
+///     }
+///   }
+model MessagingFlow {
+  id         String   @id @default(uuid())
+  botId      String   @map("bot_id")
+  bot        MessagingBot @relation(fields: [botId], references: [id], onDelete: Cascade)
+  name       String
+  description String? @db.Text
+  isActive   Boolean  @default(true) @map("is_active")
+  graph      Json
+  /// Счётчик запусков (для аналитики)
+  runCount   Int      @default(0) @map("run_count")
+  triggers   MessagingTrigger[]
+  runs       MessagingFlowRun[]
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([botId])
+  @@map("messaging_flows")
+}
+
+/// Триггер запуска воронки. Один flow может иметь несколько триггеров
+/// (разные ключевые слова, разные типы — DM + комменты + сторис).
+model MessagingTrigger {
+  id              String               @id @default(uuid())
+  flowId          String               @map("flow_id")
+  flow            MessagingFlow        @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  type            MessagingTriggerType
+  /// Ключевые слова (для keyword_*, story_reply типов). Пусто = любой триггер этого типа.
+  keywords        String[]             @default([])
+  /// Алгоритм матчинга: "exact" | "contains" | "regex" | "starts_with"
+  matchType       String               @default("contains") @map("match_type")
+  caseSensitive   Boolean              @default(false) @map("case_sensitive")
+  /// Для keyword_comment / mention — ограничение по конкретному посту (media_id),
+  /// пусто = на все посты.
+  mediaIds        String[]             @default([]) @map("media_ids")
+  /// Метрики
+  triggerCount    Int                  @default(0) @map("trigger_count")
+  lastTriggeredAt DateTime?            @map("last_triggered_at")
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+
+  @@index([flowId])
+  @@index([type])
+  @@map("messaging_triggers")
+}
+
+/// Instance запущенной воронки для конкретного подписчика.
+model MessagingFlowRun {
+  id            String                 @id @default(uuid())
+  flowId        String                 @map("flow_id")
+  flow          MessagingFlow          @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  subscriberId  String                 @map("subscriber_id")
+  subscriber    MessagingSubscriber    @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  status        MessagingFlowRunStatus @default(running)
+  /// Текущий узел графа (для возобновления)
+  currentNodeId String?                @map("current_node_id")
+  /// Контекст: накопленные переменные внутри воронки + последний ввод подписчика
+  context       Json                   @default("{}")
+  lastError     String?                @db.Text @map("last_error")
+  /// Время до которого ждём ответ (для wait_reply timeout). Cron досрочно
+  /// возобновит flow по веткам onTimeout.
+  waitUntil     DateTime?              @map("wait_until")
+  startedAt     DateTime               @default(now()) @map("started_at")
+  completedAt   DateTime?              @map("completed_at")
+  updatedAt     DateTime               @updatedAt @map("updated_at")
+
+  @@index([subscriberId])
+  @@index([flowId, status])
+  @@index([status, waitUntil])
+  @@map("messaging_flow_runs")
 }
 
 model TgMessage {
