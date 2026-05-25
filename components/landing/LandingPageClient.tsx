@@ -15,13 +15,15 @@ import { HLSVideoPlayer } from "@/components/learn/hls-video-player";
 
 interface WrapperProps {
   slug: string;
-  blocks: any[]; 
+  blocks: any[];
   initialSubmissions?: Record<string, any>;
   settings?: any;
+  /** TgSubscriber.id passed via ?sid= URL param from a bot flow */
+  subscriberId?: string;
 }
 
 // Helper component for block rendering logic
-function BlockRenderer({ block, design, layoutMode, slug, answers, handleAnswerChange, initialSubmissions }: any) {
+function BlockRenderer({ block, design, layoutMode, slug, answers, handleAnswerChange, initialSubmissions, subscriberId }: any) {
   return (
     <>
       {block.type === 'hero' && <HeroBlock content={block.content} design={{...design, padding: layoutMode === 'cards' ? 'py-16 md:py-24' : design.padding}} />}
@@ -74,10 +76,11 @@ function BlockRenderer({ block, design, layoutMode, slug, answers, handleAnswerC
            <div className="w-full px-6 md:px-12 max-w-4xl mx-auto">
               <div className="bg-white border border-gray-100 rounded-[3rem] p-8 md:p-16 shadow-premium relative overflow-hidden">
                  <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500" />
-                 <LandingForm 
-                    block={block} 
-                    answers={answers} 
+                 <LandingForm
+                    block={block}
+                    answers={answers}
                     initialSubmission={initialSubmissions[block.id]}
+                    subscriberId={subscriberId}
                  />
               </div>
            </div>
@@ -87,7 +90,7 @@ function BlockRenderer({ block, design, layoutMode, slug, answers, handleAnswerC
   );
 }
 
-export default function LandingPageClient({ slug, blocks, initialSubmissions = {}, settings = {} }: WrapperProps) {
+export default function LandingPageClient({ slug, blocks, initialSubmissions = {}, settings = {}, subscriberId }: WrapperProps) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -135,7 +138,7 @@ export default function LandingPageClient({ slug, blocks, initialSubmissions = {
               });
 
               return groups.map((group, gIdx) => {
-                const renderProps = { layoutMode, slug, answers, handleAnswerChange, initialSubmissions, palette };
+                const renderProps = { layoutMode, slug, answers, handleAnswerChange, initialSubmissions, palette, subscriberId };
                 
                 if (group.type === 'full') {
                   const block = group.block;
