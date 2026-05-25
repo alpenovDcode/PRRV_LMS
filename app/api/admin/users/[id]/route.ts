@@ -75,6 +75,33 @@ export async function GET(
                 userSessions: true,
               },
             },
+            groupMembers: {
+              select: {
+                group: { select: { id: true, name: true } },
+              },
+            },
+            // Linked Telegram subscribers — for UTM / source attribution
+            tgSubscribers: {
+              select: {
+                id: true,
+                chatId: true,
+                tgUserId: true,
+                firstName: true,
+                lastName: true,
+                username: true,
+                tags: true,
+                variables: true,
+                customFields: true,
+                firstTouchSlug: true,
+                firstTouchAt: true,
+                lastTouchSlug: true,
+                lastTouchAt: true,
+                subscribedAt: true,
+                bot: {
+                  select: { id: true, title: true, username: true },
+                },
+              },
+            },
           },
         });
 

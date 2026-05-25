@@ -62,6 +62,7 @@ model User {
   questionsAssigned       Question[]              @relation("QuestionCurator")
   questionMessages        QuestionMessage[]
   brief                   Brief?
+  tgSubscribers           TgSubscriber[]
 
   @@index([email])
   @@map("users")
@@ -800,9 +801,42 @@ model TgBot {
   customFields    TgCustomField[]
   redirectLinks   TgRedirectLink[]
   scheduledFlows  TgScheduledFlow[]
+  bitrixConfig    TgBitrixConfig?
 
   @@index([username])
   @@map("tg_bots")
+}
+
+// Per-bot Bitrix24 integration configuration.
+// Stores webhook URL override, field mappings, and tag triggers.
+// One-to-one with TgBot (optional — not every bot needs CRM sync).
+model TgBitrixConfig {
+  id              String   @id @default(uuid())
+  botId           String   @unique @map("bot_id")
+  // Whether sync is active. False = all sync calls are no-ops.
+  enabled         Boolean  @default(false)
+  // Per-bot webhook override. If null, falls back to env BITRIX24_WEBHOOK_URL.
+  webhookUrl      String?  @map("webhook_url") @db.Text
+  // Target funnel (deal category). "0" = default Bitrix funnel.
+  funnelId        String   @default("0") @map("funnel_id")
+  // Default stage ID for newly created deals (e.g. "C14:NEW").
+  // Empty = Bitrix picks the first stage.
+  defaultStageId  String   @default("") @map("default_stage_id")
+  // Contact field mappings: [{lmsVar: "client.phone", bitrixField: "PHONE"}]
+  // lmsVar supports: client.*, custom.*, deal.* (from run context)
+  contactMappings Json     @default("[]") @map("contact_mappings")
+  // Deal field mappings: [{lmsVar: "client.utm_source", bitrixField: "UTM_SOURCE"}]
+  dealMappings    Json     @default("[]") @map("deal_mappings")
+  // Tag triggers: [{tag: "квалифицирован", stageId: "C14:PREPAYMENT_INVOIC"}]
+  // When subscriber gets this tag (via flow or inline action) →
+  // syncSubscriberToBitrix is called automatically with this stageId.
+  tagTriggers     Json     @default("[]") @map("tag_triggers")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  bot             TgBot    @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@map("tg_bitrix_configs")
 }
 
 model TgSubscriber {
@@ -859,6 +893,12 @@ model TgSubscriber {
   // wait_reply nodes can save into it via `saveAs: "field.<key>"`.
   customFields    Json     @default("{}") @map("custom_fields")
 
+  // Link to LMS User resolved by email/phone match.
+  // Set automatically when a subscriber provides their email or phone
+  // in a flow, or when a landing form is submitted with matching email.
+  lmsUserId       String?   @map("lms_user_id")
+  lmsUser         User?     @relation(fields: [lmsUserId], references: [id], onDelete: SetNull)
+
   bot             TgBot    @relation(fields: [botId], references: [id], onDelete: Cascade)
   messages        TgMessage[]
   flowRuns        TgFlowRun[]
@@ -872,6 +912,7 @@ model TgSubscriber {
   @@index([botId, currentPositionFlowId, currentPositionNodeId])
   @@index([botId, operatorTakeoverAt])
   @@index([tags], type: Gin)
+  @@index([lmsUserId])
   @@map("tg_subscribers")
 }
 

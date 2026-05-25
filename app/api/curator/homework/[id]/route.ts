@@ -9,6 +9,10 @@ import { sanitizeText } from "@/lib/sanitize";
 import { canCuratorReviewHomework } from "@/lib/business-rules";
 import { logAction } from "@/lib/audit";
 
+// Куратор должен видеть актуальное состояние домашки/анкеты после
+// каждой пересдачи студента — кэшировать ответ нельзя.
+export const dynamic = "force-dynamic";
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

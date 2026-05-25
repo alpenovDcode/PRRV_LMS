@@ -67,6 +67,52 @@ function statusVariant(status: HomeworkStatus) {
   }
 }
 
+// Рендер ответа студента. Уроки-анкеты (certification_form) шлют
+// content как JSON { _answers: {вопрос: ответ}, _test_score, ... }.
+// Раньше он выводился сырым JSON-дампом — нечитаемо. Теперь, если
+// это анкета — рисуем пары «вопрос → ответ»; обычный текст — как есть.
+function AnswerContent({ content }: { content: string | null }) {
+  if (!content) {
+    return (
+      <span className="text-muted-foreground">Текст ответа не указан</span>
+    );
+  }
+  const trimmed = content.trim();
+  if (trimmed.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(trimmed) as { _answers?: unknown };
+      const answers = parsed?._answers;
+      if (answers && typeof answers === "object" && !Array.isArray(answers)) {
+        const entries = Object.entries(answers as Record<string, unknown>);
+        if (entries.length > 0) {
+          return (
+            <dl className="space-y-3">
+              {entries.map(([q, a]) => (
+                <div
+                  key={q}
+                  className="border-b border-zinc-200 pb-2.5 last:border-0"
+                >
+                  <dt className="text-xs font-medium text-muted-foreground">
+                    {q}
+                  </dt>
+                  <dd className="mt-0.5 whitespace-pre-wrap text-sm text-black">
+                    {a === null || a === undefined || a === ""
+                      ? "—"
+                      : String(a)}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          );
+        }
+      }
+    } catch {
+      // Невалидный JSON — покажем как обычный текст ниже.
+    }
+  }
+  return <>{content}</>;
+}
+
 export default function CuratorReviewPage() {
   const params = useParams();
   const router = useRouter();
@@ -87,6 +133,10 @@ export default function CuratorReviewPage() {
       const response = await apiClient.get(`/curator/homework/${submissionId}`);
       return response.data.data;
     },
+    // Куратор должен видеть свежие данные после каждой пересдачи
+    // студента — иначе из кэша показывается старая версия ответа.
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   const mutation = useMutation({
@@ -184,11 +234,7 @@ export default function CuratorReviewPage() {
                   </div>
 
                   <div className="rounded-md border bg-muted/40 p-4 min-h-[150px] whitespace-pre-wrap text-sm text-black">
-                    {data.content || (
-                      <span className="text-muted-foreground">
-                        Текст ответа не указан
-                      </span>
-                    )}
+                    <AnswerContent content={data.content} />
                   </div>
 
                   {data.files && data.files.length > 0 && (

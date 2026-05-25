@@ -160,10 +160,12 @@ export interface BuildCtxArgs {
   // List IDs the subscriber currently belongs to. Used by the
   // `in_list("listId")` expression helper (Iter 2b).
   listMembershipIds?: string[];
+  /** Pre-fetched sizes for lists. Keyed by list ID. Used by list_size() */
+  listSizes?: Record<string, number>;
 }
 
 export function buildEvalContext(args: BuildCtxArgs): EvalContext {
-  const { subscriber, bot, run, inboundText, listMembershipIds = [] } = args;
+  const { subscriber, bot, run, inboundText, listMembershipIds = [], listSizes = {} } = args;
   const now = new Date();
   const tz = bot.timezone;
 
@@ -218,11 +220,12 @@ export function buildEvalContext(args: BuildCtxArgs): EvalContext {
         const id = args[0];
         return id != null && listSet.has(String(id));
       },
-      // `list_size(listId)` — synchronous lookup not possible; return 0
-      // and rely on the broadcast targeting / lists API for real counts.
-      // We expose the function name so authors don't get an "unknown
-      // function" error mid-flow.
-      list_size: () => 0,
+      // `list_size(listId)` — returns the pre-fetched count for a list,
+      // or 0 if not available. Sizes are fetched by buildCtxAsync.
+      list_size: (...args: unknown[]) => {
+        const id = args[0];
+        return id != null ? (listSizes[String(id)] ?? 0) : 0;
+      },
     },
     resolve(name: string) {
       if (name === "client") return clientScope;
