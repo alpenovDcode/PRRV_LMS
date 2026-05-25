@@ -57,6 +57,8 @@ model User {
   keywords                String[]                @default([])  // Накопленные ключевые слова из форм
   certificates            Certificate[]
   orders                  Order[]
+  messagingBots           MessagingBot[]
+  messagingSubscribers    MessagingSubscriber[]
   broadcastsCreated       Broadcast[]             @relation("BroadcastAuthor")
   broadcastsReceived      BroadcastRecipient[]    @relation("BroadcastRecipientUser")
   questionsAsked          Question[]              @relation("QuestionStudent")
@@ -985,6 +987,89 @@ model TgSubscriber {
   @@index([tags], type: Gin)
   @@index([lmsUserId])
   @@map("tg_subscribers")
+}
+
+// ─── Channel-agnostic messaging (Instagram, MAX, future channels) ──────────
+//
+// Параллельная Tg*-моделям инфраструктура для каналов, не использующих
+// Bot API в стиле Telegram. Telegram пока живёт в TgBot/TgSubscriber и
+// будет смержен сюда позже (Фаза 1/2 из roadmap).
+
+enum MessagingChannel {
+  telegram
+  instagram
+  max
+}
+
+/// Универсальный «бот» для любого канала.
+/// externalAccountId — IG user_id, MAX bot_id, и т.д.
+model MessagingBot {
+  id                String           @id @default(uuid())
+  channel           MessagingChannel
+  /// ID аккаунта на стороне платформы (IG user_id / MAX user_id / TG bot_id)
+  externalAccountId String           @map("external_account_id")
+  /// Отображаемое имя (IG username, @MAX-handle, etc.)
+  title             String
+  /// Зашифрованный access token (long-lived для IG, бот-токен для MAX)
+  tokenEnc          String           @db.Text @map("token_enc")
+  /// Когда token истекает (для каналов с refresh — IG: 60 дней)
+  tokenExpiresAt    DateTime?        @map("token_expires_at")
+  /// Доп. атрибуты канала: account_type, scopes, и т.д.
+  meta              Json?
+  isActive          Boolean          @default(true) @map("is_active")
+  /// Кто подключил аккаунт. Используется для прав доступа.
+  ownerId           String           @map("owner_id")
+  owner             User             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  subscribers       MessagingSubscriber[]
+
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  @@unique([channel, externalAccountId])
+  @@index([ownerId])
+  @@map("messaging_bots")
+}
+
+/// Подписчик на стороне канала. externalUserId — IGSID для Instagram,
+/// chat_id для МАКС/Telegram.
+model MessagingSubscriber {
+  id             String       @id @default(uuid())
+  botId          String       @map("bot_id")
+  bot            MessagingBot @relation(fields: [botId], references: [id], onDelete: Cascade)
+  externalUserId String       @map("external_user_id")
+  firstName      String?      @map("first_name")
+  lastName       String?      @map("last_name")
+  username       String?
+  variables      Json         @default("{}")
+  tags           String[]     @default([])
+  /// Время последнего входящего — для проверки 24h messaging window (IG)
+  lastInboundAt  DateTime?    @map("last_inbound_at")
+  subscribedAt   DateTime     @default(now()) @map("subscribed_at")
+  lastSeenAt     DateTime?    @map("last_seen_at")
+  /// Связь с пользователем LMS (если матчится по email/телефону позже)
+  lmsUserId      String?      @map("lms_user_id")
+  lmsUser        User?        @relation(fields: [lmsUserId], references: [id], onDelete: SetNull)
+
+  @@unique([botId, externalUserId])
+  @@index([botId])
+  @@index([lmsUserId])
+  @@map("messaging_subscribers")
+}
+
+/// Временный CSRF-state для OAuth-сессий подключения каналов.
+/// TTL ~10 минут. Очищается фоновым cron.
+model MessagingOAuthState {
+  id          String           @id @default(uuid())
+  state       String           @unique
+  channel     MessagingChannel
+  /// Кто инициировал подключение
+  userId      String           @map("user_id")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  expiresAt   DateTime         @map("expires_at")
+
+  @@index([expiresAt])
+  @@map("messaging_oauth_states")
 }
 
 model TgMessage {
