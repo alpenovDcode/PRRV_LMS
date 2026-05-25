@@ -153,3 +153,25 @@ export async function subscribeToMessagingWebhook(
     throw new Error(`IG webhook subscribe failed: ${resp.status} ${err.slice(0, 200)}`);
   }
 }
+
+/**
+ * Отписаться от webhook'а — нужно при удалении бота, чтобы Meta перестала
+ * слать события на нашу LMS.
+ *
+ * Best-effort: возвращает true/false, не бросает. Если отписка не удалась
+ * (например токен уже истёк), мы всё равно удалим бота из БД.
+ */
+export async function unsubscribeFromMessagingWebhook(
+  igAccountId: string,
+  longLivedToken: string
+): Promise<boolean> {
+  try {
+    const url =
+      `${IG_GRAPH_BASE}/v21.0/${igAccountId}/subscribed_apps?` +
+      new URLSearchParams({ access_token: longLivedToken }).toString();
+    const resp = await fetch(url, { method: "DELETE" });
+    return resp.ok;
+  } catch {
+    return false;
+  }
+}
