@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Instagram, MessageSquare, Plus, RefreshCw, Trash2, AlertTriangle, CheckCircle, Users } from "lucide-react";
+import Link from "next/link";
+import { Instagram, MessageSquare, Plus, RefreshCw, Trash2, AlertTriangle, CheckCircle, Users, GitBranch, Power, X } from "lucide-react";
 
 interface MessagingBot {
   id: string;
@@ -97,11 +98,45 @@ export default function MessagingPage() {
     }
   };
 
-  const handleDisconnect = async (bot: MessagingBot) => {
-    if (!confirm(`Отключить ${CHANNEL_CONFIG[bot.channel].label} «${bot.title}»?`)) return;
-    const res = await fetch(`/api/admin/messaging/bots/${bot.id}`, { method: "DELETE" });
-    if (res.ok) load();
-    else setToast({ kind: "error", text: "Не удалось отключить" });
+  // Модальное окно подтверждения удаления
+  const [confirmDelete, setConfirmDelete] = useState<MessagingBot | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDisable = async (bot: MessagingBot) => {
+    if (!confirm(`Отключить ${CHANNEL_CONFIG[bot.channel].label} «${bot.title}»? Можно будет переподключить позже.`)) return;
+    const res = await fetch(`/api/admin/messaging/bots/${bot.id}?mode=disable`, { method: "DELETE" });
+    if (res.ok) {
+      setToast({ kind: "success", text: `${CHANNEL_CONFIG[bot.channel].label} отключён` });
+      load();
+    } else {
+      setToast({ kind: "error", text: "Не удалось отключить" });
+    }
+  };
+
+  const handleHardDelete = async () => {
+    if (!confirmDelete) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/admin/messaging/bots/${confirmDelete.id}?mode=delete`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const wh = data.webhookUnsubscribed ? "" : " (webhook не отписан — токен мог истечь)";
+        setToast({
+          kind: "success",
+          text: `${CHANNEL_CONFIG[confirmDelete.channel].label} «${confirmDelete.title}» удалён${wh}`,
+        });
+        setConfirmDelete(null);
+        load();
+      } else {
+        setToast({ kind: "error", text: data.error ?? "Не удалось удалить" });
+      }
+    } catch {
+      setToast({ kind: "error", text: "Ошибка сети" });
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -212,10 +247,25 @@ export default function MessagingPage() {
                       {expiry && <span className={`text-xs ${expiry.color}`}>{expiry.label}</span>}
                     </div>
                   </div>
+                  <Link
+                    href={`/admin/messaging/${bot.id}/flows`}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                  >
+                    <GitBranch className="w-3 h-3" /> Воронки
+                  </Link>
+                  {bot.isActive && (
+                    <button
+                      onClick={() => handleDisable(bot)}
+                      className="p-2 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors"
+                      title="Отключить (можно переподключить позже)"
+                    >
+                      <Power className="w-4 h-4" />
+                    </button>
+                  )}
                   <button
-                    onClick={() => handleDisconnect(bot)}
+                    onClick={() => setConfirmDelete(bot)}
                     className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                    title="Отключить"
+                    title="Удалить полностью"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -225,6 +275,59 @@ export default function MessagingPage() {
           </div>
         )}
       </div>
+
+      {/* Модалка подтверждения hard-delete */}
+      {confirmDelete && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 relative">
+            <button
+              onClick={() => setConfirmDelete(null)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                <Trash2 className="w-6 h-6 text-red-500" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Удалить полностью?</h2>
+                <p className="text-sm text-gray-500">{CHANNEL_CONFIG[confirmDelete.channel].label} «{confirmDelete.title}»</p>
+              </div>
+            </div>
+
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 text-sm text-red-800">
+              <p className="font-semibold mb-1">⚠️ Это действие необратимо. Будут удалены:</p>
+              <ul className="list-disc list-inside space-y-0.5 text-xs">
+                <li>{confirmDelete._count.subscribers} подписчиков и их история</li>
+                <li>Все воронки бота, их триггеры и запуски</li>
+                <li>Подписка на webhook со стороны Meta будет отозвана</li>
+              </ul>
+              <p className="mt-2 text-xs">
+                Если просто хочешь временно отключить — закрой и нажми <Power className="w-3 h-3 inline" /> вместо корзины.
+              </p>
+            </div>
+
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setConfirmDelete(null)}
+                className="px-4 py-2 border border-gray-200 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={handleHardDelete}
+                disabled={deleting}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1"
+              >
+                <Trash2 className="w-4 h-4" />
+                {deleting ? "Удаляю…" : "Удалить полностью"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
