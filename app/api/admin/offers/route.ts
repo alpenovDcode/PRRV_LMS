@@ -4,19 +4,24 @@ import { db } from "@/lib/db";
 import { UserRole } from "@prisma/client";
 import { z } from "zod";
 
-const offerSchema = z.object({
-  title: z.string().min(1),
-  description: z.string().optional(),
-  price: z.number().positive(),
-  oldPrice: z.number().positive().nullable().optional(),
-  currency: z.string().default("RUB"),
-  isActive: z.boolean().default(true),
-  accessDays: z.number().int().positive().nullable().optional(),
-  courseIds: z.array(z.string()).default([]),
-  tariff: z.enum(["VR", "LR", "SR"]).nullable().optional(),
-  features: z.array(z.string()).default([]),
-  sortOrder: z.number().int().default(0),
-});
+const offerSchema = z
+  .object({
+    title: z.string().min(1).max(200),
+    description: z.string().max(2000).optional(),
+    price: z.number().positive().max(99_999_999),
+    oldPrice: z.number().positive().max(99_999_999).nullable().optional(),
+    currency: z.enum(["RUB", "USD", "EUR"]).default("RUB"),
+    isActive: z.boolean().default(true),
+    accessDays: z.number().int().positive().max(36_500).nullable().optional(),
+    courseIds: z.array(z.string().uuid()).max(50).default([]),
+    tariff: z.enum(["VR", "LR", "SR"]).nullable().optional(),
+    features: z.array(z.string().max(200)).max(30).default([]),
+    sortOrder: z.number().int().default(0),
+  })
+  .refine(
+    (d) => d.oldPrice == null || d.oldPrice >= d.price,
+    { message: "Старая цена должна быть выше или равна текущей", path: ["oldPrice"] }
+  );
 
 /** GET /api/admin/offers */
 export async function GET(req: NextRequest) {

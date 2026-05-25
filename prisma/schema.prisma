@@ -698,6 +698,12 @@ model Order {
   /// Сырой объект платежа из ЮКассы (последний известный)
   ykSnapshot         Json?       @map("yk_snapshot")
   paidAt             DateTime?   @map("paid_at")
+  /// Снапшот состава оффера на момент создания заказа.
+  /// Используется при активации, чтобы изменения оффера не меняли уже оплаченное.
+  snapshotCourseIds  String[]    @default([]) @map("snapshot_course_ids")
+  snapshotTariff     UserTariff? @map("snapshot_tariff")
+  snapshotAccessDays Int?        @map("snapshot_access_days")
+  snapshotOfferTitle String?     @map("snapshot_offer_title")
   createdAt          DateTime    @default(now()) @map("created_at")
   updatedAt          DateTime    @updatedAt @map("updated_at")
 

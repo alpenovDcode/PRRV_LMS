@@ -16,7 +16,21 @@ let _provider: PaymentProvider | null = null;
 export function getProvider(): PaymentProvider {
   if (_provider) return _provider;
 
-  const name = process.env.PAYMENT_PROVIDER ?? "mock";
+  const isProd = process.env.NODE_ENV === "production";
+  const explicit = process.env.PAYMENT_PROVIDER;
+
+  // В продакшене НЕЛЬЗЯ запускаться без явно заданного провайдера и нельзя
+  // использовать mock — иначе любой может активировать заказ через вебхук.
+  if (isProd) {
+    if (!explicit) {
+      throw new Error("PAYMENT_PROVIDER env is required in production");
+    }
+    if (explicit === "mock") {
+      throw new Error("Mock payment provider is forbidden in production");
+    }
+  }
+
+  const name = explicit ?? "mock";
 
   switch (name) {
     case "mock": {
@@ -34,6 +48,15 @@ export function getProvider(): PaymentProvider {
   }
 
   return _provider!;
+}
+
+/** Текущее имя провайдера — нужно для guard-проверок (например, скрыть mock-pay). */
+export function isMockProviderActive(): boolean {
+  try {
+    return getProvider().name === "mock";
+  } catch {
+    return false;
+  }
 }
 
 export type { PaymentProvider, CreatePaymentInput, CreatedPayment, PaymentStatusResult, PaymentStatus } from "./types";

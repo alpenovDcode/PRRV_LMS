@@ -8,11 +8,12 @@
  */
 
 import { randomUUID } from "crypto";
-import type {
-  PaymentProvider,
-  CreatePaymentInput,
-  CreatedPayment,
-  PaymentStatusResult,
+import {
+  WebhookVerificationError,
+  type PaymentProvider,
+  type CreatePaymentInput,
+  type CreatedPayment,
+  type PaymentStatusResult,
 } from "./types";
 
 export class MockPaymentProvider implements PaymentProvider {
@@ -42,13 +43,23 @@ export class MockPaymentProvider implements PaymentProvider {
 
   async parseWebhook(
     body: unknown,
-    _headers: Record<string, string>
+    headers: Record<string, string>
   ): Promise<PaymentStatusResult | null> {
     const b = body as any;
     if (!b?.mock_event) return null;
+
+    // Даже в dev требуем shared-secret чтобы случайные POST не активировали
+    // заказы. Секрет берётся из MOCK_WEBHOOK_SECRET env; если не задан —
+    // ничего не принимаем.
+    const expected = process.env.MOCK_WEBHOOK_SECRET;
+    const provided = headers["x-mock-secret"];
+    if (!expected || provided !== expected) {
+      throw new WebhookVerificationError("Mock webhook secret mismatch");
+    }
+
     return {
-      providerPaymentId: b.payment_id,
-      status: b.status ?? "paid",
+      providerPaymentId: String(b.payment_id ?? ""),
+      status: (b.status ?? "paid") as PaymentStatusResult["status"],
       paidAt: new Date(),
       paymentMethod: "mock_card",
       raw: body,

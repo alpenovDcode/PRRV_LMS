@@ -45,11 +45,32 @@ export interface PaymentStatusResult {
   raw: unknown;
 }
 
+/**
+ * Бросается реализацией parseWebhook когда подпись/HMAC невалидна.
+ * Обработчик /api/payments/webhook ловит это исключение и отвечает 401
+ * без подробностей наружу.
+ */
+export class WebhookVerificationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "WebhookVerificationError";
+  }
+}
+
 /** Интерфейс, который должен реализовать любой провайдер. */
 export interface PaymentProvider {
   readonly name: string;
   createPayment(input: CreatePaymentInput): Promise<CreatedPayment>;
   getPaymentStatus(providerPaymentId: string): Promise<PaymentStatusResult>;
-  /** Распарсить и верифицировать тело вебхука. Вернуть null если не наш вебхук. */
+  /**
+   * Парсит и верифицирует тело вебхука.
+   *
+   * Контракт:
+   *   • Если подпись/HMAC невалидна — бросает WebhookVerificationError.
+   *   • Если тело явно не наш вебхук (тестовый пинг, чужой провайдер) — вернуть null.
+   *   • Если всё ок — вернуть PaymentStatusResult с нормализованным статусом.
+   *
+   * Реализации НЕ должны выполнять тяжёлую работу до верификации подписи.
+   */
   parseWebhook(body: unknown, headers: Record<string, string>): Promise<PaymentStatusResult | null>;
 }

@@ -1,68 +1,98 @@
 /**
  * lib/payments/activate-order.ts
  *
- * Вызывается после успешной оплаты (из webhook-обработчика).
- * Создаёт Enrollment'ы для курсов из оффера и обновляет тариф пользователя.
+ * Вызывается из webhook-обработчика после подтверждения успешной оплаты.
+ *
+ * Безопасность:
+ *   • Атомарный lock через updateMany — только ОДИН вызов реально активирует
+ *     заказ; повторные вызовы (провайдер шлёт ретраи) увидят count===0 и
+ *     сразу выйдут (идемпотентно).
+ *   • createMany({ skipDuplicates: true }) для Enrollment — параллельные
+ *     попытки создать тот же доступ не падают на unique-constraint.
+ *   • Снапшот courseIds/tariff/accessDays берётся из ORDER, а не из текущего
+ *     оффера — чтобы изменение оффера между покупкой и вебхуком не меняло
+ *     состав покупки задним числом.
  */
 
 import { db } from "@/lib/db";
 import { logAction } from "@/lib/audit";
 
 export async function activateOrder(orderId: string): Promise<void> {
-  const order = await db.order.findUnique({
-    where: { id: orderId },
-    include: { offer: true },
-  });
-
-  if (!order) throw new Error(`Order not found: ${orderId}`);
-  if (order.status === "paid") return; // идемпотентно
-
-  const { offer } = order;
-
-  // 1. Создаём Enrollment на каждый курс из оффера
-  for (const courseId of offer.courseIds) {
-    const existing = await db.enrollment.findUnique({
-      where: { userId_courseId: { userId: order.userId, courseId } },
-    });
-
-    if (!existing) {
-      const expiresAt =
-        offer.accessDays
-          ? new Date(Date.now() + offer.accessDays * 86_400_000)
-          : null;
-
-      await db.enrollment.create({
-        data: {
-          userId: order.userId,
-          courseId,
-          status: "active",
-          startDate: new Date(),
-          ...(expiresAt ? { expiresAt } : {}),
-        },
-      });
-    }
-  }
-
-  // 2. Обновляем тариф пользователя (если оффер включает тариф)
-  if (offer.tariff) {
-    await db.user.update({
-      where: { id: order.userId },
-      data: { tariff: offer.tariff },
-    });
-  }
-
-  // 3. Помечаем заказ оплаченным
-  await db.order.update({
-    where: { id: orderId },
+  // ── 1. Атомарный lock: переводим в paid только если статус ещё НЕ paid.
+  //      Если count === 0 — кто-то другой уже активировал, выходим.
+  const lock = await db.order.updateMany({
+    where: { id: orderId, status: { not: "paid" } },
     data: { status: "paid", paidAt: new Date() },
   });
+  if (lock.count === 0) {
+    return; // уже активирован — идемпотентно
+  }
 
-  // 4. Аудит-лог
-  await logAction(order.userId, "ORDER_PAID", "Order", orderId, {
-    offerId: offer.id,
-    offerTitle: offer.title,
-    amount: order.amount,
-    courseIds: offer.courseIds,
-    tariff: offer.tariff,
+  // ── 2. Читаем заказ со снапшотом оффера (используется при активации).
+  const order = await db.order.findUnique({
+    where: { id: orderId },
+    select: {
+      id: true,
+      userId: true,
+      amount: true,
+      offerId: true,
+      snapshotCourseIds: true,
+      snapshotTariff: true,
+      snapshotAccessDays: true,
+      snapshotOfferTitle: true,
+      // Fallback на live offer для исторических заказов без snapshot.
+      offer: {
+        select: { title: true, courseIds: true, tariff: true, accessDays: true },
+      },
+    },
   });
+  if (!order) {
+    // race: заказ удалён — откатывать lock не нужно, статус paid безопасен
+    return;
+  }
+
+  // Предпочитаем snapshot. Если snapshotCourseIds пуст (старый заказ до миграции)
+  // — читаем из live offer.
+  const courseIds =
+    order.snapshotCourseIds.length > 0 ? order.snapshotCourseIds : order.offer.courseIds;
+  const tariff = order.snapshotTariff ?? order.offer.tariff;
+  const accessDays = order.snapshotAccessDays ?? order.offer.accessDays;
+  const offerTitle = order.snapshotOfferTitle ?? order.offer.title;
+
+  // ── 3. Создаём enrollment'ы атомарно. skipDuplicates защищает от повторов.
+  if (courseIds.length > 0) {
+    const expiresAt = accessDays
+      ? new Date(Date.now() + accessDays * 86_400_000)
+      : null;
+
+    await db.enrollment.createMany({
+      data: courseIds.map((courseId) => ({
+        userId: order.userId,
+        courseId,
+        status: "active" as const,
+        startDate: new Date(),
+        ...(expiresAt ? { expiresAt } : {}),
+      })),
+      skipDuplicates: true,
+    });
+  }
+
+  // ── 4. Тариф пользователя (если включён в оффер).
+  if (tariff) {
+    await db.user.update({
+      where: { id: order.userId },
+      data: { tariff },
+    });
+  }
+
+  // ── 5. Аудит. logAction отдельной строкой — если запись лога упадёт,
+  //      основная активация уже зафиксирована.
+  await logAction(order.userId, "ORDER_PAID", "Order", orderId, {
+    offerId: order.offerId,
+    offerTitle,
+    amount: order.amount,
+    courseIds,
+    tariff,
+    source: "webhook",
+  }).catch(() => {});
 }
