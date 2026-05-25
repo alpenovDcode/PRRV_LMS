@@ -91,6 +91,22 @@ export async function POST(
       //    оборвём соединение по таймауту и оставим submission в
       //    состоянии "в процессе", чтобы AI-checker мог дописать
       //    результат позже через callback (если он его поддерживает).
+      // Payload AI-checker'у — собираем один раз, переиспользуем при fallback.
+      const aiCheckerPayload = {
+        submissionId: id,
+        callbackUrl,
+        callbackSecret: AI_CALLBACK_SECRET,
+        studentAnswer: submission.content ?? "",
+        aiPrompt: lesson.aiPrompt,
+        aiContext: lesson.aiContext ?? null,
+        imageFiles: lesson.hasImageAnalysis
+          ? ((submission.files as string[]) || [])
+          : [],
+        lessonTitle: lesson.title,
+        lessonContent: lesson.content ?? null,
+        studentName: submission.user.fullName ?? submission.user.email,
+      };
+
       let resp: Response;
       try {
         resp = await fetch(`${AI_CHECKER_URL}/api/homework/analyze`, {
@@ -101,43 +117,78 @@ export async function POST(
             // ngrok-free interstitial-protect (см. предыдущую версию).
             "ngrok-skip-browser-warning": "true",
           },
-          body: JSON.stringify({
-            // --- Новые поля для async-режима ---
-            submissionId: id,
-            callbackUrl,
-            callbackSecret: AI_CALLBACK_SECRET,
-            // --- Payload (как раньше) ---
-            studentAnswer: submission.content ?? "",
-            aiPrompt: lesson.aiPrompt,
-            aiContext: lesson.aiContext ?? null,
-            imageFiles: lesson.hasImageAnalysis
-              ? ((submission.files as string[]) || [])
-              : [],
-            lessonTitle: lesson.title,
-            lessonContent: lesson.content ?? null,
-            studentName: submission.user.fullName ?? submission.user.email,
-          }),
+          body: JSON.stringify(aiCheckerPayload),
           // 15 секунд — ждём только ACK. AI-checker должен отвечать
           // сразу: либо 202 (async), либо 200 (legacy sync, что для
           // быстрых заданий тоже сработает).
           signal: AbortSignal.timeout(15_000),
         });
       } catch (e) {
+        // ── Fallback: AI-checker недоступен/не успел ответить.
+        // Вместо ошибки ставим задачу в HomeworkAIQueue (mode: "suggest").
+        // Cron позже повторит async-kickoff. Куратор видит "в очереди"
+        // вместо красной ошибки — нет потребности нажимать кнопку повторно.
         const isTimeout =
           (e instanceof Error && e.name === "TimeoutError") ||
           (e instanceof Error && e.name === "AbortError");
-        const errMsg = isTimeout
-          ? "AI-checker не подтвердил приём задачи за 15 секунд. Возможно сервис недоступен или работает в старом sync-режиме."
-          : `Ошибка соединения с AI-checker: ${
-              e instanceof Error ? e.message : String(e)
-            }`;
-        // Записываем ошибку в submission, чтобы фронт смог её показать
-        // и предложить перезапуск.
-        await db.homeworkSubmission.update({
-          where: { id },
-          data: { aiAnalysisError: errMsg } as any,
-        });
-        return NextResponse.json({ error: errMsg }, { status: 504 });
+
+        try {
+          await db.homeworkAIQueue.upsert({
+            where: { submissionId: id },
+            update: {
+              status: "waiting",
+              attempts: 0,
+              lastError: isTimeout
+                ? "AI-checker timeout 15s — задача в очереди"
+                : `AI-checker недоступен: ${e instanceof Error ? e.message : String(e)}`.slice(0, 300),
+              checkAfter: new Date(Date.now() + 60_000), // повтор через минуту
+              mode: "suggest",
+              lessonTitle: lesson.title,
+              studentName: aiCheckerPayload.studentName,
+              studentAnswer: aiCheckerPayload.studentAnswer,
+              aiPrompt: lesson.aiPrompt!, // checked above
+              aiContext: lesson.aiContext ?? null,
+              imageFiles: aiCheckerPayload.imageFiles,
+              lessonContent: (lesson.content ?? null) as any,
+            },
+            create: {
+              submissionId: id,
+              mode: "suggest",
+              status: "waiting",
+              checkAfter: new Date(Date.now() + 60_000),
+              lessonTitle: lesson.title,
+              studentName: aiCheckerPayload.studentName,
+              studentAnswer: aiCheckerPayload.studentAnswer,
+              aiPrompt: lesson.aiPrompt!, // checked above
+              aiContext: lesson.aiContext ?? null,
+              imageFiles: aiCheckerPayload.imageFiles,
+              lessonContent: (lesson.content ?? null) as any,
+            },
+          });
+        } catch (qErr) {
+          // Если даже постановка в очередь упала — отдаём ошибку фронту.
+          console.error("[ai-analyze] Failed to enqueue fallback:", qErr);
+          const errMsg = isTimeout
+            ? "AI-checker не отвечает. Не удалось поставить задачу в очередь."
+            : `Ошибка соединения с AI-checker и очередью: ${e instanceof Error ? e.message : String(e)}`;
+          await db.homeworkSubmission.update({
+            where: { id },
+            data: { aiAnalysisError: errMsg } as any,
+          });
+          return NextResponse.json({ error: errMsg }, { status: 504 });
+        }
+
+        // Submission остаётся в состоянии "анализируется" (startedAt set,
+        // analyzedAt и error null). Фронт продолжает polling.
+        return NextResponse.json(
+          {
+            ok: true,
+            status: "queued",
+            message:
+              "AI-checker занят. Задача поставлена в очередь — повтор через минуту.",
+          },
+          { status: 202 }
+        );
       }
 
       // 4. Async-режим: AI-checker вернул 202 → задачу принял, ждём
