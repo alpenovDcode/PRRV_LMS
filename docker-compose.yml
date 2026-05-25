@@ -79,6 +79,12 @@ services:
       # AI homework checker (external Flask bot)
       AI_CHECKER_URL: ${AI_CHECKER_URL}
       AI_CHECKER_KEY: ${AI_CHECKER_KEY}
+      # ---- Instagram messaging (Meta Graph API) ----
+      # Регистрация: developers.facebook.com → Product «Instagram → API with Instagram Login»
+      IG_APP_ID: ${IG_APP_ID:-}
+      IG_APP_SECRET: ${IG_APP_SECRET:-}
+      IG_OAUTH_REDIRECT_URI: ${IG_OAUTH_REDIRECT_URI:-https://prrv.tech/api/messaging/instagram/oauth/callback}
+      IG_WEBHOOK_VERIFY_TOKEN: ${IG_WEBHOOK_VERIFY_TOKEN:-}
     ports:
       - "${APP_PORT:-3000}:3000"
     depends_on:
