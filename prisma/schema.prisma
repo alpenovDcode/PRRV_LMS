@@ -56,6 +56,7 @@ model User {
   loginTokens             LoginToken[]
   keywords                String[]                @default([])  // Накопленные ключевые слова из форм
   certificates            Certificate[]
+  orders                  Order[]
   broadcastsCreated       Broadcast[]             @relation("BroadcastAuthor")
   broadcastsReceived      BroadcastRecipient[]    @relation("BroadcastRecipientUser")
   questionsAsked          Question[]              @relation("QuestionStudent")
@@ -642,6 +643,76 @@ model Certificate {
   @@index([courseId])
   @@index([certificateNumber])
   @@map("certificates")
+}
+
+// ─── Payments ────────────────────────────────────────────────────────────────
+
+enum OrderStatus {
+  pending             // создан, ждёт оплаты
+  waiting_for_capture // холд (pre-auth), ожидает подтверждения
+  paid                // оплачен
+  cancelled           // отменён (пользователем или просрочен)
+  refunded            // возврат
+}
+
+/// Торговое предложение — то, что продаётся (курс, тариф, пакет).
+model Offer {
+  id          String      @id @default(uuid())
+  title       String
+  description String?     @db.Text
+  price       Decimal     @db.Decimal(10, 2)
+  oldPrice    Decimal?    @db.Decimal(10, 2) @map("old_price")
+  currency    String      @default("RUB")
+  isActive    Boolean     @default(true) @map("is_active")
+  /// Сколько дней доступ к курсам (null = бессрочно)
+  accessDays  Int?        @map("access_days")
+  /// IDs курсов, которые открываются при покупке
+  courseIds   String[]    @default([]) @map("course_ids")
+  /// Тариф, который присваивается пользователю при покупке
+  tariff      UserTariff?
+  /// Описание того, что входит в оффер (маркированный список)
+  features    String[]    @default([])
+  /// Порядок отображения
+  sortOrder   Int         @default(0) @map("sort_order")
+  orders      Order[]
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  @@map("offers")
+}
+
+/// Заказ — запись о платеже пользователя за оффер.
+model Order {
+  id                 String      @id @default(uuid())
+  userId             String      @map("user_id")
+  offerId            String      @map("offer_id")
+  amount             Decimal     @db.Decimal(10, 2)
+  currency           String      @default("RUB")
+  status             OrderStatus @default(pending)
+  /// ID платежа в ЮКассе
+  ykPaymentId        String?     @unique @map("yk_payment_id")
+  /// URL для редиректа на оплату (одноразовый, 1 час жизни)
+  ykConfirmationUrl  String?     @db.Text @map("yk_confirmation_url")
+  /// Метод оплаты, выбранный пользователем (bank_card, sbp, installments, …)
+  paymentMethod      String?     @map("payment_method")
+  /// Сырой объект платежа из ЮКассы (последний известный)
+  ykSnapshot         Json?       @map("yk_snapshot")
+  paidAt             DateTime?   @map("paid_at")
+  /// Снапшот состава оффера на момент создания заказа.
+  /// Используется при активации, чтобы изменения оффера не меняли уже оплаченное.
+  snapshotCourseIds  String[]    @default([]) @map("snapshot_course_ids")
+  snapshotTariff     UserTariff? @map("snapshot_tariff")
+  snapshotAccessDays Int?        @map("snapshot_access_days")
+  snapshotOfferTitle String?     @map("snapshot_offer_title")
+  createdAt          DateTime    @default(now()) @map("created_at")
+  updatedAt          DateTime    @updatedAt @map("updated_at")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  offer Offer @relation(fields: [offerId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@index([ykPaymentId])
+  @@map("orders")
 }
 
 model Broadcast {
