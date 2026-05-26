@@ -99,11 +99,39 @@ export class WebhookVerificationError extends Error {
   }
 }
 
+/** Результат возврата от провайдера. */
+export interface RefundResult {
+  /** ID операции возврата на стороне провайдера */
+  refundId: string;
+  /** Сумма возврата (в рублях) */
+  amount: number;
+  /** Статус: refunded если успешно, pending если асинхронный (придёт webhook) */
+  status: "refunded" | "pending";
+  /** Сырой ответ от провайдера */
+  raw: unknown;
+}
+
+export interface RefundInput {
+  /** ID транзакции на стороне провайдера (наш Order.ykPaymentId) */
+  providerPaymentId: string;
+  /** Сумма возврата. Если null/undefined — провайдер возвращает всю сумму. */
+  amount?: number;
+  /** Уникальный ключ запроса для идемпотентности (наш Order.id) */
+  idempotencyKey?: string;
+  /** Опциональный комментарий (для CP не используется, для аудита) */
+  reason?: string;
+}
+
 /** Интерфейс, который должен реализовать любой провайдер. */
 export interface PaymentProvider {
   readonly name: string;
   createPayment(input: CreatePaymentInput): Promise<CreatedPayment>;
   getPaymentStatus(providerPaymentId: string): Promise<PaymentStatusResult>;
+  /**
+   * Полный или частичный возврат. Бросает исключение если провайдер
+   * отказал (нет средств на счёте мерчанта, истёк срок возврата и т.п.).
+   */
+  refund(input: RefundInput): Promise<RefundResult>;
   /**
    * Парсит и верифицирует тело вебхука.
    *

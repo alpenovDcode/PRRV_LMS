@@ -97,8 +97,14 @@ export async function POST(req: NextRequest) {
       .catch(() => {});
   }
 
-  // ── Терминальный paid: никогда не откатываем уже оплаченный заказ ───────
-  if (order.status === "paid") {
+  // ── Переходы статусов ──────────────────────────────────────────────────
+  //   refunded — терминальный, не уходит никуда.
+  //   paid     — можно перейти ТОЛЬКО в refunded (через webhook Refund от CP
+  //              или прямой вызов refund-order). Любые другие апдейты — игнор.
+  if (order.status === "refunded") {
+    return ackOk(result.ackResponse);
+  }
+  if (order.status === "paid" && result.status !== "refunded") {
     return ackOk(result.ackResponse);
   }
 
@@ -124,6 +130,29 @@ export async function POST(req: NextRequest) {
       });
     } catch (err) {
       console.error("[webhook] Activation failed:", err);
+      return new NextResponse(null, { status: 500 });
+    }
+  } else if (result.status === "refunded") {
+    // Refund webhook от CP. Если возврат был инициирован через нашу админку,
+    // refundedAt уже стоит — НЕ перезаписываем (идемпотентно). Если webhook
+    // пришёл первым (или возврат сделан в кабинете CP вручную) — фиксируем.
+    try {
+      const cur = await db.order.findUnique({
+        where: { id: order.id },
+        select: { refundedAt: true, amount: true } as any,
+      });
+      const data: any = {
+        status: "refunded",
+        paymentMethod: result.paymentMethod ?? undefined,
+        ykSnapshot: result.raw as any,
+      };
+      if (!(cur as any)?.refundedAt) {
+        data.refundedAt = new Date();
+        data.refundedAmount = (cur as any)?.amount; // полный по умолчанию
+      }
+      await db.order.update({ where: { id: order.id }, data });
+    } catch (err) {
+      console.error("[webhook] Refund update failed:", err);
       return new NextResponse(null, { status: 500 });
     }
   } else {

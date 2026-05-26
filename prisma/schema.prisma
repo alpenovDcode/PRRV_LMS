@@ -700,6 +700,12 @@ model Order {
   /// Сырой объект платежа из ЮКассы (последний известный)
   ykSnapshot         Json?       @map("yk_snapshot")
   paidAt             DateTime?   @map("paid_at")
+  /// Когда был сделан возврат (полный или частичный)
+  refundedAt         DateTime?   @map("refunded_at")
+  /// Причина возврата (от админа), для аудита
+  refundReason       String?     @db.Text @map("refund_reason")
+  /// Сумма возврата. Если null или равна amount — полный. Иначе частичный.
+  refundedAmount     Decimal?    @db.Decimal(10, 2) @map("refunded_amount")
   /// Снапшот состава оффера на момент создания заказа.
   /// Используется при активации, чтобы изменения оффера не меняли уже оплаченное.
   snapshotCourseIds  String[]    @default([]) @map("snapshot_course_ids")

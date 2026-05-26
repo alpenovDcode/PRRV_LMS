@@ -14,6 +14,8 @@ import {
   type CreatePaymentInput,
   type CreatedPayment,
   type PaymentStatusResult,
+  type RefundInput,
+  type RefundResult,
 } from "./types";
 
 export class MockPaymentProvider implements PaymentProvider {
@@ -39,6 +41,16 @@ export class MockPaymentProvider implements PaymentProvider {
       providerPaymentId,
       status: "pending",
       raw: { mock: true },
+    };
+  }
+
+  async refund(input: RefundInput): Promise<RefundResult> {
+    // Mock provider всегда «успешно» возвращает деньги.
+    return {
+      refundId: `mock_refund_${randomUUID()}`,
+      amount: input.amount ?? 0,
+      status: "refunded",
+      raw: { mock: true, input },
     };
   }
 
