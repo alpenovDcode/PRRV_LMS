@@ -101,19 +101,36 @@ export async function POST(req: NextRequest) {
         metadata: { orderId: order.id, userId, offerId },
       });
 
+      // Для redirect-провайдеров сохраняем confirmationUrl. Для widget —
+      // мы получим реальный TransactionId только из первого webhook'а от
+      // провайдера (CP), а на этом этапе сохраняем плейсхолдер orderId.
+      const isRedirect = payment.kind === "redirect";
       await db.order.update({
         where: { id: order.id },
         data: {
-          ykPaymentId: payment.providerPaymentId,
-          ykConfirmationUrl: payment.confirmationUrl,
+          ykPaymentId: isRedirect ? payment.providerPaymentId : null,
+          ykConfirmationUrl: isRedirect ? payment.confirmationUrl : null,
         },
       });
 
+      // Ответ фронту зависит от kind.
+      if (payment.kind === "redirect") {
+        return NextResponse.json({
+          success: true,
+          data: {
+            orderId: order.id,
+            kind: "redirect" as const,
+            confirmationUrl: payment.confirmationUrl,
+          },
+        });
+      }
       return NextResponse.json({
         success: true,
         data: {
           orderId: order.id,
-          confirmationUrl: payment.confirmationUrl,
+          kind: "widget" as const,
+          widget: payment.widget,
+          params: payment.params,
         },
       });
     } catch (err) {

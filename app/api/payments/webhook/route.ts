@@ -3,25 +3,30 @@ import { db } from "@/lib/db";
 import { getProvider } from "@/lib/payments";
 import { activateOrder } from "@/lib/payments/activate-order";
 
-// ─── Лимиты ─────────────────────────────────────────────────────────────────
-const MAX_BODY_BYTES = 64 * 1024; // 64 KB — реальные вебхуки в разы меньше
+const MAX_BODY_BYTES = 64 * 1024;
 
 /**
  * POST /api/payments/webhook
  *
- * Принимает уведомления от платёжного провайдера.
+ * Принимает уведомления от платёжного провайдера. Универсальный обработчик,
+ * который перекладывает работу на provider.parseWebhook().
  *
- * Контракт безопасности:
- *   1. parseWebhook ОБЯЗАН верифицировать подпись/HMAC и бросать исключение
- *      на невалидной подписи. Возврат null = «не наш вебхук» (пинг/тест).
- *   2. Если parseWebhook бросает — это атака или неверная конфигурация.
- *      Возвращаем 401 (без деталей). Логируем внутрь.
- *   3. Статус 'paid' терминальный — никогда не откатываем уже оплаченный заказ.
- *   4. Тело ограничено 64KB чтобы атакующий не мог писать гигабайты JSON в БД.
- *   5. Никакие подробности ошибок наружу не возвращаем — только { ok }.
+ * Что обязан делать провайдер:
+ *   1. Верифицировать подпись/HMAC и бросать WebhookVerificationError если невалидно.
+ *   2. Распарсить тело (JSON или form-urlencoded — провайдер сам знает свой формат).
+ *   3. Вернуть PaymentStatusResult со status / merchantOrderId / ackResponse.
+ *   4. Если не наш payload (тест-пинг, чужой провайдер) — вернуть null.
+ *
+ * Что делаем здесь:
+ *   • Лимитируем тело 64KB.
+ *   • Ищем заказ сначала по providerPaymentId, потом по merchantOrderId
+ *     (нужно для первого webhook'а от CloudPayments — у нас ещё нет TransactionId).
+ *   • При первом успешном lookup сохраняем ykPaymentId (= providerPaymentId) в БД.
+ *   • Терминальный paid: уже оплаченный заказ не откатываем.
+ *   • Активируем через activateOrder (атомарно, идемпотентно — см. C3-C4 fixes).
+ *   • Возвращаем ackResponse от провайдера, либо { ok: true }.
  */
 export async function POST(req: NextRequest) {
-  // Лимит тела
   const lenHeader = req.headers.get("content-length");
   if (lenHeader && parseInt(lenHeader) > MAX_BODY_BYTES) {
     return new NextResponse(null, { status: 413 });
@@ -37,23 +42,16 @@ export async function POST(req: NextRequest) {
     return new NextResponse(null, { status: 400 });
   }
 
-  let body: unknown;
-  try {
-    body = JSON.parse(rawText);
-  } catch {
-    return new NextResponse(null, { status: 400 });
-  }
-
   const headers: Record<string, string> = {};
   req.headers.forEach((v, k) => {
-    headers[k] = v;
+    headers[k.toLowerCase()] = v;
   });
 
-  // ── Верификация и парсинг через провайдера. ──────────────────────────────
+  // ── Верификация и парсинг через провайдера ─────────────────────────────
   const provider = getProvider();
   let result;
   try {
-    result = await provider.parseWebhook(body, headers);
+    result = await provider.parseWebhook(rawText, headers);
   } catch (err) {
     console.error("[webhook] Signature/parse rejection:", err);
     return new NextResponse(null, { status: 401 });
@@ -61,25 +59,50 @@ export async function POST(req: NextRequest) {
 
   if (!result) {
     // Не наш вебхук — успешно проигнорировали.
-    return NextResponse.json({ ok: true });
+    return ackOk(undefined);
   }
 
-  // ── Ищем заказ. ──────────────────────────────────────────────────────────
-  const order = await db.order.findFirst({
+  // ── Lookup заказа ───────────────────────────────────────────────────────
+  // Сначала пробуем по providerPaymentId, потом по merchantOrderId (наш orderId).
+  // Для CP первый webhook (Check/Pay) приходит когда ykPaymentId ещё не сохранён,
+  // зато InvoiceId = наш orderId — поэтому fallback по merchantOrderId работает.
+  let order = await db.order.findFirst({
     where: { ykPaymentId: result.providerPaymentId },
-    select: { id: true, status: true },
+    select: { id: true, status: true, ykPaymentId: true },
   });
+  if (!order && result.merchantOrderId) {
+    order = await db.order.findFirst({
+      where: { id: result.merchantOrderId },
+      select: { id: true, status: true, ykPaymentId: true },
+    });
+  }
+
   if (!order) {
-    console.warn("[webhook] Order not found for payment:", result.providerPaymentId);
-    return NextResponse.json({ ok: true });
+    console.warn(
+      "[webhook] Order not found. providerPaymentId=%s merchantOrderId=%s",
+      result.providerPaymentId,
+      result.merchantOrderId
+    );
+    return ackOk(result.ackResponse);
   }
 
-  // ── Терминальный paid: никогда не откатываем уже оплаченный заказ. ───────
+  // Если у заказа ещё нет ykPaymentId — сохраняем (используем для последующих
+  // webhook'ов от того же провайдера, чтобы lookup был O(1) по индексу).
+  if (!order.ykPaymentId && result.providerPaymentId !== order.id) {
+    await db.order
+      .update({
+        where: { id: order.id },
+        data: { ykPaymentId: result.providerPaymentId },
+      })
+      .catch(() => {});
+  }
+
+  // ── Терминальный paid: никогда не откатываем уже оплаченный заказ ───────
   if (order.status === "paid") {
-    return NextResponse.json({ ok: true });
+    return ackOk(result.ackResponse);
   }
 
-  // ── Маппинг статусов провайдера → OrderStatus. ───────────────────────────
+  // ── Маппинг статусов провайдера → OrderStatus ──────────────────────────
   const statusMap: Record<string, "paid" | "waiting_for_capture" | "cancelled" | "refunded" | "pending"> = {
     paid: "paid",
     waiting_for_capture: "waiting_for_capture",
@@ -90,10 +113,8 @@ export async function POST(req: NextRequest) {
   const newStatus = statusMap[result.status] ?? "pending";
 
   if (result.status === "paid") {
-    // Активация атомарна — все обновления внутри activateOrder.
     try {
       await activateOrder(order.id);
-      // После активации обновим snapshot и метод оплаты (status уже paid).
       await db.order.update({
         where: { id: order.id },
         data: {
@@ -106,7 +127,6 @@ export async function POST(req: NextRequest) {
       return new NextResponse(null, { status: 500 });
     }
   } else {
-    // Не paid — обновляем только промежуточные поля (status, snapshot).
     try {
       await db.order.update({
         where: { id: order.id },
@@ -122,5 +142,15 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  return ackOk(result.ackResponse);
+}
+
+/**
+ * Возвращает ackResponse от провайдера, либо дефолтный { ok: true }.
+ * Для CloudPayments провайдер вернёт { code: 0 } — это критично, иначе CP
+ * считает webhook невалидным и блокирует следующие платежи.
+ */
+function ackOk(ack: Record<string, unknown> | undefined) {
+  if (ack) return NextResponse.json(ack);
   return NextResponse.json({ ok: true });
 }

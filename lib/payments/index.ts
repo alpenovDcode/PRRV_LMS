@@ -38,6 +38,11 @@ export function getProvider(): PaymentProvider {
       _provider = new MockPaymentProvider();
       break;
     }
+    case "cloudpayments": {
+      const { CloudPaymentsProvider } = require("./cloudpayments/provider");
+      _provider = new CloudPaymentsProvider();
+      break;
+    }
     // case "yookassa": {
     //   const { YooKassaProvider } = require("./yookassa");
     //   _provider = new YooKassaProvider();

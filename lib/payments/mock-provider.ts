@@ -4,7 +4,7 @@
  * Mock-провайдер для разработки и тестов.
  * Сразу возвращает «успех» — реальный шлюз не нужен.
  *
- * Включается когда PAYMENT_PROVIDER=mock (или переменная не задана).
+ * Включается когда PAYMENT_PROVIDER=mock (или переменная не задана в dev).
  */
 
 import { randomUUID } from "crypto";
@@ -27,6 +27,7 @@ export class MockPaymentProvider implements PaymentProvider {
       `?orderId=${input.orderId}&paymentId=${id}&returnUrl=${encodeURIComponent(input.returnUrl)}`;
 
     return {
+      kind: "redirect",
       providerPaymentId: id,
       confirmationUrl,
       status: "pending",
@@ -42,11 +43,16 @@ export class MockPaymentProvider implements PaymentProvider {
   }
 
   async parseWebhook(
-    body: unknown,
+    rawBody: string,
     headers: Record<string, string>
   ): Promise<PaymentStatusResult | null> {
-    const b = body as any;
-    if (!b?.mock_event) return null;
+    let body: any;
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      return null;
+    }
+    if (!body?.mock_event) return null;
 
     // Даже в dev требуем shared-secret чтобы случайные POST не активировали
     // заказы. Секрет берётся из MOCK_WEBHOOK_SECRET env; если не задан —
@@ -58,8 +64,8 @@ export class MockPaymentProvider implements PaymentProvider {
     }
 
     return {
-      providerPaymentId: String(b.payment_id ?? ""),
-      status: (b.status ?? "paid") as PaymentStatusResult["status"],
+      providerPaymentId: String(body.payment_id ?? ""),
+      status: (body.status ?? "paid") as PaymentStatusResult["status"],
       paidAt: new Date(),
       paymentMethod: "mock_card",
       raw: body,

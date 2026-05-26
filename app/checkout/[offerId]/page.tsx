@@ -53,16 +53,73 @@ export default function CheckoutPage() {
       const data = await res.json();
       if (!res.ok || !data.success) {
         setError(data.error ?? "Ошибка создания платежа");
+        setPaying(false);
         return;
       }
-      // Редиректим на страницу оплаты провайдера
-      window.location.href = data.data.confirmationUrl;
+
+      // Redirect-провайдеры (mock, ЮКасса) — просто уходим на их форму.
+      if (data.data.kind === "redirect") {
+        window.location.href = data.data.confirmationUrl;
+        return;
+      }
+
+      // Widget-провайдер (CloudPayments) — грузим скрипт и открываем виджет
+      // на нашей странице. После закрытия виджета редиректим на success.
+      if (data.data.kind === "widget" && data.data.widget === "cloudpayments") {
+        await openCloudPaymentsWidget(data.data.params, data.data.orderId);
+        return;
+      }
+
+      setError("Неизвестный тип ответа от платёжного провайдера");
     } catch {
       setError("Ошибка сети");
     } finally {
       setPaying(false);
     }
   };
+
+  /**
+   * Загружает CP-скрипт (idempotent) и открывает виджет с переданными params.
+   * После закрытия (success/fail/cancel) ведёт юзера на /payments/success
+   * — там polling статуса покажет финальный результат.
+   */
+  async function openCloudPaymentsWidget(
+    params: Record<string, unknown>,
+    orderId: string
+  ): Promise<void> {
+    // 1. Загружаем CP bundle если ещё не загружен
+    const SRC = "https://widget.cloudpayments.ru/bundles/cloudpayments.js";
+    if (!document.querySelector(`script[src="${SRC}"]`)) {
+      await new Promise<void>((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = SRC;
+        script.async = true;
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error("Не удалось загрузить CloudPayments"));
+        document.head.appendChild(script);
+      });
+    }
+
+    // 2. Открываем виджет
+    const cp = (window as any).cp;
+    if (!cp?.CloudPayments) {
+      throw new Error("CloudPayments SDK не доступен");
+    }
+    const widget = new cp.CloudPayments();
+    widget.pay("auth", params, {
+      onSuccess: () => {
+        window.location.href = `/payments/success?orderId=${orderId}`;
+      },
+      onFail: (reason: string) => {
+        setError(`Платёж не прошёл: ${reason}`);
+        setPaying(false);
+      },
+      onComplete: (_paymentResult: any, _options: any) => {
+        // вызывается всегда после закрытия виджета. Состояние страницы
+        // уже обработано в onSuccess/onFail.
+      },
+    });
+  }
 
   if (loading) {
     return (
