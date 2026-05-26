@@ -85,6 +85,17 @@ services:
       IG_APP_SECRET: ${IG_APP_SECRET:-}
       IG_OAUTH_REDIRECT_URI: ${IG_OAUTH_REDIRECT_URI:-https://prrv.tech/api/messaging/instagram/oauth/callback}
       IG_WEBHOOK_VERIFY_TOKEN: ${IG_WEBHOOK_VERIFY_TOKEN:-}
+      # ---- Payments ----
+      # Активный провайдер. В production обязателен и не должен быть "mock".
+      PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-mock}
+      # CloudPayments — берётся в личном кабинете CP → Настройки → Сайты → API.
+      CP_PUBLIC_ID: ${CP_PUBLIC_ID:-}
+      CP_API_SECRET: ${CP_API_SECRET:-}
+      CP_PAYMENT_SCHEMA: ${CP_PAYMENT_SCHEMA:-Single}
+      # Comma-separated отключаемые методы (напр. "TinkoffPay,SberPay"). Пусто = все доступны.
+      CP_RESTRICTED_METHODS: ${CP_RESTRICTED_METHODS:-}
+      # Mock provider (только dev)
+      MOCK_WEBHOOK_SECRET: ${MOCK_WEBHOOK_SECRET:-}
     ports:
       - "${APP_PORT:-3000}:3000"
     depends_on:
