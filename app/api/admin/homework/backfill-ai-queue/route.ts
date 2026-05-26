@@ -46,6 +46,9 @@ export async function POST(request: NextRequest) {
       await db.homeworkAIQueue.create({
         data: {
           submissionId: sub.id,
+          // C4: явный mode. Backfill ставит auto_approve — он используется
+          // для существующих pending ДЗ, чтобы AI-checker сам им проставил статус.
+          mode: "auto_approve",
           lessonTitle: lesson.title,
           studentName: sub.user.fullName ?? sub.user.email,
           studentAnswer: sub.content ?? "",

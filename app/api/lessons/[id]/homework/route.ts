@@ -277,6 +277,9 @@ export async function POST(
           where: { submissionId: submission.id },
           create: {
             submissionId: submission.id,
+            // C4: явный mode. Path A — auto_approve: AI-checker сам пишет
+            // финальный статус через /api/homework/ai-result.
+            mode: "auto_approve",
             lessonTitle: lesson.title,
             studentName: submission.user.fullName ?? submission.user.email,
             studentAnswer: sanitizedContent,
@@ -287,6 +290,10 @@ export async function POST(
             checkAfter,
           },
           update: {
+            // При переотправке студентом сохраняем auto_approve режим — это
+            // защищает от случая, когда куратор уже создал suggest-запись:
+            // upsert обновит её обратно в auto_approve, что породит конфликт.
+            // Поэтому update НЕ перезаписывает mode (см. H3 в аудите).
             studentAnswer: sanitizedContent,
             imageFiles: lesson.hasImageAnalysis ? (files || []) : [],
             checkAfter,
