@@ -79,6 +79,11 @@ services:
       # AI homework checker (external Flask bot)
       AI_CHECKER_URL: ${AI_CHECKER_URL}
       AI_CHECKER_KEY: ${AI_CHECKER_KEY}
+      # Anthropic Claude — fallback grader when AI-checker is unreachable.
+      # Without this key, only AI-checker is used; with it, LMS auto-retries
+      # via Claude API directly.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-sonnet-4-5}
       # ---- Instagram messaging (Meta Graph API) ----
       # Регистрация: developers.facebook.com → Product «Instagram → API with Instagram Login»
       IG_APP_ID: ${IG_APP_ID:-}
