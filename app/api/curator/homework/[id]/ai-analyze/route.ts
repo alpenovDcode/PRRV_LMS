@@ -67,6 +67,30 @@ export async function POST(
 
       const lesson = submission.lesson;
 
+      // ── C1: guard от двойного kickoff ────────────────────────────────────
+      // Если предыдущий анализ ещё идёт (startedAt задан, но нет ни
+      // analyzedAt ни error) — отказываемся, чтобы не плодить дублирующие
+      // задачи у AI-checker и не давать гонкам перезаписать поля.
+      // Считаем «зависшим» анализ старше 1 часа — его можно перезапустить,
+      // т.к. cleanup-cron к этому моменту уже должен был выставить error,
+      // но на всякий случай разрешаем явный re-run и тут.
+      const subAny = submission as any;
+      const ANALYSIS_STALE_MS = 60 * 60 * 1000;
+      const stillRunning =
+        subAny.aiAnalysisStartedAt &&
+        !subAny.aiAnalyzedAt &&
+        !subAny.aiAnalysisError &&
+        Date.now() - new Date(subAny.aiAnalysisStartedAt).getTime() < ANALYSIS_STALE_MS;
+      if (stillRunning) {
+        return NextResponse.json(
+          {
+            error:
+              "Анализ уже выполняется. Дождись результата или повтори через час, если AI-checker завис.",
+          },
+          { status: 409 }
+        );
+      }
+
       // 1. Помечаем submission как "анализируется". Параллельно сбрасываем
       //    результаты прошлой попытки — фронт по этим полям понимает, что
       //    надо переключиться в polling-режим и не показывать старый

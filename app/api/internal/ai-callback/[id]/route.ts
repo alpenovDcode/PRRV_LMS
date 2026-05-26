@@ -85,6 +85,18 @@ export async function POST(
     );
   }
 
+  // C2: идемпотентность. Если результат уже сохранён (aiAnalyzedAt стоит),
+  // повторный callback от AI-checker (типичный ретрай) НЕ перезаписывает
+  // вердикт/комментарий — возвращаем 200, чтобы AI-checker считал отправку
+  // успешной и больше не повторял.
+  const existingAny = existing as any;
+  if (existingAny.aiAnalyzedAt) {
+    return NextResponse.json(
+      { ok: true, ignored: "already_analyzed" },
+      { status: 200 }
+    );
+  }
+
   // 4a. Ошибка от AI-checker — записываем в aiAnalysisError, чтобы
   //     фронт показал куратору и предложил перезапуск.
   if (body.error) {
