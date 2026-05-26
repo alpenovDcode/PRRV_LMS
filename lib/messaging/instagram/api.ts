@@ -96,6 +96,86 @@ export async function sendQuickReplies(input: IgSendQuickRepliesInput): Promise<
   return resp.json();
 }
 
+// ─── Button Template (URL + postback кнопки) ──────────────────────────────
+//
+// В отличие от quick replies, эти кнопки находятся ВНУТРИ карточки сообщения
+// и не исчезают после клика. Поддерживают два типа:
+//   - web_url   → открывает ссылку в браузере / webview Instagram
+//   - postback  → присылает payload в webhook (как quick reply)
+//
+// Лимиты: до 3 кнопок, текст ≤ 640 символов, title кнопки ≤ 20 chars.
+
+export type IgButton =
+  | {
+      type: "web_url";
+      title: string;
+      url: string;
+      /** Высота webview при открытии: compact|tall|full. По умолчанию full. */
+      webviewHeightRatio?: "compact" | "tall" | "full";
+    }
+  | {
+      type: "postback";
+      title: string;
+      payload: string;
+    };
+
+export interface IgSendButtonsInput {
+  accessToken: string;
+  fromAccountId: string;
+  toIgsid: string;
+  text: string;
+  buttons: IgButton[]; // до 3
+}
+
+export async function sendButtonTemplate(input: IgSendButtonsInput): Promise<{ message_id: string }> {
+  if (input.buttons.length === 0 || input.buttons.length > 3) {
+    throw new Error("Instagram button template requires 1-3 buttons");
+  }
+  if (input.text.length > 640) {
+    throw new Error("Instagram button template text must be ≤ 640 chars");
+  }
+
+  const url = `${IG_GRAPH_BASE}/v21.0/${input.fromAccountId}/messages`;
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      recipient: { id: input.toIgsid },
+      message: {
+        attachment: {
+          type: "template",
+          payload: {
+            template_type: "button",
+            text: input.text,
+            buttons: input.buttons.map((b) => {
+              if (b.type === "web_url") {
+                return {
+                  type: "web_url",
+                  url: b.url,
+                  title: b.title.slice(0, 20),
+                  webview_height_ratio: b.webviewHeightRatio ?? "full",
+                };
+              }
+              return {
+                type: "postback",
+                title: b.title.slice(0, 20),
+                payload: b.payload,
+              };
+            }),
+          },
+        },
+      },
+      access_token: input.accessToken,
+    }),
+  });
+
+  if (!resp.ok) {
+    const err = await resp.text();
+    throw new Error(`IG sendButtonTemplate failed: ${resp.status} ${err.slice(0, 300)}`);
+  }
+  return resp.json();
+}
+
 /**
  * Проверка 24h messaging window. Возвращает true если последний входящий
  * был не более 24 часов назад → можно слать без message_tag.

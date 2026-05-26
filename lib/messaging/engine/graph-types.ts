@@ -16,6 +16,7 @@ export interface FlowGraph {
 export type FlowNode =
   | SendTextNode
   | SendQuickRepliesNode
+  | SendButtonsNode
   | WaitReplyNode
   | ConditionNode
   | SetVariableNode
@@ -35,6 +36,22 @@ export interface SendQuickRepliesNode {
   text: string;
   buttons: Array<{ title: string; payload: string }>;
   /** Куда идти если канал не поддерживает quick replies (для IG не используется) */
+  next: string | null;
+}
+
+/**
+ * Отправить текст + кнопки-карточки. В отличие от quick replies кнопки
+ * могут быть `url` (открывают сайт) или `postback` (отправляют payload).
+ *
+ * Лимиты для IG: до 3 кнопок, текст ≤ 640 chars, title кнопки ≤ 20 chars.
+ */
+export interface SendButtonsNode {
+  type: "send_buttons";
+  text: string;
+  buttons: Array<
+    | { type: "url"; title: string; url: string }
+    | { type: "postback"; title: string; payload: string }
+  >;
   next: string | null;
 }
 

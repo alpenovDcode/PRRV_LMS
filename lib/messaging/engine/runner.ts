@@ -218,6 +218,25 @@ async function executeNode(
       return { kind: "advance", nextNodeId: node.next, context };
     }
 
+    case "send_buttons": {
+      const text = renderTemplate(node.text, tmplCtx);
+      const buttons = node.buttons.map((b) =>
+        b.type === "url"
+          ? {
+              type: "url" as const,
+              title: renderTemplate(b.title, tmplCtx),
+              url: renderTemplate(b.url, tmplCtx),
+            }
+          : {
+              type: "postback" as const,
+              title: renderTemplate(b.title, tmplCtx),
+              payload: b.payload,
+            }
+      );
+      await provider.sendButtons(bot, subscriber, text, buttons);
+      return { kind: "advance", nextNodeId: node.next, context };
+    }
+
     case "wait_reply": {
       const waitUntil = new Date(Date.now() + (node.timeoutSec ?? 86400) * 1000);
       // currentNodeId уже указывает на wait_reply — статус сменим в caller

@@ -6,9 +6,20 @@
  */
 
 import type { MessagingBot, MessagingSubscriber } from "@prisma/client";
-import { sendText as igSendText, sendQuickReplies as igSendQuickReplies, isWithin24hWindow } from "@/lib/messaging/instagram/api";
+import {
+  sendText as igSendText,
+  sendQuickReplies as igSendQuickReplies,
+  sendButtonTemplate as igSendButtonTemplate,
+  isWithin24hWindow,
+} from "@/lib/messaging/instagram/api";
 import { decrypt } from "@/lib/messaging/encryption";
-import type { BotProvider, BotCapabilities, QuickReplyButton, SendMessageResult } from "./types";
+import type {
+  BotProvider,
+  BotCapabilities,
+  QuickReplyButton,
+  TemplateButton,
+  SendMessageResult,
+} from "./types";
 
 const IG_CAPABILITIES: BotCapabilities = {
   inlineButtons: false,
@@ -18,6 +29,8 @@ const IG_CAPABILITIES: BotCapabilities = {
   hasMessagingWindow: true,
   commentTriggers: true,
   storyReplyTriggers: true,
+  urlButtons: true,
+  maxTemplateButtons: 3,
 };
 
 export class InstagramBotProvider implements BotProvider {
@@ -60,6 +73,34 @@ export class InstagramBotProvider implements BotProvider {
       toIgsid: subscriber.externalUserId,
       text,
       quickReplies: buttons.slice(0, this.capabilities.maxQuickReplies),
+    });
+    return { externalMessageId: result.message_id };
+  }
+
+  async sendButtons(
+    bot: MessagingBot,
+    subscriber: MessagingSubscriber,
+    text: string,
+    buttons: TemplateButton[]
+  ): Promise<SendMessageResult> {
+    const check = this.canSendNow(subscriber);
+    if (!check.allowed) {
+      throw new Error(`IG: ${check.reason}`);
+    }
+
+    // Конвертим channel-agnostic кнопки в IG-формат
+    const igButtons = buttons.slice(0, this.capabilities.maxTemplateButtons).map((b) =>
+      b.type === "url"
+        ? { type: "web_url" as const, title: b.title, url: b.url }
+        : { type: "postback" as const, title: b.title, payload: b.payload }
+    );
+
+    const result = await igSendButtonTemplate({
+      accessToken: decrypt(bot.tokenEnc),
+      fromAccountId: bot.externalAccountId,
+      toIgsid: subscriber.externalUserId,
+      text,
+      buttons: igButtons,
     });
     return { externalMessageId: result.message_id };
   }

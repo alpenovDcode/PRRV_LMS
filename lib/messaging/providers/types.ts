@@ -16,6 +16,17 @@ export interface QuickReplyButton {
   payload: string;
 }
 
+/**
+ * Кнопка-карточка под сообщением. В отличие от quick reply остаётся видимой
+ * после клика и поддерживает открытие URL.
+ *
+ *   url      → открыть ссылку в браузере (или встроенном webview)
+ *   postback → отправить payload в webhook (как quick reply)
+ */
+export type TemplateButton =
+  | { type: "url"; title: string; url: string }
+  | { type: "postback"; title: string; payload: string };
+
 export interface SendMessageResult {
   /** ID отправленного сообщения на стороне платформы */
   externalMessageId: string;
@@ -36,6 +47,10 @@ export interface BotCapabilities {
   commentTriggers: boolean;
   /** Поддержка триггеров на ответы в сторис (Instagram) */
   storyReplyTriggers: boolean;
+  /** Поддержка кнопок с URL (Button Template в IG, inline-кнопки в TG) */
+  urlButtons: boolean;
+  /** Максимум кнопок в одном button-сообщении */
+  maxTemplateButtons: number;
 }
 
 export interface BotProvider {
@@ -61,6 +76,17 @@ export interface BotProvider {
     subscriber: MessagingSubscriber,
     text: string,
     buttons: QuickReplyButton[]
+  ): Promise<SendMessageResult>;
+
+  /**
+   * Отправить сообщение с кнопками-карточками (URL и/или postback).
+   * Используется когда нужно открыть ссылку при клике.
+   */
+  sendButtons(
+    bot: MessagingBot,
+    subscriber: MessagingSubscriber,
+    text: string,
+    buttons: TemplateButton[]
   ): Promise<SendMessageResult>;
 
   /**
