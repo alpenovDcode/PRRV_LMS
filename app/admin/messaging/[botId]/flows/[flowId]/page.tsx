@@ -171,6 +171,7 @@ export default function FlowEditPage() {
           <p className="text-xs text-gray-400 mt-2">
             Типы узлов: <code className="bg-gray-100 px-1 rounded">send_text</code>,{" "}
             <code className="bg-gray-100 px-1 rounded">send_quick_replies</code>,{" "}
+            <code className="bg-gray-100 px-1 rounded">send_buttons</code> (URL/postback),{" "}
             <code className="bg-gray-100 px-1 rounded">wait_reply</code>,{" "}
             <code className="bg-gray-100 px-1 rounded">condition</code>,{" "}
             <code className="bg-gray-100 px-1 rounded">set_variable</code>,{" "}
