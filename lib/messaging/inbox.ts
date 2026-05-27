@@ -8,6 +8,7 @@
  */
 
 import { db } from "@/lib/db";
+import { recordEvent, EVENT_TYPES } from "./events";
 
 export interface RecordInboundInput {
   botId: string;
@@ -28,6 +29,15 @@ export async function recordInboundMessage(input: RecordInboundInput): Promise<v
       callbackPayload: input.callbackPayload ?? null,
       externalMessageId: input.externalMessageId ?? null,
       attachments: (input.attachments ?? null) as any,
+    },
+  });
+  await recordEvent({
+    botId: input.botId,
+    type: EVENT_TYPES.MESSAGE_INBOUND,
+    subscriberId: input.subscriberId,
+    data: {
+      hasText: !!input.text,
+      hasCallback: !!input.callbackPayload,
     },
   });
 }
@@ -53,5 +63,11 @@ export async function recordOutboundMessage(input: RecordOutboundInput): Promise
       attachments: (input.attachments ?? null) as any,
       source: input.source ?? null,
     },
+  });
+  await recordEvent({
+    botId: input.botId,
+    type: EVENT_TYPES.MESSAGE_OUTBOUND,
+    subscriberId: input.subscriberId,
+    data: { source: input.source ?? null },
   });
 }

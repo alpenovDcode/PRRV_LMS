@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { dispatchInbound } from "@/lib/messaging/engine/dispatcher";
 import { recordInboundMessage } from "@/lib/messaging/inbox";
+import { recordEvent, EVENT_TYPES } from "@/lib/messaging/events";
 
 const MAX_BODY_BYTES = 64 * 1024;
 
@@ -185,7 +186,7 @@ async function upsertSubscriber(
     });
   }
 
-  return db.messagingSubscriber.create({
+  const created = await db.messagingSubscriber.create({
     data: {
       botId,
       externalUserId,
@@ -197,4 +198,11 @@ async function upsertSubscriber(
       variables: { maxUserId: user.user_id } as any,
     },
   });
+  await recordEvent({
+    botId,
+    type: EVENT_TYPES.SUBSCRIBER_CREATED,
+    subscriberId: created.id,
+    data: { channel: "max" },
+  });
+  return created;
 }

@@ -19,6 +19,8 @@ import {
 } from "@prisma/client";
 import { getBotProvider } from "./providers/factory";
 import { renderTemplate } from "./engine/template";
+import { recordEvent, EVENT_TYPES } from "./events";
+import { recordOutboundMessage } from "./inbox";
 
 const BATCH_SIZE = 50;
 
@@ -163,6 +165,12 @@ export async function sendBroadcast(broadcastId: string): Promise<{
   });
   if (!broadcast) throw new Error("Broadcast not found");
 
+  await recordEvent({
+    botId: broadcast.botId,
+    type: EVENT_TYPES.BROADCAST_STARTED,
+    data: { broadcastId, total: broadcast.totalRecipients },
+  });
+
   let sent = 0;
   let failed = 0;
 
@@ -177,10 +185,16 @@ export async function sendBroadcast(broadcastId: string): Promise<{
 
     for (const recipient of batch) {
       try {
-        await sendOneMessage(broadcast.bot, recipient.subscriber, broadcast);
+        await sendOneMessage(broadcast.bot, recipient.subscriber, broadcast, broadcastId);
         await db.messagingBroadcastRecipient.update({
           where: { id: recipient.id },
           data: { status: "sent", sentAt: new Date() },
+        });
+        await recordEvent({
+          botId: broadcast.botId,
+          type: EVENT_TYPES.BROADCAST_DELIVERED,
+          subscriberId: recipient.subscriberId,
+          data: { broadcastId },
         });
         sent++;
       } catch (e) {
@@ -188,6 +202,12 @@ export async function sendBroadcast(broadcastId: string): Promise<{
         await db.messagingBroadcastRecipient.update({
           where: { id: recipient.id },
           data: { status: "failed", error: errMsg.slice(0, 500) },
+        });
+        await recordEvent({
+          botId: broadcast.botId,
+          type: EVENT_TYPES.BROADCAST_FAILED,
+          subscriberId: recipient.subscriberId,
+          data: { broadcastId, error: errMsg.slice(0, 200) },
         });
         failed++;
       }
@@ -216,6 +236,17 @@ export async function sendBroadcast(broadcastId: string): Promise<{
     },
   });
 
+  await recordEvent({
+    botId: broadcast.botId,
+    type: EVENT_TYPES.BROADCAST_COMPLETED,
+    data: {
+      broadcastId,
+      sent: final?.sentCount ?? 0,
+      failed: final?.failedCount ?? 0,
+      total: final?.totalRecipients ?? 0,
+    },
+  });
+
   return {
     sent: final?.sentCount ?? 0,
     failed: final?.failedCount ?? 0,
@@ -226,7 +257,8 @@ export async function sendBroadcast(broadcastId: string): Promise<{
 async function sendOneMessage(
   bot: MessagingBot,
   subscriber: MessagingSubscriber,
-  broadcast: { text: string; buttons: any }
+  broadcast: { text: string; buttons: any },
+  broadcastId: string
 ): Promise<void> {
   const provider = getBotProvider(bot.channel);
   const tmplCtx = { subscriber, bot, context: {} };
@@ -239,8 +271,24 @@ async function sendOneMessage(
         ? { type: "url" as const, title: renderTemplate(b.title, tmplCtx), url: renderTemplate(b.url, tmplCtx) }
         : { type: "postback" as const, title: renderTemplate(b.title, tmplCtx), payload: b.payload }
     );
-    await provider.sendButtons(bot, subscriber, text, rendered);
+    const sent = await provider.sendButtons(bot, subscriber, text, rendered);
+    await recordOutboundMessage({
+      botId: bot.id,
+      subscriberId: subscriber.id,
+      text,
+      externalMessageId: sent.externalMessageId,
+      source: "broadcast",
+      attachments: { broadcastId, buttons: rendered },
+    }).catch(() => {});
   } else {
-    await provider.sendText(bot, subscriber, text);
+    const sent = await provider.sendText(bot, subscriber, text);
+    await recordOutboundMessage({
+      botId: bot.id,
+      subscriberId: subscriber.id,
+      text,
+      externalMessageId: sent.externalMessageId,
+      source: "broadcast",
+      attachments: { broadcastId },
+    }).catch(() => {});
   }
 }

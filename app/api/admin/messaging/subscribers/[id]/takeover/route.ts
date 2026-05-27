@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/api-middleware";
 import { db } from "@/lib/db";
 import { UserRole } from "@prisma/client";
+import { recordEvent, EVENT_TYPES } from "@/lib/messaging/events";
 
 /**
  * POST /api/admin/messaging/subscribers/[id]/takeover
@@ -19,12 +20,18 @@ export async function POST(
     req,
     async (authedReq) => {
       const { id } = await params;
-      await db.messagingSubscriber.update({
+      const updated = await db.messagingSubscriber.update({
         where: { id },
         data: {
           operatorTakeoverAt: new Date(),
           operatorAssigneeId: authedReq.user!.userId,
         } as any,
+      });
+      await recordEvent({
+        botId: updated.botId,
+        type: EVENT_TYPES.OPERATOR_TAKEOVER,
+        subscriberId: id,
+        data: { operatorId: authedReq.user!.userId },
       });
       return NextResponse.json({ success: true });
     },
@@ -38,11 +45,17 @@ export async function DELETE(
 ) {
   return withAuth(
     req,
-    async () => {
+    async (authedReq) => {
       const { id } = await params;
-      await db.messagingSubscriber.update({
+      const updated = await db.messagingSubscriber.update({
         where: { id },
         data: { operatorTakeoverAt: null, operatorAssigneeId: null } as any,
+      });
+      await recordEvent({
+        botId: updated.botId,
+        type: EVENT_TYPES.OPERATOR_RELEASE,
+        subscriberId: id,
+        data: { operatorId: authedReq.user!.userId },
       });
       return NextResponse.json({ success: true });
     },

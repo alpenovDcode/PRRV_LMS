@@ -18,6 +18,7 @@ import { db } from "@/lib/db";
 import type { MessagingBot, MessagingSubscriber } from "@prisma/client";
 import { renderTemplate } from "./template";
 import type { NodeAction } from "./graph-types";
+import { recordEvent, EVENT_TYPES } from "../events";
 
 export interface ExecuteActionsResult {
   /** Обновлённый subscriber (если actions меняли его поля) */
@@ -71,6 +72,12 @@ async function executeAction(
         where: { id: subscriber.id },
         data: { tags: { push: tag } },
       });
+      await recordEvent({
+        botId: bot.id,
+        type: EVENT_TYPES.TAG_ADDED,
+        subscriberId: subscriber.id,
+        data: { tag },
+      });
       return { subscriber: updated, context };
     }
 
@@ -82,11 +89,18 @@ async function executeAction(
         where: { id: subscriber.id },
         data: { tags: subscriber.tags.filter((t) => t !== tag) },
       });
+      await recordEvent({
+        botId: bot.id,
+        type: EVENT_TYPES.TAG_REMOVED,
+        subscriberId: subscriber.id,
+        data: { tag },
+      });
       return { subscriber: updated, context };
     }
 
     case "add_to_list": {
       // Идемпотентно: upsert на unique(listId, subscriberId)
+      let created = false;
       await db.messagingListMember
         .upsert({
           where: {
@@ -102,6 +116,9 @@ async function executeAction(
           },
           update: {}, // ничего, запись уже есть
         })
+        .then(() => {
+          created = true;
+        })
         .catch((e) => {
           // листа может не быть — логируем
           console.warn(`[actions] add_to_list ${action.listId} failed:`, e);
@@ -109,19 +126,35 @@ async function executeAction(
 
       // Пересчитаем memberCount (best-effort)
       await refreshListMemberCount(action.listId).catch(() => {});
+      if (created) {
+        await recordEvent({
+          botId: bot.id,
+          type: EVENT_TYPES.LIST_JOINED,
+          subscriberId: subscriber.id,
+          data: { listId: action.listId },
+        });
+      }
       return { subscriber, context };
     }
 
     case "remove_from_list": {
-      await db.messagingListMember
+      const res = await db.messagingListMember
         .deleteMany({
           where: {
             listId: action.listId,
             subscriberId: subscriber.id,
           },
         })
-        .catch(() => {});
+        .catch(() => null);
       await refreshListMemberCount(action.listId).catch(() => {});
+      if (res && res.count > 0) {
+        await recordEvent({
+          botId: bot.id,
+          type: EVENT_TYPES.LIST_LEFT,
+          subscriberId: subscriber.id,
+          data: { listId: action.listId },
+        });
+      }
       return { subscriber, context };
     }
 

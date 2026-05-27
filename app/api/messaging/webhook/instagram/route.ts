@@ -6,6 +6,7 @@ import { fetchSubscriberProfile } from "@/lib/messaging/instagram/api";
 import { IG_APP_SECRET, IG_WEBHOOK_VERIFY_TOKEN } from "@/lib/messaging/instagram/config";
 import { dispatchInbound } from "@/lib/messaging/engine/dispatcher";
 import { recordInboundMessage } from "@/lib/messaging/inbox";
+import { recordEvent, EVENT_TYPES } from "@/lib/messaging/events";
 
 const MAX_BODY_BYTES = 64 * 1024;
 
@@ -168,6 +169,12 @@ async function processInboundEvent(
         lastSeenAt: now,
         subscribedAt: now,
       },
+    });
+    await recordEvent({
+      botId: bot.id,
+      type: EVENT_TYPES.SUBSCRIBER_CREATED,
+      subscriberId: subscriber.id,
+      data: { channel: "instagram" },
     });
   } else {
     await db.messagingSubscriber.update({

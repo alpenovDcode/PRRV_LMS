@@ -5,6 +5,7 @@ import { UserRole } from "@prisma/client";
 import { z } from "zod";
 import { getBotProvider } from "@/lib/messaging/providers/factory";
 import { recordOutboundMessage } from "@/lib/messaging/inbox";
+import { recordEvent, EVENT_TYPES } from "@/lib/messaging/events";
 
 const schema = z.object({
   text: z.string().min(1).max(4000),
@@ -47,6 +48,12 @@ export async function POST(
           text: parsed.data.text,
           externalMessageId: sent.externalMessageId,
           source: `operator:${authedReq.user!.userId}`,
+        });
+        await recordEvent({
+          botId: subscriber.bot.id,
+          type: EVENT_TYPES.OPERATOR_REPLIED,
+          subscriberId: subscriber.id,
+          data: { operatorId: authedReq.user!.userId, length: parsed.data.text.length },
         });
         return NextResponse.json({ success: true });
       } catch (e) {

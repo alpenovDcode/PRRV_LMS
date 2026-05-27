@@ -23,6 +23,7 @@ import { getBotProvider } from "@/lib/messaging/providers/factory";
 import { renderTemplate } from "./template";
 import { executeActions } from "./actions";
 import { recordOutboundMessage } from "../inbox";
+import { recordEvent, EVENT_TYPES } from "../events";
 import type { FlowGraph, FlowNode, ConditionNode } from "./graph-types";
 
 const MAX_NODES_PER_TICK = 50; // защита от бесконечных циклов в графе
@@ -67,6 +68,14 @@ export async function startFlow(opts: StartFlowOptions): Promise<string> {
   await db.messagingFlow.update({
     where: { id: opts.flowId },
     data: { runCount: { increment: 1 } },
+  });
+
+  // Event: запуск воронки
+  await recordEvent({
+    botId: flow.botId,
+    type: EVENT_TYPES.FLOW_STARTED,
+    subscriberId: opts.subscriberId,
+    data: { flowId: opts.flowId, runId: run.id },
   });
 
   await tickRun(run.id);
@@ -417,24 +426,38 @@ function evalConditionBranches(
 }
 
 async function markCompleted(runId: string): Promise<void> {
-  await db.messagingFlowRun.update({
+  const run = await db.messagingFlowRun.update({
     where: { id: runId },
     data: {
       status: MessagingFlowRunStatus.completed,
       completedAt: new Date(),
       currentNodeId: null,
     },
+    include: { flow: { select: { botId: true } } },
+  });
+  await recordEvent({
+    botId: run.flow.botId,
+    type: EVENT_TYPES.FLOW_COMPLETED,
+    subscriberId: run.subscriberId,
+    data: { flowId: run.flowId, runId },
   });
 }
 
 async function markFailed(runId: string, error: string): Promise<void> {
   console.error(`[flow-runner] run ${runId} failed:`, error);
-  await db.messagingFlowRun.update({
+  const run = await db.messagingFlowRun.update({
     where: { id: runId },
     data: {
       status: MessagingFlowRunStatus.failed,
       completedAt: new Date(),
       lastError: error.slice(0, 500),
     },
+    include: { flow: { select: { botId: true } } },
+  });
+  await recordEvent({
+    botId: run.flow.botId,
+    type: EVENT_TYPES.FLOW_FAILED,
+    subscriberId: run.subscriberId,
+    data: { flowId: run.flowId, runId, error: error.slice(0, 500) },
   });
 }
