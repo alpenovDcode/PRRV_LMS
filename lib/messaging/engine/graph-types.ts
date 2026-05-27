@@ -20,6 +20,9 @@ export type FlowNode =
   | WaitReplyNode
   | ConditionNode
   | SetVariableNode
+  | DelayNode
+  | GotoFlowNode
+  | HttpRequestNode
   | EndNode;
 
 // ─── Inline-actions ────────────────────────────────────────────────────────
@@ -189,5 +192,49 @@ export interface SetVariableNode {
 /** Конец воронки. */
 export interface EndNode {
   type: "end";
+  actions?: NodeAction[];
+}
+
+/**
+ * Отложить выполнение на N секунд. Run переходит в sleeping,
+ * waitUntil выставляется, cron позже возобновляет.
+ *
+ * Максимум 90 дней (7,776,000 сек) — больше не имеет смысла, и Postgres
+ * timestamp не сломается.
+ */
+export interface DelayNode {
+  type: "delay";
+  /** На сколько отложить (секунды). Минимум 60 (1 мин), максимум 7776000 (90 дней). */
+  seconds: number;
+  next: string | null;
+  actions?: NodeAction[];
+}
+
+/**
+ * Переход на другую воронку. Текущий run завершается (status=completed),
+ * стартует новый run по указанной flow.
+ */
+export interface GotoFlowNode {
+  type: "goto_flow";
+  /** ID целевого MessagingFlow. Должен принадлежать тому же боту. */
+  flowId: string;
+  actions?: NodeAction[];
+}
+
+/**
+ * Самостоятельный узел HTTP-запроса. То же что http_request action, но как
+ * отдельный узел — удобно ставить в граф между сообщениями.
+ *
+ * Если нужен HTTP «попутно» к сообщению — лучше action, не узел.
+ */
+export interface HttpRequestNode {
+  type: "http_request_node";
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  url: string;
+  body?: string;
+  headers?: Record<string, string>;
+  saveResponseTo?: string;
+  timeoutSec?: number;
+  next: string | null;
   actions?: NodeAction[];
 }

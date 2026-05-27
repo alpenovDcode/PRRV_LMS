@@ -209,6 +209,32 @@ export async function tickRun(runId: string): Promise<void> {
           },
         });
         return;
+      } else if (result.kind === "sleep") {
+        // Delay-узел — записываем currentNodeId как следующий узел
+        // (на тот куда переходить после wake-up), waitUntil + status
+        // = waiting_reply (используем тот же статус для cron pick-up).
+        await db.messagingFlowRun.update({
+          where: { id: runId },
+          data: {
+            status: MessagingFlowRunStatus.waiting_reply,
+            currentNodeId: result.nextNodeId,
+            context: finalContext as any,
+            waitUntil: result.waitUntil,
+          },
+        });
+        return;
+      } else if (result.kind === "goto") {
+        // Завершаем текущий run, стартуем новый по другому flow
+        await markCompleted(runId);
+        const { startFlow } = await import("./runner");
+        await startFlow({
+          flowId: result.flowId,
+          subscriberId: run.subscriberId,
+          initialContext: finalContext as Record<string, unknown>,
+        }).catch((e) => {
+          console.error(`[runner] goto_flow to ${result.flowId} failed:`, e);
+        });
+        return;
       } else if (result.kind === "end") {
         await markCompleted(runId);
         return;
@@ -228,6 +254,8 @@ export async function tickRun(runId: string): Promise<void> {
 type ExecResult =
   | { kind: "advance"; nextNodeId: string | null; context: Record<string, unknown> }
   | { kind: "wait"; waitUntil: Date }
+  | { kind: "sleep"; waitUntil: Date; nextNodeId: string | null; context: Record<string, unknown> }
+  | { kind: "goto"; flowId: string }
   | { kind: "end" };
 
 async function executeNode(
@@ -290,6 +318,36 @@ async function executeNode(
       const value = renderTemplate(node.value, tmplCtx);
       const newContext = { ...context, [node.key]: value };
       return { kind: "advance", nextNodeId: node.next, context: newContext };
+    }
+
+    case "delay": {
+      const sec = Math.max(60, Math.min(7_776_000, node.seconds));
+      const waitUntil = new Date(Date.now() + sec * 1000);
+      return { kind: "sleep", waitUntil, nextNodeId: node.next, context };
+    }
+
+    case "goto_flow":
+      return { kind: "goto", flowId: node.flowId };
+
+    case "http_request_node": {
+      // Реюзаем executeActions с одним http_request action
+      const out = await executeActions(
+        [
+          {
+            type: "http_request",
+            method: node.method,
+            url: node.url,
+            body: node.body,
+            headers: node.headers,
+            saveResponseTo: node.saveResponseTo,
+            timeoutSec: node.timeoutSec,
+          },
+        ],
+        bot,
+        subscriber,
+        context
+      );
+      return { kind: "advance", nextNodeId: node.next, context: out.context };
     }
 
     case "end":
