@@ -23,17 +23,11 @@ import type {
 } from "../types";
 import {
   CP_PUBLIC_ID,
-  CP_PAYMENT_SCHEMA,
   CP_API_BASE,
   cpBasicAuthHeader,
-  getRestrictedMethods,
   assertCpConfig,
-  CP_RECEIPT_ENABLED,
-  CP_RECEIPT_TAXATION_SYSTEM,
-  CP_RECEIPT_VAT,
-  CP_RECEIPT_METHOD,
-  CP_RECEIPT_OBJECT,
 } from "./config";
+import { getEffectivePaymentSettings } from "./settings";
 import { parseCpWebhook } from "./webhook";
 
 export class CloudPaymentsProvider implements PaymentProvider {
@@ -42,7 +36,8 @@ export class CloudPaymentsProvider implements PaymentProvider {
   async createPayment(input: CreatePaymentInput): Promise<CreatedPayment> {
     assertCpConfig();
 
-    const restricted = getRestrictedMethods();
+    // Эффективные настройки (БД > env > defaults). Кэшируются на 30 сек.
+    const settings = await getEffectivePaymentSettings();
 
     // Параметры виджета. Структура — то, что widget.start() принимает напрямую.
     // Часть полей пробрасываем через invoiceId / accountId / data чтобы webhook
@@ -53,21 +48,23 @@ export class CloudPaymentsProvider implements PaymentProvider {
       amount: input.amount,
       currency: input.currency,
       invoiceId: input.orderId, // CP вернёт это в webhook как InvoiceId
-      paymentSchema: CP_PAYMENT_SCHEMA,
+      paymentSchema: settings.paymentSchema,
       // data — произвольный JSON, прилетает в webhook
       data: { orderId: input.orderId, ...(input.metadata ?? {}) },
     };
 
     if (input.customerAccountId) params.accountId = input.customerAccountId;
     if (input.customerEmail) params.email = input.customerEmail;
-    if (restricted.length > 0) params.restrictedPaymentMethods = restricted;
+    if (settings.restrictedMethods.length > 0) {
+      params.restrictedPaymentMethods = settings.restrictedMethods;
+    }
     // returnUrl — куда уйти после успешной оплаты в виджете (опционально)
     if (input.returnUrl) params.successUrl = input.returnUrl;
 
     // ── Чек 54-ФЗ ────────────────────────────────────────────────────────
     // Передаётся в виджет через data.CloudPayments.CustomerReceipt. CP
     // сформирует чек и отправит на email клиента (если customerEmail задан).
-    if (CP_RECEIPT_ENABLED) {
+    if (settings.receiptEnabled) {
       const items = input.receiptItems?.length
         ? input.receiptItems
         : [{ label: input.description.slice(0, 128), price: input.amount, quantity: 1 }];
@@ -77,9 +74,9 @@ export class CloudPaymentsProvider implements PaymentProvider {
         price: Number(it.price.toFixed(2)),
         quantity: it.quantity,
         amount: Number((it.price * it.quantity).toFixed(2)),
-        vat: CP_RECEIPT_VAT,
-        method: CP_RECEIPT_METHOD,
-        object: CP_RECEIPT_OBJECT,
+        vat: settings.vat,
+        method: settings.method,
+        object: settings.object,
       }));
 
       (params.data as Record<string, unknown>) = {
@@ -87,7 +84,7 @@ export class CloudPaymentsProvider implements PaymentProvider {
         CloudPayments: {
           CustomerReceipt: {
             Items: receiptItems,
-            taxationSystem: CP_RECEIPT_TAXATION_SYSTEM,
+            taxationSystem: settings.taxationSystem,
             ...(input.customerEmail ? { email: input.customerEmail } : {}),
             ...(input.customerPhone ? { phone: input.customerPhone } : {}),
             isBso: false,

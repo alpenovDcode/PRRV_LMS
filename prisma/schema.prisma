@@ -729,6 +729,34 @@ model Order {
   @@map("orders")
 }
 
+/// Singleton настройки платёжного модуля (чеки 54-ФЗ + restricted methods).
+/// Хранится одна строка с фиксированным id = "default". Если БД-настроек
+/// нет — провайдер берёт значения из env (CP_RECEIPT_*).
+model PaymentSettings {
+  id                String   @id @default("default")
+  /// Включить передачу чека 54-ФЗ в виджет CloudPayments
+  receiptEnabled    Boolean  @default(true) @map("receipt_enabled")
+  /// Система налогообложения:
+  /// 0=ОСН, 1=УСН доходы, 2=УСН доходы-расходы, 3=ЕНВД, 4=ЕСН, 5=Патент
+  taxationSystem    Int      @default(1) @map("taxation_system")
+  /// НДС: 0=без НДС, 10=10%, 20=20%
+  vat               Int      @default(0)
+  /// Признак способа расчёта: 1=предоплата 100%, 2=предоплата, 3=аванс,
+  /// 4=полный расчёт, 5=частичный расчёт и кредит, …
+  method            Int      @default(4)
+  /// Признак предмета расчёта: 1=товар, 2=подакцизный, 3=работа, 4=услуга, …
+  object            Int      @default(4)
+  /// Comma-separated методы оплаты которые скрыть в виджете
+  /// (Card,ForeignCard,Sbp,Dolyame,TcsInstallment,TinkoffPay,SberPay,MirPay)
+  restrictedMethods String[] @default([]) @map("restricted_methods")
+  /// Single или Dual схема (одностадийная / с холдом)
+  paymentSchema     String   @default("Single") @map("payment_schema")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  updatedById       String?  @map("updated_by_id")
+
+  @@map("payment_settings")
+}
+
 model Broadcast {
   id          String   @id @default(uuid())
   authorId    String   @map("author_id")

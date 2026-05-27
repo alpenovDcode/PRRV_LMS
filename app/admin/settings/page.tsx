@@ -93,6 +93,20 @@ export default function SettingsPage() {
       </div>
 
       <div className="grid gap-6">
+        {/* Платежи */}
+        <a href="/admin/settings/payments" className="block group">
+          <Card className="hover:border-blue-300 transition-colors">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 group-hover:text-blue-600">
+                💳 Платежи и чеки 54-ФЗ
+              </CardTitle>
+              <CardDescription>
+                Система налогообложения, НДС, методы оплаты, схема расчёта
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </a>
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
