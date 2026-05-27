@@ -154,5 +154,37 @@ export const emailTemplates = {
         </a>
       </p>
     </div>
+  `,
+
+  /**
+   * Письмо клиенту со ссылкой на оплату (заказ создан админом для клиента).
+   */
+  paymentLink: (params: {
+    offerTitle: string;
+    amount: string;        // отформатированная цена, напр. "29 900 ₽"
+    paymentUrl: string;
+    customerName?: string | null;
+  }) => `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2>Счёт на оплату</h2>
+      ${params.customerName ? `<p>${sanitizeHtml(params.customerName)}, добрый день!</p>` : "<p>Добрый день!</p>"}
+      <p>Мы выставили счёт на оплату:</p>
+      <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; padding: 16px; border-radius: 8px; margin: 16px 0;">
+        <div style="font-size: 14px; color: #6b7280;">${sanitizeHtml(params.offerTitle)}</div>
+        <div style="font-size: 28px; font-weight: bold; margin-top: 8px;">${sanitizeHtml(params.amount)}</div>
+      </div>
+      <p>
+        <a href="${params.paymentUrl}" style="display: inline-block; background-color: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold;">
+          Перейти к оплате
+        </a>
+      </p>
+      <p style="color: #6b7280; font-size: 13px; margin-top: 24px;">
+        Доступные методы: банковская карта (РФ и зарубежная), СБП, Долями, рассрочка Т-Банк.<br>
+        Чек 54-ФЗ придёт автоматически после оплаты.
+      </p>
+      <p style="color: #9ca3af; font-size: 12px; margin-top: 32px;">
+        Если кнопка не открывается — скопируй ссылку: ${params.paymentUrl}
+      </p>
+    </div>
   `
 };

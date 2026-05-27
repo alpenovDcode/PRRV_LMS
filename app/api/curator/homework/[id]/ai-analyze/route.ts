@@ -148,10 +148,47 @@ export async function POST(
           signal: AbortSignal.timeout(15_000),
         });
       } catch (e) {
-        // ── Fallback: AI-checker недоступен/не успел ответить.
-        // Вместо ошибки ставим задачу в HomeworkAIQueue (mode: "suggest").
-        // Cron позже повторит async-kickoff. Куратор видит "в очереди"
-        // вместо красной ошибки — нет потребности нажимать кнопку повторно.
+        // ── Fallback 1: пробуем встроенный Claude grader (если задан ANTHROPIC_API_KEY) ──
+        // Это даёт нам результат сразу, без ожидания cron-retry на AI-checker.
+        if (process.env.ANTHROPIC_API_KEY) {
+          try {
+            const { gradeWithClaude } = await import("@/lib/ai/claude-grader");
+            const result = await gradeWithClaude({
+              aiPrompt: lesson.aiPrompt!,
+              aiContext: lesson.aiContext ?? null,
+              studentAnswer: aiCheckerPayload.studentAnswer,
+              studentName: aiCheckerPayload.studentName,
+              lessonTitle: lesson.title,
+              lessonContent: lesson.content,
+              imageFiles: aiCheckerPayload.imageFiles,
+            });
+            await db.homeworkSubmission.update({
+              where: { id },
+              data: {
+                aiSuggestedVerdict: result.verdict,
+                aiSuggestedComment: result.comment,
+                aiAnalyzedAt: new Date(),
+                aiAnalysisError: null,
+              } as any,
+            });
+            console.log(
+              `[ai-analyze] Claude fallback succeeded for ${id} after AI-checker timeout`
+            );
+            return NextResponse.json({
+              ok: true,
+              status: "done",
+              source: "claude_fallback",
+              verdict: result.verdict,
+              comment: result.comment,
+            });
+          } catch (claudeErr) {
+            // Claude тоже упал — летим в очередь (Fallback 2).
+            console.error("[ai-analyze] Claude fallback failed:", claudeErr);
+          }
+        }
+
+        // ── Fallback 2: ставим задачу в HomeworkAIQueue (mode: "suggest") ──
+        // Cron позже повторит kickoff (AI-checker → Claude) с backoff.
         const isTimeout =
           (e instanceof Error && e.name === "TimeoutError") ||
           (e instanceof Error && e.name === "AbortError");

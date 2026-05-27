@@ -98,6 +98,10 @@ export async function POST(req: NextRequest) {
         returnUrl,
         customerEmail: user?.email,
         customerPhone: user?.phone ?? undefined,
+        customerAccountId: userId,
+        receiptItems: [
+          { label: offer.title, price: Number(offer.price), quantity: 1 },
+        ],
         metadata: { orderId: order.id, userId, offerId },
       });
 

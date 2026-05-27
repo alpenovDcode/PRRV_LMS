@@ -168,11 +168,31 @@ export default function ProfilePage() {
       </div>
 
       <Tabs defaultValue="general" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 lg:w-[600px]">
+        <TabsList className="grid w-full grid-cols-4 lg:w-[700px]">
           <TabsTrigger value="general">Общие</TabsTrigger>
+          <TabsTrigger value="orders">Покупки</TabsTrigger>
           <TabsTrigger value="security">Безопасность</TabsTrigger>
           <TabsTrigger value="certificates">Сертификаты</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="orders" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Мои покупки</CardTitle>
+              <CardDescription>
+                История заказов и доступные оплаты
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <a
+                href="/profile/orders"
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+              >
+                Открыть список покупок →
+              </a>
+            </CardContent>
+          </Card>
+        </TabsContent>
         
         <TabsContent value="general" className="mt-6 space-y-6">
           <Card>

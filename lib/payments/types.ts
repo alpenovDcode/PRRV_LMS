@@ -20,6 +20,19 @@ export type PaymentStatus =
   | "cancelled"           // отменён
   | "refunded";           // возврат
 
+/**
+ * Позиция чека 54-ФЗ (одна услуга = одна позиция).
+ * Для большинства случаев — один курс / один тариф.
+ */
+export interface ReceiptItem {
+  /** Название позиции (≤ 128 chars по 54-ФЗ) */
+  label: string;
+  /** Цена за единицу */
+  price: number;
+  /** Количество (для услуг обычно 1) */
+  quantity: number;
+}
+
 /** Что хочет создать вызывающий код. */
 export interface CreatePaymentInput {
   orderId: string;
@@ -32,6 +45,11 @@ export interface CreatePaymentInput {
   customerPhone?: string;
   /** Внутренний user ID для биндинга подписки/recurring */
   customerAccountId?: string;
+  /**
+   * Позиции чека 54-ФЗ. Если не задано — провайдер сам соберёт одну позицию
+   * на всю сумму с label = description.
+   */
+  receiptItems?: ReceiptItem[];
   metadata?: Record<string, string>;
 }
 
