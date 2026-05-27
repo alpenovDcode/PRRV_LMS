@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Search, RefreshCw, CheckCircle, Clock, XCircle, RotateCcw, Filter, X, AlertTriangle, Loader2 } from "lucide-react";
+import { Search, RefreshCw, CheckCircle, Clock, XCircle, RotateCcw, Filter, X, AlertTriangle, Loader2, Plus, Copy, ExternalLink } from "lucide-react";
 
 interface Order {
   id: string;
@@ -48,6 +48,7 @@ export default function OrdersPage() {
   const [meta, setMeta] = useState<Meta>({ total: 0, page: 1, pages: 1 });
   const [loading, setLoading] = useState(true);
   const [refundTarget, setRefundTarget] = useState<Order | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
   const [toast, setToast] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -87,9 +88,17 @@ export default function OrdersPage() {
             </span>
           </p>
         </div>
-        <button onClick={load} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            <Plus className="w-4 h-4" /> Создать заказ
+          </button>
+          <button onClick={load} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+          </button>
+        </div>
       </div>
 
       {/* Фильтры */}
@@ -213,6 +222,22 @@ export default function OrdersPage() {
         >
           {toast.text}
         </div>
+      )}
+
+      {/* Create order modal */}
+      {showCreate && (
+        <CreateOrderModal
+          onClose={() => setShowCreate(false)}
+          onDone={(msg) => {
+            setToast({ kind: "ok", text: msg });
+            setTimeout(() => setToast(null), 5000);
+            load();
+          }}
+          onError={(msg) => {
+            setToast({ kind: "err", text: msg });
+            setTimeout(() => setToast(null), 5000);
+          }}
+        />
       )}
 
       {/* Refund modal */}
@@ -410,6 +435,291 @@ function RefundModal({
             {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
             {saving ? "Возвращаю…" : "Вернуть деньги"}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Модалка создания заказа для пользователя ──────────────────────────────
+
+interface UserSearchResult {
+  id: string;
+  email: string;
+  fullName: string | null;
+}
+
+interface OfferOption {
+  id: string;
+  title: string;
+  price: string;
+  currency: string;
+  isActive: boolean;
+}
+
+function CreateOrderModal({
+  onClose,
+  onDone,
+  onError,
+}: {
+  onClose: () => void;
+  onDone: (msg: string) => void;
+  onError: (msg: string) => void;
+}) {
+  const [userQuery, setUserQuery] = useState("");
+  const [userResults, setUserResults] = useState<UserSearchResult[]>([]);
+  const [selectedUser, setSelectedUser] = useState<UserSearchResult | null>(null);
+  const [offers, setOffers] = useState<OfferOption[]>([]);
+  const [selectedOfferId, setSelectedOfferId] = useState("");
+  const [reason, setReason] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [result, setResult] = useState<{ orderId: string; paymentUrl: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  // Загружаем активные офферы при открытии
+  useEffect(() => {
+    fetch("/api/admin/offers")
+      .then((r) => r.json())
+      .then((d) => {
+        const items: OfferOption[] = (d.data ?? []).filter((o: any) => o.isActive);
+        setOffers(items);
+      });
+  }, []);
+
+  // Поиск пользователей с debounce
+  useEffect(() => {
+    if (!userQuery.trim() || selectedUser) {
+      setUserResults([]);
+      return;
+    }
+    const t = setTimeout(async () => {
+      const res = await fetch(`/api/admin/users?search=${encodeURIComponent(userQuery)}&limit=10`);
+      const data = await res.json();
+      setUserResults(data.data?.users ?? data.data ?? []);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [userQuery, selectedUser]);
+
+  const handleCreate = async () => {
+    if (!selectedUser || !selectedOfferId) return;
+    setCreating(true);
+    try {
+      const res = await fetch("/api/admin/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: selectedUser.id,
+          offerId: selectedOfferId,
+          reason: reason.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setResult({ orderId: data.data.orderId, paymentUrl: data.data.paymentUrl });
+      } else {
+        onError(data.error ?? "Не удалось создать заказ");
+      }
+    } catch {
+      onError("Ошибка сети");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleCopy = async () => {
+    if (!result) return;
+    try {
+      await navigator.clipboard.writeText(result.paymentUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      onError("Не удалось скопировать");
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h2 className="font-bold text-gray-900 flex items-center gap-2">
+            <Plus className="w-4 h-4 text-blue-500" /> Создать заказ для клиента
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-3">
+          {!result ? (
+            <>
+              {/* User picker */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                  Клиент
+                </label>
+                {selectedUser ? (
+                  <div className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-gray-900 truncate">
+                        {selectedUser.fullName ?? selectedUser.email}
+                      </div>
+                      <div className="text-xs text-gray-500 truncate">{selectedUser.email}</div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSelectedUser(null);
+                        setUserQuery("");
+                      }}
+                      className="p-1 text-gray-400 hover:text-red-500 rounded"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                      <input
+                        value={userQuery}
+                        onChange={(e) => setUserQuery(e.target.value)}
+                        placeholder="Email или имя…"
+                        className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                        autoFocus
+                      />
+                    </div>
+                    {userResults.length > 0 && (
+                      <div className="mt-1 max-h-48 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
+                        {userResults.map((u) => (
+                          <button
+                            key={u.id}
+                            onClick={() => {
+                              setSelectedUser(u);
+                              setUserResults([]);
+                              setUserQuery("");
+                            }}
+                            className="w-full text-left px-3 py-2 hover:bg-gray-50 transition-colors"
+                          >
+                            <div className="text-sm text-gray-900">{u.fullName ?? u.email}</div>
+                            <div className="text-xs text-gray-500">{u.email}</div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Offer picker */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                  Оффер
+                </label>
+                <select
+                  value={selectedOfferId}
+                  onChange={(e) => setSelectedOfferId(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                >
+                  <option value="">— выбери оффер —</option>
+                  {offers.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.title} —{" "}
+                      {new Intl.NumberFormat("ru-RU", {
+                        style: "currency",
+                        currency: o.currency,
+                        maximumFractionDigits: 0,
+                      }).format(Number(o.price))}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Reason */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                  Причина / комментарий (для аудита)
+                </label>
+                <input
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  maxLength={500}
+                  placeholder="Напр.: договорённость по телефону"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+                <CheckCircle className="w-5 h-5 inline mr-1 -mt-0.5" />
+                Заказ создан. Отправь клиенту ссылку:
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                  Ссылка для оплаты
+                </label>
+                <div className="flex gap-1">
+                  <input
+                    readOnly
+                    value={result.paymentUrl}
+                    onClick={(e) => (e.target as HTMLInputElement).select()}
+                    className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-xs font-mono bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                  <button
+                    onClick={handleCopy}
+                    className="flex items-center gap-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    {copied ? "Скопировано" : "Копировать"}
+                  </button>
+                </div>
+                <a
+                  href={result.paymentUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-1 inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                >
+                  <ExternalLink className="w-3 h-3" /> Открыть в новой вкладке
+                </a>
+              </div>
+              <p className="text-xs text-gray-500">
+                Ссылка действует пока заказ не оплачен. После оплаты — статус
+                сменится автоматически.
+              </p>
+            </>
+          )}
+        </div>
+
+        <div className="px-5 py-4 border-t border-gray-100 flex gap-2 justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-1.5 text-sm font-medium border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            {result ? "Закрыть" : "Отмена"}
+          </button>
+          {!result && (
+            <button
+              onClick={handleCreate}
+              disabled={creating || !selectedUser || !selectedOfferId}
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+            >
+              {creating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+              {creating ? "Создаю…" : "Создать заказ"}
+            </button>
+          )}
+          {result && (
+            <button
+              onClick={() => {
+                onDone("Заказ создан");
+                onClose();
+              }}
+              className="px-4 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              Готово
+            </button>
+          )}
         </div>
       </div>
     </div>

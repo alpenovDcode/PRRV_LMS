@@ -700,6 +700,12 @@ model Order {
   /// Сырой объект платежа из ЮКассы (последний известный)
   ykSnapshot         Json?       @map("yk_snapshot")
   paidAt             DateTime?   @map("paid_at")
+  /// Токен для публичной ссылки оплаты. Заказы созданные админом для
+  /// клиента имеют этот токен — клиент открывает /pay/[orderId]?token=...
+  /// и оплачивает без логина в LMS.
+  paymentLinkToken   String?     @unique @map("payment_link_token")
+  /// Кто создал заказ (админ при ручном создании). null = клиент сам.
+  createdByAdminId   String?     @map("created_by_admin_id")
   /// Когда был сделан возврат (полный или частичный)
   refundedAt         DateTime?   @map("refunded_at")
   /// Причина возврата (от админа), для аудита
