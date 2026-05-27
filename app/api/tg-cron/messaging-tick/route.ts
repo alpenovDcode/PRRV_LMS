@@ -101,5 +101,43 @@ export async function POST(req: NextRequest) {
     advanced++;
   }
 
-  return NextResponse.json({ ok: true, advanced, completed, total: stale.length });
+  // ── Запуск scheduled-broadcasts ────────────────────────────────────────
+  // Берём те у которых scheduledAt <= now и переключаем на sending.
+  let broadcastsStarted = 0;
+  const scheduled = await db.messagingBroadcast.findMany({
+    where: {
+      status: "scheduled",
+      scheduledAt: { lte: now, not: null },
+    },
+    take: 5,
+    select: { id: true },
+  });
+  if (scheduled.length > 0) {
+    const { sendBroadcast } = await import("@/lib/messaging/broadcast");
+    for (const b of scheduled) {
+      try {
+        await sendBroadcast(b.id);
+        broadcastsStarted++;
+      } catch (e) {
+        console.error(`[messaging-tick] broadcast ${b.id} send failed:`, e);
+        await db.messagingBroadcast
+          .update({
+            where: { id: b.id },
+            data: {
+              status: "failed",
+              lastError: e instanceof Error ? e.message.slice(0, 500) : String(e),
+            },
+          })
+          .catch(() => {});
+      }
+    }
+  }
+
+  return NextResponse.json({
+    ok: true,
+    advanced,
+    completed,
+    total: stale.length,
+    broadcastsStarted,
+  });
 }

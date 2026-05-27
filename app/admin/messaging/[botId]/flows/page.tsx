@@ -111,6 +111,12 @@ export default function BotFlowsPage() {
         </div>
         <div className="flex items-center gap-2">
           <Link
+            href={`/admin/messaging/${botId}/broadcasts`}
+            className="text-sm px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Рассылки
+          </Link>
+          <Link
             href={`/admin/messaging/${botId}/lists`}
             className="text-sm px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
           >
