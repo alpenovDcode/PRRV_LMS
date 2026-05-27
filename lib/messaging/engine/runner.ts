@@ -21,6 +21,9 @@ import { db } from "@/lib/db";
 import { MessagingFlowRunStatus, type MessagingBot, type MessagingSubscriber } from "@prisma/client";
 import { getBotProvider } from "@/lib/messaging/providers/factory";
 import { renderTemplate } from "./template";
+import { executeActions } from "./actions";
+import { recordOutboundMessage } from "../inbox";
+import { recordEvent, EVENT_TYPES } from "../events";
 import type { FlowGraph, FlowNode, ConditionNode } from "./graph-types";
 
 const MAX_NODES_PER_TICK = 50; // защита от бесконечных циклов в графе
@@ -67,6 +70,14 @@ export async function startFlow(opts: StartFlowOptions): Promise<string> {
     data: { runCount: { increment: 1 } },
   });
 
+  // Event: запуск воронки
+  await recordEvent({
+    botId: flow.botId,
+    type: EVENT_TYPES.FLOW_STARTED,
+    subscriberId: opts.subscriberId,
+    data: { flowId: opts.flowId, runId: run.id },
+  });
+
   await tickRun(run.id);
   return run.id;
 }
@@ -103,11 +114,28 @@ export async function resumeWithInput(
   }
 
   // Записываем input в context
-  const newContext = {
+  let newContext: Record<string, unknown> = {
     ...((run.context as Record<string, unknown>) ?? {}),
     lastInput: input.text ?? "",
     lastPayload: input.payload ?? "",
   };
+
+  // Inline-actions wait_reply узла — срабатывают при получении ответа,
+  // ДО перехода на onReply. Например: после ответа добавить тег "answered".
+  const waitActions = (waitNode as any).actions as
+    | undefined
+    | import("./graph-types").NodeAction[];
+  if (waitActions && waitActions.length > 0) {
+    const subWithBot = await db.messagingSubscriber.findUnique({
+      where: { id: subscriberId },
+      include: { bot: true },
+    });
+    if (subWithBot) {
+      const { bot: subBot, ...subOnly } = subWithBot as any;
+      const out = await executeActions(waitActions, subBot, subOnly as any, newContext);
+      newContext = out.context;
+    }
+  }
 
   // Переходим на onReply
   await db.messagingFlowRun.update({
@@ -115,7 +143,7 @@ export async function resumeWithInput(
     data: {
       status: MessagingFlowRunStatus.running,
       currentNodeId: waitNode.onReply,
-      context: newContext,
+      context: newContext as any,
       waitUntil: null,
     },
   });
@@ -152,6 +180,26 @@ export async function tickRun(runId: string): Promise<void> {
     try {
       const result = await executeNode(node, run.subscriber, run.subscriber.bot, run.context as any);
 
+      // ── Inline-actions ──────────────────────────────────────────────
+      // Выполняются ПОСЛЕ основного эффекта узла, перед переходом на next.
+      // Для wait_reply actions срабатывают только при resume (когда юзер
+      // ответил) — здесь мы их не запускаем (kind=wait).
+      const nodeActions = (node as any).actions as
+        | undefined
+        | import("./graph-types").NodeAction[];
+
+      let finalContext = result.kind !== "wait" ? (result as any).context ?? run.context : run.context;
+      if (nodeActions && nodeActions.length > 0 && result.kind !== "wait") {
+        const { bot: _bot, ...subOnly } = run.subscriber as any;
+        const out = await executeActions(
+          nodeActions,
+          run.subscriber.bot,
+          subOnly as any,
+          finalContext as Record<string, unknown>
+        );
+        finalContext = out.context;
+      }
+
       if (result.kind === "advance") {
         if (!result.nextNodeId) {
           await markCompleted(runId);
@@ -159,7 +207,7 @@ export async function tickRun(runId: string): Promise<void> {
         }
         await db.messagingFlowRun.update({
           where: { id: runId },
-          data: { currentNodeId: result.nextNodeId, context: result.context as any },
+          data: { currentNodeId: result.nextNodeId, context: finalContext as any },
         });
         // продолжаем цикл
       } else if (result.kind === "wait") {
@@ -169,6 +217,32 @@ export async function tickRun(runId: string): Promise<void> {
             status: MessagingFlowRunStatus.waiting_reply,
             waitUntil: result.waitUntil,
           },
+        });
+        return;
+      } else if (result.kind === "sleep") {
+        // Delay-узел — записываем currentNodeId как следующий узел
+        // (на тот куда переходить после wake-up), waitUntil + status
+        // = waiting_reply (используем тот же статус для cron pick-up).
+        await db.messagingFlowRun.update({
+          where: { id: runId },
+          data: {
+            status: MessagingFlowRunStatus.waiting_reply,
+            currentNodeId: result.nextNodeId,
+            context: finalContext as any,
+            waitUntil: result.waitUntil,
+          },
+        });
+        return;
+      } else if (result.kind === "goto") {
+        // Завершаем текущий run, стартуем новый по другому flow
+        await markCompleted(runId);
+        const { startFlow } = await import("./runner");
+        await startFlow({
+          flowId: result.flowId,
+          subscriberId: run.subscriberId,
+          initialContext: finalContext as Record<string, unknown>,
+        }).catch((e) => {
+          console.error(`[runner] goto_flow to ${result.flowId} failed:`, e);
         });
         return;
       } else if (result.kind === "end") {
@@ -190,6 +264,8 @@ export async function tickRun(runId: string): Promise<void> {
 type ExecResult =
   | { kind: "advance"; nextNodeId: string | null; context: Record<string, unknown> }
   | { kind: "wait"; waitUntil: Date }
+  | { kind: "sleep"; waitUntil: Date; nextNodeId: string | null; context: Record<string, unknown> }
+  | { kind: "goto"; flowId: string }
   | { kind: "end" };
 
 async function executeNode(
@@ -204,7 +280,14 @@ async function executeNode(
   switch (node.type) {
     case "send_text": {
       const text = renderTemplate(node.text, tmplCtx);
-      await provider.sendText(bot, subscriber, text);
+      const sent = await provider.sendText(bot, subscriber, text);
+      await recordOutboundMessage({
+        botId: bot.id,
+        subscriberId: subscriber.id,
+        text,
+        externalMessageId: sent.externalMessageId,
+        source: `flow`,
+      }).catch(() => {});
       return { kind: "advance", nextNodeId: node.next, context };
     }
 
@@ -214,7 +297,15 @@ async function executeNode(
         title: renderTemplate(b.title, tmplCtx),
         payload: b.payload,
       }));
-      await provider.sendQuickReplies(bot, subscriber, text, buttons);
+      const sent = await provider.sendQuickReplies(bot, subscriber, text, buttons);
+      await recordOutboundMessage({
+        botId: bot.id,
+        subscriberId: subscriber.id,
+        text,
+        externalMessageId: sent.externalMessageId,
+        source: `flow`,
+        attachments: { quickReplies: buttons },
+      }).catch(() => {});
       return { kind: "advance", nextNodeId: node.next, context };
     }
 
@@ -233,7 +324,15 @@ async function executeNode(
               payload: b.payload,
             }
       );
-      await provider.sendButtons(bot, subscriber, text, buttons);
+      const sent = await provider.sendButtons(bot, subscriber, text, buttons);
+      await recordOutboundMessage({
+        botId: bot.id,
+        subscriberId: subscriber.id,
+        text,
+        externalMessageId: sent.externalMessageId,
+        source: `flow`,
+        attachments: { buttons },
+      }).catch(() => {});
       return { kind: "advance", nextNodeId: node.next, context };
     }
 
@@ -252,6 +351,36 @@ async function executeNode(
       const value = renderTemplate(node.value, tmplCtx);
       const newContext = { ...context, [node.key]: value };
       return { kind: "advance", nextNodeId: node.next, context: newContext };
+    }
+
+    case "delay": {
+      const sec = Math.max(60, Math.min(7_776_000, node.seconds));
+      const waitUntil = new Date(Date.now() + sec * 1000);
+      return { kind: "sleep", waitUntil, nextNodeId: node.next, context };
+    }
+
+    case "goto_flow":
+      return { kind: "goto", flowId: node.flowId };
+
+    case "http_request_node": {
+      // Реюзаем executeActions с одним http_request action
+      const out = await executeActions(
+        [
+          {
+            type: "http_request",
+            method: node.method,
+            url: node.url,
+            body: node.body,
+            headers: node.headers,
+            saveResponseTo: node.saveResponseTo,
+            timeoutSec: node.timeoutSec,
+          },
+        ],
+        bot,
+        subscriber,
+        context
+      );
+      return { kind: "advance", nextNodeId: node.next, context: out.context };
     }
 
     case "end":
@@ -297,24 +426,38 @@ function evalConditionBranches(
 }
 
 async function markCompleted(runId: string): Promise<void> {
-  await db.messagingFlowRun.update({
+  const run = await db.messagingFlowRun.update({
     where: { id: runId },
     data: {
       status: MessagingFlowRunStatus.completed,
       completedAt: new Date(),
       currentNodeId: null,
     },
+    include: { flow: { select: { botId: true } } },
+  });
+  await recordEvent({
+    botId: run.flow.botId,
+    type: EVENT_TYPES.FLOW_COMPLETED,
+    subscriberId: run.subscriberId,
+    data: { flowId: run.flowId, runId },
   });
 }
 
 async function markFailed(runId: string, error: string): Promise<void> {
   console.error(`[flow-runner] run ${runId} failed:`, error);
-  await db.messagingFlowRun.update({
+  const run = await db.messagingFlowRun.update({
     where: { id: runId },
     data: {
       status: MessagingFlowRunStatus.failed,
       completedAt: new Date(),
       lastError: error.slice(0, 500),
     },
+    include: { flow: { select: { botId: true } } },
+  });
+  await recordEvent({
+    botId: run.flow.botId,
+    type: EVENT_TYPES.FLOW_FAILED,
+    subscriberId: run.subscriberId,
+    data: { flowId: run.flowId, runId, error: error.slice(0, 500) },
   });
 }

@@ -1063,6 +1063,14 @@ model MessagingBot {
 
   subscribers       MessagingSubscriber[]
   flows             MessagingFlow[]
+  messages          MessagingMessage[]
+  broadcasts        MessagingBroadcast[]
+  lists             MessagingList[]
+  customFields      MessagingCustomField[]
+  events            MessagingEvent[]
+  auditLogs         MessagingBotAuditLog[]
+  bitrixConfig      MessagingBitrixConfig?
+  trackingLinks     MessagingTrackingLink[]
 
   createdAt         DateTime         @default(now()) @map("created_at")
   updatedAt         DateTime         @updatedAt @map("updated_at")
@@ -1091,11 +1099,20 @@ model MessagingSubscriber {
   /// Связь с пользователем LMS (если матчится по email/телефону позже)
   lmsUserId      String?      @map("lms_user_id")
   lmsUser        User?        @relation(fields: [lmsUserId], references: [id], onDelete: SetNull)
+  /// Когда оператор взял диалог под ручное управление.
+  /// Пока set — auto-triggers и flow-engine для этого подписчика выключены.
+  operatorTakeoverAt   DateTime? @map("operator_takeover_at")
+  /// Кто из админов ведёт диалог (для маршрутизации inbox)
+  operatorAssigneeId   String?   @map("operator_assignee_id")
   flowRuns       MessagingFlowRun[]
+  messages       MessagingMessage[]
+  broadcastReceipts MessagingBroadcastRecipient[]
+  listMembers    MessagingListMember[]
 
   @@unique([botId, externalUserId])
   @@index([botId])
   @@index([lmsUserId])
+  @@index([operatorAssigneeId])
   @@map("messaging_subscribers")
 }
 
@@ -1222,6 +1239,259 @@ model MessagingFlowRun {
   @@index([flowId, status])
   @@index([status, waitUntil])
   @@map("messaging_flow_runs")
+}
+
+// ─── Messaging: Inbox, Broadcasts, Lists, Custom Fields, Events ────────────
+
+/// История сообщений: входящие и исходящие. Используется для Inbox UI.
+model MessagingMessage {
+  id                String              @id @default(uuid())
+  botId             String              @map("bot_id")
+  bot               MessagingBot        @relation(fields: [botId], references: [id], onDelete: Cascade)
+  subscriberId     String              @map("subscriber_id")
+  subscriber        MessagingSubscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  /// "in" = от подписчика к боту, "out" = от бота к подписчику
+  direction        String
+  text              String?             @db.Text
+  /// Payload callback-кнопки (для in-сообщений когда пользователь нажал кнопку)
+  callbackPayload  String?             @map("callback_payload")
+  /// Сырые attachments как пришли/были отправлены — JSON
+  attachments       Json?
+  /// ID сообщения на стороне платформы (mid в MAX, message_id в TG)
+  externalMessageId String?            @map("external_message_id")
+  /// Источник для out: какая воронка / broadcast / takeover
+  source           String?             // "flow:<flowId>" | "broadcast:<id>" | "operator:<userId>" | "trigger"
+  createdAt        DateTime            @default(now()) @map("created_at")
+
+  @@index([botId, subscriberId, createdAt])
+  @@index([subscriberId, createdAt])
+  @@index([botId, createdAt])
+  @@map("messaging_messages")
+}
+
+enum MessagingBroadcastStatus {
+  draft
+  scheduled
+  sending
+  completed
+  cancelled
+  failed
+}
+
+/// Массовая рассылка по сегменту подписчиков.
+model MessagingBroadcast {
+  id              String                   @id @default(uuid())
+  botId           String                   @map("bot_id")
+  bot             MessagingBot             @relation(fields: [botId], references: [id], onDelete: Cascade)
+  name            String
+  /// Тело сообщения (текст с шаблонами)
+  text            String                   @db.Text
+  /// Опциональные кнопки в стиле send_buttons graph-узла
+  buttons         Json?
+  /// Фильтр аудитории: { tags: [], excludeTags: [], lists: [], excludeLists: [] }
+  filter          Json                     @default("{}")
+  status          MessagingBroadcastStatus @default(draft)
+  /// Когда отправить (для scheduled). null = немедленно
+  scheduledAt     DateTime?                @map("scheduled_at")
+  /// Когда фактически стартовала отправка
+  startedAt       DateTime?                @map("started_at")
+  completedAt     DateTime?                @map("completed_at")
+  /// Метрики
+  totalRecipients Int                      @default(0) @map("total_recipients")
+  sentCount       Int                      @default(0) @map("sent_count")
+  failedCount     Int                      @default(0) @map("failed_count")
+  lastError       String?                  @db.Text @map("last_error")
+  createdById     String                   @map("created_by_id")
+  recipients      MessagingBroadcastRecipient[]
+  createdAt       DateTime                 @default(now()) @map("created_at")
+  updatedAt       DateTime                 @updatedAt @map("updated_at")
+
+  @@index([botId, status])
+  @@index([status, scheduledAt])
+  @@map("messaging_broadcasts")
+}
+
+/// Запись о доставке одного broadcast одному подписчику.
+model MessagingBroadcastRecipient {
+  id            String              @id @default(uuid())
+  broadcastId   String              @map("broadcast_id")
+  broadcast     MessagingBroadcast  @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  subscriberId String              @map("subscriber_id")
+  subscriber    MessagingSubscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  /// "pending" | "sent" | "failed" | "skipped"
+  status        String              @default("pending")
+  error         String?             @db.Text
+  sentAt        DateTime?           @map("sent_at")
+
+  @@unique([broadcastId, subscriberId])
+  @@index([broadcastId, status])
+  @@map("messaging_broadcast_recipients")
+}
+
+enum MessagingListType {
+  /// Подписчики добавляются вручную или через flow-action
+  static
+  /// Подписчики автоматически добавляются по правилу (теги/поля)
+  dynamic
+}
+
+/// Список подписчиков (сегмент). Используется для broadcasts и условий в flow.
+model MessagingList {
+  id          String            @id @default(uuid())
+  botId       String            @map("bot_id")
+  bot         MessagingBot      @relation(fields: [botId], references: [id], onDelete: Cascade)
+  name        String
+  description String?           @db.Text
+  type        MessagingListType @default(static)
+  /// Для dynamic: { tags: ["vip"], excludeTags: [], anyOrAll: "all" }
+  rules       Json?
+  memberCount Int               @default(0) @map("member_count")
+  members     MessagingListMember[]
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  @@index([botId])
+  @@map("messaging_lists")
+}
+
+model MessagingListMember {
+  id            String              @id @default(uuid())
+  listId        String              @map("list_id")
+  list          MessagingList       @relation(fields: [listId], references: [id], onDelete: Cascade)
+  subscriberId String              @map("subscriber_id")
+  subscriber    MessagingSubscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  /// "manual" = добавлен вручную/действием, "auto" = по правилу dynamic-листа
+  source        String              @default("manual")
+  addedAt       DateTime            @default(now()) @map("added_at")
+
+  @@unique([listId, subscriberId])
+  @@index([subscriberId])
+  @@map("messaging_list_members")
+}
+
+enum MessagingCustomFieldType {
+  text
+  number
+  date
+  email
+  phone
+  url
+  bool
+  select
+}
+
+/// Типизированное custom-поле подписчика. Значения хранятся в
+/// MessagingSubscriber.variables под именем key.
+model MessagingCustomField {
+  id          String                   @id @default(uuid())
+  botId       String                   @map("bot_id")
+  bot         MessagingBot             @relation(fields: [botId], references: [id], onDelete: Cascade)
+  /// Технический ключ — латиница/цифры/_, используется в variables и шаблонах
+  key         String
+  label       String
+  type        MessagingCustomFieldType @default(text)
+  /// Для select: список значений
+  options     String[]                 @default([])
+  required    Boolean                  @default(false)
+  sortOrder   Int                      @default(0) @map("sort_order")
+  createdAt   DateTime                 @default(now()) @map("created_at")
+
+  @@unique([botId, key])
+  @@index([botId])
+  @@map("messaging_custom_fields")
+}
+
+/// Событие в системе для аналитики. Тип кодируется строкой
+/// (SubscriberCreated, FlowStarted, FlowCompleted, BroadcastSent, и т.д.).
+model MessagingEvent {
+  id            String       @id @default(uuid())
+  botId         String       @map("bot_id")
+  bot           MessagingBot @relation(fields: [botId], references: [id], onDelete: Cascade)
+  subscriberId String?      @map("subscriber_id")
+  type          String
+  /// Произвольные данные события (flowId, broadcastId, и т.п.)
+  data          Json?
+  createdAt    DateTime     @default(now()) @map("created_at")
+
+  @@index([botId, type, createdAt])
+  @@index([subscriberId, createdAt])
+  @@map("messaging_events")
+}
+
+/// Аудит-лог админских операций над ботом (отдельно от LMS AuditLog).
+model MessagingBotAuditLog {
+  id          String       @id @default(uuid())
+  botId       String       @map("bot_id")
+  bot         MessagingBot @relation(fields: [botId], references: [id], onDelete: Cascade)
+  actorUserId String       @map("actor_user_id")
+  action      String
+  entity      String?
+  entityId    String?      @map("entity_id")
+  details     Json?
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  @@index([botId, createdAt])
+  @@map("messaging_bot_audit_logs")
+}
+
+/// Bitrix24-конфиг для messaging-бота (аналог TgBitrixConfig).
+/// Поля совпадают с TgBitrixConfig по семантике: webhook, воронка,
+/// маппинги контактов/сделок, tag-триггеры.
+model MessagingBitrixConfig {
+  id              String       @id @default(uuid())
+  botId           String       @unique @map("bot_id")
+  bot             MessagingBot @relation(fields: [botId], references: [id], onDelete: Cascade)
+  enabled         Boolean      @default(false)
+  webhookUrl      String?      @db.Text @map("webhook_url")
+  funnelId        String       @default("0") @map("funnel_id")
+  defaultStageId  String       @default("") @map("default_stage_id")
+  contactMappings Json         @default("[]") @map("contact_mappings")
+  dealMappings    Json         @default("[]") @map("deal_mappings")
+  tagTriggers     Json         @default("[]") @map("tag_triggers")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  @@map("messaging_bitrix_configs")
+}
+
+/// Tracking-ссылки: короткий slug → редирект на target URL с
+/// записью клика. Если subscriberId известен (передан как ?s= в slug-URL),
+/// клик добавляется к атрибуции подписчика и эмитит event.
+model MessagingTrackingLink {
+  id          String       @id @default(uuid())
+  botId       String       @map("bot_id")
+  bot         MessagingBot @relation(fields: [botId], references: [id], onDelete: Cascade)
+  slug        String       @unique
+  /// Целевой URL для редиректа
+  targetUrl   String       @db.Text @map("target_url")
+  /// Опциональный тег, который ставится подписчику при клике
+  attachTag   String?      @map("attach_tag")
+  /// Что-нибудь в context подписчика (например, lastClickedSlug)
+  meta        Json?
+  clickCount  Int          @default(0) @map("click_count")
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  clicks      MessagingTrackingClick[]
+
+  @@index([botId])
+  @@map("messaging_tracking_links")
+}
+
+/// Один клик по tracking-ссылке. Subscriber может быть пустым (анонимный клик).
+model MessagingTrackingClick {
+  id           String                @id @default(uuid())
+  linkId       String                @map("link_id")
+  link         MessagingTrackingLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  subscriberId String?               @map("subscriber_id")
+  /// IP, ua и referer — best-effort, для дашборда.
+  ip           String?
+  userAgent    String?               @db.Text @map("user_agent")
+  referer      String?               @db.Text
+  createdAt    DateTime              @default(now()) @map("created_at")
+
+  @@index([linkId, createdAt])
+  @@index([subscriberId, createdAt])
+  @@map("messaging_tracking_clicks")
 }
 
 model TgMessage {

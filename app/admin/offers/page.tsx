@@ -1,7 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Plus, Pencil, Trash2, ToggleLeft, ToggleRight, Tag, Clock, BookOpen } from "lucide-react";
+import { useEffect, useState, useMemo } from "react";
+import { Plus, Pencil, Trash2, ToggleLeft, ToggleRight, Tag, Clock, BookOpen, Search, X, Check } from "lucide-react";
+
+interface CourseOption {
+  id: string;
+  title: string;
+  slug: string;
+  isPublished: boolean;
+}
 
 interface Offer {
   id: string;
@@ -44,10 +51,11 @@ function OfferForm({
     accessDays: initial?.accessDays ? String(initial.accessDays) : "",
     tariff: initial?.tariff ?? "",
     features: (initial?.features ?? []).join("\n"),
-    courseIds: (initial?.courseIds ?? []).join("\n"),
     sortOrder: String(initial?.sortOrder ?? 0),
     isActive: initial?.isActive ?? true,
   });
+  // courseIds — массив; селектор управляет им через CoursePicker
+  const [courseIds, setCourseIds] = useState<string[]>(initial?.courseIds ?? []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -64,7 +72,7 @@ function OfferForm({
         accessDays: form.accessDays ? parseInt(form.accessDays) : null,
         tariff: form.tariff || null,
         features: form.features.split("\n").map((s) => s.trim()).filter(Boolean),
-        courseIds: form.courseIds.split("\n").map((s) => s.trim()).filter(Boolean),
+        courseIds,
         sortOrder: parseInt(form.sortOrder) || 0,
         isActive: form.isActive,
       });
@@ -160,15 +168,9 @@ function OfferForm({
         </div>
         <div className="md:col-span-2">
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            ID курсов (каждый ID с новой строки)
+            Курсы, которые откроются при покупке
           </label>
-          <textarea
-            rows={3}
-            value={form.courseIds}
-            onChange={(e) => setForm({ ...form, courseIds: e.target.value })}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none font-mono text-xs"
-            placeholder="uuid-курса-1&#10;uuid-курса-2"
-          />
+          <CoursePicker value={courseIds} onChange={setCourseIds} />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Порядок сортировки</label>
@@ -380,4 +382,176 @@ export default function OffersPage() {
       )}
     </div>
   );
+}
+
+// ─── CoursePicker — выбор курсов из существующих ───────────────────────────
+
+function CoursePicker({
+  value,
+  onChange,
+}: {
+  value: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [courses, setCourses] = useState<CourseOption[] | null>(null);
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    fetch("/api/admin/courses")
+      .then((r) => r.json())
+      .then((d) => {
+        const list: CourseOption[] = (d.data ?? []).map((c: any) => ({
+          id: c.id,
+          title: c.title,
+          slug: c.slug,
+          isPublished: c.isPublished,
+        }));
+        setCourses(list);
+      })
+      .catch(() => setCourses([]));
+  }, []);
+
+  const byId = useMemo(() => {
+    const map = new Map<string, CourseOption>();
+    (courses ?? []).forEach((c) => map.set(c.id, c));
+    return map;
+  }, [courses]);
+
+  const selected = value.map((id) => byId.get(id)).filter(Boolean) as CourseOption[];
+  const orphanIds = value.filter((id) => !byId.has(id));
+
+  const visible = (courses ?? []).filter((c) => {
+    if (!search.trim()) return true;
+    const q = search.toLowerCase();
+    return c.title.toLowerCase().includes(q) || c.slug.toLowerCase().includes(q);
+  });
+
+  const toggle = (id: string) => {
+    if (value.includes(id)) onChange(value.filter((x) => x !== id));
+    else onChange([...value, id]);
+  };
+
+  if (courses === null) {
+    return <div className="text-xs text-gray-400">Загрузка списка курсов…</div>;
+  }
+  if (courses.length === 0) {
+    return (
+      <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+        Курсов в системе ещё нет. Создай курс в разделе «Курсы» перед добавлением в оффер.
+      </div>
+    );
+  }
+
+  return (
+    <div className="border border-gray-200 rounded-lg overflow-hidden">
+      {/* Выбранные */}
+      {(selected.length > 0 || orphanIds.length > 0) && (
+        <div className="p-2 bg-blue-50 border-b border-blue-100 flex flex-wrap gap-1.5">
+          {selected.map((c) => (
+            <span
+              key={c.id}
+              className="inline-flex items-center gap-1 bg-white border border-blue-200 text-blue-700 text-xs px-2 py-1 rounded"
+            >
+              {c.title}
+              <button
+                type="button"
+                onClick={() => toggle(c.id)}
+                className="text-blue-400 hover:text-red-500"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+          {orphanIds.map((id) => (
+            <span
+              key={id}
+              className="inline-flex items-center gap-1 bg-white border border-red-200 text-red-700 text-xs px-2 py-1 rounded"
+              title="Курс не найден — возможно, удалён. Удали его из оффера."
+            >
+              <span className="font-mono">{id.slice(0, 8)}…</span>
+              <button
+                type="button"
+                onClick={() => toggle(id)}
+                className="text-red-400 hover:text-red-600"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Поиск */}
+      <div className="p-2 border-b border-gray-100 relative">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Поиск по названию…"
+          className="w-full border border-gray-200 rounded-md pl-8 pr-2 py-1.5 text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+        />
+      </div>
+
+      {/* Список курсов */}
+      <div className="max-h-64 overflow-y-auto">
+        {visible.length === 0 ? (
+          <div className="p-3 text-center text-xs text-gray-400">Ничего не найдено</div>
+        ) : (
+          visible.map((c) => {
+            const checked = value.includes(c.id);
+            return (
+              <label
+                key={c.id}
+                className={`flex items-center gap-2 px-3 py-2 text-sm cursor-pointer transition-colors ${
+                  checked ? "bg-blue-50" : "hover:bg-gray-50"
+                }`}
+              >
+                <div
+                  className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                    checked ? "bg-blue-600 border-blue-600" : "border-gray-300 bg-white"
+                  }`}
+                >
+                  {checked && <Check className="w-3 h-3 text-white" />}
+                </div>
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => toggle(c.id)}
+                  className="sr-only"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-gray-900 truncate">{c.title}</div>
+                  <div className="text-[10px] text-gray-400 font-mono truncate">
+                    /{c.slug}
+                  </div>
+                </div>
+                {!c.isPublished && (
+                  <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">
+                    черновик
+                  </span>
+                )}
+              </label>
+            );
+          })
+        )}
+      </div>
+
+      <div className="px-3 py-2 border-t border-gray-100 bg-gray-50 text-[10px] text-gray-500">
+        {selected.length} {pluralize(selected.length, ["курс выбран", "курса выбрано", "курсов выбрано"])}
+        {orphanIds.length > 0 && (
+          <span className="text-red-600 ml-2">
+            · {orphanIds.length} ID не найдено
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function pluralize(n: number, forms: [string, string, string]): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return forms[0];
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return forms[1];
+  return forms[2];
 }

@@ -5,6 +5,8 @@ import { decrypt } from "@/lib/messaging/encryption";
 import { fetchSubscriberProfile } from "@/lib/messaging/instagram/api";
 import { IG_APP_SECRET, IG_WEBHOOK_VERIFY_TOKEN } from "@/lib/messaging/instagram/config";
 import { dispatchInbound } from "@/lib/messaging/engine/dispatcher";
+import { recordInboundMessage } from "@/lib/messaging/inbox";
+import { recordEvent, EVENT_TYPES } from "@/lib/messaging/events";
 
 const MAX_BODY_BYTES = 64 * 1024;
 
@@ -168,6 +170,12 @@ async function processInboundEvent(
         subscribedAt: now,
       },
     });
+    await recordEvent({
+      botId: bot.id,
+      type: EVENT_TYPES.SUBSCRIBER_CREATED,
+      subscriberId: subscriber.id,
+      data: { channel: "instagram" },
+    });
   } else {
     await db.messagingSubscriber.update({
       where: { id: subscriber.id },
@@ -175,7 +183,18 @@ async function processInboundEvent(
     });
   }
 
-  // Маршрутизация в flow-engine (Этап 1)
+  // Сохраняем входящее в Inbox (даже если flow не сработает)
+  if (text || quickReplyPayload) {
+    await recordInboundMessage({
+      botId: bot.id,
+      subscriberId: subscriber.id,
+      text,
+      callbackPayload: quickReplyPayload,
+      externalMessageId: event?.message?.mid,
+    }).catch(() => {});
+  }
+
+  // Маршрутизация в flow-engine
   if (text || quickReplyPayload) {
     try {
       const result = await dispatchInbound({

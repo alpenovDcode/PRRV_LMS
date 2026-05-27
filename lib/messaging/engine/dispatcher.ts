@@ -15,6 +15,7 @@ import { db } from "@/lib/db";
 import type { MessagingTriggerType } from "@prisma/client";
 import { matchesTrigger } from "./trigger-matcher";
 import { resumeWithInput, startFlow } from "./runner";
+import { recordEvent, EVENT_TYPES } from "../events";
 
 export interface DispatchInput {
   subscriberId: string;
@@ -32,7 +33,19 @@ export interface DispatchInput {
 export async function dispatchInbound(input: DispatchInput): Promise<{
   resumed: boolean;
   triggeredFlowId: string | null;
+  takeover?: boolean;
 }> {
+  // ── 0. Operator takeover guard ──────────────────────────────────────────
+  // Если оператор взял диалог под ручное управление — auto-triggers
+  // и flow-engine отключены. Сообщение только сохранится в Inbox.
+  const subscriber = await db.messagingSubscriber.findUnique({
+    where: { id: input.subscriberId },
+    select: { operatorTakeoverAt: true } as any,
+  });
+  if ((subscriber as any)?.operatorTakeoverAt) {
+    return { resumed: false, triggeredFlowId: null, takeover: true };
+  }
+
   // ── 1. Resume активного wait_reply ──────────────────────────────────────
   // (Только для DM-input — комментарии под постом не возобновляют DM-flow)
   if (input.triggerType === "keyword_dm") {
@@ -79,6 +92,18 @@ export async function dispatchInbound(input: DispatchInput): Promise<{
       data: {
         triggerCount: { increment: 1 },
         lastTriggeredAt: new Date(),
+      },
+    });
+
+    await recordEvent({
+      botId: input.botId,
+      type: EVENT_TYPES.TRIGGER_MATCHED,
+      subscriberId: input.subscriberId,
+      data: {
+        triggerId: trigger.id,
+        triggerType: trigger.type,
+        flowId: trigger.flow.id,
+        keywords: trigger.keywords,
       },
     });
 

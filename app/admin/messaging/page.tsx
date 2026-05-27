@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Instagram, MessageSquare, Plus, RefreshCw, Trash2, AlertTriangle, CheckCircle, Users, GitBranch, Power, X } from "lucide-react";
+import { Instagram, MessageSquare, Plus, RefreshCw, Trash2, AlertTriangle, CheckCircle, Users, GitBranch, Power, X, Loader2 } from "lucide-react";
 
 interface MessagingBot {
   id: string;
@@ -49,6 +49,7 @@ export default function MessagingPage() {
   const [bots, setBots] = useState<MessagingBot[]>([]);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
+  const [showMaxConnect, setShowMaxConnect] = useState(false);
   const [toast, setToast] = useState<{ kind: "success" | "error"; text: string } | null>(null);
 
   // ── Прочитать query params после возврата с OAuth callback ──────────────
@@ -185,8 +186,8 @@ export default function MessagingPage() {
         </button>
 
         <button
-          disabled
-          className="p-5 bg-white border border-gray-200 rounded-xl opacity-50 cursor-not-allowed"
+          onClick={() => setShowMaxConnect(true)}
+          className="group relative p-5 bg-white border border-gray-200 hover:border-blue-400 rounded-xl transition-all overflow-hidden"
         >
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white">
@@ -194,8 +195,9 @@ export default function MessagingPage() {
             </div>
             <div className="text-left">
               <div className="font-semibold text-gray-900">Подключить МАКС</div>
-              <div className="text-xs text-gray-500">Скоро</div>
+              <div className="text-xs text-gray-500">Через bot token от @MasterBot</div>
             </div>
+            <Plus className="w-5 h-5 text-gray-300 group-hover:text-blue-400 ml-auto transition-colors" />
           </div>
         </button>
       </div>
@@ -276,6 +278,19 @@ export default function MessagingPage() {
         )}
       </div>
 
+      {/* Модалка подключения MAX */}
+      {showMaxConnect && (
+        <MaxConnectModal
+          onClose={() => setShowMaxConnect(false)}
+          onDone={(msg) => {
+            setShowMaxConnect(false);
+            setToast({ kind: "success", text: msg });
+            load();
+          }}
+          onError={(msg) => setToast({ kind: "error", text: msg })}
+        />
+      )}
+
       {/* Модалка подтверждения hard-delete */}
       {confirmDelete && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
@@ -328,6 +343,112 @@ export default function MessagingPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Модалка подключения MAX-бота ──────────────────────────────────────────
+
+function MaxConnectModal({
+  onClose,
+  onDone,
+  onError,
+}: {
+  onClose: () => void;
+  onDone: (msg: string) => void;
+  onError: (msg: string) => void;
+}) {
+  const [token, setToken] = useState("");
+  const [connecting, setConnecting] = useState(false);
+
+  const handleConnect = async () => {
+    if (!token.trim()) {
+      onError("Введи токен");
+      return;
+    }
+    setConnecting(true);
+    try {
+      const res = await fetch("/api/admin/messaging/max/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: token.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        onDone(`MAX-бот «${data.data.title}» подключён`);
+      } else {
+        onError(data.error ?? "Не удалось подключить");
+      }
+    } catch {
+      onError("Ошибка сети");
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h2 className="font-bold text-gray-900 flex items-center gap-2">
+            <MessageSquare className="w-4 h-4 text-blue-500" /> Подключить MAX-бота
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-3">
+          {/* Инструкция */}
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-900">
+            <p className="font-semibold mb-1.5">📱 Как получить токен:</p>
+            <ol className="list-decimal list-inside space-y-0.5 text-blue-800">
+              <li>
+                Открой <strong>MAX</strong> и найди <strong>@MasterBot</strong>
+              </li>
+              <li>Команда <code className="bg-white px-1 rounded">/newbot</code> — придумай имя</li>
+              <li>Скопируй токен который пришлёт MasterBot</li>
+              <li>Вставь его сюда</li>
+            </ol>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+              Bot token
+            </label>
+            <input
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder="например: AbCdEfGhIjKlMnOpQrStUvWx..."
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500 outline-none"
+              autoFocus
+            />
+            <p className="text-[10px] text-gray-400 mt-1">
+              Токен шифруется AES-256 перед сохранением. Не передаётся на фронт повторно.
+            </p>
+          </div>
+        </div>
+
+        <div className="px-5 py-4 border-t border-gray-100 flex gap-2 justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-1.5 text-sm font-medium border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Отмена
+          </button>
+          <button
+            onClick={handleConnect}
+            disabled={connecting || !token.trim()}
+            className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+          >
+            {connecting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+            {connecting ? "Подключаю…" : "Подключить"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
