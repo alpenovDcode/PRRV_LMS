@@ -109,6 +109,20 @@ export default function BotFlowsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Воронки</h1>
           <p className="text-sm text-gray-500 mt-0.5">Бот #{botId.slice(0, 8)}</p>
         </div>
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/admin/messaging/${botId}/lists`}
+            className="text-sm px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Списки
+          </Link>
+          <Link
+            href={`/admin/messaging/${botId}/fields`}
+            className="text-sm px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Поля
+          </Link>
+        </div>
       </div>
 
       {/* Создание новой */}
