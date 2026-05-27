@@ -22,6 +22,7 @@ import { MessagingFlowRunStatus, type MessagingBot, type MessagingSubscriber } f
 import { getBotProvider } from "@/lib/messaging/providers/factory";
 import { renderTemplate } from "./template";
 import { executeActions } from "./actions";
+import { recordOutboundMessage } from "../inbox";
 import type { FlowGraph, FlowNode, ConditionNode } from "./graph-types";
 
 const MAX_NODES_PER_TICK = 50; // защита от бесконечных циклов в графе
@@ -270,7 +271,14 @@ async function executeNode(
   switch (node.type) {
     case "send_text": {
       const text = renderTemplate(node.text, tmplCtx);
-      await provider.sendText(bot, subscriber, text);
+      const sent = await provider.sendText(bot, subscriber, text);
+      await recordOutboundMessage({
+        botId: bot.id,
+        subscriberId: subscriber.id,
+        text,
+        externalMessageId: sent.externalMessageId,
+        source: `flow`,
+      }).catch(() => {});
       return { kind: "advance", nextNodeId: node.next, context };
     }
 
@@ -280,7 +288,15 @@ async function executeNode(
         title: renderTemplate(b.title, tmplCtx),
         payload: b.payload,
       }));
-      await provider.sendQuickReplies(bot, subscriber, text, buttons);
+      const sent = await provider.sendQuickReplies(bot, subscriber, text, buttons);
+      await recordOutboundMessage({
+        botId: bot.id,
+        subscriberId: subscriber.id,
+        text,
+        externalMessageId: sent.externalMessageId,
+        source: `flow`,
+        attachments: { quickReplies: buttons },
+      }).catch(() => {});
       return { kind: "advance", nextNodeId: node.next, context };
     }
 
@@ -299,7 +315,15 @@ async function executeNode(
               payload: b.payload,
             }
       );
-      await provider.sendButtons(bot, subscriber, text, buttons);
+      const sent = await provider.sendButtons(bot, subscriber, text, buttons);
+      await recordOutboundMessage({
+        botId: bot.id,
+        subscriberId: subscriber.id,
+        text,
+        externalMessageId: sent.externalMessageId,
+        source: `flow`,
+        attachments: { buttons },
+      }).catch(() => {});
       return { kind: "advance", nextNodeId: node.next, context };
     }
 

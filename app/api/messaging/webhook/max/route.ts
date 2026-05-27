@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { dispatchInbound } from "@/lib/messaging/engine/dispatcher";
+import { recordInboundMessage } from "@/lib/messaging/inbox";
 
 const MAX_BODY_BYTES = 64 * 1024;
 
@@ -120,6 +121,15 @@ async function handleMessage(bot: { id: string }, payload: any): Promise<void> {
   const subscriber = await upsertSubscriber(bot.id, recipient.chat_id, sender);
 
   if (text) {
+    // Сохраняем в Inbox перед dispatch — даже если flow не запустится,
+    // оператор увидит сообщение.
+    await recordInboundMessage({
+      botId: bot.id,
+      subscriberId: subscriber.id,
+      text,
+      externalMessageId: message.body?.mid,
+    }).catch(() => {});
+
     await dispatchInbound({
       subscriberId: subscriber.id,
       botId: bot.id,
@@ -139,6 +149,13 @@ async function handleCallback(bot: { id: string }, payload: any): Promise<void> 
   if (!user?.user_id || !recipient?.chat_id || !cbPayload) return;
 
   const subscriber = await upsertSubscriber(bot.id, recipient.chat_id, user);
+
+  // Inbox: callback тоже сохраняем (без text, с callbackPayload)
+  await recordInboundMessage({
+    botId: bot.id,
+    subscriberId: subscriber.id,
+    callbackPayload: String(cbPayload),
+  }).catch(() => {});
 
   await dispatchInbound({
     subscriberId: subscriber.id,

@@ -32,7 +32,19 @@ export interface DispatchInput {
 export async function dispatchInbound(input: DispatchInput): Promise<{
   resumed: boolean;
   triggeredFlowId: string | null;
+  takeover?: boolean;
 }> {
+  // ── 0. Operator takeover guard ──────────────────────────────────────────
+  // Если оператор взял диалог под ручное управление — auto-triggers
+  // и flow-engine отключены. Сообщение только сохранится в Inbox.
+  const subscriber = await db.messagingSubscriber.findUnique({
+    where: { id: input.subscriberId },
+    select: { operatorTakeoverAt: true } as any,
+  });
+  if ((subscriber as any)?.operatorTakeoverAt) {
+    return { resumed: false, triggeredFlowId: null, takeover: true };
+  }
+
   // ── 1. Resume активного wait_reply ──────────────────────────────────────
   // (Только для DM-input — комментарии под постом не возобновляют DM-flow)
   if (input.triggerType === "keyword_dm") {
