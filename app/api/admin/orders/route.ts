@@ -5,6 +5,7 @@ import { UserRole } from "@prisma/client";
 import { z } from "zod";
 import { randomBytes } from "crypto";
 import { logAction } from "@/lib/audit";
+import { sendEmail, emailTemplates } from "@/lib/email-service";
 
 // Zod-схема для query params. Маппинг строки→число, ограничения на длину.
 const querySchema = z.object({
@@ -81,6 +82,8 @@ const createSchema = z.object({
   userId: z.string().uuid(),
   offerId: z.string().uuid(),
   reason: z.string().max(500).optional(),
+  /** Отправить email клиенту со ссылкой. По умолчанию true. */
+  sendEmail: z.boolean().default(true),
 });
 
 /**
@@ -105,7 +108,7 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
-      const { userId, offerId, reason } = parsed.data;
+      const { userId, offerId, reason, sendEmail: sendEmailFlag } = parsed.data;
 
       // Проверяем что юзер и оффер существуют
       const [user, offer] = await Promise.all([
@@ -161,8 +164,37 @@ export async function POST(req: NextRequest) {
           offerTitle: offer.title,
           amount: offer.price.toString(),
           reason: reason ?? null,
+          emailSent: sendEmailFlag,
         }
       ).catch(() => {});
+
+      // ── Опционально шлём клиенту email со ссылкой ──────────────────────
+      let emailSent = false;
+      let emailError: string | null = null;
+      if (sendEmailFlag && user.email) {
+        try {
+          const formattedAmount = new Intl.NumberFormat("ru-RU", {
+            style: "currency",
+            currency: offer.currency,
+            maximumFractionDigits: 0,
+          }).format(Number(offer.price));
+
+          await sendEmail({
+            to: user.email,
+            subject: `Счёт на оплату: ${offer.title}`,
+            html: emailTemplates.paymentLink({
+              offerTitle: offer.title,
+              amount: formattedAmount,
+              paymentUrl,
+              customerName: user.fullName,
+            }),
+          });
+          emailSent = true;
+        } catch (err) {
+          emailError = err instanceof Error ? err.message : String(err);
+          console.error("[create-order] email send failed:", emailError);
+        }
+      }
 
       return NextResponse.json(
         {
@@ -172,6 +204,8 @@ export async function POST(req: NextRequest) {
             paymentUrl,
             user: { email: user.email, fullName: user.fullName },
             offer: { title: offer.title, price: offer.price.toString() },
+            emailSent,
+            emailError,
           },
         },
         { status: 201 }

@@ -28,6 +28,11 @@ import {
   cpBasicAuthHeader,
   getRestrictedMethods,
   assertCpConfig,
+  CP_RECEIPT_ENABLED,
+  CP_RECEIPT_TAXATION_SYSTEM,
+  CP_RECEIPT_VAT,
+  CP_RECEIPT_METHOD,
+  CP_RECEIPT_OBJECT,
 } from "./config";
 import { parseCpWebhook } from "./webhook";
 
@@ -58,6 +63,44 @@ export class CloudPaymentsProvider implements PaymentProvider {
     if (restricted.length > 0) params.restrictedPaymentMethods = restricted;
     // returnUrl — куда уйти после успешной оплаты в виджете (опционально)
     if (input.returnUrl) params.successUrl = input.returnUrl;
+
+    // ── Чек 54-ФЗ ────────────────────────────────────────────────────────
+    // Передаётся в виджет через data.CloudPayments.CustomerReceipt. CP
+    // сформирует чек и отправит на email клиента (если customerEmail задан).
+    if (CP_RECEIPT_ENABLED) {
+      const items = input.receiptItems?.length
+        ? input.receiptItems
+        : [{ label: input.description.slice(0, 128), price: input.amount, quantity: 1 }];
+
+      const receiptItems = items.map((it) => ({
+        label: it.label.slice(0, 128),
+        price: Number(it.price.toFixed(2)),
+        quantity: it.quantity,
+        amount: Number((it.price * it.quantity).toFixed(2)),
+        vat: CP_RECEIPT_VAT,
+        method: CP_RECEIPT_METHOD,
+        object: CP_RECEIPT_OBJECT,
+      }));
+
+      (params.data as Record<string, unknown>) = {
+        ...((params.data as Record<string, unknown>) ?? {}),
+        CloudPayments: {
+          CustomerReceipt: {
+            Items: receiptItems,
+            taxationSystem: CP_RECEIPT_TAXATION_SYSTEM,
+            ...(input.customerEmail ? { email: input.customerEmail } : {}),
+            ...(input.customerPhone ? { phone: input.customerPhone } : {}),
+            isBso: false,
+            amounts: {
+              electronic: Number(input.amount.toFixed(2)),
+              advancePayment: 0,
+              credit: 0,
+              provision: 0,
+            },
+          },
+        },
+      };
+    }
 
     return {
       kind: "widget",

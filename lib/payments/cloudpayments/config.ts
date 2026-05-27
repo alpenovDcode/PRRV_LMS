@@ -39,6 +39,31 @@ export function assertCpConfig(): void {
   }
 }
 
+// ─── Параметры чека 54-ФЗ ─────────────────────────────────────────────────
+//
+// Все параметры опциональные. Если CP_RECEIPT_ENABLED не задан или = "false",
+// чек не передаётся в виджет (CP его не сформирует — будет нарушение 54-ФЗ).
+//
+// Системы налогообложения:
+//   0 = ОСН (общая), 1 = УСН доходы, 2 = УСН доходы-расходы,
+//   3 = ЕНВД, 4 = ЕСН (сельхозналог), 5 = Патентная
+//
+// НДС:
+//   0 = "Без НДС" (для УСН/ПСН), 10 = 10%, 20 = 20%
+//
+// Method (признак способа расчёта):
+//   1 = предоплата 100%, 2 = предоплата, 3 = аванс,
+//   4 = полный расчёт (по умолчанию для разовых покупок курсов)
+//
+// Object (признак предмета расчёта):
+//   1 = товар, 2 = подакцизный товар, 3 = работа, 4 = услуга (для курсов!)
+
+export const CP_RECEIPT_ENABLED = process.env.CP_RECEIPT_ENABLED !== "false"; // default true
+export const CP_RECEIPT_TAXATION_SYSTEM = parseInt(process.env.CP_RECEIPT_TAXATION_SYSTEM ?? "1"); // УСН доходы default
+export const CP_RECEIPT_VAT = parseInt(process.env.CP_RECEIPT_VAT ?? "0"); // Без НДС default
+export const CP_RECEIPT_METHOD = parseInt(process.env.CP_RECEIPT_METHOD ?? "4"); // полный расчёт
+export const CP_RECEIPT_OBJECT = parseInt(process.env.CP_RECEIPT_OBJECT ?? "4"); // услуга
+
 /** Endpoints API (для server-to-server вызовов: refund, void, get-status и т.п.) */
 export const CP_API_BASE = "https://api.cloudpayments.ru";
 

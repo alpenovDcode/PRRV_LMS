@@ -99,6 +99,16 @@ services:
       CP_PAYMENT_SCHEMA: ${CP_PAYMENT_SCHEMA:-Single}
       # Comma-separated отключаемые методы (напр. "TinkoffPay,SberPay"). Пусто = все доступны.
       CP_RESTRICTED_METHODS: ${CP_RESTRICTED_METHODS:-}
+      # Чеки 54-ФЗ. ENABLED=true передаёт CustomerReceipt в виджет — CP сам шлёт фискальный чек.
+      # taxation_system: 0=ОСН, 1=УСН доходы, 2=УСН доходы-расходы, 3=ЕНВД, 4=ЕСН, 5=Патент
+      # vat: 0=без НДС (для УСН/ПСН), 10, 20
+      # method: 4=полный расчёт (стандарт для разовых покупок)
+      # object: 4=услуга (для курсов)
+      CP_RECEIPT_ENABLED: ${CP_RECEIPT_ENABLED:-true}
+      CP_RECEIPT_TAXATION_SYSTEM: ${CP_RECEIPT_TAXATION_SYSTEM:-1}
+      CP_RECEIPT_VAT: ${CP_RECEIPT_VAT:-0}
+      CP_RECEIPT_METHOD: ${CP_RECEIPT_METHOD:-4}
+      CP_RECEIPT_OBJECT: ${CP_RECEIPT_OBJECT:-4}
       # Mock provider (только dev)
       MOCK_WEBHOOK_SECRET: ${MOCK_WEBHOOK_SECRET:-}
     ports:

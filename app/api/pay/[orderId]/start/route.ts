@@ -81,6 +81,9 @@ export async function POST(
       customerEmail: orderAny.user?.email,
       customerPhone: orderAny.user?.phone ?? undefined,
       customerAccountId: orderAny.userId,
+      receiptItems: [
+        { label: offerTitle, price: Number(orderAny.amount), quantity: 1 },
+      ],
       metadata: { orderId: orderAny.id },
     });
 

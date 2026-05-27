@@ -472,8 +472,14 @@ function CreateOrderModal({
   const [offers, setOffers] = useState<OfferOption[]>([]);
   const [selectedOfferId, setSelectedOfferId] = useState("");
   const [reason, setReason] = useState("");
+  const [sendEmailToClient, setSendEmailToClient] = useState(true);
   const [creating, setCreating] = useState(false);
-  const [result, setResult] = useState<{ orderId: string; paymentUrl: string } | null>(null);
+  const [result, setResult] = useState<{
+    orderId: string;
+    paymentUrl: string;
+    emailSent: boolean;
+    emailError: string | null;
+  } | null>(null);
   const [copied, setCopied] = useState(false);
 
   // Загружаем активные офферы при открытии
@@ -511,11 +517,17 @@ function CreateOrderModal({
           userId: selectedUser.id,
           offerId: selectedOfferId,
           reason: reason.trim() || undefined,
+          sendEmail: sendEmailToClient,
         }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setResult({ orderId: data.data.orderId, paymentUrl: data.data.paymentUrl });
+        setResult({
+          orderId: data.data.orderId,
+          paymentUrl: data.data.paymentUrl,
+          emailSent: data.data.emailSent ?? false,
+          emailError: data.data.emailError ?? null,
+        });
       } else {
         onError(data.error ?? "Не удалось создать заказ");
       }
@@ -649,12 +661,37 @@ function CreateOrderModal({
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
+
+              {/* Send email checkbox */}
+              <label className="flex items-start gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={sendEmailToClient}
+                  onChange={(e) => setSendEmailToClient(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <div>
+                  <div>Отправить email клиенту со ссылкой на оплату</div>
+                  <div className="text-xs text-gray-500">
+                    Письмо с темой «Счёт на оплату: …» и кнопкой «Перейти к оплате».
+                  </div>
+                </div>
+              </label>
             </>
           ) : (
             <>
               <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
                 <CheckCircle className="w-5 h-5 inline mr-1 -mt-0.5" />
-                Заказ создан. Отправь клиенту ссылку:
+                Заказ создан.
+                {result.emailSent ? (
+                  <span> Email клиенту отправлен.</span>
+                ) : result.emailError ? (
+                  <span className="block mt-1 text-xs text-amber-700">
+                    ⚠️ Email не отправлен: {result.emailError}. Скопируй ссылку вручную.
+                  </span>
+                ) : (
+                  <span> Отправь клиенту ссылку:</span>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
