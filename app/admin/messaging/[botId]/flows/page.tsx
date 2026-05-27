@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Plus, MessageSquare, ToggleLeft, ToggleRight, Trash2, ArrowLeft, Zap, BarChart3 } from "lucide-react";
+import { Plus, MessageSquare, ToggleLeft, ToggleRight, Trash2, ArrowLeft, Zap, BarChart3, Link2 } from "lucide-react";
 import Link from "next/link";
 
 interface Flow {
@@ -121,6 +121,18 @@ export default function BotFlowsPage() {
             className="text-sm px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-1"
           >
             <BarChart3 className="w-4 h-4" /> Аналитика
+          </Link>
+          <Link
+            href={`/admin/messaging/${botId}/tracking`}
+            className="text-sm px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-1"
+          >
+            <Link2 className="w-4 h-4" /> Ссылки
+          </Link>
+          <Link
+            href={`/admin/messaging/${botId}/bitrix`}
+            className="text-sm px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Bitrix24
           </Link>
           <Link
             href={`/admin/messaging/${botId}/broadcasts`}

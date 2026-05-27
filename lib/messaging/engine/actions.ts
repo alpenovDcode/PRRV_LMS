@@ -19,6 +19,7 @@ import type { MessagingBot, MessagingSubscriber } from "@prisma/client";
 import { renderTemplate } from "./template";
 import type { NodeAction } from "./graph-types";
 import { recordEvent, EVENT_TYPES } from "../events";
+import { maybeSyncMessagingOnTagAdded } from "../bitrix-sync";
 
 export interface ExecuteActionsResult {
   /** Обновлённый subscriber (если actions меняли его поля) */
@@ -78,6 +79,8 @@ async function executeAction(
         subscriberId: subscriber.id,
         data: { tag },
       });
+      // Bitrix-sync best-effort, не блокирует воронку при ошибке
+      await maybeSyncMessagingOnTagAdded(bot.id, subscriber.id, tag, context).catch(() => {});
       return { subscriber: updated, context };
     }
 
