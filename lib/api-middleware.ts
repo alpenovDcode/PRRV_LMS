@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ZodError } from "zod";
 import { verifyAccessToken, validateSession } from "./auth";
 import { ApiResponse } from "@/types";
 import { UserRole } from "@prisma/client";
@@ -10,6 +11,45 @@ export interface AuthenticatedRequest extends NextRequest {
     role: UserRole;
     sessionId: string;
   };
+}
+
+/**
+ * Запускает handler в собственном try/catch, чтобы ошибки бизнес-логики
+ * (ZodError, Prisma и т.д.) превращались в корректный JSON-ответ, а не
+ * в пустое тело 500 (что на клиенте даёт "Unexpected end of JSON input").
+ */
+async function executeHandler(
+  req: AuthenticatedRequest,
+  handler: (req: AuthenticatedRequest) => Promise<Response>
+): Promise<Response> {
+  try {
+    return await handler(req);
+  } catch (error) {
+    // Ошибки валидации — отдаём 400 с понятным сообщением
+    if (error instanceof ZodError) {
+      const first = error.issues[0];
+      const message = first
+        ? `${first.path.join(".") || "поле"}: ${first.message}`
+        : "Ошибка валидации данных";
+      return NextResponse.json<ApiResponse>(
+        { success: false, error: { code: "VALIDATION_ERROR", message } },
+        { status: 400 }
+      );
+    }
+
+    // Прочие ошибки — логируем подробно, клиенту отдаём безопасное сообщение
+    console.error("[Middleware] Handler error:", error);
+    return NextResponse.json<ApiResponse>(
+      {
+        success: false,
+        error: {
+          code: "INTERNAL_ERROR",
+          message: "Внутренняя ошибка сервера. Попробуйте позже.",
+        },
+      },
+      { status: 500 }
+    );
+  }
 }
 
 export async function withAuth(
@@ -48,7 +88,7 @@ export async function withAuth(
            
           const authenticatedRequest = request as AuthenticatedRequest;
           authenticatedRequest.user = payload;
-          return handler(authenticatedRequest);
+          return executeHandler(authenticatedRequest, handler);
         }
       }
     }
@@ -65,7 +105,7 @@ export async function withAuth(
         role: "admin", // Grant admin role for system-level calls
         sessionId: "system-session",
       };
-      return handler(authenticatedRequest);
+      return executeHandler(authenticatedRequest, handler);
     }
 
     // 3. Если ни то, ни другое не сработало

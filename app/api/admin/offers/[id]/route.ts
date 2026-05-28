@@ -6,7 +6,7 @@ import { z } from "zod";
 
 const patchSchema = z.object({
   title: z.string().min(1).optional(),
-  description: z.string().optional(),
+  description: z.string().nullable().optional(),
   price: z.number().positive().optional(),
   oldPrice: z.number().positive().nullable().optional(),
   isActive: z.boolean().optional(),
