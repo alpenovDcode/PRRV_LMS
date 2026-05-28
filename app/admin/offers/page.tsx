@@ -28,6 +28,24 @@ interface Offer {
 
 const TARIFF_LABELS: Record<string, string> = { VR: "VR", LR: "LR", SR: "SR" };
 
+/**
+ * Безопасно достаёт текст ошибки из ответа API.
+ * Обрабатывает пустое тело и оба формата error: строка или {code, message}.
+ */
+async function extractError(res: Response): Promise<string> {
+  try {
+    const text = await res.text();
+    if (!text) return `Ошибка ${res.status}`;
+    const data = JSON.parse(text);
+    const err = data?.error;
+    if (typeof err === "string") return err;
+    if (err?.message) return err.message;
+    return `Ошибка ${res.status}`;
+  } catch {
+    return `Ошибка ${res.status}`;
+  }
+}
+
 function formatPrice(p: string) {
   return new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format(Number(p));
 }
@@ -235,7 +253,7 @@ export default function OffersPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
-    if (!res.ok) throw new Error((await res.json()).error);
+    if (!res.ok) throw new Error(await extractError(res));
     setShowCreate(false);
     load();
   };
@@ -246,7 +264,7 @@ export default function OffersPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
-    if (!res.ok) throw new Error((await res.json()).error);
+    if (!res.ok) throw new Error(await extractError(res));
     setEditing(null);
     load();
   };
@@ -254,8 +272,7 @@ export default function OffersPage() {
   const deleteOffer = async (id: string) => {
     if (!confirm("Удалить оффер?")) return;
     const res = await fetch(`/api/admin/offers/${id}`, { method: "DELETE" });
-    const d = await res.json();
-    if (!res.ok) { alert(d.error); return; }
+    if (!res.ok) { alert(await extractError(res)); return; }
     load();
   };
 

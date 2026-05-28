@@ -7,7 +7,7 @@ import { z } from "zod";
 const offerSchema = z
   .object({
     title: z.string().min(1).max(200),
-    description: z.string().max(2000).optional(),
+    description: z.string().max(2000).nullable().optional(),
     price: z.number().positive().max(99_999_999),
     oldPrice: z.number().positive().max(99_999_999).nullable().optional(),
     currency: z.enum(["RUB", "USD", "EUR"]).default("RUB"),
