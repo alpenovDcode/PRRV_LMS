@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { CheckCircle, ShieldCheck, CreditCard, Loader2, ArrowLeft, Clock, Tag } from "lucide-react";
+import { getCloudflareImageUrl } from "@/lib/cloudflare-images";
 
 interface Offer {
   id: string;
@@ -192,7 +193,7 @@ export default function CheckoutPage() {
                     {offer.courses.map((c) => (
                       <div key={c.id} className="flex items-center gap-3 text-sm text-gray-700">
                         {c.coverImage ? (
-                          <img src={c.coverImage} alt="" className="w-10 h-10 rounded-lg object-cover" />
+                          <img src={getCloudflareImageUrl(c.coverImage)} alt="" className="w-10 h-10 rounded-lg object-cover" />
                         ) : (
                           <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-400 to-indigo-500" />
                         )}
