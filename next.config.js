@@ -104,13 +104,13 @@ const nextConfig = {
               "default-src 'self'",
               // 'unsafe-eval' нужен Next.js в dev, в production убираем
               process.env.NODE_ENV === "production"
-                ? "script-src 'self' 'unsafe-inline' https://embed.cloudflarestream.com https://*.cloudflarestream.com"
-                : "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://embed.cloudflarestream.com https://*.cloudflarestream.com",
-              "style-src 'self' 'unsafe-inline'", // 'unsafe-inline' needed for Tailwind/CSS-in-JS
+                ? "script-src 'self' 'unsafe-inline' https://embed.cloudflarestream.com https://*.cloudflarestream.com https://widget.cloudpayments.ru https://*.cloudpayments.ru"
+                : "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://embed.cloudflarestream.com https://*.cloudflarestream.com https://widget.cloudpayments.ru https://*.cloudpayments.ru",
+              "style-src 'self' 'unsafe-inline' https://*.cloudpayments.ru", // 'unsafe-inline' needed for Tailwind/CSS-in-JS
               "img-src 'self' data: https: blob:",
-              "font-src 'self' data:",
-              "connect-src 'self' https://*.cloudflarestream.com https://cloudflarestream.com https://imagedelivery.net https://prrv.tech https://www.prrv.tech",
-              "frame-src 'self' https://*.cloudflarestream.com",
+              "font-src 'self' data: https://*.cloudpayments.ru",
+              "connect-src 'self' https://*.cloudflarestream.com https://cloudflarestream.com https://imagedelivery.net https://prrv.tech https://www.prrv.tech https://widget.cloudpayments.ru https://api.cloudpayments.ru https://*.cloudpayments.ru",
+              "frame-src 'self' https://*.cloudflarestream.com https://widget.cloudpayments.ru https://*.cloudpayments.ru",
               "media-src 'self' https://*.cloudflarestream.com blob:",
               "frame-ancestors 'self'",
               "base-uri 'self'",
