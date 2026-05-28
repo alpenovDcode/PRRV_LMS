@@ -48,7 +48,6 @@ export class CloudPaymentsProvider implements PaymentProvider {
       amount: input.amount,
       currency: input.currency,
       invoiceId: input.orderId, // CP вернёт это в webhook как InvoiceId
-      paymentSchema: settings.paymentSchema,
       // data — произвольный JSON, прилетает в webhook
       data: { orderId: input.orderId, ...(input.metadata ?? {}) },
     };
@@ -58,8 +57,10 @@ export class CloudPaymentsProvider implements PaymentProvider {
     if (settings.restrictedMethods.length > 0) {
       params.restrictedPaymentMethods = settings.restrictedMethods;
     }
-    // returnUrl — куда уйти после успешной оплаты в виджете (опционально)
-    if (input.returnUrl) params.successUrl = input.returnUrl;
+    // NB: paymentSchema и successUrl НЕ передаются в виджет — это не
+    // поля PaymentOptions (виджет их игнорирует с warning'ом). Схема
+    // оплаты выбирается через widget.pay(type, ...) (см. paymentType ниже),
+    // а возврат после успеха обрабатывается в onSuccess-колбэке фронта.
 
     // ── Чек 54-ФЗ ────────────────────────────────────────────────────────
     // Передаётся в виджет через data.CloudPayments.CustomerReceipt. CP
@@ -107,6 +108,9 @@ export class CloudPaymentsProvider implements PaymentProvider {
       providerPaymentId: input.orderId,
       status: "pending",
       params,
+      // Одностадийная "charge" по умолчанию; "auth" только если в кабинете
+      // CloudPayments реально подключена двухстадийная схема.
+      paymentType: settings.paymentSchema === "Dual" ? "auth" : "charge",
     };
   }
 

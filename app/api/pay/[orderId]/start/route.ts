@@ -104,7 +104,12 @@ export async function POST(
     }
     return NextResponse.json({
       success: true,
-      data: { kind: "widget", widget: payment.widget, params: payment.params },
+      data: {
+        kind: "widget",
+        widget: payment.widget,
+        params: payment.params,
+        paymentType: payment.paymentType ?? "charge",
+      },
     });
   } catch (err) {
     console.error("[pay/start] Provider error:", err);
