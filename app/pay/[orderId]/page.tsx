@@ -90,7 +90,7 @@ function PayContent() {
       }
 
       if (data.data.kind === "widget" && data.data.widget === "cloudpayments") {
-        await openCloudPaymentsWidget(data.data.params);
+        await openCloudPaymentsWidget(data.data.params, data.data.paymentType);
         return;
       }
 
@@ -102,7 +102,10 @@ function PayContent() {
     }
   };
 
-  async function openCloudPaymentsWidget(params: Record<string, unknown>) {
+  async function openCloudPaymentsWidget(
+    params: Record<string, unknown>,
+    paymentType?: "charge" | "auth"
+  ) {
     const SRC = "https://widget.cloudpayments.ru/bundles/cloudpayments.js";
     if (!document.querySelector(`script[src="${SRC}"]`)) {
       await new Promise<void>((resolve, reject) => {
@@ -118,7 +121,7 @@ function PayContent() {
     if (!cp?.CloudPayments) throw new Error("CloudPayments SDK не доступен");
 
     const widget = new cp.CloudPayments();
-    widget.pay("auth", params, {
+    widget.pay(paymentType ?? "charge", params, {
       onSuccess: () => {
         window.location.href = `/pay/${orderId}/success?token=${encodeURIComponent(token)}`;
       },

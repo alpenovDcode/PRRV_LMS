@@ -66,7 +66,7 @@ export default function CheckoutPage() {
       // Widget-провайдер (CloudPayments) — грузим скрипт и открываем виджет
       // на нашей странице. После закрытия виджета редиректим на success.
       if (data.data.kind === "widget" && data.data.widget === "cloudpayments") {
-        await openCloudPaymentsWidget(data.data.params, data.data.orderId);
+        await openCloudPaymentsWidget(data.data.params, data.data.orderId, data.data.paymentType);
         return;
       }
 
@@ -85,7 +85,8 @@ export default function CheckoutPage() {
    */
   async function openCloudPaymentsWidget(
     params: Record<string, unknown>,
-    orderId: string
+    orderId: string,
+    paymentType?: "charge" | "auth"
   ): Promise<void> {
     // 1. Загружаем CP bundle если ещё не загружен
     const SRC = "https://widget.cloudpayments.ru/bundles/cloudpayments.js";
@@ -106,7 +107,7 @@ export default function CheckoutPage() {
       throw new Error("CloudPayments SDK не доступен");
     }
     const widget = new cp.CloudPayments();
-    widget.pay("auth", params, {
+    widget.pay(paymentType ?? "charge", params, {
       onSuccess: () => {
         window.location.href = `/payments/success?orderId=${orderId}`;
       },

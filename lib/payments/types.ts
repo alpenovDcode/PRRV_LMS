@@ -76,6 +76,13 @@ export interface WidgetPayment {
   widget: "cloudpayments";
   /** Параметры для widget.start() — структура зависит от провайдера */
   params: Record<string, unknown>;
+  /**
+   * Тип операции для CloudPayments-виджета:
+   *   "charge" — одностадийная оплата (списание сразу) — дефолт,
+   *   "auth"   — двухстадийная (холд + последующее списание).
+   * Должен совпадать с тем, что включено в кабинете CloudPayments.
+   */
+  paymentType?: "charge" | "auth";
 }
 
 export type CreatedPayment = RedirectPayment | WidgetPayment;

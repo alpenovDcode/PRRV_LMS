@@ -135,6 +135,7 @@ export async function POST(req: NextRequest) {
           kind: "widget" as const,
           widget: payment.widget,
           params: payment.params,
+          paymentType: payment.paymentType ?? "charge",
         },
       });
     } catch (err) {
