@@ -28,6 +28,7 @@ export async function GET(
   const TEMPLATES: Record<string, string> = {
     default: "landing_template.html",
     prepodavay: path.join("landings", "prepodavay.html"),
+    "prepodavay-tg": path.join("landings", "prepodavay-tg.html"),
   };
   const templateKey: string = settings.htmlTemplate?.template || "default";
   const templateFile = TEMPLATES[templateKey] || TEMPLATES.default;
