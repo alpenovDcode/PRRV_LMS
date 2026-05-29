@@ -153,11 +153,12 @@ const nextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline'",
+              // tgtrack (max.tgtrack.ru) + Яндекс.Метрика — для трекинг-скрипта лендингов
+              "script-src 'self' 'unsafe-inline' https://max.tgtrack.ru https://mc.yandex.ru https://mc.yandex.com https://yastatic.net",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' data: https://fonts.gstatic.com",
               "img-src 'self' data: https: blob:",
-              "connect-src 'self'",
+              "connect-src 'self' https://max.tgtrack.ru https://mc.yandex.ru https://mc.yandex.com",
               "frame-ancestors 'self'",
               "base-uri 'self'",
             ].join("; "),
