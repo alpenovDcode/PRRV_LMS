@@ -223,5 +223,30 @@
     </section>
 
   </main>
+
+  <script>
+    /*
+      Лендинг отдаётся внутри iframe (same-origin), а max.ru/t.me запрещают
+      встраивание. Скрипт tgtrack перехватывает клик и пытается открыть бота
+      внутри iframe → блокировка. Поэтому при клике по CTA явно переводим
+      ВЕРХНЕЕ окно на ссылку бота. tgtrack-цель (toMax) фиксируется по клику.
+    */
+    (function () {
+      function bind() {
+        var links = document.querySelectorAll('a.cta');
+        for (var i = 0; i < links.length; i++) {
+          links[i].addEventListener('click', function () {
+            try {
+              if (window.top && window.top !== window) {
+                window.top.location.href = this.href;
+              }
+            } catch (e) {}
+          });
+        }
+      }
+      if (document.readyState !== 'loading') bind();
+      else document.addEventListener('DOMContentLoaded', bind);
+    })();
+  </script>
 </body>
 </html>
