@@ -170,9 +170,19 @@ export class CloudPaymentsProvider implements PaymentProvider {
   async refund(input: RefundInput): Promise<RefundResult> {
     assertCpConfig();
 
-    const body: Record<string, unknown> = {
-      TransactionId: Number(input.providerPaymentId),
-    };
+    // providerPaymentId должен быть числовым TransactionId CloudPayments.
+    // Если он не числовой — значит оплата не была завершена через CP
+    // (или не дошёл вебхук Pay, который сохраняет TransactionId в ykPaymentId).
+    const txId = Number(input.providerPaymentId);
+    if (!Number.isFinite(txId) || txId <= 0) {
+      throw new Error(
+        `Возврат невозможен: у заказа нет валидного CloudPayments TransactionId ` +
+          `(ykPaymentId="${input.providerPaymentId}"). Вероятно, оплата не прошла ` +
+          `через CloudPayments или не дошёл вебхук Pay.`
+      );
+    }
+
+    const body: Record<string, unknown> = { TransactionId: txId };
     if (input.amount != null) body.Amount = input.amount;
 
     const resp = await fetch(`${CP_API_BASE}/payments/refund`, {
@@ -187,7 +197,18 @@ export class CloudPaymentsProvider implements PaymentProvider {
     const data: any = await resp.json().catch(() => ({}));
     if (!resp.ok || data?.Success === false) {
       const message = data?.Message ?? data?.Model?.CardHolderMessage ?? `HTTP ${resp.status}`;
-      throw new Error(`CloudPayments refund failed: ${message}`);
+      const reason = data?.Model?.ReasonCode ?? data?.Model?.Reason;
+      console.error("[cp-refund] failed", {
+        txId,
+        httpStatus: resp.status,
+        message,
+        reason,
+        raw: data,
+      });
+      throw new Error(
+        `CloudPayments refund failed (TransactionId=${txId}): ${message}` +
+          (reason ? ` [${reason}]` : "")
+      );
     }
 
     const model = data?.Model ?? {};
