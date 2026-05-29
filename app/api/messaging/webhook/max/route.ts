@@ -94,8 +94,12 @@ export async function POST(req: NextRequest) {
       await handleMessage(bot, payload);
     } else if (updateType === "message_callback") {
       await handleCallback(bot, payload);
+    } else if (updateType === "bot_started") {
+      // Пользователь открыл бота по ссылке https://max.ru/<bot>?start=<payload>
+      // и нажал «Запустить». Это MAX-аналог /start — запускаем воронку.
+      await handleBotStarted(bot, payload);
     } else {
-      // Неинтересные события (bot_started, message_edited, ...) — игнорим
+      // Неинтересные события (message_edited, ...) — игнорим
       console.log(`[max-webhook] ignoring update_type=${updateType}`);
     }
   } catch (e) {
@@ -138,6 +142,34 @@ async function handleMessage(bot: { id: string }, payload: any): Promise<void> {
       text,
     });
   }
+}
+
+async function handleBotStarted(bot: { id: string }, payload: any): Promise<void> {
+  // Структура bot_started: { update_type, timestamp, chat_id, user, payload }
+  // где payload — значение из ?start=<...> в deep-link (или null).
+  const chatId = payload?.chat_id;
+  const user = payload?.user;
+  const startPayload: string | undefined = payload?.payload ?? undefined;
+
+  if (!chatId || !user?.user_id) return;
+
+  const subscriber = await upsertSubscriber(bot.id, chatId, user);
+
+  // MAX-аналог "/start": сохраняем в Inbox и запускаем диспетчер.
+  await recordInboundMessage({
+    botId: bot.id,
+    subscriberId: subscriber.id,
+    text: "/start",
+  }).catch(() => {});
+
+  await dispatchInbound({
+    subscriberId: subscriber.id,
+    botId: bot.id,
+    triggerType: "keyword_dm",
+    text: "/start",
+    // payload из ?start= — кладётся в context.lastPayload (ветвление воронок)
+    payload: startPayload ? String(startPayload) : "",
+  });
 }
 
 async function handleCallback(bot: { id: string }, payload: any): Promise<void> {
