@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Преподавай — нейросеть для репетиторов</title>
+
+  <style>
+    /*
+      Кодовая адаптивная версия лендинга «Преподавай» (Telegram-посадка).
+      Текст и иконки — кодом (HTML/CSS/SVG). Телефон — ассет
+      /landings/assets/prepodavay/phone.png. Значок Telegram — inline SVG.
+      Все CTA ведут на бота https://t.me/prrv_prepodavAI_bot (для tgtrack).
+      Для разных воронок можно добавить ?start=<ключ> в ссылки.
+    */
+    :root {
+      --cream: #fff7ef;
+      --ink: #0b1b34;
+      --ink-soft: #43506a;
+      --orange: #ff6a00;
+      --orange-2: #ff8a00;
+      --card: #ffffff;
+      --line: #f0e7dc;
+      --shadow: 0 24px 60px rgba(20, 30, 60, .08);
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    html, body {
+      margin: 0; padding: 0;
+      background: var(--cream);
+      color: var(--ink);
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    .wrap { max-width: 1120px; margin: 0 auto; padding: 28px 20px; }
+    .section { margin-bottom: 22px; }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 32px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .accent { color: var(--orange); }
+
+    /* ── CTA-кнопка ───────────────────────────────────────── */
+    .cta {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      text-decoration: none;
+      color: #fff;
+      font-weight: 800;
+      letter-spacing: .2px;
+      text-transform: uppercase;
+      font-size: clamp(13px, 1.5vw, 16px);
+      padding: 18px 30px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, var(--orange-2), var(--orange));
+      box-shadow: 0 16px 34px rgba(255, 106, 0, .32);
+      transition: transform .16s ease, box-shadow .16s ease, filter .16s ease;
+    }
+    .cta:hover { transform: translateY(-2px); box-shadow: 0 22px 44px rgba(255, 106, 0, .38); filter: saturate(1.05); }
+    .cta:active { transform: translateY(0); }
+    .cta svg { width: 20px; height: 20px; flex: none; }
+
+    /* ── Экран 1: герой ───────────────────────────────────── */
+    .hero { display: grid; grid-template-columns: 1.05fr .95fr; gap: 36px; align-items: center; padding: 48px; }
+    .hero h1 {
+      margin: 0 0 18px;
+      font-weight: 900;
+      line-height: 1.05;
+      letter-spacing: -.5px;
+      font-size: clamp(30px, 4.6vw, 56px);
+    }
+    .hero p.lead { margin: 0 0 28px; color: var(--ink-soft); font-size: clamp(15px, 1.9vw, 21px); font-weight: 500; max-width: 30ch; }
+    .hero .chips { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+    .chip {
+      display: inline-flex; align-items: center; gap: 9px;
+      background: var(--cream); border: 1px solid var(--line);
+      border-radius: 16px; padding: 12px 16px;
+      font-size: 13px; font-weight: 700; color: var(--ink);
+    }
+    .chip svg { width: 18px; height: 18px; color: var(--orange); flex: none; }
+
+    .hero .phone { justify-self: center; }
+    .hero .phone img { display: block; width: 100%; max-width: 440px; height: auto; }
+
+    /* ── Экран 2: возможности ─────────────────────────────── */
+    .features { display: grid; grid-template-columns: .85fr 1.15fr; gap: 40px; padding: 48px; }
+    .features h2 { margin: 0 0 16px; font-weight: 900; line-height: 1.08; letter-spacing: -.4px; font-size: clamp(26px, 3.4vw, 42px); }
+    .features p.desc { margin: 0; color: var(--ink-soft); font-size: clamp(14px, 1.6vw, 18px); font-weight: 500; }
+    .features .col-title { margin: 0 0 20px; font-weight: 800; font-size: clamp(16px, 1.8vw, 20px); }
+    .grid6 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 24px; }
+    .feat { display: flex; align-items: flex-start; gap: 14px; }
+    .feat .ic {
+      flex: none; width: 46px; height: 46px; border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      border: 2px solid #ffd9b8; background: #fff6ee; color: var(--orange);
+    }
+    .feat .ic svg { width: 24px; height: 24px; }
+    .feat span { font-weight: 700; font-size: 15px; line-height: 1.3; align-self: center; }
+
+    /* ── Экран 3: Telegram CTA ────────────────────────────── */
+    .maxcta { padding: 56px 40px; text-align: center; background: radial-gradient(120% 90% at 50% 0%, #fff 0%, #fff7ef 70%); }
+    .maxcta h2 { margin: 0 0 26px; font-weight: 900; letter-spacing: -.4px; font-size: clamp(26px, 3.6vw, 44px); }
+    .maxcta .badge { width: clamp(104px, 15vw, 136px); height: auto; filter: drop-shadow(0 18px 34px rgba(34, 158, 217, .34)); }
+    .maxcta p.sub { margin: 22px auto 28px; color: var(--ink-soft); font-weight: 600; font-size: clamp(14px, 1.7vw, 18px); }
+
+    /* ── Адаптив ──────────────────────────────────────────── */
+    @media (max-width: 860px) {
+      .hero { grid-template-columns: 1fr; gap: 30px; padding: 34px 26px; text-align: center; }
+      .hero p.lead { max-width: none; margin-left: auto; margin-right: auto; }
+      .hero .chips { justify-content: center; }
+      .hero .phone { order: 2; }
+      .hero .phone img { max-width: 280px; }
+      .features { grid-template-columns: 1fr; gap: 28px; padding: 34px 26px; }
+      .card { border-radius: 26px; }
+    }
+
+    @media (max-width: 560px) {
+      .wrap { padding: 16px 12px; }
+      .section { margin-bottom: 14px; }
+      .hero, .features, .maxcta { padding: 26px 18px; }
+      .grid6 { grid-template-columns: 1fr; gap: 14px; }
+      .cta { width: 100%; padding: 17px 20px; }
+      .chip { font-size: 12px; padding: 10px 13px; }
+      .card { border-radius: 22px; }
+      .maxcta { padding: 36px 18px; }
+    }
+  </style>
+
+  <script src="https://api.tgtrack.ru/API/landing_script/v1/?linkID=932ab135af6e99&type=ya&counterID=95995057" type="text/javascript" defer></script>
+</head>
+
+<body>
+  <main class="wrap">
+
+    <!-- ЭКРАН 1: ГЕРОЙ -->
+    <section class="section card hero">
+      <div class="hero-text">
+        <h1>Нейросеть<br />для репетиторов —<br /><span class="accent">бесплатно и без VPN</span></h1>
+        <p class="lead">Подготовьте план урока, задания и материалы за <span class="accent">3 минуты</span></p>
+
+        <a class="cta" href="https://t.me/prrv_prepodavAI_bot" aria-label="Начать пользоваться бесплатно">
+          Начать пользоваться бесплатно
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </a>
+
+        <div class="chips">
+          <span class="chip">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+            План урока за минуты
+          </span>
+          <span class="chip">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v5h5"/><path d="M7 3h7l5 5v13H7z"/><path d="M10 13h6M10 17h6"/></svg>
+            Задания и материалы
+          </span>
+          <span class="chip">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 3v6c0 5-3.5 8-8 11-4.5-3-8-6-8-11V5z"/><path d="M9 12l2 2 4-4"/></svg>
+            Без VPN и ограничений
+          </span>
+        </div>
+      </div>
+
+      <div class="phone">
+        <img src="/landings/assets/prepodavay/phone.png" alt="Чат с нейросетью «Преподавай» в Telegram" loading="eager" />
+      </div>
+    </section>
+
+    <!-- ЭКРАН 2: ВОЗМОЖНОСТИ -->
+    <section class="section card features">
+      <div>
+        <h2>Преподавай —<br /><span class="accent">ИИ-сервис</span><br />для репетиторов</h2>
+        <p class="desc">Помогает быстрее готовиться к занятиям и забирает всю рутинную часть работы: планы уроков, задания, рабочие листы, объяснения и домашку.</p>
+      </div>
+
+      <div>
+        <p class="col-title">Чем может помочь сервис:</p>
+        <div class="grid6">
+          <div class="feat">
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></span>
+            <span>Ставить план урока</span>
+          </div>
+          <div class="feat">
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v5h5"/><path d="M7 3h7l5 5v13H7z"/><path d="M10 13h6M10 17h6"/></svg></span>
+            <span>Генерировать рабочий лист</span>
+          </div>
+          <div class="feat">
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg></span>
+            <span>Подбирать упражнения</span>
+          </div>
+          <div class="feat">
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg></span>
+            <span>Сделать домашнее задание</span>
+          </div>
+          <div class="feat">
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z"/></svg></span>
+            <span>Объяснить тему простым языком</span>
+          </div>
+          <div class="feat">
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg></span>
+            <span>Адаптировать материал под уровень ученика</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ЭКРАН 3: TELEGRAM CTA -->
+    <section class="section card maxcta">
+      <h2>Работает через бота в Telegram</h2>
+      <svg class="badge" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Бот «Преподавай» в Telegram">
+        <defs>
+          <linearGradient id="tgGrad" x1="120" y1="0" x2="120" y2="240" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#2AABEE"/>
+            <stop offset="1" stop-color="#229ED9"/>
+          </linearGradient>
+        </defs>
+        <circle cx="120" cy="120" r="120" fill="url(#tgGrad)"/>
+        <path fill="#fff" d="M53.4 118.6c34.9-15.2 58.2-25.2 69.9-30.1 33.3-13.9 40.2-16.3 44.7-16.3 1 0 3.2.2 4.7 1.5 1.2 1 1.5 2.4 1.7 3.4.2 1 .4 3.2.2 4.9-1.9 19.7-9.9 67.7-14 89.8-1.7 9.3-5.1 12.5-8.4 12.8-7.2.7-12.6-4.8-19.6-9.3-10.9-7.1-17.1-11.6-27.7-18.5-12.2-8-4.3-12.4 2.7-19.6 1.8-1.9 33.7-30.9 34.3-33.5.1-.3.1-1.5-.6-2.1-.7-.6-1.7-.4-2.5-.2-1.1.2-18 11.5-50.9 33.7-4.8 3.3-9.2 4.9-13.1 4.8-4.3-.1-12.6-2.4-18.8-4.5-7.6-2.5-13.6-3.8-13.1-8 .3-2.2 3.3-4.4 9.1-6.7z"/>
+      </svg>
+      <p class="sub">Бесплатно и доступно прямо в Telegram</p>
+      <a class="cta" href="https://t.me/prrv_prepodavAI_bot" aria-label="Попробовать прямо сейчас бесплатно">
+        Попробовать прямо сейчас бесплатно
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </a>
+    </section>
+
+  </main>
+</body>
+</html>

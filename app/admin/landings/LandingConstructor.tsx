@@ -459,7 +459,8 @@ export default function LandingConstructor({
                                               className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none"
                                           >
                                               <option value="default">Антикризисный план 2026</option>
-                                              <option value="prepodavay">Преподавай (ПК) — трекинг MAX</option>
+                                              <option value="prepodavay">Преподавай — MAX (трекинг)</option>
+                                              <option value="prepodavay-tg">Преподавай — Telegram (трекинг)</option>
                                           </select>
                                       </div>
                                       <div className="p-4 bg-orange-50 rounded-2xl border border-orange-100 text-[11px] text-orange-700 font-medium italic">
