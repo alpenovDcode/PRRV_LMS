@@ -2,6 +2,15 @@ import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import LandingPageClient from "@/components/landing/LandingPageClient";
 import { cookies } from "next/headers";
+import fs from "fs";
+import path from "path";
+
+// Реестр HTML-шаблонов (совпадает с /api/landings/html).
+const HTML_TEMPLATES: Record<string, string> = {
+  default: "landing_template.html",
+  prepodavay: path.join("landings", "prepodavay.html"),
+  "prepodavay-tg": path.join("landings", "prepodavay-tg.html"),
+};
 
 export const dynamic = "force-dynamic";
 
@@ -41,13 +50,38 @@ export default async function LandingPage({
   }
 
   if ((page.settings as any)?.htmlTemplate?.enabled) {
-    return (
-      <iframe
-        src={`/api/landings/html/${encodeURIComponent(slug)}`}
-        style={{ position: "fixed", inset: 0, width: "100%", height: "100%", border: "none", zIndex: 9999 }}
-        title={page.title}
-      />
+    // Отдаём готовый HTML-шаблон ВСТРОЕННО в эту же страницу (без iframe).
+    // Это нужно, чтобы трекинг-скрипт (tgtrack) был в исходнике /l/<slug>
+    // и его видел проверяющий бот, а ссылки бота работали без обхода iframe.
+    const tplKey: string = (page.settings as any).htmlTemplate?.template || "default";
+    const tplFile = HTML_TEMPLATES[tplKey] || HTML_TEMPLATES.default;
+
+    let raw = "";
+    try {
+      raw = fs.readFileSync(path.join(process.cwd(), "public", tplFile), "utf-8");
+    } catch {
+      notFound();
+    }
+
+    const styles = Array.from(raw.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi))
+      .map((m) => m[1])
+      .join("\n");
+    const scriptTags = Array.from(
+      raw.matchAll(/<script[^>]+src="([^"]+)"[^>]*>\s*<\/script>/gi)
+    )
+      .map((m) => `<script src="${m[1]}" type="text/javascript" defer></script>`)
+      .join("");
+    const bodyMatch = raw.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+    // Вырезаем inline-скрипты (в top-документе они не нужны, iframe убран),
+    // оставляем внешние трекинг-скрипты (scriptTags) — они в исходном HTML
+    // видны боту tgtrack и исполняются при разборе страницы.
+    const bodyInner = (bodyMatch ? bodyMatch[1] : raw).replace(
+      /<script[\s\S]*?<\/script>/gi,
+      ""
     );
+
+    const inner = `<style>${styles}</style>${scriptTags}${bodyInner}`;
+    return <div dangerouslySetInnerHTML={{ __html: inner }} />;
   }
 
   // Restore State from Cookie
