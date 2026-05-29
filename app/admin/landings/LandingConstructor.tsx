@@ -451,8 +451,19 @@ export default function LandingConstructor({
                               </div>
                               {settings?.htmlTemplate?.enabled && (
                                   <div className="space-y-4 pt-2 border-t border-gray-100">
+                                      <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 space-y-2">
+                                          <p className="text-[10px] font-black text-gray-500 uppercase tracking-wider">Шаблон</p>
+                                          <select
+                                              value={settings?.htmlTemplate?.template || 'default'}
+                                              onChange={e => setSettings({...settings, htmlTemplate: {...(settings.htmlTemplate || {}), template: e.target.value}})}
+                                              className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none"
+                                          >
+                                              <option value="default">Антикризисный план 2026</option>
+                                              <option value="prepodavay">Преподавай (ПК) — трекинг MAX</option>
+                                          </select>
+                                      </div>
                                       <div className="p-4 bg-orange-50 rounded-2xl border border-orange-100 text-[11px] text-orange-700 font-medium italic">
-                                          Шаблон: Антикризисный план 2026.<br/>Блоки конструктора скрыты — страница отображается как HTML.
+                                          Блоки конструктора скрыты — страница отображается как HTML.
                                       </div>
                                       <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 space-y-2">
                                           <p className="text-[10px] font-black text-blue-600 uppercase tracking-wider">Прямой Редирект</p>

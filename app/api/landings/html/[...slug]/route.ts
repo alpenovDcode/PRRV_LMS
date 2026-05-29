@@ -23,7 +23,16 @@ export async function GET(
     return new NextResponse("Not Found", { status: 404 });
   }
 
-  const templatePath = path.join(process.cwd(), "public", "landing_template.html");
+  // Реестр готовых HTML-шаблонов. Ключ хранится в settings.htmlTemplate.template
+  // (default — для обратной совместимости со старым landing_template.html).
+  const TEMPLATES: Record<string, string> = {
+    default: "landing_template.html",
+    prepodavay: path.join("landings", "prepodavay.html"),
+  };
+  const templateKey: string = settings.htmlTemplate?.template || "default";
+  const templateFile = TEMPLATES[templateKey] || TEMPLATES.default;
+
+  const templatePath = path.join(process.cwd(), "public", templateFile);
   let html: string;
   try {
     html = fs.readFileSync(templatePath, "utf-8");
