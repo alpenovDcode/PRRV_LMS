@@ -27,6 +27,17 @@
       font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
       -webkit-font-smoothing: antialiased; overflow-x: hidden;
     }
+    body {
+      background-color: var(--cream);
+      background-image:
+        radial-gradient(46% 52% at 100% 0%, rgba(255,165,80,.18), transparent 70%),
+        radial-gradient(46% 52% at 0% 100%, rgba(255,150,65,.13), transparent 70%),
+        url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNjAwIDExMDAiIHByZXNlcnZlQXNwZWN0UmF0aW89InhNaWRZTWlkIHNsaWNlIj48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9InMiIHgxPSIwIiB5MT0iMCIgeDI9IjEiIHkyPSIxIj48c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiNmZjlhNDUiIHN0b3Atb3BhY2l0eT0iMCIvPjxzdG9wIG9mZnNldD0iLjUiIHN0b3AtY29sb3I9IiNmZjlhNDUiIHN0b3Atb3BhY2l0eT0iLjU1Ii8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjZmY5YTQ1IiBzdG9wLW9wYWNpdHk9IjAiLz48L2xpbmVhckdyYWRpZW50PjxmaWx0ZXIgaWQ9ImIiIHg9Ii0yMCUiIHk9Ii0yMCUiIHdpZHRoPSIxNDAlIiBoZWlnaHQ9IjE0MCUiPjxmZUdhdXNzaWFuQmx1ciBzdGREZXZpYXRpb249IjIuMiIvPjwvZmlsdGVyPjwvZGVmcz48ZyBmaWxsPSJub25lIiBzdHJva2U9InVybCgjcykiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgZmlsdGVyPSJ1cmwoI2IpIj48cGF0aCBkPSJNMTY4MCA4MCBDIDEzMjAgMTgwIDExNTAgNDcwIDEyMTAgMTAxMCIgc3Ryb2tlLXdpZHRoPSIyLjYiIG9wYWNpdHk9Ii41Ii8+PHBhdGggZD0iTTE3MDAgMTgwIEMgMTM3MCAyNzAgMTI0MCA1MjAgMTMwMCAxMDMwIiBzdHJva2Utd2lkdGg9IjIuMSIgb3BhY2l0eT0iLjQiLz48cGF0aCBkPSJNMTcyMCAyODUgQyAxNDIwIDM2MCAxMzMwIDU3NSAxMzkwIDEwNDAiIHN0cm9rZS13aWR0aD0iMS44IiBvcGFjaXR5PSIuMzIiLz48cGF0aCBkPSJNLTgwIDcyMCBDIDIyMCA2NjAgMzgwIDgwMCA0MTAgMTE0MCIgc3Ryb2tlLXdpZHRoPSIyIiBvcGFjaXR5PSIuMzQiLz48cGF0aCBkPSJNLTgwIDgxNSBDIDI2MCA3NDUgNDUwIDg4MCA0ODAgMTE1MCIgc3Ryb2tlLXdpZHRoPSIxLjYiIG9wYWNpdHk9Ii4yNiIvPjwvZz48L3N2Zz4K");
+      background-repeat: no-repeat;
+      background-attachment: fixed;
+      background-position: center;
+      background-size: cover;
+    }
     .accent { color: var(--orange); }
     .wrap { max-width: 1480px; margin: 0 auto; padding: clamp(16px, 2.5vw, 40px); }
     .section { margin-bottom: clamp(18px, 2vw, 30px); }
@@ -47,7 +58,7 @@
     .cta svg { width: 22px; height: 22px; flex: none; }
 
     /* ── ЭКРАН 1: герой (на кремовом, без карточки) ── */
-    .hero { position: relative; display: grid; grid-template-columns: 1.02fr .98fr; gap: clamp(24px, 3vw, 64px); align-items: center; padding: clamp(20px, 2.5vw, 40px) clamp(8px, 1.5vw, 32px); background-image: radial-gradient(48% 62% at 96% 2%, rgba(255,165,80,.16), transparent 72%), radial-gradient(46% 54% at 1% 99%, rgba(255,150,65,.11), transparent 72%); background-repeat: no-repeat, no-repeat; }
+    .hero { position: relative; display: grid; grid-template-columns: 1.02fr .98fr; gap: clamp(24px, 3vw, 64px); align-items: center; padding: clamp(20px, 2.5vw, 40px) clamp(8px, 1.5vw, 32px); }
     .hero h1 { font-weight: 900; line-height: 1.02; letter-spacing: -1px; font-size: clamp(32px, 4.4vw, 62px); }
     .hero .lead { margin-top: clamp(14px, 1.4vw, 22px); color: var(--ink-soft); font-weight: 500; font-size: clamp(15px, 1.45vw, 22px); white-space: nowrap; }
     .hero .cta { margin-top: clamp(20px, 2vw, 30px); }
