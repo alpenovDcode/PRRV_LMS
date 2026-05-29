@@ -104,13 +104,13 @@ const nextConfig = {
               "default-src 'self'",
               // 'unsafe-eval' нужен Next.js в dev, в production убираем
               process.env.NODE_ENV === "production"
-                ? "script-src 'self' 'unsafe-inline' https://embed.cloudflarestream.com https://*.cloudflarestream.com https://widget.cloudpayments.ru https://*.cloudpayments.ru"
-                : "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://embed.cloudflarestream.com https://*.cloudflarestream.com https://widget.cloudpayments.ru https://*.cloudpayments.ru",
+                ? "script-src 'self' 'unsafe-inline' https://embed.cloudflarestream.com https://*.cloudflarestream.com https://widget.cloudpayments.ru https://*.cloudpayments.ru https://*.tgtrack.ru https://mc.yandex.ru https://mc.yandex.com https://yastatic.net"
+                : "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://embed.cloudflarestream.com https://*.cloudflarestream.com https://widget.cloudpayments.ru https://*.cloudpayments.ru https://*.tgtrack.ru https://mc.yandex.ru https://mc.yandex.com https://yastatic.net",
               "style-src 'self' 'unsafe-inline' https://*.cloudpayments.ru", // 'unsafe-inline' needed for Tailwind/CSS-in-JS
               "img-src 'self' data: https: blob:",
-              "font-src 'self' data: https://*.cloudpayments.ru",
-              "connect-src 'self' https://*.cloudflarestream.com https://cloudflarestream.com https://imagedelivery.net https://prrv.tech https://www.prrv.tech https://widget.cloudpayments.ru https://api.cloudpayments.ru https://*.cloudpayments.ru",
-              "frame-src 'self' https://*.cloudflarestream.com https://widget.cloudpayments.ru https://*.cloudpayments.ru",
+              "font-src 'self' data: https://*.cloudpayments.ru https://*.tgtrack.ru",
+              "connect-src 'self' https://*.cloudflarestream.com https://cloudflarestream.com https://imagedelivery.net https://prrv.tech https://www.prrv.tech https://widget.cloudpayments.ru https://api.cloudpayments.ru https://*.cloudpayments.ru https://*.tgtrack.ru https://mc.yandex.ru https://mc.yandex.com wss://mc.yandex.ru wss://mc.yandex.com",
+              "frame-src 'self' https://*.cloudflarestream.com https://widget.cloudpayments.ru https://*.cloudpayments.ru https://*.tgtrack.ru https://max.ru https://t.me",
               "media-src 'self' https://*.cloudflarestream.com blob:",
               "frame-ancestors 'self'",
               "base-uri 'self'",
@@ -158,7 +158,8 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' data: https://fonts.gstatic.com",
               "img-src 'self' data: https: blob:",
-              "connect-src 'self' https://*.tgtrack.ru https://mc.yandex.ru https://mc.yandex.com",
+              "connect-src 'self' https://*.tgtrack.ru https://mc.yandex.ru https://mc.yandex.com wss://mc.yandex.ru wss://mc.yandex.com",
+              "frame-src 'self' https://*.tgtrack.ru https://max.ru https://t.me",
               "frame-ancestors 'self'",
               "base-uri 'self'",
             ].join("; "),
