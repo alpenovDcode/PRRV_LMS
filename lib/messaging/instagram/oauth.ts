@@ -149,7 +149,7 @@ export async function subscribeToMessagingWebhook(
   // subscribed_fields должны быть переданы как form-поле, а не JSON-строка.
   // Также добавляем message_requests для сообщений от незнакомых (не подписчиков),
   // которые попадают в раздел «Запросы на сообщение» Instagram.
-  const url = `https://graph.facebook.com/v21.0/${igAccountId}/subscribed_apps`;
+  const url = `${IG_GRAPH_BASE}/v21.0/${igAccountId}/subscribed_apps`;
   const body = new URLSearchParams({
     subscribed_fields: "messages,messaging_postbacks,message_requests",
     access_token: longLivedToken,
@@ -189,7 +189,7 @@ export async function unsubscribeFromMessagingWebhook(
 ): Promise<boolean> {
   try {
     const url =
-      `https://graph.facebook.com/v21.0/${igAccountId}/subscribed_apps?` +
+      `${IG_GRAPH_BASE}/v21.0/${igAccountId}/subscribed_apps?` +
       new URLSearchParams({ access_token: longLivedToken }).toString();
     const resp = await fetch(url, { method: "DELETE" });
     return resp.ok;
