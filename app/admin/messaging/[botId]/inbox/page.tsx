@@ -1,9 +1,20 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Send, Hand, Bot, MessageSquare, Loader2, RefreshCw } from "lucide-react";
+import {
+  ArrowLeft,
+  Send,
+  Hand,
+  Bot,
+  MessageSquare,
+  Loader2,
+  RefreshCw,
+  Search,
+  X,
+  Plus,
+} from "lucide-react";
 
 interface Subscriber {
   id: string;
@@ -13,6 +24,14 @@ interface Subscriber {
   externalUserId: string;
   tags: string[];
   operatorTakeoverAt: string | null;
+}
+
+interface SubscriberDetail extends Subscriber {
+  variables: Record<string, unknown>;
+  subscribedAt: string;
+  lastInboundAt: string | null;
+  lastSeenAt: string | null;
+  channel: "telegram" | "instagram" | "max";
 }
 
 interface Dialog {
@@ -34,19 +53,48 @@ function getName(s: Subscriber) {
   return [s.firstName, s.lastName].filter(Boolean).join(" ") || s.username || s.externalUserId;
 }
 
+function initial(s: Subscriber) {
+  return (getName(s).trim()[0] ?? "?").toUpperCase();
+}
+
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
 }
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function relativeTime(iso: string | null): string {
+  if (!iso) return "—";
+  const diff = Date.now() - new Date(iso).getTime();
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return "только что";
+  if (min < 60) return `${min} мин назад`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h} ч назад`;
+  const d = Math.floor(h / 24);
+  return `${d} дн назад`;
+}
+
+const CHANNEL_LABEL: Record<string, string> = {
+  telegram: "Telegram",
+  instagram: "Instagram",
+  max: "MAX",
+};
 
 export default function InboxPage() {
   const { botId } = useParams<{ botId: string }>();
   const [dialogs, setDialogs] = useState<Dialog[]>([]);
   const [selected, setSelected] = useState<Dialog | null>(null);
+  const [detail, setDetail] = useState<SubscriberDetail | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingD, setLoadingD] = useState(true);
   const [loadingM, setLoadingM] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [sending, setSending] = useState(false);
+  const [search, setSearch] = useState("");
+  const [newTag, setNewTag] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const loadDialogs = () => {
@@ -65,13 +113,22 @@ export default function InboxPage() {
       .finally(() => setLoadingM(false));
   };
 
+  const loadDetail = (subId: string) => {
+    fetch(`/api/admin/messaging/subscribers/${subId}`)
+      .then((r) => r.json())
+      .then((d) => setDetail(d.success ? d.data : null));
+  };
+
   useEffect(loadDialogs, [botId]);
 
   // Авто-обновление каждые 10с
   useEffect(() => {
     const t = setInterval(() => {
       loadDialogs();
-      if (selected) loadMessages(selected.subscriberId);
+      if (selected) {
+        loadMessages(selected.subscriberId);
+        loadDetail(selected.subscriberId);
+      }
     }, 10_000);
     return () => clearInterval(t);
   }, [selected]);
@@ -85,7 +142,9 @@ export default function InboxPage() {
 
   const handleSelect = (d: Dialog) => {
     setSelected(d);
+    setDetail(null);
     loadMessages(d.subscriberId);
+    loadDetail(d.subscriberId);
   };
 
   const handleReply = async () => {
@@ -123,15 +182,69 @@ export default function InboxPage() {
     if (res.ok) {
       loadDialogs();
       loadMessages(selected.subscriberId);
-      // Обновляем selected — refetch
       const fresh = await fetch(`/api/admin/messaging/bots/${botId}/inbox`).then((r) => r.json());
       const updated = (fresh.data ?? []).find((d: Dialog) => d.subscriberId === selected.subscriberId);
       if (updated) setSelected(updated);
+      loadDetail(selected.subscriberId);
     }
   };
 
+  const addTag = async (tag: string) => {
+    if (!selected || !tag.trim()) return;
+    const res = await fetch(
+      `/api/admin/messaging/subscribers/${selected.subscriberId}/tags`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tag: tag.trim() }),
+      }
+    );
+    const data = await res.json();
+    if (res.ok && data.success) {
+      setNewTag("");
+      setDetail((d) => (d ? { ...d, tags: data.data.tags } : d));
+      loadDialogs();
+    }
+  };
+
+  const removeTag = async (tag: string) => {
+    if (!selected) return;
+    const res = await fetch(
+      `/api/admin/messaging/subscribers/${selected.subscriberId}/tags`,
+      {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tag }),
+      }
+    );
+    const data = await res.json();
+    if (res.ok && data.success) {
+      setDetail((d) => (d ? { ...d, tags: data.data.tags } : d));
+      loadDialogs();
+    }
+  };
+
+  const filteredDialogs = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return dialogs;
+    return dialogs.filter((d) => {
+      const s = d.subscriber;
+      return (
+        getName(s).toLowerCase().includes(q) ||
+        (s.username ?? "").toLowerCase().includes(q) ||
+        s.externalUserId.toLowerCase().includes(q)
+      );
+    });
+  }, [dialogs, search]);
+
+  // Переменные без служебных ключей (начинающихся с _).
+  const visibleVars = useMemo(() => {
+    if (!detail) return [] as [string, unknown][];
+    return Object.entries(detail.variables ?? {}).filter(([k]) => !k.startsWith("_"));
+  }, [detail]);
+
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-6 max-w-[1500px] mx-auto">
       <Link
         href={`/admin/messaging/${botId}/flows`}
         className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-4"
@@ -148,19 +261,32 @@ export default function InboxPage() {
         </button>
       </div>
 
-      <div className="grid grid-cols-12 gap-4 h-[calc(100vh-220px)] min-h-[500px]">
+      <div className="grid grid-cols-12 gap-4 h-[calc(100vh-200px)] min-h-[520px]">
         {/* Список диалогов */}
-        <div className="col-span-4 bg-white border border-gray-200 rounded-xl overflow-hidden flex flex-col">
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-            Диалоги ({dialogs.length})
+        <div className="col-span-3 bg-white border border-gray-200 rounded-xl overflow-hidden flex flex-col">
+          <div className="px-3 py-2.5 border-b border-gray-100 bg-gray-50">
+            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+              Диалоги ({filteredDialogs.length})
+            </div>
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Поиск по имени, @username, id"
+                className="w-full pl-8 pr-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
           </div>
           <div className="overflow-y-auto flex-1">
             {loadingD && dialogs.length === 0 ? (
               <div className="p-8 text-center text-gray-400 text-sm">Загрузка…</div>
-            ) : dialogs.length === 0 ? (
-              <div className="p-8 text-center text-gray-400 text-sm">Сообщений пока нет</div>
+            ) : filteredDialogs.length === 0 ? (
+              <div className="p-8 text-center text-gray-400 text-sm">
+                {search ? "Ничего не найдено" : "Сообщений пока нет"}
+              </div>
             ) : (
-              dialogs.map((d) => (
+              filteredDialogs.map((d) => (
                 <button
                   key={d.subscriberId}
                   onClick={() => handleSelect(d)}
@@ -171,6 +297,9 @@ export default function InboxPage() {
                   }`}
                 >
                   <div className="flex items-center gap-2 mb-1">
+                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 text-white flex items-center justify-center text-xs font-semibold shrink-0">
+                      {initial(d.subscriber)}
+                    </div>
                     <div className="font-medium text-sm text-gray-900 truncate flex-1">
                       {getName(d.subscriber)}
                     </div>
@@ -181,12 +310,22 @@ export default function InboxPage() {
                       {formatTime(d.lastMessage.createdAt)}
                     </span>
                   </div>
-                  <div className="text-xs text-gray-500 line-clamp-2">
-                    {d.lastMessage.direction === "out" && (
-                      <span className="text-gray-400">→ </span>
-                    )}
+                  <div className="text-xs text-gray-500 line-clamp-1 pl-9">
+                    {d.lastMessage.direction === "out" && <span className="text-gray-400">→ </span>}
                     {d.lastMessage.text || <em className="text-gray-400">медиа</em>}
                   </div>
+                  {d.subscriber.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1.5 pl-9">
+                      {d.subscriber.tags.slice(0, 3).map((t) => (
+                        <span key={t} className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                          {t}
+                        </span>
+                      ))}
+                      {d.subscriber.tags.length > 3 && (
+                        <span className="text-[10px] text-gray-400">+{d.subscriber.tags.length - 3}</span>
+                      )}
+                    </div>
+                  )}
                 </button>
               ))
             )}
@@ -194,7 +333,7 @@ export default function InboxPage() {
         </div>
 
         {/* Окно диалога */}
-        <div className="col-span-8 bg-white border border-gray-200 rounded-xl overflow-hidden flex flex-col">
+        <div className="col-span-6 bg-white border border-gray-200 rounded-xl overflow-hidden flex flex-col">
           {!selected ? (
             <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
               Выбери диалог слева
@@ -203,14 +342,7 @@ export default function InboxPage() {
             <>
               {/* Header */}
               <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-gray-50">
-                <div>
-                  <div className="font-semibold text-gray-900">{getName(selected.subscriber)}</div>
-                  <div className="text-xs text-gray-500">
-                    {selected.subscriber.tags.length > 0 && (
-                      <span>Теги: {selected.subscriber.tags.join(", ")}</span>
-                    )}
-                  </div>
-                </div>
+                <div className="font-semibold text-gray-900">{getName(selected.subscriber)}</div>
                 <button
                   onClick={handleTakeover}
                   className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
@@ -242,7 +374,7 @@ export default function InboxPage() {
                       className={`flex ${m.direction === "out" ? "justify-end" : "justify-start"}`}
                     >
                       <div
-                        className={`max-w-[70%] rounded-2xl px-3 py-2 ${
+                        className={`max-w-[75%] rounded-2xl px-3 py-2 ${
                           m.direction === "out"
                             ? m.source?.startsWith("operator:")
                               ? "bg-amber-100 text-amber-900"
@@ -254,9 +386,7 @@ export default function InboxPage() {
                           <div className="text-sm whitespace-pre-wrap break-words">{m.text}</div>
                         )}
                         {m.callbackPayload && (
-                          <div className="text-xs font-mono opacity-70">
-                            payload: {m.callbackPayload}
-                          </div>
+                          <div className="text-xs font-mono opacity-70">payload: {m.callbackPayload}</div>
                         )}
                         <div
                           className={`text-[10px] mt-1 ${
@@ -299,6 +429,119 @@ export default function InboxPage() {
                 </button>
               </div>
             </>
+          )}
+        </div>
+
+        {/* Панель профиля */}
+        <div className="col-span-3 bg-white border border-gray-200 rounded-xl overflow-hidden flex flex-col">
+          {!selected ? (
+            <div className="flex-1 flex items-center justify-center text-gray-400 text-xs px-4 text-center">
+              Профиль появится при выборе диалога
+            </div>
+          ) : (
+            <div className="overflow-y-auto flex-1 p-4 space-y-5">
+              {/* Шапка профиля */}
+              <div className="flex flex-col items-center text-center">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 text-white flex items-center justify-center text-2xl font-semibold mb-2">
+                  {initial(selected.subscriber)}
+                </div>
+                <div className="font-semibold text-gray-900">{getName(selected.subscriber)}</div>
+                {selected.subscriber.username && (
+                  <div className="text-sm text-gray-400">@{selected.subscriber.username}</div>
+                )}
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="text-[11px] bg-green-50 text-green-700 px-2 py-0.5 rounded-full">
+                    {detail ? CHANNEL_LABEL[detail.channel] ?? detail.channel : "—"}
+                  </span>
+                  {detail && (
+                    <span className="text-[11px] text-gray-400">
+                      активен {relativeTime(detail.lastSeenAt ?? detail.lastInboundAt)}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Идентификатор + даты */}
+              <div className="text-xs text-gray-500 space-y-1 border-t border-gray-100 pt-3">
+                <div className="flex justify-between gap-2">
+                  <span className="text-gray-400">ID</span>
+                  <span className="font-mono text-gray-600 truncate">{selected.subscriber.externalUserId}</span>
+                </div>
+                {detail && (
+                  <>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-gray-400">Подписан</span>
+                      <span className="text-gray-600">{formatDate(detail.subscribedAt)}</span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-gray-400">Последний вход</span>
+                      <span className="text-gray-600">{relativeTime(detail.lastInboundAt)}</span>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Теги */}
+              <div className="border-t border-gray-100 pt-3">
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Теги</div>
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {(detail?.tags ?? selected.subscriber.tags).map((t) => (
+                    <span
+                      key={t}
+                      className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-md"
+                    >
+                      {t}
+                      <button onClick={() => removeTag(t)} className="hover:text-blue-900">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                  {(detail?.tags ?? selected.subscriber.tags).length === 0 && (
+                    <span className="text-xs text-gray-400">Тегов пока нет</span>
+                  )}
+                </div>
+                <div className="flex gap-1.5">
+                  <input
+                    value={newTag}
+                    onChange={(e) => setNewTag(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addTag(newTag);
+                      }
+                    }}
+                    placeholder="новый тег"
+                    className="flex-1 border border-gray-200 rounded-md px-2 py-1 text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                  <button
+                    onClick={() => addTag(newTag)}
+                    disabled={!newTag.trim()}
+                    className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-md disabled:opacity-50"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Переменные */}
+              <div className="border-t border-gray-100 pt-3">
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Переменные</div>
+                {visibleVars.length === 0 ? (
+                  <span className="text-xs text-gray-400">Переменных пока нет</span>
+                ) : (
+                  <div className="space-y-1.5">
+                    {visibleVars.map(([k, v]) => (
+                      <div key={k} className="flex justify-between gap-2 text-xs">
+                        <span className="text-gray-400 truncate">{k}</span>
+                        <span className="text-gray-700 font-medium truncate max-w-[55%] text-right">
+                          {v === null || v === undefined ? "—" : String(v)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           )}
         </div>
       </div>
