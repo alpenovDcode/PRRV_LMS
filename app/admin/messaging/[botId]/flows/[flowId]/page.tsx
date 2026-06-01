@@ -57,6 +57,14 @@ export default function FlowEditPage() {
   const [loading, setLoading] = useState(true);
   const [showJsonView, setShowJsonView] = useState(false);
 
+  // JSON-редактирование графа: можно вставить готовый JSON и применить.
+  const [jsonText, setJsonText] = useState("");
+  const [jsonError, setJsonError] = useState<string | null>(null);
+  const [jsonSaving, setJsonSaving] = useState(false);
+  // key бампается после Apply, чтобы перемонтировать визуальный FlowEditor
+  // с новым initialGraph.
+  const [editorKey, setEditorKey] = useState(0);
+
   // ── Trigger form ─────────────────────────────────────────────────────────
   const [trigType, setTrigType] = useState("keyword_dm");
   const [trigKeywords, setTrigKeywords] = useState("");
@@ -113,6 +121,64 @@ export default function FlowEditPage() {
     load();
   };
 
+  // ── JSON-режим: prefill, валидация, применение ─────────────────────────
+  useEffect(() => {
+    if (flow && showJsonView) {
+      setJsonText(JSON.stringify(flow.graph, null, 2));
+      setJsonError(null);
+    }
+  }, [flow, showJsonView]);
+
+  const handleApplyJson = async () => {
+    setJsonError(null);
+    let parsed: any;
+    try {
+      parsed = JSON.parse(jsonText);
+    } catch (e: any) {
+      setJsonError("Невалидный JSON: " + (e?.message ?? String(e)));
+      return;
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      setJsonError("Ожидался объект с полями startNodeId и nodes");
+      return;
+    }
+    if (typeof parsed.startNodeId !== "string" || !parsed.startNodeId) {
+      setJsonError('Поле "startNodeId" должно быть непустой строкой');
+      return;
+    }
+    if (!parsed.nodes || typeof parsed.nodes !== "object" || Array.isArray(parsed.nodes)) {
+      setJsonError('Поле "nodes" должно быть объектом { "id": { ... } }');
+      return;
+    }
+    if (!(parsed.startNodeId in parsed.nodes)) {
+      setJsonError(`startNodeId "${parsed.startNodeId}" не найден среди узлов nodes`);
+      return;
+    }
+    for (const [nid, n] of Object.entries<any>(parsed.nodes)) {
+      if (!n || typeof n !== "object" || typeof n.type !== "string") {
+        setJsonError(`Узел "${nid}" должен быть объектом с полем "type"`);
+        return;
+      }
+    }
+
+    setJsonSaving(true);
+    try {
+      await handleSaveGraph(parsed as BackendGraph);
+      load();
+      // Перемонтируем визуальный редактор, чтобы он подхватил новый граф
+      setEditorKey((k) => k + 1);
+    } catch (err: any) {
+      setJsonError(err?.message ?? "Ошибка сохранения");
+    } finally {
+      setJsonSaving(false);
+    }
+  };
+
+  const handleResetJson = () => {
+    if (flow) setJsonText(JSON.stringify(flow.graph, null, 2));
+    setJsonError(null);
+  };
+
   if (loading) {
     return <div className="p-6 text-center text-gray-400 text-sm">Загрузка…</div>;
   }
@@ -145,7 +211,7 @@ export default function FlowEditPage() {
       </div>
 
       {/* ── Drag-n-drop редактор воронки ─────────────────────────────── */}
-      <FlowEditor initialGraph={flow.graph} onSave={handleSaveGraph} />
+      <FlowEditor key={editorKey} initialGraph={flow.graph} onSave={handleSaveGraph} />
 
       {/* ── Триггеры — два блока в строку ─────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -257,10 +323,60 @@ export default function FlowEditPage() {
         </div>
       </div>
 
-      {/* JSON-view (fallback / для отладки) */}
+      {/* JSON-режим: можно отредактировать и применить новый граф */}
       {showJsonView && (
-        <div className="bg-gray-900 text-gray-100 rounded-xl p-4 overflow-x-auto">
-          <pre className="text-xs font-mono">{JSON.stringify(flow.graph, null, 2)}</pre>
+        <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+              <Code className="w-4 h-4" /> JSON графа (редактируется)
+            </div>
+            <div className="text-xs text-gray-500">
+              Формат:{" "}
+              <code className="bg-gray-100 px-1.5 py-0.5 rounded">{'{ "startNodeId": "n1", "nodes": { "n1": { "type": "send_text", ... } } }'}</code>
+            </div>
+          </div>
+          <textarea
+            value={jsonText}
+            onChange={(e) => setJsonText(e.target.value)}
+            rows={20}
+            spellCheck={false}
+            className="w-full font-mono text-xs bg-gray-900 text-gray-100 rounded-lg p-3 outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          {jsonError && (
+            <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 font-medium">
+              {jsonError}
+            </div>
+          )}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={handleApplyJson}
+              disabled={jsonSaving}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              {jsonSaving ? "Сохраняю…" : "Применить JSON"}
+            </button>
+            <button
+              onClick={handleResetJson}
+              disabled={jsonSaving}
+              className="px-4 py-2 border border-gray-200 hover:bg-gray-50 disabled:opacity-50 text-sm rounded-lg transition-colors"
+            >
+              Сбросить к сохранённому
+            </button>
+            <button
+              onClick={() => {
+                try {
+                  navigator.clipboard?.writeText(jsonText);
+                } catch {}
+              }}
+              disabled={jsonSaving}
+              className="px-4 py-2 border border-gray-200 hover:bg-gray-50 disabled:opacity-50 text-sm rounded-lg transition-colors"
+            >
+              Скопировать
+            </button>
+            <span className="text-xs text-gray-400 ml-auto">
+              После применения визуальный редактор обновится автоматически.
+            </span>
+          </div>
         </div>
       )}
     </div>
