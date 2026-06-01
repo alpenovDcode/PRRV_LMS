@@ -68,6 +68,15 @@ const ERRORS: Record<string, EventMeta> = {
     severity: "error",
     icon: "🌐",
   },
+  "bitrix.sync_failed": {
+    label: "Bitrix24: синк упал",
+    description:
+      "Не удалось создать/обновить контакт или сделку в Bitrix24. Точная " +
+      "причина в properties.error (неверный webhook, нет прав CRM, кривое " +
+      "поле UF_CRM_* и т.п.). Тег подписчику проставлен, но в CRM не уехало.",
+    severity: "error",
+    icon: "🟦",
+  },
   "validation.bad_regex": {
     label: "Кривой regex в валидации",
     description:
@@ -295,6 +304,23 @@ const INFO: Record<string, EventMeta> = {
     description: "Все получатели обработаны (доставлены/упали/заблочены).",
     severity: "info",
     icon: "🏁",
+  },
+  "bitrix.sync_ok": {
+    label: "Bitrix24: сделка создана/обновлена",
+    description:
+      "Тег-триггер сработал, контакт и сделка успешно синхронизированы. " +
+      "ID в properties.dealId / properties.contactId.",
+    severity: "info",
+    icon: "🟦",
+  },
+  "bitrix.sync_skipped": {
+    label: "Bitrix24: синк пропущен",
+    description:
+      "Тег добавлен, но синк не запущен. properties.reason: disabled — " +
+      "интеграция выключена; no_trigger — для этого тега нет тег-триггера; " +
+      "no_webhook — не задан webhook URL.",
+    severity: "debug",
+    icon: "🟦",
   },
 };
 
