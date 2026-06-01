@@ -180,6 +180,35 @@ export async function subscribeToMessagingWebhook(
 }
 
 /**
+ * Прочитать, какие webhook-поля реально подписаны на этом IG-аккаунте.
+ * GET /{ig-id}/subscribed_apps → { data: [{ subscribed_fields: [...] }] }.
+ *
+ * Диагностика: если в результате НЕТ "messages" — Instagram будет слать только
+ * служебные события (message_edit и т.п.), а входящие DM не дойдут. Тогда
+ * проблема на уровне приложения в Meta App Dashboard (Webhooks → Instagram).
+ */
+export async function getSubscribedFields(
+  igAccountId: string,
+  longLivedToken: string
+): Promise<string[]> {
+  const url =
+    `${IG_GRAPH_BASE}/v21.0/${igAccountId}/subscribed_apps?` +
+    new URLSearchParams({ access_token: longLivedToken }).toString();
+  const resp = await fetch(url);
+  const data: any = await resp.json().catch(() => ({}));
+  const apps = Array.isArray(data?.data) ? data.data : [];
+  const fields = new Set<string>();
+  for (const app of apps) {
+    for (const f of app?.subscribed_fields ?? []) {
+      // subscribed_fields может быть массивом строк или объектов { name }.
+      if (typeof f === "string") fields.add(f);
+      else if (f?.name) fields.add(String(f.name));
+    }
+  }
+  return Array.from(fields);
+}
+
+/**
  * Отписаться от webhook'а — нужно при удалении бота, чтобы Meta перестала
  * слать события на нашу LMS.
  *

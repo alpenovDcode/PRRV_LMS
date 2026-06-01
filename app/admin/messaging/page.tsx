@@ -123,8 +123,8 @@ export default function MessagingPage() {
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.success) {
         setToast({
-          kind: "success",
-          text: "Подписка активирована: messages + comments. Напишите боту для проверки.",
+          kind: data.hasMessages ? "success" : "error",
+          text: data.message ?? "Подписка обновлена",
         });
       } else {
         setToast({ kind: "error", text: data.error ?? "Не удалось переподписаться" });
