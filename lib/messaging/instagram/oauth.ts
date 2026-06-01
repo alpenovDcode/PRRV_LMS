@@ -113,15 +113,18 @@ export async function refreshLongLivedToken(currentToken: string): Promise<LongL
 
 export interface InstagramAccountInfo {
   id: string;
+  /** Реальный Business Account ID (не app-scoped). Совпадает с entry.id в webhook. */
+  user_id?: string;
   username: string;
   account_type?: string; // "BUSINESS" | "MEDIA_CREATOR" | "PERSONAL"
 }
 
 export async function fetchMe(longLivedToken: string): Promise<InstagramAccountInfo> {
+  // Используем версионированный endpoint graph.instagram.com/v21.0/me
   const url =
-    `${IG_GRAPH_BASE}/me?` +
+    `${IG_GRAPH_BASE}/v21.0/me?` +
     new URLSearchParams({
-      fields: "id,username,account_type",
+      fields: "id,user_id,username,account_type",
       access_token: longLivedToken,
     }).toString();
 
@@ -130,7 +133,10 @@ export async function fetchMe(longLivedToken: string): Promise<InstagramAccountI
     const err = await resp.text();
     throw new Error(`IG /me fetch failed: ${resp.status} ${err.slice(0, 200)}`);
   }
-  return resp.json();
+  const data = await resp.json();
+  // Диагностика: логируем оба поля, чтобы понять что именно совпадает с entry.id в webhook
+  console.log(`[ig-oauth] fetchMe result: id="${data.id}", user_id="${data.user_id}", username="${data.username}", account_type="${data.account_type}"`);
+  return data;
 }
 
 // ─── 6. Subscribe app to messaging webhook ─────────────────────────────────
@@ -139,26 +145,38 @@ export async function subscribeToMessagingWebhook(
   igAccountId: string,
   longLivedToken: string
 ): Promise<void> {
-  // ВАЖНО: параметры передаём query-строкой, а НЕ JSON-телом.
-  // Config-эндпоинты Graph API (/subscribed_apps) не парсят JSON-тело и
-  // отвечают "Cannot parse access token" (code 190) — даже на валидный токен.
-  // Ср. рабочие fetchMe/unsubscribe, которые шлют access_token query-параметром.
+  // ВАЖНО: Meta ожидает application/x-www-form-urlencoded, а НЕ JSON.
+  // subscribed_fields должны быть переданы как form-поле, а не JSON-строка
+  // (иначе Graph API отвечает "Cannot parse access token", code 190).
   //
   // subscribed_fields:
   //   messages, messaging_postbacks — входящие DM и нажатия кнопок;
   //   comments                      — комментарии под постами (для keyword_comment).
-  const url =
-    `${IG_GRAPH_BASE}/v21.0/${igAccountId}/subscribed_apps?` +
-    new URLSearchParams({
-      subscribed_fields: "messages,messaging_postbacks,comments",
-      access_token: longLivedToken,
-    }).toString();
-
-  const resp = await fetch(url, { method: "POST" });
+  const url = `${IG_GRAPH_BASE}/v21.0/${igAccountId}/subscribed_apps`;
+  const body = new URLSearchParams({
+    subscribed_fields: "messages,messaging_postbacks,comments",
+    access_token: longLivedToken,
+  });
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
+  });
+  const respText = await resp.text();
   if (!resp.ok) {
-    const err = await resp.text();
-    throw new Error(`IG webhook subscribe failed: ${resp.status} ${err.slice(0, 200)}`);
+    throw new Error(`IG webhook subscribe failed: ${resp.status} ${respText.slice(0, 200)}`);
   }
+  // Проверяем success: true явно — Meta может вернуть 200 OK с {success: false}
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(respText);
+  } catch {
+    parsed = null;
+  }
+  if (parsed && typeof parsed === "object" && (parsed as Record<string, unknown>).success === false) {
+    throw new Error(`IG webhook subscribe returned success=false: ${respText.slice(0, 300)}`);
+  }
+  console.log("[ig-oauth] subscribeToMessagingWebhook OK:", respText.slice(0, 200));
 }
 
 /**

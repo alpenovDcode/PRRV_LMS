@@ -285,7 +285,7 @@ export async function POST(
             studentAnswer: sanitizedContent,
             aiPrompt: lesson.aiPrompt,
             aiContext: lesson.aiContext ?? null,
-            imageFiles: lesson.hasImageAnalysis ? (files || []) : [],
+            imageFiles: files || [],
             lessonContent: lesson.content ?? Prisma.JsonNull,
             checkAfter,
           },
@@ -295,7 +295,7 @@ export async function POST(
             // upsert обновит её обратно в auto_approve, что породит конфликт.
             // Поэтому update НЕ перезаписывает mode (см. H3 в аудите).
             studentAnswer: sanitizedContent,
-            imageFiles: lesson.hasImageAnalysis ? (files || []) : [],
+            imageFiles: files || [],
             checkAfter,
             status: "waiting",
             attempts: 0,

@@ -84,6 +84,7 @@ x-app-defaults: &app-defaults
     # below uses it to drive delay + wait_reply timeouts every 20s.
     TG_CRON_SECRET: ${TG_CRON_SECRET}
     # Public base URL for /r/<slug> redirect-tracking URLs.
+    AI_CHECK_DELAY_MS: ${AI_CHECK_DELAY_MS}
     PUBLIC_APP_URL: ${PUBLIC_APP_URL:-${NEXT_PUBLIC_APP_URL}}
   volumes:
     - ./public/uploads:/app/public/uploads

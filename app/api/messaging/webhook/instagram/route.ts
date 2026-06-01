@@ -28,9 +28,24 @@ export async function GET(req: NextRequest) {
   const token = url.searchParams.get("hub.verify_token");
   const challenge = url.searchParams.get("hub.challenge");
 
+  console.log("[ig-webhook] GET verify-handshake", { mode, challenge, tokenMatch: token === IG_WEBHOOK_VERIFY_TOKEN });
+
+  if (!IG_WEBHOOK_VERIFY_TOKEN) {
+    console.error("[ig-webhook] IG_WEBHOOK_VERIFY_TOKEN не задан в env — верификация невозможна");
+    return new NextResponse("Forbidden", { status: 403 });
+  }
+
   if (mode === "subscribe" && token && challenge && token === IG_WEBHOOK_VERIFY_TOKEN) {
+    console.log("[ig-webhook] верификация успешна, отвечаем challenge:", challenge);
     return new NextResponse(challenge, { status: 200, headers: { "Content-Type": "text/plain" } });
   }
+
+  console.warn("[ig-webhook] верификация провалена", {
+    modeOk: mode === "subscribe",
+    tokenProvided: !!token,
+    tokenMatch: token === IG_WEBHOOK_VERIFY_TOKEN,
+    challengeProvided: !!challenge,
+  });
   return new NextResponse("Forbidden", { status: 403 });
 }
 
@@ -64,32 +79,55 @@ export async function GET(req: NextRequest) {
  *   • Без подписи — 401, без подробностей наружу.
  */
 export async function POST(req: NextRequest) {
+  const reqId = Math.random().toString(36).slice(2, 8);
+  console.warn(`[ig-webhook:${reqId}] POST получен`);
+
+  // ── Проверка env ─────────────────────────────────────────────────────────
+  if (!IG_APP_SECRET) {
+    console.error(`[ig-webhook:${reqId}] КРИТИЧНО: IG_APP_SECRET не задан в env — все запросы будут отклонены с 401`);
+    return new NextResponse(null, { status: 401 });
+  }
+
   const lenHeader = req.headers.get("content-length");
   if (lenHeader && parseInt(lenHeader) > MAX_BODY_BYTES) {
+    console.warn(`[ig-webhook:${reqId}] тело слишком большое: ${lenHeader} байт`);
     return new NextResponse(null, { status: 413 });
   }
 
   const raw = await req.text();
   if (raw.length > MAX_BODY_BYTES) {
+    console.warn(`[ig-webhook:${reqId}] тело слишком большое после чтения: ${raw.length} байт`);
     return new NextResponse(null, { status: 413 });
   }
 
   // ── Верификация подписи ─────────────────────────────────────────────────
   const signature = req.headers.get("x-hub-signature-256") ?? "";
-  if (!verifyMetaSignature(raw, signature, IG_APP_SECRET)) {
-    console.warn("[ig-webhook] invalid signature");
+  console.log(`[ig-webhook:${reqId}] подпись от Meta: ${signature ? signature.slice(0, 20) + "..." : "ОТСУТСТВУЕТ"}`);
+
+  if (!signature) {
+    console.warn(`[ig-webhook:${reqId}] заголовок x-hub-signature-256 отсутствует — запрос не от Meta или продукт Instagram не добавлен в приложение`);
     return new NextResponse(null, { status: 401 });
   }
+
+  if (!verifyMetaSignature(raw, signature, IG_APP_SECRET)) {
+    console.error(`[ig-webhook:${reqId}] подпись не совпала — проверь IG_APP_SECRET в env (должен совпадать с "App Secret" в Meta Dashboard)`);
+    return new NextResponse(null, { status: 401 });
+  }
+  console.log(`[ig-webhook:${reqId}] подпись OK`);
 
   let payload: any;
   try {
     payload = JSON.parse(raw);
   } catch {
+    console.error(`[ig-webhook:${reqId}] не удалось распарсить JSON: ${raw.slice(0, 200)}`);
     return new NextResponse(null, { status: 400 });
   }
 
+  console.log(`[ig-webhook:${reqId}] object="${payload?.object}", entries=${payload?.entry?.length ?? 0}`);
+
   // Если это не наш object — игнор.
   if (payload?.object !== "instagram") {
+    console.warn(`[ig-webhook:${reqId}] object="${payload?.object}" — не instagram, пропускаем`);
     return NextResponse.json({ ok: true });
   }
 
@@ -97,17 +135,77 @@ export async function POST(req: NextRequest) {
   try {
     for (const entry of payload.entry ?? []) {
       const igAccountId = entry.id as string;
+      const messagingCount = entry.messaging?.length ?? 0;
+      const changesCount = entry.changes?.length ?? 0;
+
+      console.warn(`[ig-webhook:${reqId}] entry id=${igAccountId}, messaging=${messagingCount}, changes=${changesCount}`);
+
+      if (changesCount > 0) {
+        console.warn(`[ig-webhook:${reqId}] changes:`, JSON.stringify(entry.changes).slice(0, 200));
+      }
+
       const bot = await db.messagingBot.findUnique({
         where: {
           channel_externalAccountId: { channel: "instagram", externalAccountId: igAccountId },
         },
       });
-      if (!bot || !bot.isActive) continue;
+
+      if (!bot) {
+        console.warn(`[ig-webhook:${reqId}] бот с externalAccountId="${igAccountId}" не найден в БД — аккаунт не подключён или id не совпадает`);
+        continue;
+      }
+      if (!bot.isActive) {
+        console.warn(`[ig-webhook:${reqId}] бот id=${bot.id} неактивен (isActive=false) — пропускаем`);
+        continue;
+      }
+      console.warn(`[ig-webhook:${reqId}] бот найден: id=${bot.id}`);
+
+      // Пропускаем entry только если в нём вообще нет событий. Комментарии
+      // приходят в changes (без messaging) — их нельзя терять на этом шаге,
+      // иначе триггеры keyword_comment не сработают.
+      if (messagingCount === 0 && changesCount === 0) {
+        console.warn(`[ig-webhook:${reqId}] нет событий в entry (ни messaging, ни changes)`);
+        continue;
+      }
 
       // DM-сообщения и нажатия кнопок
       for (const event of entry.messaging ?? []) {
-        await processInboundEvent(bot, event).catch((e) => {
-          console.error("[ig-webhook] processInboundEvent failed:", e);
+        const senderId = event?.sender?.id;
+        const text = event?.message?.text;
+        const mid = event?.message?.mid;
+
+        // Диагностика: выводим ПОЛНУЮ структуру события для отладки
+        // message_edit без sender.id означает что подписка на messages не работает
+        // или пришёл echo собственного сообщения бота
+        const hasMessageEdit = !!event?.message_edit;
+        const hasMessage = !!event?.message;
+        const hasPostback = !!event?.postback;
+        const hasRead = !!event?.read;
+        const hasDelivery = !!event?.delivery;
+        console.warn(
+          `[ig-webhook:${reqId}] событие: sender=${senderId ?? "НЕТ"}, ` +
+          `text="${text?.slice(0, 50) ?? "(нет текста)"}", mid=${mid ?? "нет"}, ` +
+          `keys=${Object.keys(event).join(",")}, ` +
+          `hasMessage=${hasMessage}, hasMessageEdit=${hasMessageEdit}, hasPostback=${hasPostback}, ` +
+          `hasRead=${hasRead}, hasDelivery=${hasDelivery}`
+        );
+
+        // message_edit — служебное уведомление об изменении сообщения, не входящее DM
+        // Если приходит message_edit ВМЕСТО message — проблема в подписке subscribed_apps
+        if (hasMessageEdit && !hasMessage) {
+          console.warn(`[ig-webhook:${reqId}] ВНИМАНИЕ: получен message_edit без message. ` +
+            `Это означает что подписка на поле "messages" не активна на уровне аккаунта. ` +
+            `Нужно повторно вызвать subscribeToMessagingWebhook для accountId=${igAccountId}`);
+          continue;
+        }
+
+        // read/delivery — игнорируем без логирования
+        if ((hasRead || hasDelivery) && !hasMessage && !hasPostback) {
+          continue;
+        }
+
+        await processInboundEvent(bot, event, reqId).catch((e) => {
+          console.error(`[ig-webhook:${reqId}] processInboundEvent failed:`, e);
         });
       }
 
@@ -121,10 +219,11 @@ export async function POST(req: NextRequest) {
       }
     }
   } catch (e) {
-    console.error("[ig-webhook] processing failed:", e);
+    console.error(`[ig-webhook:${reqId}] processing failed:`, e);
     // Всегда возвращаем 200 чтобы Meta не повторяла бесконечно.
   }
 
+  console.log(`[ig-webhook:${reqId}] завершён`);
   return NextResponse.json({ ok: true });
 }
 
@@ -146,14 +245,24 @@ function verifyMetaSignature(rawBody: string, signature: string, appSecret: stri
 
 async function processInboundEvent(
   bot: { id: string; tokenEnc: string },
-  event: any
+  event: any,
+  reqId: string
 ): Promise<void> {
+  const pfx = `[ig-webhook:${reqId}]`;
   const senderIgsid = event?.sender?.id;
-  if (!senderIgsid) return;
+  if (!senderIgsid) {
+    console.warn(`${pfx} событие без sender.id — пропускаем`, JSON.stringify(event).slice(0, 200));
+    return;
+  }
 
   const text: string | undefined = event?.message?.text;
   const quickReplyPayload: string | undefined = event?.message?.quick_reply?.payload;
   const now = new Date();
+
+  if (!text && !quickReplyPayload) {
+    console.log(`${pfx} сообщение от ${senderIgsid} без текста и payload (возможно: лайк, стикер, медиа) — пропускаем`);
+    return;
+  }
 
   // Upsert подписчика. Если первый раз — тянем профиль через API.
   let subscriber = await db.messagingSubscriber.findUnique({
@@ -161,11 +270,13 @@ async function processInboundEvent(
   });
 
   if (!subscriber) {
+    console.log(`${pfx} новый подписчик ${senderIgsid} — создаём запись, тянем профиль`);
     let profile: { name?: string; profile_pic?: string } = {};
     try {
       profile = await fetchSubscriberProfile(senderIgsid, decrypt(bot.tokenEnc));
+      console.log(`${pfx} профиль получен: name="${profile.name}"`);
     } catch (e) {
-      console.warn("[ig-webhook] failed to fetch profile:", e);
+      console.warn(`${pfx} не удалось получить профиль для ${senderIgsid}:`, e);
     }
 
     subscriber = await db.messagingSubscriber.create({
@@ -180,6 +291,7 @@ async function processInboundEvent(
         subscribedAt: now,
       },
     });
+    console.log(`${pfx} подписчик создан: id=${subscriber.id}`);
     await recordEvent({
       botId: bot.id,
       type: EVENT_TYPES.SUBSCRIBER_CREATED,
@@ -187,43 +299,45 @@ async function processInboundEvent(
       data: { channel: "instagram" },
     });
   } else {
+    console.log(`${pfx} подписчик найден: id=${subscriber.id}`);
     await db.messagingSubscriber.update({
       where: { id: subscriber.id },
       data: { lastInboundAt: now, lastSeenAt: now },
     });
   }
 
-  // Сохраняем входящее в Inbox (даже если flow не сработает)
-  if (text || quickReplyPayload) {
-    await recordInboundMessage({
-      botId: bot.id,
-      subscriberId: subscriber.id,
-      text,
-      callbackPayload: quickReplyPayload,
-      externalMessageId: event?.message?.mid,
-    }).catch(() => {});
-  }
+  // Сохраняем входящее в Inbox
+  await recordInboundMessage({
+    botId: bot.id,
+    subscriberId: subscriber.id,
+    text,
+    callbackPayload: quickReplyPayload,
+    externalMessageId: event?.message?.mid,
+  }).catch((e) => {
+    console.error(`${pfx} не удалось сохранить в Inbox:`, e);
+  });
+  console.log(`${pfx} сообщение сохранено в Inbox`);
 
   // Маршрутизация в flow-engine
-  if (text || quickReplyPayload) {
-    try {
-      const result = await dispatchInbound({
-        subscriberId: subscriber.id,
-        botId: bot.id,
-        triggerType: "keyword_dm",
-        text: text ?? "",
-        payload: quickReplyPayload,
-      });
-      if (result.resumed) {
-        console.log(`[ig-webhook] resumed flow for ${senderIgsid}`);
-      } else if (result.triggeredFlowId) {
-        console.log(`[ig-webhook] triggered flow ${result.triggeredFlowId} for ${senderIgsid}`);
-      } else {
-        console.log(`[ig-webhook] no match for "${(text ?? quickReplyPayload ?? "").slice(0, 50)}"`);
-      }
-    } catch (e) {
-      console.error("[ig-webhook] dispatch failed:", e);
+  try {
+    const result = await dispatchInbound({
+      subscriberId: subscriber.id,
+      botId: bot.id,
+      triggerType: "keyword_dm",
+      text: text ?? "",
+      payload: quickReplyPayload,
+    });
+    if (result.takeover) {
+      console.log(`${pfx} диалог под управлением оператора — воронки отключены`);
+    } else if (result.resumed) {
+      console.log(`${pfx} возобновлён активный wait_reply для подписчика ${senderIgsid}`);
+    } else if (result.triggeredFlowId) {
+      console.log(`${pfx} запущена воронка id=${result.triggeredFlowId} для ${senderIgsid}`);
+    } else {
+      console.warn(`${pfx} НЕТ СОВПАДЕНИЙ — текст "${(text ?? quickReplyPayload ?? "").slice(0, 80)}" не совпал ни с одним триггером. Проверь: созданы ли воронки, активны ли триггеры, совпадают ли keywords`);
     }
+  } catch (e) {
+    console.error(`${pfx} dispatch failed:`, e);
   }
 }
 
