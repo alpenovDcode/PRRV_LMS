@@ -151,7 +151,7 @@ export async function subscribeToMessagingWebhook(
   // которые попадают в раздел «Запросы на сообщение» Instagram.
   const url = `${IG_GRAPH_BASE}/v21.0/${igAccountId}/subscribed_apps`;
   const body = new URLSearchParams({
-    subscribed_fields: "messages,messaging_postbacks,message_requests",
+    subscribed_fields: "messages,messaging_postbacks",
     access_token: longLivedToken,
   });
   const resp = await fetch(url, {
