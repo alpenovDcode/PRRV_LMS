@@ -174,6 +174,17 @@ export async function POST(req: NextRequest) {
         const text = event?.message?.text;
         const mid = event?.message?.mid;
 
+        // ЭХО собственных исходящих сообщений бота. Instagram присылает их
+        // обратно как message с sender = id самого аккаунта (или is_echo=true).
+        // Их НЕЛЬЗЯ обрабатывать как входящие: иначе текст ответа бота
+        // (содержащий ключевые слова) триггерит воронку на самого себя, и
+        // отправка уходит на собственный id → IGApiException code 100
+        // "не удаётся найти пользователя", плюс бесконечная петля.
+        if (event?.message?.is_echo || String(senderId) === String(igAccountId)) {
+          console.log(`[ig-webhook:${reqId}] эхо собственного сообщения (sender=${senderId}) — пропускаем`);
+          continue;
+        }
+
         // Диагностика: выводим ПОЛНУЮ структуру события для отладки
         // message_edit без sender.id означает что подписка на messages не работает
         // или пришёл echo собственного сообщения бота
@@ -366,6 +377,7 @@ async function processCommentChange(
   const commenterId: string | undefined = value?.from?.id;
   const text: string | undefined = value?.text;
   const mediaId: string | undefined = value?.media?.id;
+  const commentId: string | undefined = value?.id;
 
   if (!commenterId || !text) return;
   // Не реагируем на собственные комментарии аккаунта (эхо).
@@ -409,6 +421,7 @@ async function processCommentChange(
       triggerType: "keyword_comment",
       text,
       mediaId,
+      commentId,
     });
     if (result.triggeredFlowId) {
       console.log(

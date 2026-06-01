@@ -94,4 +94,17 @@ export interface BotProvider {
    * Для IG проверяет 24h-window. Возвращает причину если нет.
    */
   canSendNow(subscriber: MessagingSubscriber): { allowed: boolean; reason?: string };
+
+  /**
+   * Опционально (только IG): первое сообщение комментатору через private
+   * reply по comment_id. Открывает DM-тред с тем, кто оставил комментарий
+   * (он мог ни разу не писать боту, поэтому обычный DM ему недоступен).
+   * Каналы без этой механики (MAX) метод не реализуют.
+   */
+  sendCommentPrivateReply?(
+    bot: MessagingBot,
+    commentId: string,
+    text: string,
+    buttons?: QuickReplyButton[]
+  ): Promise<SendMessageResult>;
 }

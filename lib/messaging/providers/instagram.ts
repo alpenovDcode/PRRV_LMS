@@ -10,6 +10,7 @@ import {
   sendText as igSendText,
   sendQuickReplies as igSendQuickReplies,
   sendButtonTemplate as igSendButtonTemplate,
+  sendPrivateReply as igSendPrivateReply,
   isWithin24hWindow,
 } from "@/lib/messaging/instagram/api";
 import { decrypt } from "@/lib/messaging/encryption";
@@ -113,5 +114,23 @@ export class InstagramBotProvider implements BotProvider {
       };
     }
     return { allowed: true };
+  }
+
+  async sendCommentPrivateReply(
+    bot: MessagingBot,
+    commentId: string,
+    text: string,
+    buttons?: QuickReplyButton[]
+  ): Promise<SendMessageResult> {
+    // Private reply НЕ требует 24h-window — это и есть способ открыть тред
+    // с комментатором, поэтому canSendNow тут не проверяем.
+    const result = await igSendPrivateReply({
+      accessToken: decrypt(bot.tokenEnc),
+      fromAccountId: bot.externalAccountId,
+      commentId,
+      text,
+      quickReplies: buttons?.slice(0, this.capabilities.maxQuickReplies),
+    });
+    return { externalMessageId: result.message_id };
   }
 }

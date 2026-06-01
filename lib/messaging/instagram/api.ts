@@ -96,6 +96,55 @@ export async function sendQuickReplies(input: IgSendQuickRepliesInput): Promise<
   return resp.json();
 }
 
+// ─── Private reply на комментарий (comment-to-DM) ──────────────────────────
+//
+// Когда пользователь оставляет комментарий под постом, обычный DM ему слать
+// нельзя (нет открытого треда / messaging window). Instagram разрешает ОДИН
+// раз ответить в личку по comment_id — это открывает DM-тред. Дальше уже
+// работает обычная отправка по IGSID.
+//
+// Эндпоинт тот же /{ig-id}/messages, но recipient = { comment_id }.
+// Можно приложить и quick_replies (как в обычном сообщении).
+
+export interface IgPrivateReplyInput {
+  accessToken: string;
+  fromAccountId: string;
+  commentId: string;
+  text: string;
+  quickReplies?: IgQuickReply[];
+}
+
+export async function sendPrivateReply(
+  input: IgPrivateReplyInput
+): Promise<{ message_id: string }> {
+  const url = `${IG_GRAPH_BASE}/v21.0/${input.fromAccountId}/messages`;
+
+  const message: Record<string, unknown> = { text: input.text };
+  if (input.quickReplies?.length) {
+    message.quick_replies = input.quickReplies.slice(0, 13).map((qr) => ({
+      content_type: "text",
+      title: qr.title.slice(0, 20),
+      payload: qr.payload,
+    }));
+  }
+
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      recipient: { comment_id: input.commentId },
+      message,
+      access_token: input.accessToken,
+    }),
+  });
+
+  if (!resp.ok) {
+    const err = await resp.text();
+    throw new Error(`IG sendPrivateReply failed: ${resp.status} ${err.slice(0, 300)}`);
+  }
+  return resp.json();
+}
+
 // ─── Button Template (URL + postback кнопки) ──────────────────────────────
 //
 // В отличие от quick replies, эти кнопки находятся ВНУТРИ карточки сообщения
