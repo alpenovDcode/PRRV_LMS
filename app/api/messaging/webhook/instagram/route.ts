@@ -160,11 +160,15 @@ export async function POST(req: NextRequest) {
       }
       console.warn(`[ig-webhook:${reqId}] бот найден: id=${bot.id}`);
 
-      if (messagingCount === 0) {
-        console.warn(`[ig-webhook:${reqId}] нет messaging-событий в entry`);
+      // Пропускаем entry только если в нём вообще нет событий. Комментарии
+      // приходят в changes (без messaging) — их нельзя терять на этом шаге,
+      // иначе триггеры keyword_comment не сработают.
+      if (messagingCount === 0 && changesCount === 0) {
+        console.warn(`[ig-webhook:${reqId}] нет событий в entry (ни messaging, ни changes)`);
         continue;
       }
 
+      // DM-сообщения и нажатия кнопок
       for (const event of entry.messaging ?? []) {
         const senderId = event?.sender?.id;
         const text = event?.message?.text;
@@ -202,6 +206,15 @@ export async function POST(req: NextRequest) {
 
         await processInboundEvent(bot, event, reqId).catch((e) => {
           console.error(`[ig-webhook:${reqId}] processInboundEvent failed:`, e);
+        });
+      }
+
+      // Комментарии под постами (field="comments") приходят в entry.changes,
+      // а НЕ в entry.messaging. Без этого блока триггеры keyword_comment
+      // никогда не срабатывают.
+      for (const change of entry.changes ?? []) {
+        await processCommentChange(bot, igAccountId, change).catch((e) => {
+          console.error("[ig-webhook] processCommentChange failed:", e);
         });
       }
     }
@@ -325,5 +338,86 @@ async function processInboundEvent(
     }
   } catch (e) {
     console.error(`${pfx} dispatch failed:`, e);
+  }
+}
+
+/**
+ * Комментарий под постом аккаунта. Приходит в entry.changes (field="comments"),
+ * структура value:
+ *   {
+ *     "from":  { "id": "<commenter_igsid>", "username": "..." },
+ *     "media": { "id": "<media_id>", "media_product_type": "..." },
+ *     "id":    "<comment_id>",
+ *     "text":  "<текст комментария>",
+ *     "parent_id"?: "<id родительского комментария>"
+ *   }
+ *
+ * Запускаем flow по триггерам типа keyword_comment, передавая mediaId —
+ * чтобы триггер мог быть ограничен конкретным постом.
+ */
+async function processCommentChange(
+  bot: { id: string },
+  igAccountId: string,
+  change: any
+): Promise<void> {
+  if (change?.field !== "comments") return;
+
+  const value = change.value ?? {};
+  const commenterId: string | undefined = value?.from?.id;
+  const text: string | undefined = value?.text;
+  const mediaId: string | undefined = value?.media?.id;
+
+  if (!commenterId || !text) return;
+  // Не реагируем на собственные комментарии аккаунта (эхо).
+  if (String(commenterId) === String(igAccountId)) return;
+
+  const now = new Date();
+
+  let subscriber = await db.messagingSubscriber.findUnique({
+    where: { botId_externalUserId: { botId: bot.id, externalUserId: commenterId } },
+  });
+  if (!subscriber) {
+    const username: string | null = value?.from?.username ?? null;
+    subscriber = await db.messagingSubscriber.create({
+      data: {
+        botId: bot.id,
+        externalUserId: commenterId,
+        username,
+        firstName: username,
+        lastInboundAt: now,
+        lastSeenAt: now,
+        subscribedAt: now,
+      },
+    });
+    await recordEvent({
+      botId: bot.id,
+      type: EVENT_TYPES.SUBSCRIBER_CREATED,
+      subscriberId: subscriber.id,
+      data: { channel: "instagram", via: "comment" },
+    });
+  } else {
+    await db.messagingSubscriber.update({
+      where: { id: subscriber.id },
+      data: { lastInboundAt: now, lastSeenAt: now },
+    });
+  }
+
+  try {
+    const result = await dispatchInbound({
+      subscriberId: subscriber.id,
+      botId: bot.id,
+      triggerType: "keyword_comment",
+      text,
+      mediaId,
+    });
+    if (result.triggeredFlowId) {
+      console.log(
+        `[ig-webhook] comment triggered flow ${result.triggeredFlowId} from ${commenterId}`
+      );
+    } else {
+      console.log(`[ig-webhook] comment no match for "${text.slice(0, 50)}"`);
+    }
+  } catch (e) {
+    console.error("[ig-webhook] comment dispatch failed:", e);
   }
 }

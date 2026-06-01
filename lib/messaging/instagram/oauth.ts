@@ -146,12 +146,15 @@ export async function subscribeToMessagingWebhook(
   longLivedToken: string
 ): Promise<void> {
   // ВАЖНО: Meta ожидает application/x-www-form-urlencoded, а НЕ JSON.
-  // subscribed_fields должны быть переданы как form-поле, а не JSON-строка.
-  // Также добавляем message_requests для сообщений от незнакомых (не подписчиков),
-  // которые попадают в раздел «Запросы на сообщение» Instagram.
+  // subscribed_fields должны быть переданы как form-поле, а не JSON-строка
+  // (иначе Graph API отвечает "Cannot parse access token", code 190).
+  //
+  // subscribed_fields:
+  //   messages, messaging_postbacks — входящие DM и нажатия кнопок;
+  //   comments                      — комментарии под постами (для keyword_comment).
   const url = `${IG_GRAPH_BASE}/v21.0/${igAccountId}/subscribed_apps`;
   const body = new URLSearchParams({
-    subscribed_fields: "messages,messaging_postbacks",
+    subscribed_fields: "messages,messaging_postbacks,comments",
     access_token: longLivedToken,
   });
   const resp = await fetch(url, {
