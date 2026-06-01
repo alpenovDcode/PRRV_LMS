@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   const reqId = Math.random().toString(36).slice(2, 8);
-  console.log(`[ig-webhook:${reqId}] POST получен`);
+  console.warn(`[ig-webhook:${reqId}] POST получен`);
 
   // ── Проверка env ─────────────────────────────────────────────────────────
   if (!IG_APP_SECRET) {
