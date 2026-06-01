@@ -120,8 +120,9 @@ export interface InstagramAccountInfo {
 }
 
 export async function fetchMe(longLivedToken: string): Promise<InstagramAccountInfo> {
+  // Используем версионированный endpoint graph.instagram.com/v21.0/me
   const url =
-    `${IG_GRAPH_BASE}/me?` +
+    `${IG_GRAPH_BASE}/v21.0/me?` +
     new URLSearchParams({
       fields: "id,user_id,username,account_type",
       access_token: longLivedToken,
@@ -132,7 +133,10 @@ export async function fetchMe(longLivedToken: string): Promise<InstagramAccountI
     const err = await resp.text();
     throw new Error(`IG /me fetch failed: ${resp.status} ${err.slice(0, 200)}`);
   }
-  return resp.json();
+  const data = await resp.json();
+  // Диагностика: логируем оба поля, чтобы понять что именно совпадает с entry.id в webhook
+  console.log(`[ig-oauth] fetchMe result: id="${data.id}", user_id="${data.user_id}", username="${data.username}", account_type="${data.account_type}"`);
+  return data;
 }
 
 // ─── 6. Subscribe app to messaging webhook ─────────────────────────────────
@@ -141,19 +145,35 @@ export async function subscribeToMessagingWebhook(
   igAccountId: string,
   longLivedToken: string
 ): Promise<void> {
-  const url = `${IG_GRAPH_BASE}/v21.0/${igAccountId}/subscribed_apps`;
+  // ВАЖНО: Meta ожидает application/x-www-form-urlencoded, а НЕ JSON.
+  // subscribed_fields должны быть переданы как form-поле, а не JSON-строка.
+  // Также добавляем message_requests для сообщений от незнакомых (не подписчиков),
+  // которые попадают в раздел «Запросы на сообщение» Instagram.
+  const url = `https://graph.facebook.com/v21.0/${igAccountId}/subscribed_apps`;
+  const body = new URLSearchParams({
+    subscribed_fields: "messages,messaging_postbacks,message_requests",
+    access_token: longLivedToken,
+  });
   const resp = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      subscribed_fields: "messages,messaging_postbacks",
-      access_token: longLivedToken,
-    }),
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
   });
+  const respText = await resp.text();
   if (!resp.ok) {
-    const err = await resp.text();
-    throw new Error(`IG webhook subscribe failed: ${resp.status} ${err.slice(0, 200)}`);
+    throw new Error(`IG webhook subscribe failed: ${resp.status} ${respText.slice(0, 200)}`);
   }
+  // Проверяем success: true явно — Meta может вернуть 200 OK с {success: false}
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(respText);
+  } catch {
+    parsed = null;
+  }
+  if (parsed && typeof parsed === "object" && (parsed as Record<string, unknown>).success === false) {
+    throw new Error(`IG webhook subscribe returned success=false: ${respText.slice(0, 300)}`);
+  }
+  console.log("[ig-oauth] subscribeToMessagingWebhook OK:", respText.slice(0, 200));
 }
 
 /**
@@ -169,7 +189,7 @@ export async function unsubscribeFromMessagingWebhook(
 ): Promise<boolean> {
   try {
     const url =
-      `${IG_GRAPH_BASE}/v21.0/${igAccountId}/subscribed_apps?` +
+      `https://graph.facebook.com/v21.0/${igAccountId}/subscribed_apps?` +
       new URLSearchParams({ access_token: longLivedToken }).toString();
     const resp = await fetch(url, { method: "DELETE" });
     return resp.ok;

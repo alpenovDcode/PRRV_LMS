@@ -169,7 +169,36 @@ export async function POST(req: NextRequest) {
         const senderId = event?.sender?.id;
         const text = event?.message?.text;
         const mid = event?.message?.mid;
-        console.warn(`[ig-webhook:${reqId}] событие: sender=${senderId}, text="${text?.slice(0, 50) ?? "(нет текста)"}", mid=${mid}, keys=${Object.keys(event).join(",")}`);
+
+        // Диагностика: выводим ПОЛНУЮ структуру события для отладки
+        // message_edit без sender.id означает что подписка на messages не работает
+        // или пришёл echo собственного сообщения бота
+        const hasMessageEdit = !!event?.message_edit;
+        const hasMessage = !!event?.message;
+        const hasPostback = !!event?.postback;
+        const hasRead = !!event?.read;
+        const hasDelivery = !!event?.delivery;
+        console.warn(
+          `[ig-webhook:${reqId}] событие: sender=${senderId ?? "НЕТ"}, ` +
+          `text="${text?.slice(0, 50) ?? "(нет текста)"}", mid=${mid ?? "нет"}, ` +
+          `keys=${Object.keys(event).join(",")}, ` +
+          `hasMessage=${hasMessage}, hasMessageEdit=${hasMessageEdit}, hasPostback=${hasPostback}, ` +
+          `hasRead=${hasRead}, hasDelivery=${hasDelivery}`
+        );
+
+        // message_edit — служебное уведомление об изменении сообщения, не входящее DM
+        // Если приходит message_edit ВМЕСТО message — проблема в подписке subscribed_apps
+        if (hasMessageEdit && !hasMessage) {
+          console.warn(`[ig-webhook:${reqId}] ВНИМАНИЕ: получен message_edit без message. ` +
+            `Это означает что подписка на поле "messages" не активна на уровне аккаунта. ` +
+            `Нужно повторно вызвать subscribeToMessagingWebhook для accountId=${igAccountId}`);
+          continue;
+        }
+
+        // read/delivery — игнорируем без логирования
+        if ((hasRead || hasDelivery) && !hasMessage && !hasPostback) {
+          continue;
+        }
 
         await processInboundEvent(bot, event, reqId).catch((e) => {
           console.error(`[ig-webhook:${reqId}] processInboundEvent failed:`, e);
