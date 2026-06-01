@@ -113,24 +113,33 @@ async function setVariable(
 
 async function addTag(ctx: InlineActionsCtx, tag: string): Promise<void> {
   const sub = await db.tgSubscriber.findUnique({ where: { id: ctx.subscriberId } });
-  if (!sub || sub.tags.includes(tag)) return;
-  await db.tgSubscriber.update({
-    where: { id: ctx.subscriberId },
-    data: { tags: { push: tag } },
-  });
-  trackEvent({
-    type: "subscriber.tag_added",
-    botId: ctx.botId,
-    subscriberId: ctx.subscriberId,
-    properties: { tag, source: "inline" },
-  }).catch(() => {});
-  await fireTagTriggers({
-    botId: ctx.botId,
-    subscriberId: ctx.subscriberId,
-    tag,
-    kind: "tag_added",
-  });
+  if (!sub) return;
+
+  // Тег добавляется только если его ещё нет — иначе не плодим дубль-событий
+  // и не перезапускаем флоу-триггеры tag_added. НО Bitrix-синк ниже вызываем
+  // всегда: повторное добавление тега-триггера должно обновлять сделку (и это
+  // позволяет переtestить связку на одном и том же подписчике).
+  if (!sub.tags.includes(tag)) {
+    await db.tgSubscriber.update({
+      where: { id: ctx.subscriberId },
+      data: { tags: { push: tag } },
+    });
+    trackEvent({
+      type: "subscriber.tag_added",
+      botId: ctx.botId,
+      subscriberId: ctx.subscriberId,
+      properties: { tag, source: "inline" },
+    }).catch(() => {});
+    await fireTagTriggers({
+      botId: ctx.botId,
+      subscriberId: ctx.subscriberId,
+      tag,
+      kind: "tag_added",
+    });
+  }
+
   // Bitrix24 tag trigger: fire-and-forget so sync never blocks flow execution.
+  // Вне условия выше — чтобы синк срабатывал и при повторном теге.
   maybeSyncOnTagAdded(ctx.botId, ctx.subscriberId, tag).catch(() => {});
 }
 

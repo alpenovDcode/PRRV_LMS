@@ -16,6 +16,7 @@
  */
 
 import { db } from "../db";
+import { trackEvent } from "./events";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -150,12 +151,24 @@ export async function syncSubscriberToBitrix(
   // 1. Load config
   const config = await db.tgBitrixConfig.findUnique({ where: { botId } });
   if (!config || !config.enabled) {
+    trackEvent({
+      type: "bitrix.sync_skipped",
+      botId,
+      subscriberId,
+      properties: { reason: "disabled" },
+    }).catch(() => {});
     return { ok: true, skipped: true };
   }
 
   const webhookUrl =
     (config.webhookUrl?.trim()) || process.env.BITRIX24_WEBHOOK_URL || "";
   if (!webhookUrl) {
+    trackEvent({
+      type: "bitrix.sync_skipped",
+      botId,
+      subscriberId,
+      properties: { reason: "no_webhook" },
+    }).catch(() => {});
     return { ok: false, error: "Bitrix24 webhook URL не настроен" };
   }
 
@@ -328,10 +341,22 @@ export async function syncSubscriberToBitrix(
       }).catch(() => {});
     }
 
+    trackEvent({
+      type: "bitrix.sync_ok",
+      botId,
+      subscriberId,
+      properties: { dealId, contactId, stageId, categoryId },
+    }).catch(() => {});
     return { ok: true, dealId, contactId };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error(`[bitrix-sync] botId=${botId} subscriberId=${subscriberId}:`, msg);
+    trackEvent({
+      type: "bitrix.sync_failed",
+      botId,
+      subscriberId,
+      properties: { error: msg },
+    }).catch(() => {});
     return { ok: false, error: msg };
   }
 }
@@ -356,7 +381,22 @@ export async function maybeSyncOnTagAdded(
 
     const triggers = (config.tagTriggers as unknown as TagTrigger[]) ?? [];
     const matched = triggers.find((t) => t.tag === tag);
-    if (!matched) return;
+    if (!matched) {
+      // Тег добавлен, интеграция включена, но под него нет тег-триггера.
+      // Логируем — частая причина «сделка не создалась»: тег в воронке и
+      // в настройке Bitrix написаны по-разному.
+      trackEvent({
+        type: "bitrix.sync_skipped",
+        botId,
+        subscriberId,
+        properties: {
+          reason: "no_trigger",
+          tag,
+          configuredTags: triggers.map((t) => t.tag),
+        },
+      }).catch(() => {});
+      return;
+    }
 
     await syncSubscriberToBitrix(botId, subscriberId, {
       stageId: matched.stageId || undefined,
