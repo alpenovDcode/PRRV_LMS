@@ -35,27 +35,29 @@ export async function dispatchInbound(input: DispatchInput): Promise<{
   triggeredFlowId: string | null;
   takeover?: boolean;
 }> {
+  const pfx = `[dispatcher][sub:${input.subscriberId.slice(-6)}]`;
+
   // ── 0. Operator takeover guard ──────────────────────────────────────────
-  // Если оператор взял диалог под ручное управление — auto-triggers
-  // и flow-engine отключены. Сообщение только сохранится в Inbox.
   const subscriber = await db.messagingSubscriber.findUnique({
     where: { id: input.subscriberId },
     select: { operatorTakeoverAt: true } as any,
   });
   if ((subscriber as any)?.operatorTakeoverAt) {
+    console.log(`${pfx} оператор взял диалог — воронки пропущены`);
     return { resumed: false, triggeredFlowId: null, takeover: true };
   }
 
   // ── 1. Resume активного wait_reply ──────────────────────────────────────
-  // (Только для DM-input — комментарии под постом не возобновляют DM-flow)
   if (input.triggerType === "keyword_dm") {
     const resumed = await resumeWithInput(input.subscriberId, {
       text: input.text,
       payload: input.payload,
     });
     if (resumed) {
+      console.log(`${pfx} возобновлён активный wait_reply, текст="${input.text.slice(0, 50)}"`);
       return { resumed: true, triggeredFlowId: null };
     }
+    console.log(`${pfx} активного wait_reply нет — ищем триггеры`);
   }
 
   // ── 2. Поиск триггеров ──────────────────────────────────────────────────
@@ -64,17 +66,27 @@ export async function dispatchInbound(input: DispatchInput): Promise<{
       type: input.triggerType,
       flow: { botId: input.botId, isActive: true },
     },
-    include: { flow: { select: { id: true, isActive: true } } },
-    orderBy: { createdAt: "asc" }, // ранние триггеры выигрывают
+    include: { flow: { select: { id: true, isActive: true, name: true } } },
+    orderBy: { createdAt: "asc" },
   });
 
+  console.log(`${pfx} найдено триггеров типа "${input.triggerType}" для бота: ${triggers.length}`);
+
+  if (triggers.length === 0) {
+    console.warn(`${pfx} триггеров нет — создай воронку с триггером типа "${input.triggerType}" и активируй её`);
+    return { resumed: false, triggeredFlowId: null };
+  }
+
   for (const trigger of triggers) {
-    // mediaIds-фильтр: пусто = на всех постах, иначе должен совпасть
+    const flowName = (trigger.flow as any).name ?? trigger.flow.id;
+
+    // mediaIds-фильтр
     if (
       input.mediaId &&
       trigger.mediaIds.length > 0 &&
       !trigger.mediaIds.includes(input.mediaId)
     ) {
+      console.log(`${pfx} триггер id=${trigger.id} (${flowName}): mediaId не совпал — пропуск`);
       continue;
     }
 
@@ -84,15 +96,21 @@ export async function dispatchInbound(input: DispatchInput): Promise<{
       matchType: trigger.matchType,
       caseSensitive: trigger.caseSensitive,
     });
+
+    console.log(
+      `${pfx} триггер id=${trigger.id} (${flowName}): ` +
+      `keywords=${JSON.stringify(trigger.keywords)}, matchType=${trigger.matchType}, ` +
+      `текст="${input.text.slice(0, 50)}" → ${matched ? "СОВПАЛО" : "не совпало"}`
+    );
+
     if (!matched) continue;
 
-    // ── 3. Стартуем flow + обновим метрики триггера ──────────────────────
+    // ── 3. Стартуем flow ─────────────────────────────────────────────────
+    console.log(`${pfx} запускаем воронку id=${trigger.flow.id} (${flowName})`);
+
     await db.messagingTrigger.update({
       where: { id: trigger.id },
-      data: {
-        triggerCount: { increment: 1 },
-        lastTriggeredAt: new Date(),
-      },
+      data: { triggerCount: { increment: 1 }, lastTriggeredAt: new Date() },
     });
 
     await recordEvent({
@@ -121,5 +139,9 @@ export async function dispatchInbound(input: DispatchInput): Promise<{
     return { resumed: false, triggeredFlowId: trigger.flow.id };
   }
 
+  console.warn(
+    `${pfx} ни один триггер не совпал для текста="${input.text.slice(0, 80)}". ` +
+    `Проверь keywords в триггерах воронок.`
+  );
   return { resumed: false, triggeredFlowId: null };
 }

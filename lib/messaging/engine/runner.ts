@@ -40,8 +40,9 @@ export interface StartFlowOptions {
  * этого подписчика по этому же flow (чтобы не было дублей).
  */
 export async function startFlow(opts: StartFlowOptions): Promise<string> {
-  // Отменим параллельные runs того же подписчика по тому же flow
-  await db.messagingFlowRun.updateMany({
+  const pfx = `[runner][flow:${opts.flowId.slice(-6)}][sub:${opts.subscriberId.slice(-6)}]`;
+
+  const cancelled = await db.messagingFlowRun.updateMany({
     where: {
       flowId: opts.flowId,
       subscriberId: opts.subscriberId,
@@ -49,9 +50,20 @@ export async function startFlow(opts: StartFlowOptions): Promise<string> {
     },
     data: { status: MessagingFlowRunStatus.cancelled, completedAt: new Date() },
   });
+  if (cancelled.count > 0) {
+    console.log(`${pfx} отменено ${cancelled.count} предыдущих run`);
+  }
 
   const flow = await db.messagingFlow.findUnique({ where: { id: opts.flowId } });
-  if (!flow || !flow.isActive) throw new Error("Flow not found or inactive");
+  if (!flow) {
+    console.error(`${pfx} воронка id=${opts.flowId} не найдена в БД`);
+    throw new Error("Flow not found or inactive");
+  }
+  if (!flow.isActive) {
+    console.error(`${pfx} воронка "${flow.name}" неактивна (isActive=false) — активируй её в UI`);
+    throw new Error("Flow not found or inactive");
+  }
+  console.log(`${pfx} запуск воронки "${flow.name}"`);
 
   const graph = flow.graph as unknown as FlowGraph;
 
@@ -178,6 +190,7 @@ export async function tickRun(runId: string): Promise<void> {
     }
 
     try {
+      console.log(`[runner][run:${runId.slice(-6)}] узел "${nodeId}" тип="${node.type}"`);
       const result = await executeNode(node, run.subscriber, run.subscriber.bot, run.context as any);
 
       // ── Inline-actions ──────────────────────────────────────────────
@@ -202,15 +215,18 @@ export async function tickRun(runId: string): Promise<void> {
 
       if (result.kind === "advance") {
         if (!result.nextNodeId) {
+          console.log(`[runner][run:${runId.slice(-6)}] узел "${nodeId}" → next=null, завершаем`);
           await markCompleted(runId);
           return;
         }
+        console.log(`[runner][run:${runId.slice(-6)}] узел "${nodeId}" → next="${result.nextNodeId}"`);
         await db.messagingFlowRun.update({
           where: { id: runId },
           data: { currentNodeId: result.nextNodeId, context: finalContext as any },
         });
         // продолжаем цикл
       } else if (result.kind === "wait") {
+        console.log(`[runner][run:${runId.slice(-6)}] узел "${nodeId}" → ждём ответа, timeout=${result.waitUntil.toISOString()}`);
         await db.messagingFlowRun.update({
           where: { id: runId },
           data: {
@@ -220,9 +236,7 @@ export async function tickRun(runId: string): Promise<void> {
         });
         return;
       } else if (result.kind === "sleep") {
-        // Delay-узел — записываем currentNodeId как следующий узел
-        // (на тот куда переходить после wake-up), waitUntil + status
-        // = waiting_reply (используем тот же статус для cron pick-up).
+        console.log(`[runner][run:${runId.slice(-6)}] delay "${nodeId}" → спим до ${result.waitUntil.toISOString()}, следующий узел="${result.nextNodeId}"`);
         await db.messagingFlowRun.update({
           where: { id: runId },
           data: {
@@ -234,7 +248,7 @@ export async function tickRun(runId: string): Promise<void> {
         });
         return;
       } else if (result.kind === "goto") {
-        // Завершаем текущий run, стартуем новый по другому flow
+        console.log(`[runner][run:${runId.slice(-6)}] goto_flow → переходим в воронку id=${result.flowId}`);
         await markCompleted(runId);
         const { startFlow } = await import("./runner");
         await startFlow({
@@ -246,16 +260,20 @@ export async function tickRun(runId: string): Promise<void> {
         });
         return;
       } else if (result.kind === "end") {
+        console.log(`[runner][run:${runId.slice(-6)}] узел "${nodeId}" type=end → завершаем`);
         await markCompleted(runId);
         return;
       }
     } catch (e) {
-      await markFailed(runId, e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error(`[runner][run:${runId.slice(-6)}] ошибка в узле "${nodeId}":`, msg);
+      await markFailed(runId, msg);
       return;
     }
   }
 
   // Превысили лимит итераций
+  console.error(`[runner][run:${runId.slice(-6)}] превышен лимит ${MAX_NODES_PER_TICK} узлов за тик — возможен бесконечный цикл в графе`);
   await markFailed(runId, `Exceeded ${MAX_NODES_PER_TICK} nodes per tick — возможен цикл в графе`);
 }
 
