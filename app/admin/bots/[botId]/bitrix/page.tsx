@@ -89,6 +89,7 @@ function FieldMapper({
   onChange,
   lmsOptions,
   bitrixFields,
+  listId,
 }: {
   title: string;
   description: string;
@@ -96,6 +97,8 @@ function FieldMapper({
   onChange: (m: FieldMapping[]) => void;
   lmsOptions: Array<{ value: string; label: string }>;
   bitrixFields: BitrixField[];
+  /** Уникальный id для <datalist> с подсказками переменных LMS. */
+  listId: string;
 }) {
   const add = () =>
     onChange([...mappings, { lmsVar: lmsOptions[0]?.value ?? "", bitrixField: "" }]);
@@ -124,23 +127,25 @@ function FieldMapper({
             <span>Поле в Bitrix24</span>
             <span />
           </div>
+          {/* Подсказки переменных LMS: пресеты + кастомные поля бота.
+              Поле редактируемое — можно выбрать из списка или вписать
+              любой путь вида custom.x / client.x / deal.x вручную. */}
+          <datalist id={listId}>
+            {lmsOptions.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </datalist>
           {mappings.map((m, i) => (
             <div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
-              <Select
+              <Input
                 value={m.lmsVar}
-                onValueChange={(v) => update(i, "lmsVar", v)}
-              >
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="Выбери поле LMS" />
-                </SelectTrigger>
-                <SelectContent>
-                  {lmsOptions.map((o) => (
-                    <SelectItem key={o.value} value={o.value} className="text-xs">
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onChange={(e) => update(i, "lmsVar", e.target.value)}
+                list={listId}
+                placeholder="client.phone / custom.niche"
+                className="h-8 text-xs font-mono"
+              />
 
               <Select
                 value={m.bitrixField}
@@ -316,6 +321,25 @@ export default function BotBitrixPage() {
       setWebhookInput(saved.webhookUrl ?? "");
     }
   }, [saved]);
+
+  // Кастомные поля бота (вкладка «Поля») — подтягиваем как варианты
+  // custom.<key> для маппинга. Именно сюда воронка пишет field.<key>.
+  const { data: botCustomFields } = useQuery({
+    queryKey: ["tg-bot-custom-fields", botId],
+    queryFn: async () => {
+      const r = await apiClient.get(`/admin/tg/bots/${botId}/custom-fields`);
+      return (r.data?.data?.fields ?? []) as Array<{
+        key: string;
+        label: string;
+      }>;
+    },
+    enabled: !!botId,
+  });
+
+  const customFieldVars = (botCustomFields ?? []).map((f) => ({
+    value: `custom.${f.key}`,
+    label: `${f.label} (custom.${f.key})`,
+  }));
 
   // All stages flat list (for tag trigger dropdown)
   const allStages = funnels.flatMap((f) =>
@@ -539,9 +563,10 @@ export default function BotBitrixPage() {
           <FieldMapper
             title=""
             description=""
+            listId="lms-contact-vars"
             mappings={form.contactMappings}
             onChange={(m) => setForm((f) => ({ ...f, contactMappings: m }))}
-            lmsOptions={LMS_CONTACT_VARS}
+            lmsOptions={[...LMS_CONTACT_VARS, ...customFieldVars]}
             bitrixFields={dealFields.filter((f) =>
               ["string", "phone", "email", "crm"].includes(f.type)
             )}
@@ -563,22 +588,26 @@ export default function BotBitrixPage() {
           <FieldMapper
             title=""
             description=""
+            listId="lms-deal-vars"
             mappings={form.dealMappings}
             onChange={(m) => setForm((f) => ({ ...f, dealMappings: m }))}
             lmsOptions={[
               ...LMS_DEAL_VARS,
-              // custom fields (deal.* / custom.*)
-              { value: "deal.budget", label: "deal.budget (из флоу)" },
-              { value: "deal.request", label: "deal.request (из флоу)" },
-              { value: "deal.niche", label: "deal.niche (из флоу)" },
-              { value: "custom.age", label: "custom.age (кастом. поле)" },
+              // Кастомные поля бота (вкладка «Поля») — основной способ
+              // прокинуть ответы воронки (field.<key>) в сделку.
+              ...customFieldVars,
             ]}
             bitrixFields={dealFields}
           />
           <p className="text-xs text-muted-foreground">
-            Нужно поле из флоу не в списке? Введи вручную вида{" "}
-            <code className="bg-muted px-1 rounded">deal.myField</code> —
-            значение будет взято из контекста запуска флоу.
+            Ответы воронки, сохранённые как{" "}
+            <code className="bg-muted px-1 rounded">field.x</code>, проставляй
+            здесь как{" "}
+            <code className="bg-muted px-1 rounded">custom.x</code> — они уже
+            подставлены в подсказках. Поле редактируемое: можно вписать любой
+            путь вручную ({" "}
+            <code className="bg-muted px-1 rounded">custom.niche</code>,{" "}
+            <code className="bg-muted px-1 rounded">client.email</code>).
           </p>
         </CardContent>
       </Card>
