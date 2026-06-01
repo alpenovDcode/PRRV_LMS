@@ -114,6 +114,26 @@ export default function MessagingPage() {
     }
   };
 
+  const handleResubscribe = async (bot: MessagingBot) => {
+    setToast({ kind: "success", text: "Активирую подписку…" });
+    try {
+      const res = await fetch(`/api/admin/messaging/bots/${bot.id}/resubscribe`, {
+        method: "POST",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        setToast({
+          kind: "success",
+          text: "Подписка активирована: messages + comments. Напишите боту для проверки.",
+        });
+      } else {
+        setToast({ kind: "error", text: data.error ?? "Не удалось переподписаться" });
+      }
+    } catch {
+      setToast({ kind: "error", text: "Ошибка сети при переподписке" });
+    }
+  };
+
   const handleHardDelete = async () => {
     if (!confirmDelete) return;
     setDeleting(true);
@@ -255,6 +275,15 @@ export default function MessagingPage() {
                   >
                     <GitBranch className="w-3 h-3" /> Воронки
                   </Link>
+                  {bot.channel === "instagram" && bot.isActive && (
+                    <button
+                      onClick={() => handleResubscribe(bot)}
+                      className="p-2 text-gray-400 hover:text-pink-500 hover:bg-pink-50 rounded-lg transition-colors"
+                      title="Переподписать на webhook (messages + comments)"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                    </button>
+                  )}
                   {bot.isActive && (
                     <button
                       onClick={() => handleDisable(bot)}

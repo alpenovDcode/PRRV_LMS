@@ -139,15 +139,22 @@ export async function subscribeToMessagingWebhook(
   igAccountId: string,
   longLivedToken: string
 ): Promise<void> {
-  const url = `${IG_GRAPH_BASE}/v21.0/${igAccountId}/subscribed_apps`;
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      subscribed_fields: "messages,messaging_postbacks",
+  // ВАЖНО: параметры передаём query-строкой, а НЕ JSON-телом.
+  // Config-эндпоинты Graph API (/subscribed_apps) не парсят JSON-тело и
+  // отвечают "Cannot parse access token" (code 190) — даже на валидный токен.
+  // Ср. рабочие fetchMe/unsubscribe, которые шлют access_token query-параметром.
+  //
+  // subscribed_fields:
+  //   messages, messaging_postbacks — входящие DM и нажатия кнопок;
+  //   comments                      — комментарии под постами (для keyword_comment).
+  const url =
+    `${IG_GRAPH_BASE}/v21.0/${igAccountId}/subscribed_apps?` +
+    new URLSearchParams({
+      subscribed_fields: "messages,messaging_postbacks,comments",
       access_token: longLivedToken,
-    }),
-  });
+    }).toString();
+
+  const resp = await fetch(url, { method: "POST" });
   if (!resp.ok) {
     const err = await resp.text();
     throw new Error(`IG webhook subscribe failed: ${resp.status} ${err.slice(0, 200)}`);
