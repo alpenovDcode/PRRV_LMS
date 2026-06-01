@@ -28,6 +28,12 @@ export interface DispatchInput {
   payload?: string;
   /** Для типа keyword_comment — ID поста на стороне платформы */
   mediaId?: string;
+  /**
+   * Для типа keyword_comment — ID самого комментария. Нужен, чтобы первое
+   * сообщение комментатору ушло как private reply (открывает DM-тред с тем,
+   * кто ни разу не писал боту).
+   */
+  commentId?: string;
 }
 
 export async function dispatchInbound(input: DispatchInput): Promise<{
@@ -133,6 +139,9 @@ export async function dispatchInbound(input: DispatchInput): Promise<{
         lastPayload: input.payload ?? "",
         triggerType: trigger.type,
         triggerKeyword: trigger.keywords.join(",") || null,
+        // Для comment-входа: первое сообщение раннер отправит как private
+        // reply по этому comment_id, затем удалит ключ из контекста.
+        ...(input.commentId ? { _commentId: input.commentId } : {}),
       },
     });
 

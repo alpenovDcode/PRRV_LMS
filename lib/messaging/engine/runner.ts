@@ -25,6 +25,36 @@ import { executeActions } from "./actions";
 import { recordOutboundMessage } from "../inbox";
 import { recordEvent, EVENT_TYPES } from "../events";
 import type { FlowGraph, FlowNode, ConditionNode } from "./graph-types";
+import type {
+  BotProvider,
+  SendMessageResult,
+  QuickReplyButton,
+} from "@/lib/messaging/providers/types";
+
+/**
+ * Comment-to-DM: если run пришёл из комментария (context._commentId выставлен
+ * диспетчером) и провайдер умеет private reply — отправляем ПЕРВОЕ сообщение
+ * через него. Это открывает DM-тред с комментатором (который мог ни разу не
+ * писать боту). После отправки удаляем _commentId — дальше идут обычные DM.
+ *
+ * Возвращает {sent, context} либо null (private reply не нужен/недоступен —
+ * шлём обычным способом).
+ */
+async function maybeCommentPrivateReply(
+  provider: BotProvider,
+  bot: MessagingBot,
+  context: Record<string, unknown>,
+  text: string,
+  buttons?: QuickReplyButton[]
+): Promise<{ sent: SendMessageResult; context: Record<string, unknown> } | null> {
+  const commentId =
+    typeof context._commentId === "string" ? context._commentId : null;
+  if (!commentId || !provider.sendCommentPrivateReply) return null;
+  const sent = await provider.sendCommentPrivateReply(bot, commentId, text, buttons);
+  const next = { ...context };
+  delete next._commentId;
+  return { sent, context: next };
+}
 
 const MAX_NODES_PER_TICK = 50; // защита от бесконечных циклов в графе
 
@@ -298,7 +328,8 @@ async function executeNode(
   switch (node.type) {
     case "send_text": {
       const text = renderTemplate(node.text, tmplCtx);
-      const sent = await provider.sendText(bot, subscriber, text);
+      const pr = await maybeCommentPrivateReply(provider, bot, context, text);
+      const sent = pr ? pr.sent : await provider.sendText(bot, subscriber, text);
       await recordOutboundMessage({
         botId: bot.id,
         subscriberId: subscriber.id,
@@ -306,7 +337,7 @@ async function executeNode(
         externalMessageId: sent.externalMessageId,
         source: `flow`,
       }).catch(() => {});
-      return { kind: "advance", nextNodeId: node.next, context };
+      return { kind: "advance", nextNodeId: node.next, context: pr ? pr.context : context };
     }
 
     case "send_quick_replies": {
@@ -315,7 +346,10 @@ async function executeNode(
         title: renderTemplate(b.title, tmplCtx),
         payload: b.payload,
       }));
-      const sent = await provider.sendQuickReplies(bot, subscriber, text, buttons);
+      const pr = await maybeCommentPrivateReply(provider, bot, context, text, buttons);
+      const sent = pr
+        ? pr.sent
+        : await provider.sendQuickReplies(bot, subscriber, text, buttons);
       await recordOutboundMessage({
         botId: bot.id,
         subscriberId: subscriber.id,
@@ -324,7 +358,7 @@ async function executeNode(
         source: `flow`,
         attachments: { quickReplies: buttons },
       }).catch(() => {});
-      return { kind: "advance", nextNodeId: node.next, context };
+      return { kind: "advance", nextNodeId: node.next, context: pr ? pr.context : context };
     }
 
     case "send_buttons": {
@@ -342,7 +376,13 @@ async function executeNode(
               payload: b.payload,
             }
       );
-      const sent = await provider.sendButtons(bot, subscriber, text, buttons);
+      // Если это первое сообщение comment-входа — URL/postback-шаблон в private
+      // reply не шлём (Instagram его там не принимает), уходит текст; тред
+      // откроется, кнопки будут в следующих узлах.
+      const pr = await maybeCommentPrivateReply(provider, bot, context, text);
+      const sent = pr
+        ? pr.sent
+        : await provider.sendButtons(bot, subscriber, text, buttons);
       await recordOutboundMessage({
         botId: bot.id,
         subscriberId: subscriber.id,
@@ -351,7 +391,7 @@ async function executeNode(
         source: `flow`,
         attachments: { buttons },
       }).catch(() => {});
-      return { kind: "advance", nextNodeId: node.next, context };
+      return { kind: "advance", nextNodeId: node.next, context: pr ? pr.context : context };
     }
 
     case "wait_reply": {

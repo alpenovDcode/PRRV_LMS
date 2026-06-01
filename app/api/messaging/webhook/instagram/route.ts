@@ -377,6 +377,7 @@ async function processCommentChange(
   const commenterId: string | undefined = value?.from?.id;
   const text: string | undefined = value?.text;
   const mediaId: string | undefined = value?.media?.id;
+  const commentId: string | undefined = value?.id;
 
   if (!commenterId || !text) return;
   // Не реагируем на собственные комментарии аккаунта (эхо).
@@ -420,6 +421,7 @@ async function processCommentChange(
       triggerType: "keyword_comment",
       text,
       mediaId,
+      commentId,
     });
     if (result.triggeredFlowId) {
       console.log(
