@@ -138,10 +138,10 @@ export async function POST(req: NextRequest) {
       const messagingCount = entry.messaging?.length ?? 0;
       const changesCount = entry.changes?.length ?? 0;
 
-      console.log(`[ig-webhook:${reqId}] entry id=${igAccountId}, messaging=${messagingCount}, changes=${changesCount}`);
+      console.warn(`[ig-webhook:${reqId}] entry id=${igAccountId}, messaging=${messagingCount}, changes=${changesCount}`);
 
       if (changesCount > 0) {
-        console.log(`[ig-webhook:${reqId}] changes (комменты/mentions/story) — не обрабатываются, пропускаем:`, JSON.stringify(entry.changes));
+        console.warn(`[ig-webhook:${reqId}] changes:`, JSON.stringify(entry.changes).slice(0, 200));
       }
 
       const bot = await db.messagingBot.findUnique({
@@ -158,10 +158,10 @@ export async function POST(req: NextRequest) {
         console.warn(`[ig-webhook:${reqId}] бот id=${bot.id} неактивен (isActive=false) — пропускаем`);
         continue;
       }
-      console.log(`[ig-webhook:${reqId}] бот найден: id=${bot.id}`);
+      console.warn(`[ig-webhook:${reqId}] бот найден: id=${bot.id}`);
 
       if (messagingCount === 0) {
-        console.log(`[ig-webhook:${reqId}] нет messaging-событий в entry`);
+        console.warn(`[ig-webhook:${reqId}] нет messaging-событий в entry`);
         continue;
       }
 
@@ -169,7 +169,7 @@ export async function POST(req: NextRequest) {
         const senderId = event?.sender?.id;
         const text = event?.message?.text;
         const mid = event?.message?.mid;
-        console.log(`[ig-webhook:${reqId}] событие: sender=${senderId}, text="${text?.slice(0, 50) ?? "(нет текста)"}", mid=${mid}`);
+        console.warn(`[ig-webhook:${reqId}] событие: sender=${senderId}, text="${text?.slice(0, 50) ?? "(нет текста)"}", mid=${mid}, keys=${Object.keys(event).join(",")}`);
 
         await processInboundEvent(bot, event, reqId).catch((e) => {
           console.error(`[ig-webhook:${reqId}] processInboundEvent failed:`, e);
