@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
                 status: true,
                 rating: true,
                 completedAt: true,
+                lastUpdated: true,
                 lesson: {
                   select: {
                     title: true,
@@ -154,6 +155,13 @@ export async function GET(request: NextRequest) {
             ? (ratedLessons.reduce((acc: number, curr: any) => acc + curr.rating, 0) / ratedLessons.length).toFixed(1)
             : '-';
 
+          // Last activity = most recent lastUpdated across all lesson progress
+          let lastActivityAt: Date | null = null;
+          for (const p of student.progress) {
+            const d = new Date(p.lastUpdated);
+            if (!lastActivityAt || d > lastActivityAt) lastActivityAt = d;
+          }
+
           return {
             id: student.id,
             name: student.fullName || student.email,
@@ -166,9 +174,10 @@ export async function GET(request: NextRequest) {
             lessonProgressPercent,
             submittedHomework,
             approvedHomework,
-            avgRating,
+            avgLessonRating: avgRating,
 
             registrationDate: student.createdAt,
+            lastActivityAt: lastActivityAt?.toISOString() ?? null,
             detailedStats: {
               homeworks: student.homework.map((h: any) => ({
                 id: h.id,

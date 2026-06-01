@@ -9,19 +9,28 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface CourseData {
   id: string;
   title: string;
   totalEnrollments: number;
   activeEnrollments: number;
-  averageRating?: number;
+  totalLessons: number;
+  avgLessonRating: number;
+  avgCompletionPercent: number;
 }
 
 interface CoursePerformanceProps {
   data: CourseData[];
   isLoading: boolean;
+}
+
+function ColoredPercent({ value }: { value: number }) {
+  const color =
+    value >= 70 ? "text-green-600" : value >= 40 ? "text-yellow-600" : "text-red-600";
+  return <span className={`font-semibold ${color}`}>{value}%</span>;
 }
 
 export function CoursePerformance({ data, isLoading }: CoursePerformanceProps) {
@@ -31,10 +40,10 @@ export function CoursePerformance({ data, isLoading }: CoursePerformanceProps) {
         <CardHeader>
           <CardTitle>Показатели курсов</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="h-[350px] flex items-center justify-center bg-muted/10 animate-pulse rounded-md">
-            Загрузка данных...
-          </div>
+        <CardContent className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-10 w-full" />
+          ))}
         </CardContent>
       </Card>
     );
@@ -53,97 +62,87 @@ export function CoursePerformance({ data, isLoading }: CoursePerformanceProps) {
     );
   }
 
-  // Вычисляем общую статистику
-  const totalEnrollments = data.reduce((sum, course) => sum + course.totalEnrollments, 0);
-  const totalActive = data.reduce((sum, course) => sum + course.activeEnrollments, 0);
-  const avgRating = data.reduce((sum, course) => sum + (course.averageRating || 0), 0) / data.length;
+  const totalActive = data.reduce((s, c) => s + c.activeEnrollments, 0);
+  const avgCompletion =
+    data.length > 0
+      ? Math.round(data.reduce((s, c) => s + c.avgCompletionPercent, 0) / data.length)
+      : 0;
 
   return (
     <Card className="col-span-4">
       <CardHeader>
         <CardTitle>Показатели курсов</CardTitle>
-        <div className="flex gap-4 mt-2 text-sm">
-          <div>
-            <span className="text-muted-foreground">Всего зачислений: </span>
-            <span className="font-semibold">{totalEnrollments}</span>
-          </div>
-          <div>
-            <span className="text-muted-foreground">Активных: </span>
+        <div className="flex flex-wrap gap-4 mt-2 text-sm">
+          <span>
+            <span className="text-muted-foreground">Активных студентов: </span>
             <span className="font-semibold">{totalActive}</span>
-          </div>
-          <div>
-            <span className="text-muted-foreground">Средняя оценка: </span>
-            <span className="font-semibold">{avgRating.toFixed(1)}/10</span>
-          </div>
+          </span>
+          <span>
+            <span className="text-muted-foreground">Ср. прохождение: </span>
+            <span className="font-semibold">{avgCompletion}%</span>
+          </span>
         </div>
       </CardHeader>
       <CardContent>
-        <div className="max-h-[500px] overflow-auto">
+        <div className="overflow-auto max-h-[500px]">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Курс</TableHead>
-                <TableHead className="text-right">Всего зачислений</TableHead>
-                <TableHead className="text-right">Активные студенты</TableHead>
-                <TableHead className="text-right">% Активности</TableHead>
-                <TableHead className="text-right">Средняя оценка</TableHead>
-                <TableHead className="text-right">Статус</TableHead>
+                <TableHead className="text-center">Уроков</TableHead>
+                <TableHead className="text-center">Активных</TableHead>
+                <TableHead className="text-center min-w-[160px]">Ср. прохождение</TableHead>
+                <TableHead className="text-center">Оценка уроков*</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {data
-                .sort((a, b) => b.totalEnrollments - a.totalEnrollments)
-                .map((course) => {
-                  const activityPercent = course.totalEnrollments > 0
-                    ? ((course.activeEnrollments / course.totalEnrollments) * 100).toFixed(1)
-                    : "0";
-                  const rating = course.averageRating || 0;
-
-                  return (
-                    <TableRow key={course.id}>
-                      <TableCell className="font-medium max-w-xs">
-                        {course.title}
-                      </TableCell>
-                      <TableCell className="text-right font-semibold">
-                        {course.totalEnrollments}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {course.activeEnrollments}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <span className={
-                          Number(activityPercent) >= 70 ? "text-green-600 font-semibold" :
-                          Number(activityPercent) >= 40 ? "text-yellow-600" :
-                          "text-red-600"
-                        }>
-                          {activityPercent}%
+                .sort((a, b) => b.activeEnrollments - a.activeEnrollments)
+                .map((course) => (
+                  <TableRow key={course.id}>
+                    <TableCell className="font-medium max-w-[260px]">
+                      {course.title}
+                    </TableCell>
+                    <TableCell className="text-center text-muted-foreground">
+                      {course.totalLessons}
+                    </TableCell>
+                    <TableCell className="text-center font-semibold">
+                      {course.activeEnrollments}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <div className="flex items-center gap-2 justify-end">
+                        <Progress
+                          value={course.avgCompletionPercent}
+                          className="h-2 w-20 [&>div]:bg-blue-500"
+                        />
+                        <ColoredPercent value={course.avgCompletionPercent} />
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {course.avgLessonRating > 0 ? (
+                        <span
+                          className={
+                            course.avgLessonRating >= 8
+                              ? "text-green-600 font-semibold"
+                              : course.avgLessonRating >= 6
+                              ? "text-yellow-600"
+                              : "text-red-600"
+                          }
+                        >
+                          {course.avgLessonRating}/10
                         </span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <span className={
-                          rating >= 8 ? "text-green-600 font-semibold" :
-                          rating >= 6 ? "text-yellow-600" :
-                          rating > 0 ? "text-red-600" :
-                          "text-muted-foreground"
-                        }>
-                          {rating > 0 ? `${rating.toFixed(1)}/10` : "—"}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {Number(activityPercent) >= 70 ? (
-                          <Badge variant="default" className="bg-green-600">Отлично</Badge>
-                        ) : Number(activityPercent) >= 40 ? (
-                          <Badge variant="secondary">Хорошо</Badge>
-                        ) : (
-                          <Badge variant="destructive">Низкая</Badge>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
             </TableBody>
           </Table>
         </div>
+        <p className="text-xs text-muted-foreground mt-3">
+          * Средняя оценка, которую студенты ставят урокам (удовлетворённость контентом)
+        </p>
       </CardContent>
     </Card>
   );

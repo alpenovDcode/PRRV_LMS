@@ -39,35 +39,81 @@ export async function GET(request: NextRequest) {
           },
         });
 
-        const data = courses.map((course: any) => {
-          const totalEnrollments = course._count.enrollments;
-          const activeEnrollments = course.enrollments.filter((e: any) => e.status === 'active').length;
-          
-          // Calculate average rating
-          let totalRating = 0;
-          let ratingCount = 0;
-
-          course.modules.forEach((module: any) => {
-            module.lessons.forEach((lesson: any) => {
-              lesson.progress.forEach((p: any) => {
-                if (p.rating) {
-                  totalRating += p.rating;
-                  ratingCount++;
-                }
-              });
-            });
-          });
-
-          const averageRating = ratingCount > 0 ? Number((totalRating / ratingCount).toFixed(1)) : 0;
-
-          return {
-            id: course.id,
-            title: course.title,
-            totalEnrollments,
-            activeEnrollments,
-            averageRating,
-          };
+        // Get per-student completion data for avg completion % per course
+        const enrolledUsers = await db.enrollment.findMany({
+          where: { status: "active" },
+          select: {
+            userId: true,
+            courseId: true,
+          },
         });
+
+        // Group enrolled users by course
+        const usersByCourse: Record<string, string[]> = {};
+        for (const e of enrolledUsers) {
+          if (!usersByCourse[e.courseId]) usersByCourse[e.courseId] = [];
+          usersByCourse[e.courseId].push(e.userId);
+        }
+
+        const data = await Promise.all(
+          courses.map(async (course: any) => {
+            const totalEnrollments = course._count.enrollments;
+            const activeEnrollments = course.enrollments.filter((e: any) => e.status === "active").length;
+
+            // Collect all lesson IDs in this course
+            const lessonIds: string[] = [];
+            course.modules.forEach((m: any) => m.lessons.forEach((l: any) => lessonIds.push(l.id)));
+            const totalLessons = lessonIds.length;
+            const lessonIdSet = new Set(lessonIds);
+
+            // Average lesson satisfaction rating (rename to clarify: students rate lessons)
+            let totalRating = 0;
+            let ratingCount = 0;
+            course.modules.forEach((m: any) =>
+              m.lessons.forEach((l: any) =>
+                l.progress.forEach((p: any) => {
+                  if (p.rating) { totalRating += p.rating; ratingCount++; }
+                })
+              )
+            );
+            const avgLessonRating = ratingCount > 0 ? Number((totalRating / ratingCount).toFixed(1)) : 0;
+
+            // Average completion % across active enrollments
+            let avgCompletionPercent = 0;
+            const enrolledUserIds = usersByCourse[course.id] ?? [];
+            if (enrolledUserIds.length > 0 && totalLessons > 0) {
+              const progresses = await db.lessonProgress.findMany({
+                where: {
+                  userId: { in: enrolledUserIds },
+                  lessonId: { in: lessonIds },
+                  status: "completed",
+                },
+                select: { userId: true },
+              });
+
+              // Count completed lessons per user
+              const completedPerUser: Record<string, number> = {};
+              for (const p of progresses) {
+                completedPerUser[p.userId] = (completedPerUser[p.userId] ?? 0) + 1;
+              }
+              const sumPercents = enrolledUserIds.reduce(
+                (acc, uid) => acc + ((completedPerUser[uid] ?? 0) / totalLessons),
+                0
+              );
+              avgCompletionPercent = Math.round((sumPercents / enrolledUserIds.length) * 100);
+            }
+
+            return {
+              id: course.id,
+              title: course.title,
+              totalEnrollments,
+              activeEnrollments,
+              totalLessons,
+              avgLessonRating,
+              avgCompletionPercent,
+            };
+          })
+        );
 
         return NextResponse.json<ApiResponse>({ success: true, data }, { status: 200 });
       } catch (error) {
