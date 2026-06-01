@@ -18,7 +18,7 @@ import {
 } from "./flow-engine";
 import { tgAnswerCallbackQuery } from "./api";
 import { captureAdminMedia } from "./media-library";
-import type { TgBot, TgSubscriber } from "@prisma/client";
+import type { TgBot, TgSubscriber, Prisma } from "@prisma/client";
 
 // Minimal types — we only access fields we need.
 interface TgUser {
@@ -405,6 +405,23 @@ async function applyTrackingLink(args: {
   if (!link) return {};
   // Update touch attribution.
   const now = new Date();
+
+  // UTM из ссылки → client.* переменные подписчика (last-touch). Без этого
+  // client.utm_source/medium/... всегда пустые и не уезжают в Bitrix/CRM:
+  // ссылка несёт UTM, но раньше они оставались только на самой ссылке.
+  const linkUtm = (link.utm as Record<string, unknown> | null) ?? {};
+  const utmVars: Record<string, string> = {};
+  for (const k of [
+    "utm_source",
+    "utm_medium",
+    "utm_campaign",
+    "utm_content",
+    "utm_term",
+  ]) {
+    const val = linkUtm[k];
+    if (val != null && String(val).trim() !== "") utmVars[k] = String(val);
+  }
+
   await db.tgSubscriber.update({
     where: { id: args.subscriber.id },
     data: {
@@ -413,6 +430,10 @@ async function applyTrackingLink(args: {
       firstTouchSlug: args.subscriber.firstTouchSlug ?? args.slug,
       firstTouchAt: args.subscriber.firstTouchAt ?? now,
       tags: Array.from(new Set([...args.subscriber.tags, ...link.applyTags])),
+      variables: {
+        ...((args.subscriber.variables as Record<string, unknown>) ?? {}),
+        ...utmVars,
+      } as Prisma.InputJsonValue,
     },
   });
   await db.tgTrackingLink.update({

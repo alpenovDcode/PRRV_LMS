@@ -370,14 +370,43 @@ export default function BotBitrixPage() {
   // Save config
   const saveMutation = useMutation({
     mutationFn: async () => {
+      // Отбрасываем недозаполненные строки, чтобы одна пустая строка
+      // (например, выбрали LMS-поле, но не выбрали поле Bitrix) не роняла
+      // весь сейв на серверной валидации («Неверный формат данных»).
+      const cleanMappings = (arr: FieldMapping[]) =>
+        arr.filter((m) => m.lmsVar.trim() && m.bitrixField.trim());
+      const cleanTriggers = (arr: TagTrigger[]) =>
+        arr.filter((t) => t.tag.trim() && t.stageId.trim());
+
+      const droppedMappings =
+        form.contactMappings.length +
+        form.dealMappings.length -
+        cleanMappings(form.contactMappings).length -
+        cleanMappings(form.dealMappings).length;
+      const droppedTriggers =
+        form.tagTriggers.length - cleanTriggers(form.tagTriggers).length;
+
       await apiClient.put(`/admin/tg/bots/${botId}/bitrix`, {
         ...form,
         webhookUrl: webhookInput || null,
+        contactMappings: cleanMappings(form.contactMappings),
+        dealMappings: cleanMappings(form.dealMappings),
+        tagTriggers: cleanTriggers(form.tagTriggers),
       });
+
+      return { droppedMappings, droppedTriggers };
     },
-    onSuccess: () => {
+    onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ["tg-bot-bitrix", botId] });
-      toast.success("Настройки сохранены");
+      const dropped =
+        (res?.droppedMappings ?? 0) + (res?.droppedTriggers ?? 0);
+      if (dropped > 0) {
+        toast.success(
+          `Настройки сохранены. Пропущено незаполненных строк: ${dropped}.`
+        );
+      } else {
+        toast.success("Настройки сохранены");
+      }
     },
     onError: (e: any) => {
       toast.error(e?.response?.data?.error ?? "Ошибка сохранения");
