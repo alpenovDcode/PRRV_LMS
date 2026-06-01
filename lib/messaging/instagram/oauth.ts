@@ -113,6 +113,8 @@ export async function refreshLongLivedToken(currentToken: string): Promise<LongL
 
 export interface InstagramAccountInfo {
   id: string;
+  /** Реальный Business Account ID (не app-scoped). Совпадает с entry.id в webhook. */
+  user_id?: string;
   username: string;
   account_type?: string; // "BUSINESS" | "MEDIA_CREATOR" | "PERSONAL"
 }
@@ -121,7 +123,7 @@ export async function fetchMe(longLivedToken: string): Promise<InstagramAccountI
   const url =
     `${IG_GRAPH_BASE}/me?` +
     new URLSearchParams({
-      fields: "id,username,account_type",
+      fields: "id,user_id,username,account_type",
       access_token: longLivedToken,
     }).toString();
 

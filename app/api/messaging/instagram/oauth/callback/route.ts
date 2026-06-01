@@ -90,11 +90,15 @@ export async function GET(req: NextRequest) {
     const expiresAt = new Date(Date.now() + longLived.expires_in * 1000);
     const tokenEnc = encrypt(longLived.access_token);
 
+    // user_id = реальный Business Account ID (совпадает с entry.id в webhook)
+    // id = app-scoped ID (может отличаться)
+    const accountId = me.user_id ?? me.id;
+
     const bot = await db.messagingBot.upsert({
       where: {
         channel_externalAccountId: {
           channel: "instagram",
-          externalAccountId: me.id,
+          externalAccountId: accountId,
         },
       },
       update: {
@@ -107,7 +111,7 @@ export async function GET(req: NextRequest) {
       },
       create: {
         channel: "instagram",
-        externalAccountId: me.id,
+        externalAccountId: accountId,
         title: me.username,
         tokenEnc,
         tokenExpiresAt: expiresAt,
@@ -119,7 +123,7 @@ export async function GET(req: NextRequest) {
 
     // ── 6. Подписываемся на webhook (best-effort, не критично если упадёт) ─
     try {
-      await subscribeToMessagingWebhook(me.id, longLived.access_token);
+      await subscribeToMessagingWebhook(accountId, longLived.access_token);
     } catch (e) {
       console.warn("[ig-oauth] webhook subscription failed:", e);
       // Не редиректим в ошибку — пользователь сможет переподключить позже.
