@@ -11,6 +11,51 @@
 
 import type { PaymentProvider } from "./types";
 
+/**
+ * Имена провайдеров, поддерживаемых в фабрике. Используется и getProvider()
+ * (берёт дефолт из env), и getProviderByName() (явное имя, нужно для
+ * мультиметодной оплаты — одна страница оплаты, CP + ОТП на выбор).
+ */
+export type ProviderName = "mock" | "cloudpayments" | "otp";
+
+const _providerByName = new Map<ProviderName, PaymentProvider>();
+
+function instantiate(name: ProviderName): PaymentProvider {
+  switch (name) {
+    case "mock": {
+      const { MockPaymentProvider } = require("./mock-provider");
+      return new MockPaymentProvider();
+    }
+    case "cloudpayments": {
+      const { CloudPaymentsProvider } = require("./cloudpayments/provider");
+      return new CloudPaymentsProvider();
+    }
+    case "otp": {
+      const { OtpPaymentProvider } = require("./otp/provider");
+      return new OtpPaymentProvider();
+    }
+    default: {
+      const exhaustive: never = name;
+      throw new Error(`Unknown payment provider: "${exhaustive}"`);
+    }
+  }
+}
+
+/**
+ * Получить конкретного провайдера по имени. Кешируется per-name.
+ * Mock запрещён в проде (защита от случайной активации заказов).
+ */
+export function getProviderByName(name: ProviderName): PaymentProvider {
+  if (process.env.NODE_ENV === "production" && name === "mock") {
+    throw new Error("Mock payment provider is forbidden in production");
+  }
+  const cached = _providerByName.get(name);
+  if (cached) return cached;
+  const fresh = instantiate(name);
+  _providerByName.set(name, fresh);
+  return fresh;
+}
+
 let _provider: PaymentProvider | null = null;
 
 export function getProvider(): PaymentProvider {
@@ -43,11 +88,11 @@ export function getProvider(): PaymentProvider {
       _provider = new CloudPaymentsProvider();
       break;
     }
-    // case "yookassa": {
-    //   const { YooKassaProvider } = require("./yookassa");
-    //   _provider = new YooKassaProvider();
-    //   break;
-    // }
+    case "otp": {
+      const { OtpPaymentProvider } = require("./otp/provider");
+      _provider = new OtpPaymentProvider();
+      break;
+    }
     default:
       throw new Error(`Unknown payment provider: "${name}"`);
   }
