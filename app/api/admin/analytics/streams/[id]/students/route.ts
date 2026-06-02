@@ -6,13 +6,13 @@ import { UserRole } from "@prisma/client";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   return withAuth(
     request,
     async () => {
       try {
-        const { id: groupId } = params;
+        const { id: groupId } = await params;
 
         const group = await db.group.findUnique({
           where: { id: groupId },
