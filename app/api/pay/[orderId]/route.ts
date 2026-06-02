@@ -50,6 +50,10 @@ export async function GET(
   }
 
   const orderAny = order as any;
+  // ОТП доступен, если на сервере задан OTP_SHOP_CODE. Фронт по этому флагу
+  // показывает кнопку «В кредит/рассрочку (ОТП Банк)» рядом с основной.
+  const otpEnabled = !!process.env.OTP_SHOP_CODE;
+
   return NextResponse.json({
     success: true,
     data: {
@@ -61,6 +65,7 @@ export async function GET(
       offerTitle: orderAny.snapshotOfferTitle ?? orderAny.offer?.title ?? "",
       offerDescription: orderAny.offer?.description ?? null,
       customerName: orderAny.user?.fullName ?? null,
+      otpEnabled,
     },
   });
 }

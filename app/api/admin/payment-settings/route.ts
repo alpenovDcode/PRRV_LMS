@@ -36,7 +36,8 @@ const patchSchema = z.object({
 
 /**
  * GET /api/admin/payment-settings
- * Возвращает текущие настройки (создаёт дефолтную запись если её нет).
+ * Возвращает текущие настройки (создаёт дефолтную запись если её нет)
+ * + публичную информацию о подключении ОТП Банка (из env, без секретов).
  */
 export async function GET(req: NextRequest) {
   return withAuth(
@@ -46,7 +47,33 @@ export async function GET(req: NextRequest) {
       if (!row) {
         row = await db.paymentSettings.create({ data: { id: "default" } });
       }
-      return NextResponse.json({ success: true, data: row });
+      // Конфиг ОТП хранится в env (секреты shopCode/login/password не лежат
+      // в БД, чтобы случайно не попасть в дампы / audit log). Отдаём только
+      // публичные поля: маскированный shopCode, категория, статус REST API,
+      // whitelist IP и наш webhook URL для копирования куратору.
+      const otpShop = process.env.OTP_SHOP_CODE || "";
+      const otpLogin = !!process.env.OTP_LOGIN;
+      const otpPassword = !!process.env.OTP_PASSWORD;
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://prrv.tech";
+
+      const otp = {
+        enabled: !!otpShop,
+        shopCodeMasked: otpShop
+          ? otpShop.length > 4
+            ? `${"•".repeat(Math.max(0, otpShop.length - 4))}${otpShop.slice(-4)}`
+            : otpShop
+          : null,
+        category: process.env.OTP_CATEGORY || "RGB_GOODS_CATEGORY_138",
+        creditType: process.env.OTP_CREDIT_TYPE || "2",
+        restConfigured: otpLogin && otpPassword,
+        webhookIps: (process.env.OTP_WEBHOOK_IPS || "")
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean),
+        webhookUrl: `${appUrl}/api/payments/webhook/otp`,
+      };
+
+      return NextResponse.json({ success: true, data: row, otp });
     },
     { roles: [UserRole.admin] }
   );
