@@ -33,11 +33,13 @@ export async function GET(request: NextRequest) {
           db.course.count({ where: { isPublished: true } }),
           db.enrollment.count({ where: { status: "active" } }),
           db.homeworkSubmission.count({ where: { status: "pending" } }),
-          // Active students = distinct students with any lesson progress updated in last 7 days
-          db.lessonProgress.findMany({
-            where: { lastUpdated: { gte: sevenDaysAgo } },
-            select: { userId: true },
-            distinct: ["userId"],
+          // Active students = enrolled students with lesson progress updated in last 7 days
+          db.lessonProgress.groupBy({
+            by: ["userId"],
+            where: {
+              lastUpdated: { gte: sevenDaysAgo },
+              user: { enrollments: { some: { status: "active" } } },
+            },
           }),
         ]);
 

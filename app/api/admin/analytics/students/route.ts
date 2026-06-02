@@ -119,45 +119,51 @@ export async function GET(request: NextRequest) {
           const courseId = primaryGroupMember?.group.courseId;
 
           const totalLessons = courseId ? (courseTotalLessons[courseId] || 0) : 0;
-          
+
+          // Build course lesson set upfront — used for progress, HW, and lastActivityAt scoping
+          const courseLessonIds = new Set<string>();
+          if (courseId) {
+            const course = courses.find((c: any) => c.id === courseId);
+            course?.modules.forEach((m: any) => m.lessons.forEach((l: any) => courseLessonIds.add(l.id)));
+          }
+
           let completedLessons = 0;
           let submittedHomework = 0;
           let approvedHomework = 0;
 
-          if (courseId) {
-            const course = courses.find((c: any) => c.id === courseId);
-            const courseLessonIds = new Set<string>();
-            course?.modules.forEach((m: any) => m.lessons.forEach((l: any) => courseLessonIds.add(l.id)));
+          if (courseId && courseLessonIds.size > 0) {
+            completedLessons = new Set(
+              student.progress
+                .filter((p: any) => courseLessonIds.has(p.lessonId) && p.status === 'completed')
+                .map((p: any) => p.lessonId)
+            ).size;
 
-            completedLessons = student.progress.filter((p: any) => 
-              courseLessonIds.has(p.lessonId) && p.status === 'completed'
+            submittedHomework = student.homework.filter((h: any) =>
+              h.lessonId && courseLessonIds.has(h.lessonId)
             ).length;
 
-            submittedHomework = student.homework.filter((h: any) => 
-              courseLessonIds.has(h.lessonId)
-            ).length;
-
-            approvedHomework = student.homework.filter((h: any) => 
-              courseLessonIds.has(h.lessonId) && h.status === 'approved'
+            approvedHomework = student.homework.filter((h: any) =>
+              h.lessonId && courseLessonIds.has(h.lessonId) && h.status === 'approved'
             ).length;
           } else {
-            // Fallback if no course assigned (just count all)
             completedLessons = student.progress.filter((p: any) => p.status === 'completed').length;
             submittedHomework = student.homework.length;
             approvedHomework = student.homework.filter((h: any) => h.status === 'approved').length;
           }
 
           const lessonProgressPercent = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
-          
-          // Calculate student's average rating given
+
           const ratedLessons = student.progress.filter((p: any) => p.rating && p.rating > 0);
           const avgRating = ratedLessons.length > 0
             ? (ratedLessons.reduce((acc: number, curr: any) => acc + curr.rating, 0) / ratedLessons.length).toFixed(1)
             : '-';
 
-          // Last activity = most recent lastUpdated across all lesson progress
+          // lastActivityAt scoped to student's course lessons only — prevents cross-course contamination
           let lastActivityAt: Date | null = null;
-          for (const p of student.progress) {
+          const progressToTrack = courseLessonIds.size > 0
+            ? student.progress.filter((p: any) => courseLessonIds.has(p.lessonId))
+            : student.progress;
+          for (const p of progressToTrack) {
             const d = new Date(p.lastUpdated);
             if (!lastActivityAt || d > lastActivityAt) lastActivityAt = d;
           }

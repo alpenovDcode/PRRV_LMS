@@ -85,11 +85,11 @@ export async function GET(request: NextRequest) {
           const totalLessonsInCourse = courseLessonIds.size;
           const totalVideoLessonsInCourse = videoLessonIds.size;
 
-          // === 1. Activity: % of students active in last N days ===
+          // === 1. Activity: % of students active in last N days (only on THIS course's lessons) ===
           let activeCount = 0;
           for (const { user } of members) {
             const wasActive = user.progress.some(
-              (p) => new Date(p.lastUpdated) > activeThreshold
+              (p) => courseLessonIds.has(p.lessonId) && new Date(p.lastUpdated) > activeThreshold
             );
             if (wasActive) activeCount++;
           }
@@ -131,14 +131,18 @@ export async function GET(request: NextRequest) {
               : { notStarted: 0, partial: 0, completed: 0 };
 
           // === 3. Homework stats ===
+          // submittedCount = pending + approved only (rejected = student must resubmit, don't count)
           let totalSubmissions = 0;
+          let pendingCount = 0;
           let approvedCount = 0;
           for (const { user } of members) {
             const courseHw = group.course
               ? user.homework.filter((h) => h.lessonId && courseLessonIds.has(h.lessonId))
               : user.homework;
-            totalSubmissions += courseHw.length;
-            approvedCount += courseHw.filter((h) => h.status === "approved").length;
+            const activeHw = courseHw.filter((h) => h.status !== "rejected");
+            totalSubmissions += activeHw.length;
+            pendingCount += activeHw.filter((h) => h.status === "pending").length;
+            approvedCount += activeHw.filter((h) => h.status === "approved").length;
           }
           const approvedPercent =
             totalSubmissions > 0
@@ -149,9 +153,12 @@ export async function GET(request: NextRequest) {
           let sumProgress = 0;
           for (const { user } of members) {
             if (totalLessonsInCourse === 0) continue;
-            const completedCount = user.progress.filter(
-              (p) => courseLessonIds.has(p.lessonId) && p.status === "completed"
-            ).length;
+            // Deduplicate by lessonId so retaken lessons don't inflate the count
+            const completedCount = new Set(
+              user.progress
+                .filter((p) => courseLessonIds.has(p.lessonId) && p.status === "completed")
+                .map((p) => p.lessonId)
+            ).size;
             sumProgress += completedCount / totalLessonsInCourse;
           }
           const avgCourseProgressPercent =
@@ -168,6 +175,7 @@ export async function GET(request: NextRequest) {
             videoStats,
             hwStats: {
               submittedCount: totalSubmissions,
+              pendingCount,
               approvedCount,
               approvedPercent,
             },

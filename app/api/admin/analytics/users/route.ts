@@ -3,7 +3,7 @@ import { withAuth } from "@/lib/api-middleware";
 import { db } from "@/lib/db";
 import { ApiResponse } from "@/types";
 import { UserRole } from "@prisma/client";
-import { subDays, format, startOfDay, subMonths } from "date-fns";
+import { subDays, addDays, format, startOfDay, subMonths } from "date-fns";
 
 export async function GET(request: NextRequest) {
   return withAuth(
@@ -32,21 +32,23 @@ export async function GET(request: NextRequest) {
           },
         });
 
-        // Group by date
+        // Pre-fill all dates in range with 0 so chart has no gaps
         const groupedData: Record<string, number> = {};
-        
-        // Initialize all dates in range with 0 to have a continuous line
-        // (Simplified: just grouping existing data for now, frontend can handle gaps or we can improve later)
-        
+        let cursor = startOfDay(startDate);
+        const today = startOfDay(new Date());
+        while (cursor <= today) {
+          groupedData[format(cursor, "yyyy-MM-dd")] = 0;
+          cursor = addDays(cursor, 1);
+        }
+
         users.forEach((user) => {
           const date = format(user.createdAt, "yyyy-MM-dd");
-          groupedData[date] = (groupedData[date] || 0) + 1;
+          if (date in groupedData) groupedData[date]++;
         });
 
-        const chartData = Object.entries(groupedData).map(([date, count]) => ({
-          date,
-          count,
-        }));
+        const chartData = Object.entries(groupedData)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([date, count]) => ({ date, count }));
 
         return NextResponse.json<ApiResponse>({ success: true, data: chartData }, { status: 200 });
       } catch (error) {

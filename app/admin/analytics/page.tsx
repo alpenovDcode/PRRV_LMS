@@ -10,14 +10,18 @@ import { GroupLessonViewsChart } from "@/components/admin/analytics/group-lesson
 import { StudentsTable } from "@/components/admin/analytics/students-table";
 import { StreamDetail, StreamData } from "@/components/admin/analytics/stream-detail";
 import { SurveyAnalytics } from "@/components/admin/analytics/survey-analytics";
+import { AtRiskAlert } from "@/components/admin/analytics/at-risk-alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { Input } from "@/components/ui/input";
 
 export default function AnalyticsPage() {
   const [range, setRange] = useState("30d");
+  const [activeTab, setActiveTab] = useState("overview");
   const [activeStream, setActiveStream] = useState<string | null>(null);
+  const [streamSearch, setStreamSearch] = useState("");
 
   const { data: overview, isLoading: isLoadingOverview } = useQuery({
     queryKey: ["admin", "analytics", "overview"],
@@ -51,14 +55,6 @@ export default function AnalyticsPage() {
     },
   });
 
-  const { data: groupsData, isLoading: isLoadingGroups } = useQuery({
-    queryKey: ["admin", "analytics", "groups"],
-    queryFn: async () => {
-      const response = await apiClient.get("/admin/analytics/groups");
-      return response.data.data;
-    },
-  });
-
   const { data: streamsData, isLoading: isLoadingStreams } = useQuery({
     queryKey: ["admin", "analytics", "streams"],
     queryFn: async () => {
@@ -77,7 +73,12 @@ export default function AnalyticsPage() {
 
   const streams: StreamData[] = streamsData ?? [];
   const selectedStreamId = activeStream ?? streams[0]?.id ?? null;
-  const selectedStream = streams.find((s) => s.id === selectedStreamId) ?? null;
+
+  const filteredStreams = useMemo(() => {
+    if (!streamSearch.trim()) return streams;
+    const q = streamSearch.toLowerCase();
+    return streams.filter((s) => s.name.toLowerCase().includes(q) || s.courseTitle?.toLowerCase().includes(q));
+  }, [streams, streamSearch]);
 
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
@@ -98,18 +99,25 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="w-full justify-start overflow-x-auto flex-wrap gap-y-1">
           <TabsTrigger value="overview">Обзор</TabsTrigger>
           <TabsTrigger value="courses">Курсы</TabsTrigger>
-          <TabsTrigger value="groups">Группы и ДЗ</TabsTrigger>
           <TabsTrigger value="streams">Потоки</TabsTrigger>
           <TabsTrigger value="surveys">Опросы / NPS</TabsTrigger>
-          <TabsTrigger value="students">Продуктовая аналитика</TabsTrigger>
+          <TabsTrigger value="students">Студенты</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
           <OverviewCards data={overview} isLoading={isLoadingOverview} />
+          <AtRiskAlert
+            streams={streamsData}
+            isLoading={isLoadingStreams}
+            onNavigateToStream={(id) => {
+              setActiveStream(id);
+              setActiveTab("streams");
+            }}
+          />
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
             <UserGrowthChart data={userGrowth} isLoading={isLoadingUserGrowth} />
             <CoursePerformance data={courses} isLoading={isLoadingCourses} />
@@ -124,12 +132,7 @@ export default function AnalyticsPage() {
           <CoursePerformance data={courses} isLoading={isLoadingCourses} />
         </TabsContent>
 
-        <TabsContent value="groups" className="space-y-4">
-          <GroupLessonViewsChart data={streamsData} isLoading={isLoadingStreams} />
-          <HomeworkProgressChart data={homeworkData} isLoading={isLoadingHomework} />
-        </TabsContent>
-
-        {/* ===== НОВАЯ ВКЛАДКА: ПОТОКИ ===== */}
+        {/* ===== ВКЛАДКА: ПОТОКИ ===== */}
         <TabsContent value="streams" className="space-y-4">
           {isLoadingStreams ? (
             <div className="space-y-3">
@@ -139,25 +142,45 @@ export default function AnalyticsPage() {
           ) : streams.length === 0 ? (
             <p className="text-muted-foreground py-8 text-center">Потоки не найдены</p>
           ) : (
-            <Tabs
-              value={selectedStreamId ?? undefined}
-              onValueChange={(v) => setActiveStream(v)}
-              className="space-y-4"
-            >
-              <TabsList className="flex-wrap gap-y-1 h-auto overflow-x-auto justify-start">
+            <div className="space-y-4">
+              {streams.length > 6 && (
+                <div className="relative max-w-xs">
+                  <Input
+                    placeholder="Поиск по потоку или курсу..."
+                    value={streamSearch}
+                    onChange={(e) => setStreamSearch(e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                  {streamSearch && (
+                    <span className="absolute right-2.5 top-2 text-xs text-muted-foreground">
+                      {filteredStreams.length} из {streams.length}
+                    </span>
+                  )}
+                </div>
+              )}
+              <Tabs
+                value={selectedStreamId ?? undefined}
+                onValueChange={(v) => { setActiveStream(v); setStreamSearch(""); }}
+                className="space-y-4"
+              >
+                <TabsList className="flex-wrap gap-y-1 h-auto overflow-x-auto justify-start">
+                  {filteredStreams.map((s) => (
+                    <TabsTrigger key={s.id} value={s.id} className="whitespace-nowrap">
+                      {s.name}
+                      <span className="ml-1.5 text-xs opacity-60">({s.memberCount})</span>
+                    </TabsTrigger>
+                  ))}
+                  {filteredStreams.length === 0 && (
+                    <span className="text-sm text-muted-foreground px-3 py-1">Ничего не найдено</span>
+                  )}
+                </TabsList>
                 {streams.map((s) => (
-                  <TabsTrigger key={s.id} value={s.id} className="whitespace-nowrap">
-                    {s.name}
-                    <span className="ml-1.5 text-xs opacity-60">({s.memberCount})</span>
-                  </TabsTrigger>
+                  <TabsContent key={s.id} value={s.id}>
+                    <StreamDetail data={s} />
+                  </TabsContent>
                 ))}
-              </TabsList>
-              {streams.map((s) => (
-                <TabsContent key={s.id} value={s.id}>
-                  <StreamDetail data={s} />
-                </TabsContent>
-              ))}
-            </Tabs>
+              </Tabs>
+            </div>
           )}
         </TabsContent>
 
@@ -180,6 +203,7 @@ export default function AnalyticsPage() {
         <TabsContent value="students" className="space-y-4">
           <StudentsTable />
         </TabsContent>
+
       </Tabs>
     </div>
   );

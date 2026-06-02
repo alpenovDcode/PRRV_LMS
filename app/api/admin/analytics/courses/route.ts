@@ -9,123 +9,137 @@ export async function GET(request: NextRequest) {
     request,
     async () => {
       try {
+        // 1. Fetch all courses with their lesson structure
         const courses = await db.course.findMany({
           select: {
             id: true,
             title: true,
-            _count: {
-              select: {
-                enrollments: true,
-              },
-            },
-            enrollments: {
-              select: {
-                status: true,
-              },
-            },
             modules: {
               select: {
-                lessons: {
-                  select: {
-                    progress: {
-                      select: {
-                        rating: true,
-                      },
-                    },
-                  },
-                },
+                lessons: { select: { id: true } },
               },
             },
           },
         });
 
-        // Get per-student completion data for avg completion % per course
-        const enrolledUsers = await db.enrollment.findMany({
+        // 2. Build course ↔ lesson maps
+        const courseLessonIds: Record<string, string[]> = {};
+        const lessonCourseMap: Record<string, string> = {};
+        for (const course of courses) {
+          courseLessonIds[course.id] = [];
+          for (const mod of course.modules) {
+            for (const lesson of mod.lessons) {
+              courseLessonIds[course.id].push(lesson.id);
+              lessonCourseMap[lesson.id] = course.id;
+            }
+          }
+        }
+        const allLessonIds = Object.keys(lessonCourseMap);
+
+        // 3. Fetch all active enrollments in one query
+        const enrollments = await db.enrollment.findMany({
           where: { status: "active" },
-          select: {
-            userId: true,
-            courseId: true,
-          },
+          select: { userId: true, courseId: true },
         });
 
-        // Group enrolled users by course
-        const usersByCourse: Record<string, string[]> = {};
-        for (const e of enrolledUsers) {
-          if (!usersByCourse[e.courseId]) usersByCourse[e.courseId] = [];
-          usersByCourse[e.courseId].push(e.userId);
+        const enrolledUsersByCourse: Record<string, Set<string>> = {};
+        for (const e of enrollments) {
+          if (!enrolledUsersByCourse[e.courseId]) enrolledUsersByCourse[e.courseId] = new Set();
+          enrolledUsersByCourse[e.courseId].add(e.userId);
+        }
+        const allEnrolledUserIds = [...new Set(enrollments.map((e) => e.userId))];
+
+        if (allLessonIds.length === 0 || allEnrolledUserIds.length === 0) {
+          const data = courses.map((c) => ({
+            id: c.id,
+            title: c.title,
+            totalEnrollments: enrolledUsersByCourse[c.id]?.size ?? 0,
+            activeEnrollments: enrolledUsersByCourse[c.id]?.size ?? 0,
+            totalLessons: courseLessonIds[c.id].length,
+            avgLessonRating: 0,
+            avgCompletionPercent: 0,
+          }));
+          return NextResponse.json<ApiResponse>({ success: true, data }, { status: 200 });
         }
 
-        const data = await Promise.all(
-          courses.map(async (course: any) => {
-            const totalEnrollments = course._count.enrollments;
-            const activeEnrollments = course.enrollments.filter((e: any) => e.status === "active").length;
+        // 4. Fetch ALL completed progress in ONE query, deduplicated by (userId, lessonId)
+        const completedProgress = await db.lessonProgress.findMany({
+          where: {
+            userId: { in: allEnrolledUserIds },
+            lessonId: { in: allLessonIds },
+            status: "completed",
+          },
+          select: { userId: true, lessonId: true },
+          distinct: ["userId", "lessonId"],
+        });
 
-            // Collect all lesson IDs in this course
-            const lessonIds: string[] = [];
-            course.modules.forEach((m: any) => m.lessons.forEach((l: any) => lessonIds.push(l.id)));
-            const totalLessons = lessonIds.length;
-            const lessonIdSet = new Set(lessonIds);
+        // Group: courseId → userId → Set<lessonId>
+        const completedByCourseUser: Record<string, Record<string, Set<string>>> = {};
+        for (const p of completedProgress) {
+          const courseId = lessonCourseMap[p.lessonId];
+          if (!courseId) continue;
+          if (!completedByCourseUser[courseId]) completedByCourseUser[courseId] = {};
+          if (!completedByCourseUser[courseId][p.userId]) completedByCourseUser[courseId][p.userId] = new Set();
+          completedByCourseUser[courseId][p.userId].add(p.lessonId);
+        }
 
-            // Average lesson satisfaction rating (rename to clarify: students rate lessons)
-            let totalRating = 0;
-            let ratingCount = 0;
-            course.modules.forEach((m: any) =>
-              m.lessons.forEach((l: any) =>
-                l.progress.forEach((p: any) => {
-                  if (p.rating) { totalRating += p.rating; ratingCount++; }
-                })
-              )
-            );
-            const avgLessonRating = ratingCount > 0 ? Number((totalRating / ratingCount).toFixed(1)) : 0;
+        // 5. Fetch all ratings in ONE query — only from enrolled users
+        const ratingRecords = await db.lessonProgress.findMany({
+          where: {
+            userId: { in: allEnrolledUserIds },
+            lessonId: { in: allLessonIds },
+            rating: { not: null, gt: 0 },
+          },
+          select: { userId: true, lessonId: true, rating: true },
+        });
 
-            // Average completion % across active enrollments
-            let avgCompletionPercent = 0;
-            const enrolledUserIds = usersByCourse[course.id] ?? [];
-            if (enrolledUserIds.length > 0 && totalLessons > 0) {
-              const progresses = await db.lessonProgress.findMany({
-                where: {
-                  userId: { in: enrolledUserIds },
-                  lessonId: { in: lessonIds },
-                  status: "completed",
-                },
-                select: { userId: true },
-              });
+        const ratingsByCourse: Record<string, number[]> = {};
+        for (const p of ratingRecords) {
+          const courseId = lessonCourseMap[p.lessonId];
+          if (!courseId) continue;
+          // Only include ratings from users actually enrolled in this course
+          if (!enrolledUsersByCourse[courseId]?.has(p.userId)) continue;
+          if (!ratingsByCourse[courseId]) ratingsByCourse[courseId] = [];
+          ratingsByCourse[courseId].push(p.rating!);
+        }
 
-              // Count completed lessons per user
-              const completedPerUser: Record<string, number> = {};
-              for (const p of progresses) {
-                completedPerUser[p.userId] = (completedPerUser[p.userId] ?? 0) + 1;
-              }
-              const sumPercents = enrolledUserIds.reduce(
-                (acc, uid) => acc + ((completedPerUser[uid] ?? 0) / totalLessons),
-                0
-              );
-              avgCompletionPercent = Math.round((sumPercents / enrolledUserIds.length) * 100);
+        // 6. Assemble response
+        const data = courses.map((course) => {
+          const enrolledUsers = enrolledUsersByCourse[course.id] ?? new Set<string>();
+          const totalLessons = courseLessonIds[course.id].length;
+
+          let avgCompletionPercent = 0;
+          if (enrolledUsers.size > 0 && totalLessons > 0) {
+            let totalPct = 0;
+            for (const userId of enrolledUsers) {
+              const completedCount = completedByCourseUser[course.id]?.[userId]?.size ?? 0;
+              totalPct += completedCount / totalLessons;
             }
+            avgCompletionPercent = Math.round((totalPct / enrolledUsers.size) * 100);
+          }
 
-            return {
-              id: course.id,
-              title: course.title,
-              totalEnrollments,
-              activeEnrollments,
-              totalLessons,
-              avgLessonRating,
-              avgCompletionPercent,
-            };
-          })
-        );
+          const courseRatings = ratingsByCourse[course.id] ?? [];
+          const avgLessonRating =
+            courseRatings.length > 0
+              ? Number((courseRatings.reduce((a, b) => a + b, 0) / courseRatings.length).toFixed(1))
+              : 0;
+
+          return {
+            id: course.id,
+            title: course.title,
+            totalEnrollments: enrolledUsers.size,
+            activeEnrollments: enrolledUsers.size,
+            totalLessons,
+            avgLessonRating,
+            avgCompletionPercent,
+          };
+        });
 
         return NextResponse.json<ApiResponse>({ success: true, data }, { status: 200 });
       } catch (error) {
         console.error("Analytics courses error:", error);
         return NextResponse.json<ApiResponse>(
-          {
-            success: false,
-            error: {
-              code: "INTERNAL_ERROR",
-              message: "Не удалось получить данные о курсах",
-            },
-          },
+          { success: false, error: { code: "INTERNAL_ERROR", message: "Не удалось получить данные о курсах" } },
           { status: 500 }
         );
       }

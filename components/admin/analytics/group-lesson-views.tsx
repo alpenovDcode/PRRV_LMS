@@ -7,7 +7,8 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users } from "lucide-react";
+import { Users, HelpCircle } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { StreamData } from "@/components/admin/analytics/stream-detail";
 
 interface GroupLessonViewsTableProps {
@@ -89,7 +90,19 @@ export function GroupLessonViewsChart({ data: streams, isLoading }: GroupLessonV
                 <TableHead className="text-right">Активность (7д)</TableHead>
                 <TableHead className="text-right">ДЗ одобрено</TableHead>
                 <TableHead className="text-right">Прогресс курса</TableHead>
-                <TableHead className="text-right">Видео просм.</TableHead>
+                <TableHead className="text-right">
+                  <div className="flex items-center justify-end gap-1">
+                    Видео просм.
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger><HelpCircle className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
+                        <TooltipContent className="max-w-[220px] text-xs">
+                          % от пар «студент × видеоурок». Например, 40% = в среднем 4 из 10 видео просмотрено на студента.
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -111,11 +124,18 @@ export function GroupLessonViewsChart({ data: streams, isLoading }: GroupLessonV
                     </TableCell>
                     <TableCell><PctCell value={g.activePercent} /></TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2 justify-end">
-                        <span className="text-xs text-muted-foreground tabular-nums">
-                          {g.hwStats.approvedCount}/{g.hwStats.submittedCount}
-                        </span>
-                        <PctCell value={g.hwStats.approvedPercent} />
+                      <div className="flex flex-col items-end gap-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground tabular-nums">
+                            {g.hwStats.approvedCount}/{g.hwStats.submittedCount}
+                          </span>
+                          <PctCell value={g.hwStats.approvedPercent} />
+                        </div>
+                        {g.hwStats.pendingCount > 0 && (
+                          <span className="text-xs text-orange-500 tabular-nums">
+                            {g.hwStats.pendingCount} ожидают
+                          </span>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell><PctCell value={g.avgCourseProgressPercent} /></TableCell>

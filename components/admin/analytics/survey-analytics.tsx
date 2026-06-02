@@ -39,18 +39,34 @@ interface CertGroupResult extends GroupNPS {
   };
 }
 
+interface NpsHistoryPoint {
+  month: string;
+  nps: number | null;
+  total: number;
+}
+
+interface AvgScoreHistoryPoint {
+  month: string;
+  avgScore: number | null;
+  total: number;
+}
+
 interface SurveyLesson {
   lessonId: string;
   lessonTitle: string;
+  courseTitle?: string;
   totalResponses: number;
   groups: SurveyResult[];
+  history?: NpsHistoryPoint[];
 }
 
 interface CertLesson {
   lessonId: string;
   lessonTitle: string;
+  courseTitle?: string;
   totalResponses: number;
   groups: CertGroupResult[];
+  history?: NpsHistoryPoint[];
 }
 
 interface FreeformGroupResult {
@@ -65,18 +81,86 @@ interface FreeformGroupResult {
   total: number;
 }
 
-interface FreeformLesson {
+export interface FreeformLesson {
   lessonId: string;
   lessonTitle: string;
+  courseTitle?: string;
   totalResponses: number;
   parsedResponses: number;
   groups: FreeformGroupResult[];
+  history?: AvgScoreHistoryPoint[];
 }
 
 interface SurveyAnalyticsProps {
   freeformSurveys: FreeformLesson[];
   intermediateSurveys: SurveyLesson[];
   certificationForms: CertLesson[];
+}
+
+function formatMonth(ym: string): string {
+  const [year, month] = ym.split("-");
+  const months = ["Янв","Фев","Мар","Апр","Май","Июн","Июл","Авг","Сен","Окт","Ноя","Дек"];
+  return `${months[parseInt(month, 10) - 1]} ${year}`;
+}
+
+function NpsHistory({ history }: { history: NpsHistoryPoint[] }) {
+  if (history.length < 2) return null;
+  const last5 = history.slice(-5);
+  return (
+    <div className="mt-4 border-t pt-3">
+      <p className="text-xs font-medium text-muted-foreground mb-2">Динамика NPS по месяцам</p>
+      <div className="flex gap-2 flex-wrap">
+        {last5.map((h, i) => {
+          const prev = i > 0 ? last5[i - 1].nps : null;
+          const trend = prev !== null && h.nps !== null
+            ? h.nps > prev ? "↑" : h.nps < prev ? "↓" : "→"
+            : "";
+          const color = h.nps === null ? "text-muted-foreground"
+            : h.nps >= 50 ? "text-green-600" : h.nps >= 0 ? "text-yellow-600" : "text-red-600";
+          return (
+            <div key={h.month} className="rounded border px-2.5 py-1.5 text-center min-w-[70px]">
+              <div className="text-xs text-muted-foreground">{formatMonth(h.month)}</div>
+              <div className={`text-sm font-bold ${color}`}>
+                {h.nps !== null ? `${h.nps > 0 ? "+" : ""}${h.nps}%` : "—"}
+                {trend && <span className="ml-0.5 text-xs">{trend}</span>}
+              </div>
+              <div className="text-xs text-muted-foreground">{h.total} отв.</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function AvgScoreHistory({ history }: { history: AvgScoreHistoryPoint[] }) {
+  if (history.length < 2) return null;
+  const last5 = history.slice(-5);
+  return (
+    <div className="mt-4 border-t pt-3">
+      <p className="text-xs font-medium text-muted-foreground mb-2">Динамика средней оценки по месяцам</p>
+      <div className="flex gap-2 flex-wrap">
+        {last5.map((h, i) => {
+          const prev = i > 0 ? last5[i - 1].avgScore : null;
+          const trend = prev !== null && h.avgScore !== null
+            ? h.avgScore > prev ? "↑" : h.avgScore < prev ? "↓" : "→"
+            : "";
+          const color = h.avgScore === null ? "text-muted-foreground"
+            : h.avgScore >= 8 ? "text-green-600" : h.avgScore >= 6 ? "text-yellow-600" : "text-red-600";
+          return (
+            <div key={h.month} className="rounded border px-2.5 py-1.5 text-center min-w-[70px]">
+              <div className="text-xs text-muted-foreground">{formatMonth(h.month)}</div>
+              <div className={`text-sm font-bold ${color}`}>
+                {h.avgScore !== null ? h.avgScore : "—"}
+                {trend && <span className="ml-0.5 text-xs">{trend}</span>}
+              </div>
+              <div className="text-xs text-muted-foreground">{h.total} отв.</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 function npsColor(nps: number | null) {
@@ -94,79 +178,110 @@ function npsBadgeVariant(nps: number | null): "default" | "secondary" | "destruc
 
 function ScoreCell({ value }: { value: number | null }) {
   if (value === null) return <span className="text-muted-foreground text-sm">—</span>;
-  const color =
-    value >= 8 ? "text-green-600" : value >= 6 ? "text-yellow-600" : "text-red-600";
+  const color = value >= 8 ? "text-green-600" : value >= 6 ? "text-yellow-600" : "text-red-600";
   return <span className={`font-semibold ${color}`}>{value}</span>;
 }
 
-function NPSTable({ groups }: { groups: GroupNPS[] }) {
-  if (groups.length === 0) {
-    return <p className="text-sm text-muted-foreground py-4">Нет данных по потокам</p>;
-  }
+function LessonHeader({ title, courseTitle, totalResponses, parsedResponses }: {
+  title: string;
+  courseTitle?: string;
+  totalResponses: number;
+  parsedResponses?: number;
+}) {
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Поток</TableHead>
-          <TableHead className="text-center">Ответов</TableHead>
-          <TableHead className="text-center">За (9-10)</TableHead>
-          <TableHead className="text-center">Нейтр (7-8)</TableHead>
-          <TableHead className="text-center">Против (0-6)</TableHead>
-          <TableHead className="text-center">NPS</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {groups.map((g) => (
-          <TableRow key={g.groupId}>
-            <TableCell className="font-medium">{g.groupName}</TableCell>
-            <TableCell className="text-center">{g.responseCount}</TableCell>
-            <TableCell className="text-center text-green-600 font-medium">{g.promoters}</TableCell>
-            <TableCell className="text-center text-yellow-600 font-medium">{g.neutrals}</TableCell>
-            <TableCell className="text-center text-red-600 font-medium">{g.detractors}</TableCell>
-            <TableCell className="text-center">
-              <Badge variant={npsBadgeVariant(g.nps)} className={npsColor(g.nps)}>
-                {g.nps !== null ? `${g.nps > 0 ? "+" : ""}${g.nps}%` : "—"}
-              </Badge>
-            </TableCell>
+    <div className="flex items-start justify-between gap-2 flex-wrap">
+      <div>
+        <CardTitle className="text-base">{title}</CardTitle>
+        {courseTitle && (
+          <p className="text-xs text-muted-foreground mt-0.5">{courseTitle}</p>
+        )}
+      </div>
+      <div className="flex gap-2 shrink-0">
+        <Badge variant="secondary">{totalResponses} ответов</Badge>
+        {parsedResponses !== undefined && parsedResponses !== totalResponses && (
+          <Badge variant="outline" className="text-yellow-600 border-yellow-300">
+            {parsedResponses} с оценкой
+          </Badge>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function NPSTable({ groups }: { groups: GroupNPS[] }) {
+  const withResponses = groups.filter((g) => g.responseCount > 0);
+  const withoutResponses = groups.filter((g) => g.responseCount === 0);
+
+  if (groups.length === 0) {
+    return <p className="text-sm text-muted-foreground py-4">Нет данных</p>;
+  }
+
+  return (
+    <div>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Поток</TableHead>
+            <TableHead className="text-center">Ответов</TableHead>
+            <TableHead className="text-center">За (9-10)</TableHead>
+            <TableHead className="text-center">Нейтр (7-8)</TableHead>
+            <TableHead className="text-center">Против (0-6)</TableHead>
+            <TableHead className="text-center">NPS</TableHead>
           </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+        </TableHeader>
+        <TableBody>
+          {withResponses.map((g) => (
+            <TableRow key={g.groupId}>
+              <TableCell className="font-medium">{g.groupName}</TableCell>
+              <TableCell className="text-center">{g.responseCount}</TableCell>
+              <TableCell className="text-center text-green-600 font-medium">{g.promoters}</TableCell>
+              <TableCell className="text-center text-yellow-600 font-medium">{g.neutrals}</TableCell>
+              <TableCell className="text-center text-red-600 font-medium">{g.detractors}</TableCell>
+              <TableCell className="text-center">
+                <Badge variant={npsBadgeVariant(g.nps)} className={npsColor(g.nps)}>
+                  {g.nps !== null ? `${g.nps > 0 ? "+" : ""}${g.nps}%` : "—"}
+                </Badge>
+              </TableCell>
+            </TableRow>
+          ))}
+          {withoutResponses.length > 0 && (
+            <TableRow>
+              <TableCell colSpan={6} className="text-xs text-muted-foreground py-2 border-t border-dashed">
+                Не ответили ({withoutResponses.length}):{" "}
+                {withoutResponses.map((g) => g.groupName).join(" · ")}
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+    </div>
   );
 }
 
 function IntermediateSurveyCard({ lesson }: { lesson: SurveyLesson }) {
-  // Collect all unique scale question names
   const allQuestions = new Set<string>();
-  lesson.groups.forEach((g) => {
-    Object.keys(g.avgScores ?? {}).forEach((q) => allQuestions.add(q));
-  });
+  lesson.groups.forEach((g) => Object.keys(g.avgScores ?? {}).forEach((q) => allQuestions.add(q)));
   const questionList = Array.from(allQuestions);
+  const groupsWithData = lesson.groups.filter((g) => g.responseCount > 0);
 
   return (
     <Card>
       <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
-          <CardTitle className="text-base">{lesson.lessonTitle}</CardTitle>
-          <Badge variant="secondary" className="shrink-0 ml-2">
-            {lesson.totalResponses} ответов
-          </Badge>
-        </div>
+        <LessonHeader title={lesson.lessonTitle} courseTitle={lesson.courseTitle} totalResponses={lesson.totalResponses} />
       </CardHeader>
       <CardContent className="space-y-4">
         <NPSTable groups={lesson.groups} />
+        {lesson.history && lesson.history.length >= 2 && <NpsHistory history={lesson.history} />}
 
-        {questionList.length > 0 && (
+        {questionList.length > 0 && groupsWithData.length > 0 && (
           <div className="mt-4">
-            <p className="text-sm font-medium mb-2 text-muted-foreground">
-              Средние оценки по вопросам:
-            </p>
+            <p className="text-sm font-medium mb-2 text-muted-foreground">Средние оценки по вопросам:</p>
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Вопрос</TableHead>
-                    {lesson.groups.map((g) => (
+                    {groupsWithData.map((g) => (
                       <TableHead key={g.groupId} className="text-center min-w-[120px]">
                         {g.groupName}
                       </TableHead>
@@ -177,7 +292,7 @@ function IntermediateSurveyCard({ lesson }: { lesson: SurveyLesson }) {
                   {questionList.map((q) => (
                     <TableRow key={q}>
                       <TableCell className="text-sm max-w-[300px] break-words">{q}</TableCell>
-                      {lesson.groups.map((g) => (
+                      {groupsWithData.map((g) => (
                         <TableCell key={g.groupId} className="text-center">
                           <ScoreCell value={g.avgScores?.[q] ?? null} />
                         </TableCell>
@@ -195,10 +310,7 @@ function IntermediateSurveyCard({ lesson }: { lesson: SurveyLesson }) {
 }
 
 function CertificationCard({ lesson }: { lesson: CertLesson }) {
-  const satisfactionLabels: Array<{
-    key: keyof CertGroupResult["satisfaction"];
-    label: string;
-  }> = [
+  const satisfactionLabels: Array<{ key: keyof CertGroupResult["satisfaction"]; label: string }> = [
     { key: "mentor", label: "Наставник" },
     { key: "curator", label: "Куратор" },
     { key: "clubEvents", label: "Мероприятия клуба" },
@@ -207,36 +319,29 @@ function CertificationCard({ lesson }: { lesson: CertLesson }) {
     { key: "results", label: "Результаты обучения" },
   ];
 
+  const groupsWithData = lesson.groups.filter((g) => g.responseCount > 0);
+
   return (
     <Card>
       <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Award className="h-4 w-4 text-blue-500" />
-            {lesson.lessonTitle}
-          </CardTitle>
-          <Badge variant="secondary" className="shrink-0 ml-2">
-            {lesson.totalResponses} ответов
-          </Badge>
-        </div>
+        <LessonHeader title={lesson.lessonTitle} courseTitle={lesson.courseTitle} totalResponses={lesson.totalResponses} />
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
           <p className="text-sm font-medium mb-2 text-muted-foreground">NPS сертификации:</p>
           <NPSTable groups={lesson.groups} />
+          {lesson.history && lesson.history.length >= 2 && <NpsHistory history={lesson.history} />}
         </div>
 
-        {lesson.groups.length > 0 && (
+        {groupsWithData.length > 0 && (
           <div>
-            <p className="text-sm font-medium mb-2 text-muted-foreground">
-              Удовлетворённость (средняя оценка по потокам):
-            </p>
+            <p className="text-sm font-medium mb-2 text-muted-foreground">Удовлетворённость (средняя оценка):</p>
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Критерий</TableHead>
-                    {lesson.groups.map((g) => (
+                    {groupsWithData.map((g) => (
                       <TableHead key={g.groupId} className="text-center min-w-[120px]">
                         {g.groupName}
                       </TableHead>
@@ -247,7 +352,7 @@ function CertificationCard({ lesson }: { lesson: CertLesson }) {
                   {satisfactionLabels.map(({ key, label }) => (
                     <TableRow key={key}>
                       <TableCell className="font-medium text-sm">{label}</TableCell>
-                      {lesson.groups.map((g) => (
+                      {groupsWithData.map((g) => (
                         <TableCell key={g.groupId} className="text-center">
                           <ScoreCell value={g.satisfaction[key]} />
                         </TableCell>
@@ -265,24 +370,33 @@ function CertificationCard({ lesson }: { lesson: CertLesson }) {
 }
 
 function FreeformSurveyCard({ lesson }: { lesson: FreeformLesson }) {
+  const withResponses = lesson.groups.filter((g) => g.responseCount > 0);
+  const withoutResponses = lesson.groups.filter((g) => g.responseCount === 0);
+
   return (
     <Card>
       <CardHeader className="pb-3">
-        <div className="flex items-start justify-between flex-wrap gap-2">
-          <CardTitle className="text-base">{lesson.lessonTitle}</CardTitle>
-          <div className="flex gap-2">
-            <Badge variant="secondary">{lesson.totalResponses} сдано</Badge>
-            {lesson.totalResponses !== lesson.parsedResponses && (
-              <Badge variant="outline" className="text-yellow-600 border-yellow-300">
-                {lesson.parsedResponses} с оценкой
-              </Badge>
-            )}
-          </div>
-        </div>
+        <LessonHeader
+          title={lesson.lessonTitle}
+          courseTitle={lesson.courseTitle}
+          totalResponses={lesson.totalResponses}
+          parsedResponses={lesson.parsedResponses}
+        />
       </CardHeader>
       <CardContent>
-        {lesson.groups.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-2">Нет данных по потокам</p>
+        {lesson.history && lesson.history.length >= 2 && (
+          <AvgScoreHistory history={lesson.history as AvgScoreHistoryPoint[]} />
+        )}
+        {withResponses.length === 0 ? (
+          <div className="py-2 space-y-1">
+            <p className="text-sm text-muted-foreground">Нет ответов с числовой оценкой</p>
+            {withoutResponses.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Не ответили ({withoutResponses.length}):{" "}
+                {withoutResponses.map((g) => g.groupName).join(" · ")}
+              </p>
+            )}
+          </div>
         ) : (
           <Table>
             <TableHeader>
@@ -297,13 +411,11 @@ function FreeformSurveyCard({ lesson }: { lesson: FreeformLesson }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {lesson.groups.map((g) => (
+              {withResponses.map((g) => (
                 <TableRow key={g.groupId}>
                   <TableCell className="font-medium">{g.groupName}</TableCell>
                   <TableCell className="text-center">{g.responseCount}</TableCell>
-                  <TableCell className="text-center">
-                    <ScoreCell value={g.avgScore} />
-                  </TableCell>
+                  <TableCell className="text-center"><ScoreCell value={g.avgScore} /></TableCell>
                   <TableCell className="text-center text-green-600 font-medium">{g.promoters}</TableCell>
                   <TableCell className="text-center text-yellow-600 font-medium">{g.neutrals}</TableCell>
                   <TableCell className="text-center text-red-600 font-medium">{g.detractors}</TableCell>
@@ -314,6 +426,14 @@ function FreeformSurveyCard({ lesson }: { lesson: FreeformLesson }) {
                   </TableCell>
                 </TableRow>
               ))}
+              {withoutResponses.length > 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-xs text-muted-foreground py-2 border-t border-dashed">
+                    Не ответили ({withoutResponses.length}):{" "}
+                    {withoutResponses.map((g) => g.groupName).join(" · ")}
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         )}
@@ -327,11 +447,7 @@ const NPS_HINT = (
     <strong>NPS</strong> = (За − Против) / Всего × 100.{" "}
     <span className="text-green-600 font-medium">За</span> = оценки 9–10,{" "}
     <span className="text-yellow-600 font-medium">Нейтральные</span> = 7–8,{" "}
-    <span className="text-red-600 font-medium">Против</span> = 0–6.{" "}
-    Цвет оценок:{" "}
-    <span className="text-green-600 font-medium">≥8</span> — хорошо,{" "}
-    <span className="text-yellow-600 font-medium">6–7</span> — средне,{" "}
-    <span className="text-red-600 font-medium">≤5</span> — плохо.
+    <span className="text-red-600 font-medium">Против</span> = 0–6.
   </div>
 );
 
@@ -344,9 +460,7 @@ export function SurveyAnalytics({ freeformSurveys, intermediateSurveys, certific
     return (
       <Card>
         <CardContent className="pt-6">
-          <p className="text-center text-muted-foreground py-8">
-            Опросы и анкеты сертификации ещё не заполнялись
-          </p>
+          <p className="text-center text-muted-foreground py-8">Опросы и анкеты сертификации ещё не заполнялись</p>
         </CardContent>
       </Card>
     );
