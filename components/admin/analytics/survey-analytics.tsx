@@ -2,6 +2,13 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   Table,
   TableBody,
@@ -11,7 +18,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { TrendingUp, MessageSquare, Award } from "lucide-react";
+import { TrendingUp, MessageSquare, Award, TableIcon } from "lucide-react";
+import { useState } from "react";
+import { SurveyResponsesTable } from "./survey-responses-table";
 
 interface GroupNPS {
   groupId: string;
@@ -182,11 +191,12 @@ function ScoreCell({ value }: { value: number | null }) {
   return <span className={`font-semibold ${color}`}>{value}</span>;
 }
 
-function LessonHeader({ title, courseTitle, totalResponses, parsedResponses }: {
+function LessonHeader({ title, courseTitle, totalResponses, parsedResponses, onDetail }: {
   title: string;
   courseTitle?: string;
   totalResponses: number;
   parsedResponses?: number;
+  onDetail?: () => void;
 }) {
   return (
     <div className="flex items-start justify-between gap-2 flex-wrap">
@@ -196,12 +206,18 @@ function LessonHeader({ title, courseTitle, totalResponses, parsedResponses }: {
           <p className="text-xs text-muted-foreground mt-0.5">{courseTitle}</p>
         )}
       </div>
-      <div className="flex gap-2 shrink-0">
+      <div className="flex gap-2 shrink-0 items-center">
         <Badge variant="secondary">{totalResponses} ответов</Badge>
         {parsedResponses !== undefined && parsedResponses !== totalResponses && (
           <Badge variant="outline" className="text-yellow-600 border-yellow-300">
             {parsedResponses} с оценкой
           </Badge>
+        )}
+        {onDetail && (
+          <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={onDetail}>
+            <TableIcon className="h-3.5 w-3.5" />
+            Детально
+          </Button>
         )}
       </div>
     </div>
@@ -263,11 +279,18 @@ function IntermediateSurveyCard({ lesson }: { lesson: SurveyLesson }) {
   lesson.groups.forEach((g) => Object.keys(g.avgScores ?? {}).forEach((q) => allQuestions.add(q)));
   const questionList = Array.from(allQuestions);
   const groupsWithData = lesson.groups.filter((g) => g.responseCount > 0);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   return (
+    <>
     <Card>
       <CardHeader className="pb-3">
-        <LessonHeader title={lesson.lessonTitle} courseTitle={lesson.courseTitle} totalResponses={lesson.totalResponses} />
+        <LessonHeader
+          title={lesson.lessonTitle}
+          courseTitle={lesson.courseTitle}
+          totalResponses={lesson.totalResponses}
+          onDetail={() => setSheetOpen(true)}
+        />
       </CardHeader>
       <CardContent className="space-y-4">
         <NPSTable groups={lesson.groups} />
@@ -306,6 +329,15 @@ function IntermediateSurveyCard({ lesson }: { lesson: SurveyLesson }) {
         )}
       </CardContent>
     </Card>
+    <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+      <SheetContent className="w-full sm:max-w-5xl overflow-y-auto">
+        <SheetHeader className="mb-4">
+          <SheetTitle>{lesson.lessonTitle}</SheetTitle>
+        </SheetHeader>
+        <SurveyResponsesTable lessonId={lesson.lessonId} />
+      </SheetContent>
+    </Sheet>
+    </>
   );
 }
 
@@ -320,11 +352,18 @@ function CertificationCard({ lesson }: { lesson: CertLesson }) {
   ];
 
   const groupsWithData = lesson.groups.filter((g) => g.responseCount > 0);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   return (
+    <>
     <Card>
       <CardHeader className="pb-3">
-        <LessonHeader title={lesson.lessonTitle} courseTitle={lesson.courseTitle} totalResponses={lesson.totalResponses} />
+        <LessonHeader
+          title={lesson.lessonTitle}
+          courseTitle={lesson.courseTitle}
+          totalResponses={lesson.totalResponses}
+          onDetail={() => setSheetOpen(true)}
+        />
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
@@ -366,14 +405,25 @@ function CertificationCard({ lesson }: { lesson: CertLesson }) {
         )}
       </CardContent>
     </Card>
+    <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+      <SheetContent className="w-full sm:max-w-5xl overflow-y-auto">
+        <SheetHeader className="mb-4">
+          <SheetTitle>{lesson.lessonTitle}</SheetTitle>
+        </SheetHeader>
+        <SurveyResponsesTable lessonId={lesson.lessonId} />
+      </SheetContent>
+    </Sheet>
+    </>
   );
 }
 
 function FreeformSurveyCard({ lesson }: { lesson: FreeformLesson }) {
   const withResponses = lesson.groups.filter((g) => g.responseCount > 0);
   const withoutResponses = lesson.groups.filter((g) => g.responseCount === 0);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   return (
+    <>
     <Card>
       <CardHeader className="pb-3">
         <LessonHeader
@@ -381,6 +431,7 @@ function FreeformSurveyCard({ lesson }: { lesson: FreeformLesson }) {
           courseTitle={lesson.courseTitle}
           totalResponses={lesson.totalResponses}
           parsedResponses={lesson.parsedResponses}
+          onDetail={() => setSheetOpen(true)}
         />
       </CardHeader>
       <CardContent>
@@ -439,6 +490,15 @@ function FreeformSurveyCard({ lesson }: { lesson: FreeformLesson }) {
         )}
       </CardContent>
     </Card>
+    <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+      <SheetContent className="w-full sm:max-w-5xl overflow-y-auto">
+        <SheetHeader className="mb-4">
+          <SheetTitle>{lesson.lessonTitle}</SheetTitle>
+        </SheetHeader>
+        <SurveyResponsesTable lessonId={lesson.lessonId} />
+      </SheetContent>
+    </Sheet>
+    </>
   );
 }
 
