@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { Loader2, CheckCircle, ShieldCheck, CreditCard, AlertTriangle } from "lucide-react";
+import { Loader2, CheckCircle, ShieldCheck, CreditCard, AlertTriangle, Landmark } from "lucide-react";
 
 /**
  * Публичная страница оплаты по ссылке от админа.
@@ -25,7 +25,11 @@ interface OrderInfo {
   offerTitle: string;
   offerDescription: string | null;
   customerName: string | null;
+  /** Серверный флаг: подключен ли ОТП Банк (есть OTP_SHOP_CODE). */
+  otpEnabled: boolean;
 }
+
+type PayMethod = "cloudpayments" | "otp";
 
 function formatPrice(amount: string, currency: string) {
   return new Intl.NumberFormat("ru-RU", {
@@ -43,8 +47,13 @@ function PayContent() {
   const [order, setOrder] = useState<OrderInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
-  const [paying, setPaying] = useState(false);
+  // Активный «крутящийся» метод — чтобы не блокировать одновременно обе
+  // кнопки, когда пользователь кликнул конкретную.
+  const [paying, setPaying] = useState<PayMethod | null>(null);
   const [error, setError] = useState("");
+  /** После клика «ОТП» — клиент уехал в smart-form, на нашей странице
+   * показываем сообщение «заявка отправлена в банк, ждём решение». */
+  const [otpStarted, setOtpStarted] = useState(false);
 
   useEffect(() => {
     fetch(`/api/pay/${orderId}?token=${encodeURIComponent(token)}`)
@@ -63,18 +72,20 @@ function PayContent() {
       .finally(() => setLoading(false));
   }, [orderId, token]);
 
-  const handlePay = async () => {
-    setPaying(true);
+  const handlePay = async (method: PayMethod = "cloudpayments") => {
+    setPaying(method);
     setError("");
     try {
+      const qs = new URLSearchParams({ token });
+      if (method !== "cloudpayments") qs.set("method", method);
       const res = await fetch(
-        `/api/pay/${orderId}/start?token=${encodeURIComponent(token)}`,
+        `/api/pay/${orderId}/start?${qs.toString()}`,
         { method: "POST" }
       );
       const data = await res.json();
       if (!res.ok || !data.success) {
         setError(data.error ?? "Не удалось создать платёж");
-        setPaying(false);
+        setPaying(null);
         return;
       }
 
@@ -85,7 +96,16 @@ function PayContent() {
       }
 
       if (data.data.kind === "redirect") {
-        window.location.href = data.data.confirmationUrl;
+        // ОТП открываем в новой вкладке, чтобы клиент мог вернуться на нашу
+        // страницу и увидеть статус заявки. Остальных redirect-провайдеров
+        // (если появятся) — переходим в той же вкладке.
+        if (method === "otp") {
+          window.open(data.data.confirmationUrl, "_blank", "noopener,noreferrer");
+          setOtpStarted(true);
+          setPaying(null);
+        } else {
+          window.location.href = data.data.confirmationUrl;
+        }
         return;
       }
 
@@ -98,7 +118,7 @@ function PayContent() {
     } catch {
       setError("Ошибка сети");
     } finally {
-      setPaying(false);
+      setPaying(null);
     }
   };
 
@@ -127,7 +147,7 @@ function PayContent() {
       },
       onFail: (reason: string) => {
         setError(`Платёж не прошёл: ${reason}`);
-        setPaying(false);
+        setPaying(null);
       },
       onComplete: () => {},
     });
@@ -230,12 +250,24 @@ function PayContent() {
             </div>
           )}
 
+          {/* Информационная плашка про статус заявки в ОТП */}
+          {otpStarted && (
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+              <div className="font-medium mb-0.5">Заявка отправлена в ОТП Банк</div>
+              <div className="text-xs text-blue-700">
+                Заполни анкету в открывшейся вкладке. После одобрения и подписания
+                договора доступ откроется автоматически — мы пришлём письмо.
+              </div>
+            </div>
+          )}
+
+          {/* Основная кнопка — CloudPayments (карта / СБП / Долями / Рассрочка CP) */}
           <button
-            onClick={handlePay}
-            disabled={paying}
+            onClick={() => handlePay("cloudpayments")}
+            disabled={!!paying}
             className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-lg shadow-lg shadow-blue-500/25"
           >
-            {paying ? (
+            {paying === "cloudpayments" ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" /> Переходим к оплате…
               </>
@@ -257,9 +289,41 @@ function PayContent() {
             ))}
           </div>
 
+          {/* Альтернатива — ОТП Банк (кредит / рассрочка). Показываем, только
+              если на сервере подключён OTP_SHOP_CODE. */}
+          {order.otpEnabled && (
+            <>
+              <div className="flex items-center gap-3 my-6">
+                <div className="flex-1 h-px bg-gray-200" />
+                <span className="text-xs text-gray-400 uppercase tracking-wide">или</span>
+                <div className="flex-1 h-px bg-gray-200" />
+              </div>
+
+              <button
+                onClick={() => handlePay("otp")}
+                disabled={!!paying}
+                className="w-full py-4 bg-white hover:bg-gray-50 text-gray-900 font-semibold rounded-xl border-2 border-gray-200 hover:border-emerald-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-2.5"
+              >
+                {paying === "otp" ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" /> Открываем заявку…
+                  </>
+                ) : (
+                  <>
+                    <Landmark className="w-5 h-5 text-emerald-600" />
+                    В кредит или рассрочку (ОТП Банк)
+                  </>
+                )}
+              </button>
+              <p className="mt-2 text-xs text-gray-500 text-center">
+                Решение за пару минут · от 6 до 36 месяцев · без первого взноса
+              </p>
+            </>
+          )}
+
           <div className="flex items-center gap-1.5 justify-center mt-4 text-xs text-gray-400">
             <ShieldCheck className="w-3.5 h-3.5 text-green-500" />
-            Защищённая оплата · CloudPayments
+            Защищённая оплата · CloudPayments {order.otpEnabled && "· ОТП Банк"}
           </div>
         </div>
       </div>

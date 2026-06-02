@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { timingSafeEqual } from "crypto";
-import { getProvider } from "@/lib/payments";
+import { getProvider, getProviderByName, type ProviderName } from "@/lib/payments";
 
 /**
  * POST /api/pay/[orderId]/start?token=<paymentLinkToken>
@@ -24,7 +24,11 @@ export async function POST(
   { params }: { params: Promise<{ orderId: string }> }
 ) {
   const { orderId } = await params;
-  const token = new URL(req.url).searchParams.get("token") ?? "";
+  const url = new URL(req.url);
+  const token = url.searchParams.get("token") ?? "";
+  // method: cloudpayments (дефолт) | otp. Управляет, какого провайдера
+  // вызывать. Дефолт — глобальный из env (CloudPayments на проде).
+  const methodParam = (url.searchParams.get("method") ?? "").toLowerCase();
   if (!token) return new NextResponse("Not found", { status: 404 });
 
   const order = await db.order.findUnique({
@@ -71,7 +75,20 @@ export async function POST(
   const offerTitle = orderAny.snapshotOfferTitle ?? orderAny.offer?.title ?? "Оплата";
 
   try {
-    const provider = getProvider();
+    // Если фронт явно попросил конкретный метод — берём его. ОТП доступен
+    // только если задан OTP_SHOP_CODE (иначе провайдер не сконфигурирован).
+    let provider;
+    if (methodParam === "otp") {
+      if (!process.env.OTP_SHOP_CODE) {
+        return NextResponse.json(
+          { success: false, error: "ОТП Банк не подключён. Выберите другой способ оплаты." },
+          { status: 400 }
+        );
+      }
+      provider = getProviderByName("otp" as ProviderName);
+    } else {
+      provider = getProvider();
+    }
     const payment = await provider.createPayment({
       orderId: orderAny.id,
       amount: Number(orderAny.amount),
@@ -93,6 +110,9 @@ export async function POST(
       data: {
         ykPaymentId: isRedirect ? payment.providerPaymentId : null,
         ykConfirmationUrl: isRedirect ? payment.confirmationUrl : null,
+        // Запоминаем выбранный метод — нужен, чтобы потом отличать webhook'и
+        // ОТП от CP и показывать корректные реквизиты в админке/profile.
+        paymentMethod: provider.name,
       },
     });
 
