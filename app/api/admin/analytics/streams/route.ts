@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
               memberCount: 0,
               activePercent: 0,
               videoStats: { notStarted: 0, partial: 0, completed: 0 },
-              hwStats: { submittedCount: 0, approvedCount: 0, approvedPercent: 0 },
+              hwStats: { submittedCount: 0, pendingCount: 0, approvedCount: 0, approvedPercent: 0 },
               avgCourseProgressPercent: 0,
             };
           }

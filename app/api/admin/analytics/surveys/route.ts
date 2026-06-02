@@ -193,14 +193,14 @@ export async function GET(request: NextRequest) {
           }),
         ]);
 
-        // Seed groupMap with ALL course groups so zero-response groups still appear
+        // Factory-based seed: each group gets its OWN fresh object (spread shares references!)
         function seedGroupMap<T extends object>(
           courseGroups: CourseGroup[],
-          empty: T
+          factory: () => T
         ): Map<string, { groupName: string } & T> {
           const map = new Map<string, { groupName: string } & T>();
           for (const g of courseGroups) {
-            map.set(g.id, { groupName: g.name, ...empty });
+            map.set(g.id, { groupName: g.name, ...factory() });
           }
           return map;
         }
@@ -211,7 +211,7 @@ export async function GET(request: NextRequest) {
             const courseGroups = lesson.module?.course ? collectCourseGroups(lesson.module.course) : [];
             const courseTitle = lesson.module?.course?.title;
 
-            const groupMap = seedGroupMap(courseGroups, { scores: [] as number[] });
+            const groupMap = seedGroupMap(courseGroups, () => ({ scores: [] as number[] }));
 
             for (const sub of lesson.homework) {
               const score = extractScoreFromText(sub.content);
@@ -254,10 +254,10 @@ export async function GET(request: NextRequest) {
             const courseGroups = lesson.module?.course ? collectCourseGroups(lesson.module.course) : [];
             const courseTitle = lesson.module?.course?.title;
 
-            const groupMap = seedGroupMap(courseGroups, {
+            const groupMap = seedGroupMap(courseGroups, () => ({
               npsScores: [] as number[],
               scaleSums: {} as Record<string, { sum: number; count: number }>,
-            });
+            }));
 
             for (const sub of lesson.homework) {
               const answers = parseAnswers(sub.content);
@@ -293,7 +293,7 @@ export async function GET(request: NextRequest) {
                 groupId,
                 groupName: data.groupName,
                 responseCount: lesson.homework.filter((s) =>
-                  s.user.groupMembers.some((gm) => gm.group.id === groupId)
+                  s.user.groupMembers[0]?.group.id === groupId
                 ).length,
                 ...npsResult,
                 avgScores,
@@ -318,7 +318,7 @@ export async function GET(request: NextRequest) {
 
         // === Certification forms ===
         const certResults = certLessons.map((lesson) => {
-          const courseGroups = lesson.module?.course?.groups ?? [];
+          const courseGroups = lesson.module?.course ? collectCourseGroups(lesson.module.course) : [];
           const courseTitle = lesson.module?.course?.title;
 
           const emptyEntry = () => ({
@@ -374,7 +374,7 @@ export async function GET(request: NextRequest) {
             groupId,
             groupName: data.groupName,
             responseCount: lesson.homework.filter((s) =>
-              s.user.groupMembers.some((gm) => gm.group.id === groupId)
+              s.user.groupMembers[0]?.group.id === groupId
             ).length,
             ...calcNPS(data.npsScores),
             satisfaction: {

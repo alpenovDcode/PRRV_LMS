@@ -139,7 +139,7 @@ export async function GET(request: NextRequest) {
             ).size;
 
             submittedHomework = student.homework.filter((h: any) =>
-              h.lessonId && courseLessonIds.has(h.lessonId)
+              h.lessonId && courseLessonIds.has(h.lessonId) && h.status !== 'rejected'
             ).length;
 
             approvedHomework = student.homework.filter((h: any) =>
@@ -147,7 +147,7 @@ export async function GET(request: NextRequest) {
             ).length;
           } else {
             completedLessons = student.progress.filter((p: any) => p.status === 'completed').length;
-            submittedHomework = student.homework.length;
+            submittedHomework = student.homework.filter((h: any) => h.status !== 'rejected').length;
             approvedHomework = student.homework.filter((h: any) => h.status === 'approved').length;
           }
 
