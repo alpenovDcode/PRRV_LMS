@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Copy, Plus } from "lucide-react";
+import { Copy, Plus, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface Link {
@@ -38,6 +38,37 @@ export default function LinksPage() {
   const [utmCampaign, setUtmCampaign] = useState("");
   const [utmContent, setUtmContent] = useState("");
   const [startFlowId, setStartFlowId] = useState("");
+
+  /**
+   * Генератор «умной» ссылки. Выбранная базовая ссылка (slug) + произвольный
+   * набор UTM из формы → готовый URL вида prrv.tech/g/<bot>/<slug>?utm_*.
+   * Этот URL ведёт на наш редиректор, который сохраняет UTM в Redis и
+   * редиректит на t.me/<bot>?start=<token>.
+   */
+  const [smartLink, setSmartLink] = useState<Link | null>(null);
+  const [smartUtm, setSmartUtm] = useState({
+    utm_source: "",
+    utm_medium: "",
+    utm_campaign: "",
+    utm_content: "",
+    utm_term: "",
+  });
+
+  /** Текущий origin для сборки абсолютных URL ссылок-генераторов. */
+  const origin =
+    typeof window !== "undefined" ? window.location.origin : "https://prrv.tech";
+
+  function buildSmartUrl(linkSlug: string, utm: Record<string, string>): string {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(utm)) {
+      const value = v.trim();
+      if (value) qs.set(k, value);
+    }
+    const tail = qs.toString();
+    return `${origin}/g/${data?.botUsername ?? ""}/${encodeURIComponent(linkSlug)}${
+      tail ? `?${tail}` : ""
+    }`;
+  }
 
   const { data } = useQuery({
     queryKey: ["tg-links", botId],
@@ -142,17 +173,39 @@ export default function LinksPage() {
                       <td className="p-3 text-right">{l.clickCount}</td>
                       <td className="p-3 text-right">{l.subscribeCount}</td>
                       <td className="p-3 text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            navigator.clipboard.writeText(url);
-                            toast.success("Скопировано");
-                          }}
-                          title={url}
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
+                        <div className="inline-flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              navigator.clipboard.writeText(url);
+                              toast.success("Скопировано");
+                            }}
+                            title={`Скопировать обычную ссылку: ${url}`}
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setSmartLink(l);
+                              // Префиллим базовыми UTM ссылки — удобно
+                              // отталкиваться от них и при необходимости
+                              // перебить под конкретную кампанию.
+                              setSmartUtm({
+                                utm_source: l.utm.utm_source ?? "",
+                                utm_medium: l.utm.utm_medium ?? "",
+                                utm_campaign: l.utm.utm_campaign ?? "",
+                                utm_content: l.utm.utm_content ?? "",
+                                utm_term: l.utm.utm_term ?? "",
+                              });
+                            }}
+                            title="Сгенерировать умную ссылку с UTM"
+                          >
+                            <Wand2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -228,6 +281,97 @@ export default function LinksPage() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Генератор «умной» UTM-ссылки ─────────────────────────────── */}
+      <Dialog
+        open={!!smartLink}
+        onOpenChange={(o) => {
+          if (!o) setSmartLink(null);
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wand2 className="h-5 w-5" /> Умная ссылка
+              {smartLink && (
+                <span className="ml-2 text-sm font-normal text-muted-foreground">
+                  на «{smartLink.name}» ({smartLink.slug})
+                </span>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          {smartLink && (
+            <div className="space-y-4">
+              <div className="rounded-md bg-blue-50 border border-blue-200 p-3 text-xs text-blue-900">
+                Telegram отбрасывает query-параметры из <code>t.me/?start=…</code> —
+                поэтому UTM передаются через наш редиректор. Кликай на ссылку
+                под формой и копируй её — она автоматически обновляется.
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {(
+                  [
+                    ["utm_source", "Источник (откуда)"],
+                    ["utm_medium", "Канал (как)"],
+                    ["utm_campaign", "Кампания"],
+                    ["utm_content", "Контент / креатив"],
+                    ["utm_term", "Ключевое слово"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <div key={key}>
+                    <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                      {label}
+                    </Label>
+                    <Input
+                      value={smartUtm[key]}
+                      onChange={(e) =>
+                        setSmartUtm({ ...smartUtm, [key]: e.target.value })
+                      }
+                      placeholder={key}
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div>
+                <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Готовая ссылка
+                </Label>
+                <div className="mt-1 flex gap-2">
+                  <code className="flex-1 rounded-md bg-muted px-3 py-2 text-xs font-mono break-all">
+                    {buildSmartUrl(smartLink.slug, smartUtm)}
+                  </code>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => {
+                      const url = buildSmartUrl(smartLink.slug, smartUtm);
+                      navigator.clipboard.writeText(url);
+                      toast.success("Скопировано");
+                    }}
+                    title="Скопировать"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="text-xs text-muted-foreground">
+                Поведение: при клике LMS сохраняет UTM в Redis под одноразовым
+                токеном, редиректит на <code>t.me/{data?.botUsername}?start=…</code>.
+                Когда пользователь жмёт «Старт», UTM применяются к подписчику
+                в <code>client.utm_source</code> и т.д. и уезжают в карточку
+                подписчика и в Bitrix24 (если настроен синк по этим полям).
+              </div>
+
+              <div className="flex justify-end">
+                <Button onClick={() => setSmartLink(null)}>Готово</Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
