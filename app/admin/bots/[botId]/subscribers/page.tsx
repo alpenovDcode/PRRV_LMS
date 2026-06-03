@@ -8,7 +8,7 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Upload, GitMerge, MessageSquare, ArrowLeft } from "lucide-react";
+import { Upload, Download, GitMerge, MessageSquare, ArrowLeft } from "lucide-react";
 import { ConversationList } from "@/components/admin/tg/chat/conversation-list";
 import { ChatPage } from "@/components/admin/tg/chat/chat-page";
 
@@ -31,6 +31,17 @@ export default function SubscribersPage() {
           onClick={() => router.push(`/admin/bots/${botId}/subscribers/import`)}
         >
           <Upload className="mr-1 h-4 w-4" /> Импорт CSV
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            // Скачивание идёт через тот же origin с авторизованной кукой —
+            // браузер сам подхватит файл благодаря Content-Disposition.
+            window.location.href = `/api/admin/tg/bots/${botId}/subscribers/export`;
+          }}
+        >
+          <Download className="mr-1 h-4 w-4" /> Экспорт CSV
         </Button>
         <Button
           variant="outline"
