@@ -58,6 +58,8 @@ export async function middleware(request: NextRequest) {
     path.startsWith("/api/pay/") ||    // Публичные платёжные ссылки — authed via paymentLinkToken внутри роута
     path.startsWith("/pay/") ||        // Публичные страницы оплаты по ссылке
     path.startsWith("/m/") ||          // Tracking-редиректы messaging
+    path.startsWith("/g/") ||          // «Умные» UTM-редиректы Telegram (SaleBot-style)
+    path.startsWith("/r/") ||          // Outbound click-tracking из исходящих кнопок
     path.startsWith("/l/") ||          // Landing pages
     path === "/l" ||                   // Landing root (if any)
     path.startsWith("/api/landings/submit") ||
