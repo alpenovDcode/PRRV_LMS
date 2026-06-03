@@ -883,6 +883,15 @@ model TgBot {
   // (X-Telegram-Bot-Api-Secret-Token header).
   webhookSecret   String   @map("webhook_secret")
   webhookUrl      String?  @map("webhook_url")
+  /// Режим подключения к Telegram:
+  ///   "webhook"   — LMS сама вызывает setWebhook у Telegram (стандарт).
+  ///   "forwarded" — апдейты приходят НЕ от Telegram напрямую, а через
+  ///                 форвард со стороннего бэка (например, prepodavai
+  ///                 продолжает работать через polling и шлёт нам копию
+  ///                 каждого update). LMS не вызывает setWebhook и не шлёт
+  ///                 исходящих в этого бота — только наблюдает и копит
+  ///                 подписчиков/теги/UTM для Bitrix24-синка и аналитики.
+  connectionMode  String   @default("webhook") @map("connection_mode")
   isActive        Boolean  @default(true) @map("is_active")
   // Default flow triggered by /start without payload (optional).
   defaultStartFlowId String? @map("default_start_flow_id")

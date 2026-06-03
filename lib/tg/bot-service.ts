@@ -86,6 +86,81 @@ export async function connectBot(input: ConnectBotInput): Promise<ConnectBotResu
   };
 }
 
+/**
+ * Подключение «как наблюдатель / форвард». Используется когда основной
+ * webhook бота уже стоит на стороннем backend (например, prepodavai с
+ * polling), а LMS только наблюдает за входящими апдейтами для аналитики,
+ * подписчиков и Bitrix24-синка.
+ *
+ * Отличия от connectBot():
+ *   • setWebhook НЕ вызывается — нельзя ломать polling/webhook на стороне
+ *     внешнего бэка.
+ *   • Возвращаем webhookSecret в открытом виде — админу нужно скопировать
+ *     его в env внешнего бэка для подписи форвардов.
+ *   • Помечаем connectionMode=forwarded — sender по этому флагу не шлёт
+ *     исходящих, чтобы избежать дублей с внешним бэком.
+ *
+ * Внешний бэк должен POSTить каждый Telegram update на наш webhook URL с
+ * заголовком X-Telegram-Bot-Api-Secret-Token == webhookSecret. Структура
+ * тела — стандартный Telegram update, как Telegram сам бы прислал.
+ */
+export async function connectBotForwarded(
+  input: ConnectBotInput
+): Promise<ConnectBotResult & { webhookSecret?: string }> {
+  const token = input.token.trim();
+  if (!isValidTokenFormat(token)) {
+    return { ok: false, error: "Invalid bot token format" };
+  }
+  const encrypted = encryptToken(token);
+  const me = await tgGetMe(encrypted);
+  if (!me.ok || !me.result) {
+    return { ok: false, error: me.description || "Telegram getMe failed" };
+  }
+
+  const botUserId = String(me.result.id);
+  const existing = await db.tgBot.findUnique({ where: { botUserId } });
+  if (existing) {
+    return { ok: false, error: "Bot already connected" };
+  }
+
+  const webhookSecret = generateWebhookSecret();
+  const webhookUrl = buildWebhookUrl(""); // временный, перепишем после create
+
+  const bot = await db.tgBot.create({
+    data: {
+      tokenEncrypted: encrypted,
+      tokenPrefix: tokenPrefix(token),
+      botUserId,
+      username: me.result.username,
+      title: input.title?.trim() || me.result.first_name,
+      webhookSecret,
+      // connectionMode форсим — sender по нему скипнет исходящие.
+      connectionMode: "forwarded",
+    } as any,
+  });
+
+  // Теперь, когда id известен, сохраняем webhookUrl чтобы UI мог его
+  // показать админу для копирования в env внешнего бэка.
+  const finalUrl = buildWebhookUrl(bot.id);
+  await db.tgBot.update({
+    where: { id: bot.id },
+    data: { webhookUrl: finalUrl },
+  });
+
+  return {
+    ok: true,
+    bot: {
+      id: bot.id,
+      username: bot.username,
+      title: bot.title,
+      webhookUrl: finalUrl,
+    },
+    // ВНИМАНИЕ: webhookSecret возвращаем только ОДНИН раз — при подключении.
+    // Дальше его можно только ротировать (rotate-webhook-secret endpoint).
+    webhookSecret,
+  };
+}
+
 export async function deleteBot(botId: string): Promise<{ ok: boolean; error?: string }> {
   const bot = await db.tgBot.findUnique({ where: { id: botId } });
   if (!bot) return { ok: true };

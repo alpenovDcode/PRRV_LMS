@@ -117,6 +117,25 @@ export interface SendOptions {
 }
 
 export async function sendBotMessage(opts: SendOptions): Promise<SendResult> {
+  // Forwarded-боты «наблюдают» через внешний бэк (например prepodavai).
+  // Этот бэк сам отвечает пользователю — если LMS тоже отправит сообщение,
+  // юзер получит дубль. Поэтому скипаем отправку, возвращая «успех» с
+  // пометкой; вызывающий код (flow-engine, broadcast, operator reply)
+  // выполнится дальше нормально, но в Telegram ничего не уйдёт.
+  const botMode = await db.tgBot.findUnique({
+    where: { id: opts.botId },
+    select: { connectionMode: true } as any,
+  });
+  if ((botMode as any)?.connectionMode === "forwarded") {
+    console.log(
+      `[tg-sender] forwarded-режим (бот ${opts.botId}) — исходящее пропущено`
+    );
+    // Возвращаем синтетический result: успех, без tgMessageId — flow-engine
+    // не упадёт, продолжит выполнение следующих узлов (теги/переменные/сегменты),
+    // только в Telegram ничего не уйдёт.
+    return { ok: true, blocked: false };
+  }
+
   const rawText = renderTemplate(opts.payload.text, opts.renderCtx);
   const safeText = sanitizeTelegramHtml(rawText);
   const replyMarkup = payloadToReplyMarkup(opts.payload);
