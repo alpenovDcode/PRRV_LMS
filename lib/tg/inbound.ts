@@ -393,11 +393,53 @@ function triggerMatches(
   return null;
 }
 
+/**
+ * Резолвит one-shot токен умной ссылки (/g/<bot>/<slug>?utm_*).
+ * Token имеет вид `p_<22 hex>`. В Redis под ключом `tg:promo:<token>` лежит
+ * JSON `{slug, utm}`. После чтения ключ удаляется (одноразовый — повторное
+ * нажатие на ту же сгенерированную t.me-ссылку не создаст второго касания).
+ *
+ * Если payload не похож на токен или ключа нет в Redis — возвращаем пустой
+ * объект, вызывающий код пойдёт по обычной ветке TgTrackingLink по slug.
+ */
+async function resolvePromoToken(
+  payload: string
+): Promise<{ slug?: string; overrideUtm?: Record<string, string> }> {
+  if (!/^p_[a-f0-9]{16,48}$/i.test(payload)) return {};
+  try {
+    const redis = await getRedisClient();
+    const key = `tg:promo:${payload}`;
+    const raw = await redis.get(key);
+    if (!raw) return {};
+    // One-shot: чистим ключ. Игнорируем гонку — повторный get просто отдаст null.
+    redis.del(key).catch(() => undefined);
+    const parsed = JSON.parse(raw) as {
+      slug?: unknown;
+      utm?: unknown;
+    };
+    const slug = typeof parsed.slug === "string" ? parsed.slug : undefined;
+    const overrideUtm =
+      parsed.utm && typeof parsed.utm === "object"
+        ? (parsed.utm as Record<string, string>)
+        : undefined;
+    return { slug, overrideUtm };
+  } catch (e) {
+    console.warn("[promo-token] resolve failed:", e);
+    return {};
+  }
+}
+
 async function applyTrackingLink(args: {
   bot: TgBot;
   subscriber: TgSubscriber;
   slug: string;
   isNewSubscriber: boolean;
+  /**
+   * UTM, переданные через «умную» редирект-ссылку /g/<bot>/<slug>?utm_…
+   * Когда заданы — побеждают базовые UTM из TgTrackingLink (это позволяет
+   * на одном слаге обслуживать N кампаний с разными метками).
+   */
+  overrideUtm?: Record<string, string>;
 }): Promise<{ flowId?: string }> {
   const link = await db.tgTrackingLink.findUnique({
     where: { botId_slug: { botId: args.bot.id, slug: args.slug } },
@@ -409,7 +451,11 @@ async function applyTrackingLink(args: {
   // UTM из ссылки → client.* переменные подписчика (last-touch). Без этого
   // client.utm_source/medium/... всегда пустые и не уезжают в Bitrix/CRM:
   // ссылка несёт UTM, но раньше они оставались только на самой ссылке.
-  const linkUtm = (link.utm as Record<string, unknown> | null) ?? {};
+  // overrideUtm от /g/-редиректора побеждает базовые UTM ссылки.
+  const linkUtm = {
+    ...((link.utm as Record<string, unknown> | null) ?? {}),
+    ...(args.overrideUtm ?? {}),
+  };
   const utmVars: Record<string, string> = {};
   for (const k of [
     "utm_source",
@@ -621,11 +667,16 @@ export async function handleUpdate(bot: TgBot, update: TgUpdate): Promise<void> 
   // 1) /start <payload> — apply tracking link first so trigger matchers see fresh tags.
   let linkFlowId: string | undefined;
   if (startCmd.isStart && startCmd.payload) {
+    // Если payload — token «умной» ссылки (/g/<bot>/<slug>?utm_*), резолвим
+    // {slug, utm} из Redis и применяем как override-UTM. Иначе — обычный slug.
+    const { slug, overrideUtm } = await resolvePromoToken(startCmd.payload);
+    const effectiveSlug = slug ?? startCmd.payload;
     const r = await applyTrackingLink({
       bot,
       subscriber,
-      slug: startCmd.payload,
+      slug: effectiveSlug,
       isNewSubscriber: created,
+      overrideUtm,
     });
     linkFlowId = r.flowId;
   }
