@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { withAuth } from "@/lib/api-middleware";
-import { connectBot } from "@/lib/tg/bot-service";
+import { connectBot, connectBotForwarded } from "@/lib/tg/bot-service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,7 +23,8 @@ export async function GET(request: NextRequest) {
           webhookUrl: true,
           createdAt: true,
           defaultStartFlowId: true,
-        },
+          connectionMode: true,
+        } as any,
       });
       return NextResponse.json({ success: true, data: bots });
     },
@@ -34,6 +35,13 @@ export async function GET(request: NextRequest) {
 const createBotSchema = z.object({
   token: z.string().min(40),
   title: z.string().min(1).max(120).optional(),
+  /**
+   * "webhook"   — LMS сама вызывает setWebhook у Telegram (стандарт).
+   * "forwarded" — LMS только принимает форварды от внешнего бэка
+   *               (например prepodavai-polling). setWebhook не вызывается,
+   *               sender не отправляет исходящих — только observability.
+   */
+  mode: z.enum(["webhook", "forwarded"]).optional().default("webhook"),
 });
 
 export async function POST(request: NextRequest) {
@@ -48,14 +56,24 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-      const res = await connectBot(parsed.data);
+      const { mode, ...connectInput } = parsed.data;
+      const res =
+        mode === "forwarded"
+          ? await connectBotForwarded(connectInput)
+          : await connectBot(connectInput);
       if (!res.ok) {
         return NextResponse.json(
           { success: false, error: { code: "CONNECT_FAILED", message: res.error } },
           { status: 400 }
         );
       }
-      return NextResponse.json({ success: true, data: res.bot });
+      // Для forwarded режима отдаём webhookSecret ОДИН РАЗ — админу нужно
+      // вставить его в env внешнего бэка. После сохранения в БД секрет
+      // получить нельзя (только ротировать).
+      return NextResponse.json({
+        success: true,
+        data: { ...res.bot, mode, ...(mode === "forwarded" ? { webhookSecret: (res as any).webhookSecret } : {}) },
+      });
     },
     { roles: ["admin"] }
   );
