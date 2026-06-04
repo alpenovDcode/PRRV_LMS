@@ -11,8 +11,23 @@ interface Order {
   paymentMethod: string | null;
   paidAt: string | null;
   createdAt: string;
-  user: { id: string; email: string; fullName: string | null };
+  /** null для гостевых заказов до /identify (клиент ещё не открыл ссылку). */
+  user: { id: string; email: string; fullName: string | null } | null;
   offer: { id: string; title: string };
+  // Guest-поля для аудита (что клиент ввёл в форме). Опциональны для совместимости.
+  guestFullName?: string | null;
+  guestEmail?: string | null;
+  guestPhone?: string | null;
+  userCreatedFromGuest?: boolean;
+  // Дополнительные поля для карточки.
+  ykPaymentId?: string | null;
+  ykConfirmationUrl?: string | null;
+  ykSnapshot?: Record<string, unknown> | null;
+  snapshotOfferTitle?: string | null;
+  refundedAt?: string | null;
+  refundReason?: string | null;
+  refundedAmount?: string | null;
+  paymentLinkToken?: string | null;
 }
 
 interface Meta { total: number; page: number; pages: number; }
@@ -48,6 +63,7 @@ export default function OrdersPage() {
   const [meta, setMeta] = useState<Meta>({ total: 0, page: 1, pages: 1 });
   const [loading, setLoading] = useState(true);
   const [refundTarget, setRefundTarget] = useState<Order | null>(null);
+  const [detailsOrder, setDetailsOrder] = useState<Order | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [showGuestLink, setShowGuestLink] = useState(false);
   const [toast, setToast] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
@@ -156,14 +172,39 @@ export default function OrdersPage() {
               <tr><td colSpan={7} className="text-center py-12 text-gray-400">Заказов не найдено</td></tr>
             ) : (
               orders.map((order) => (
-                <tr key={order.id} className="hover:bg-gray-50 transition-colors">
+                <tr
+                  key={order.id}
+                  className="hover:bg-gray-50 transition-colors cursor-pointer"
+                  onClick={() => setDetailsOrder(order)}
+                >
                   <td className="px-4 py-3">
-                    <a href={`/admin/users/${order.user.id}`} className="hover:text-blue-600 transition-colors">
-                      <div className="font-medium text-gray-900 truncate max-w-[180px]">
-                        {order.user.fullName || order.user.email}
+                    {order.user ? (
+                      <a
+                        href={`/admin/users/${order.user.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="hover:text-blue-600 transition-colors"
+                      >
+                        <div className="font-medium text-gray-900 truncate max-w-[180px]">
+                          {order.user.fullName || order.user.email}
+                        </div>
+                        <div className="text-gray-400 text-xs truncate max-w-[180px]">
+                          {order.user.email}
+                        </div>
+                      </a>
+                    ) : (
+                      // Гостевой заказ: user ещё не привязан. Показываем то,
+                      // что клиент ввёл в форме (если уже /identify), либо
+                      // плашку «гостевая ссылка».
+                      <div className="text-gray-500">
+                        <div className="font-medium text-gray-700 truncate max-w-[180px] flex items-center gap-1.5">
+                          <UserPlus className="w-3 h-3 text-blue-500" />
+                          {(order as any).guestFullName || "Гостевая ссылка"}
+                        </div>
+                        <div className="text-gray-400 text-xs truncate max-w-[180px]">
+                          {(order as any).guestEmail || "клиент ещё не открыл ссылку"}
+                        </div>
                       </div>
-                      <div className="text-gray-400 text-xs truncate max-w-[180px]">{order.user.email}</div>
-                    </a>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <span className="text-gray-700 truncate max-w-[180px] block">{order.offer.title}</span>
@@ -183,7 +224,10 @@ export default function OrdersPage() {
                   <td className="px-4 py-3 text-right">
                     {order.status === "paid" && (
                       <button
-                        onClick={() => setRefundTarget(order)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRefundTarget(order);
+                        }}
                         className="text-xs text-red-600 hover:bg-red-50 px-2 py-1 rounded transition-colors inline-flex items-center gap-1"
                         title="Возврат денег"
                       >
@@ -260,6 +304,18 @@ export default function OrdersPage() {
           onError={(msg) => {
             setToast({ kind: "err", text: msg });
             setTimeout(() => setToast(null), 5000);
+          }}
+        />
+      )}
+
+      {/* Карточка заказа — полные детали + диагностика. */}
+      {detailsOrder && (
+        <OrderDetailsModal
+          order={detailsOrder}
+          onClose={() => setDetailsOrder(null)}
+          onRefund={() => {
+            setRefundTarget(detailsOrder);
+            setDetailsOrder(null);
           }}
         />
       )}
@@ -375,8 +431,14 @@ function RefundModal({
           {/* Пользователь */}
           <div className="text-sm">
             <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Покупатель</div>
-            <div className="font-medium">{order.user.fullName ?? order.user.email}</div>
-            <div className="text-xs text-gray-500">{order.user.email}</div>
+            {order.user ? (
+              <>
+                <div className="font-medium">{order.user.fullName ?? order.user.email}</div>
+                <div className="text-xs text-gray-500">{order.user.email}</div>
+              </>
+            ) : (
+              <div className="text-gray-500 italic">Гостевой заказ — пользователь не привязан</div>
+            )}
           </div>
 
           {/* Сумма */}
@@ -984,6 +1046,253 @@ function GuestLinkModal({
             </>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Карточка заказа: полные детали + диагностика. По клику на строку в таблице.
+ *
+ * Показывает: статус, суммы, метод оплаты, snapshot оффера, юзер vs guest-поля,
+ * provider-данные (ykPaymentId, ykConfirmationUrl), снимок последнего webhook
+ * (ykSnapshot — полезно для диагностики «почему активировался без оплаты»).
+ */
+function OrderDetailsModal({
+  order,
+  onClose,
+  onRefund,
+}: {
+  order: Order;
+  onClose: () => void;
+  onRefund: () => void;
+}) {
+  const [showRaw, setShowRaw] = useState(false);
+  const cfg = STATUS_CONFIG[order.status] ?? STATUS_CONFIG.pending;
+  const StatusIcon = cfg.icon;
+
+  const guestEmail = order.guestEmail ?? null;
+  const guestFullName = order.guestFullName ?? null;
+  const guestPhone = order.guestPhone ?? null;
+  const ykSnapshot = order.ykSnapshot ?? null;
+  const cpStatus =
+    ykSnapshot && typeof (ykSnapshot as any).Status === "string"
+      ? (ykSnapshot as any).Status
+      : null;
+  const lastState =
+    ykSnapshot && typeof (ykSnapshot as any).lastState === "string"
+      ? (ykSnapshot as any).lastState
+      : null;
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white z-10">
+          <div className="flex items-center gap-3">
+            <span
+              className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full border ${cfg.color}`}
+            >
+              <StatusIcon className="w-3 h-3" /> {cfg.label}
+            </span>
+            <h2 className="font-bold text-gray-900">
+              {order.snapshotOfferTitle ?? order.offer.title}
+            </h2>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-5">
+          {/* Сумма / даты */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <KV
+              label="Сумма"
+              value={new Intl.NumberFormat("ru-RU", {
+                style: "currency",
+                currency: order.currency,
+                maximumFractionDigits: 0,
+              }).format(Number(order.amount))}
+            />
+            <KV label="Метод" value={order.paymentMethod ?? "—"} mono />
+            <KV
+              label="Создан"
+              value={new Date(order.createdAt).toLocaleString("ru-RU")}
+            />
+            <KV
+              label="Оплачен"
+              value={
+                order.paidAt
+                  ? new Date(order.paidAt).toLocaleString("ru-RU")
+                  : "—"
+              }
+            />
+          </div>
+
+          {/* Покупатель */}
+          <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 space-y-2">
+            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              Покупатель
+            </div>
+            {order.user ? (
+              <div className="text-sm">
+                <div className="font-medium">
+                  {order.user.fullName || order.user.email}
+                </div>
+                <div className="text-xs text-gray-500">{order.user.email}</div>
+                <a
+                  href={`/admin/users/${order.user.id}`}
+                  className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1 mt-1"
+                >
+                  Профиль <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            ) : (
+              <div className="text-sm text-gray-500 italic">
+                Гостевая ссылка — клиент ещё не открыл её и не заполнил форму.
+              </div>
+            )}
+
+            {(guestEmail || guestFullName || guestPhone) && (
+              <div className="text-xs text-gray-500 pt-2 border-t border-gray-200 space-y-0.5">
+                <div className="font-semibold uppercase tracking-wide mb-1">
+                  Введено на форме оплаты
+                </div>
+                {guestFullName && <div>ФИО: {guestFullName}</div>}
+                {guestEmail && <div>Email: {guestEmail}</div>}
+                {guestPhone && <div>Телефон: {guestPhone}</div>}
+                {order.userCreatedFromGuest && (
+                  <div className="text-blue-600">
+                    Юзер создан в момент оплаты этой ссылки.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Платёжная диагностика */}
+          {(order.ykPaymentId || ykSnapshot || cpStatus || lastState) && (
+            <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 space-y-2">
+              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                Платёж у провайдера
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                <KV label="ID транзакции" value={order.ykPaymentId ?? "—"} mono />
+                {cpStatus && <KV label="Статус CP" value={cpStatus} mono />}
+                {lastState && (
+                  <KV label="Последний state" value={lastState} mono />
+                )}
+              </div>
+
+              {ykSnapshot && (
+                <div className="pt-2 border-t border-gray-200">
+                  <button
+                    onClick={() => setShowRaw((s) => !s)}
+                    className="text-xs text-blue-600 hover:underline"
+                  >
+                    {showRaw ? "Скрыть" : "Показать"} полный JSON ответа провайдера
+                  </button>
+                  {showRaw && (
+                    <pre className="mt-2 max-h-60 overflow-auto text-[11px] font-mono bg-white border border-gray-200 rounded p-2 whitespace-pre-wrap break-all">
+                      {JSON.stringify(ykSnapshot, null, 2)}
+                    </pre>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {order.refundedAt && (
+            <div className="rounded-lg border border-red-100 bg-red-50 p-3 space-y-1 text-sm">
+              <div className="font-medium text-red-900">Возврат оформлен</div>
+              <div className="text-xs text-red-700">
+                {new Date(order.refundedAt).toLocaleString("ru-RU")}
+                {order.refundedAmount &&
+                  ` · ${order.refundedAmount} ${order.currency}`}
+              </div>
+              {order.refundReason && (
+                <div className="text-xs text-red-700">
+                  Причина: {order.refundReason}
+                </div>
+              )}
+            </div>
+          )}
+
+          {order.paymentLinkToken && order.status === "pending" && (
+            <div>
+              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                Ссылка оплаты
+              </div>
+              <div className="flex gap-2">
+                <code className="flex-1 rounded-lg bg-gray-50 border border-gray-200 px-3 py-2 text-xs font-mono break-all">
+                  {typeof window !== "undefined"
+                    ? window.location.origin
+                    : "https://prrv.tech"}
+                  /pay/{order.id}?token={order.paymentLinkToken}
+                </code>
+                <button
+                  onClick={() => {
+                    const url = `${
+                      typeof window !== "undefined"
+                        ? window.location.origin
+                        : "https://prrv.tech"
+                    }/pay/${order.id}?token=${order.paymentLinkToken}`;
+                    navigator.clipboard.writeText(url).catch(() => {});
+                  }}
+                  className="px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg flex items-center gap-1.5"
+                >
+                  <Copy className="w-3.5 h-3.5" /> Копировать
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+            <div className="text-xs text-gray-400 font-mono">ID: {order.id}</div>
+            <div className="flex items-center gap-2">
+              {order.status === "paid" && (
+                <button
+                  onClick={onRefund}
+                  className="px-3 py-2 text-sm bg-red-50 hover:bg-red-100 text-red-700 font-medium rounded-lg flex items-center gap-1.5"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" /> Вернуть деньги
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                className="px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg"
+              >
+                Закрыть
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Маленький key/value-блок для read-only полей карточки заказа. */
+function KV({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div>
+      <div className="text-xs text-gray-500 mb-0.5">{label}</div>
+      <div className={`text-sm text-gray-900 ${mono ? "font-mono" : ""} truncate`}>
+        {value}
       </div>
     </div>
   );

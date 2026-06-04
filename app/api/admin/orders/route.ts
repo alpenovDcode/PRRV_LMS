@@ -44,12 +44,21 @@ export async function GET(req: NextRequest) {
       const where: any = {};
       if (status) where.status = status;
       if (search) {
-        where.user = {
-          OR: [
-            { email: { contains: search, mode: "insensitive" } },
-            { fullName: { contains: search, mode: "insensitive" } },
-          ],
-        };
+        // Ищем и по привязанному юзеру, и по guest-полям — чтобы менеджер
+        // мог найти гостевой заказ по введённому клиентом email/ФИО до
+        // того, как заказ привяжется к LMS-юзеру.
+        where.OR = [
+          {
+            user: {
+              OR: [
+                { email: { contains: search, mode: "insensitive" } },
+                { fullName: { contains: search, mode: "insensitive" } },
+              ],
+            },
+          },
+          { guestEmail: { contains: search, mode: "insensitive" } },
+          { guestFullName: { contains: search, mode: "insensitive" } },
+        ];
       }
 
       const [orders, total] = await Promise.all([
