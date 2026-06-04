@@ -52,9 +52,11 @@ export async function GET(
   }
 
   const orderAny = order as any;
-  // ОТП доступен, если на сервере задан OTP_SHOP_CODE. Фронт по этому флагу
-  // показывает кнопку «В кредит/рассрочку (ОТП Банк)» рядом с основной.
+  // ОТП / Freshcredit доступны, если на сервере заданы их базовые env.
+  // По этим флагам фронт показывает соответствующие кнопки кредита/рассрочки.
   const otpEnabled = !!process.env.OTP_SHOP_CODE;
+  const freshcreditEnabled =
+    !!process.env.FC_POINT_ID && !!process.env.FC_LOGIN && !!process.env.FC_PASSWORD;
   // needsGuestInfo: гостевой заказ без привязки к юзеру. Фронт по этому флагу
   // показывает форму «ФИО + email», прежде чем дать оплачивать. После
   // успешного POST /api/pay/[orderId]/identify флаг становится false и
@@ -74,6 +76,7 @@ export async function GET(
       customerName:
         orderAny.user?.fullName ?? orderAny.guestFullName ?? null,
       otpEnabled,
+      freshcreditEnabled,
       needsGuestInfo,
     },
   });

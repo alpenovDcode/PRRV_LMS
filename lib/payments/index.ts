@@ -16,7 +16,7 @@ import type { PaymentProvider } from "./types";
  * (берёт дефолт из env), и getProviderByName() (явное имя, нужно для
  * мультиметодной оплаты — одна страница оплаты, CP + ОТП на выбор).
  */
-export type ProviderName = "mock" | "cloudpayments" | "otp";
+export type ProviderName = "mock" | "cloudpayments" | "otp" | "freshcredit";
 
 const _providerByName = new Map<ProviderName, PaymentProvider>();
 
@@ -33,6 +33,10 @@ function instantiate(name: ProviderName): PaymentProvider {
     case "otp": {
       const { OtpPaymentProvider } = require("./otp/provider");
       return new OtpPaymentProvider();
+    }
+    case "freshcredit": {
+      const { FreshcreditProvider } = require("./freshcredit/provider");
+      return new FreshcreditProvider();
     }
     default: {
       const exhaustive: never = name;

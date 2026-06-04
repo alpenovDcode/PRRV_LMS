@@ -86,6 +86,14 @@ export async function POST(
         );
       }
       provider = getProviderByName("otp" as ProviderName);
+    } else if (methodParam === "freshcredit") {
+      if (!process.env.FC_POINT_ID || !process.env.FC_LOGIN) {
+        return NextResponse.json(
+          { success: false, error: "Freshcredit не подключён. Выберите другой способ оплаты." },
+          { status: 400 }
+        );
+      }
+      provider = getProviderByName("freshcredit" as ProviderName);
     } else {
       provider = getProvider();
     }
