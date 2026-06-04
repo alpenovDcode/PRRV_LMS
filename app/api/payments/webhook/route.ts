@@ -118,6 +118,21 @@ export async function POST(req: NextRequest) {
   };
   const newStatus = statusMap[result.status] ?? "pending";
 
+  // Диагностический лог webhook'а: видно тип события, Status от провайдера и
+  // что мы из него вывели. Полезно для разбора «почему/когда активировался».
+  const rawStatus =
+    result.raw && typeof (result.raw as any).Status === "string"
+      ? (result.raw as any).Status
+      : null;
+  const rawEvent =
+    result.raw && typeof (result.raw as any)._eventType === "string"
+      ? (result.raw as any)._eventType
+      : null;
+  console.log(
+    `[webhook] order=${order.id} provider=${provider.name} event=${rawEvent ?? "?"} ` +
+      `providerStatus=${rawStatus ?? "?"} → normalizedStatus=${result.status}`
+  );
+
   if (result.status === "paid") {
     try {
       await activateOrder(order.id);
