@@ -20,6 +20,7 @@ import { sendEmail, emailTemplates } from "@/lib/email-service";
 import { randomBytes } from "crypto";
 
 export async function activateOrder(orderId: string): Promise<void> {
+  const t0 = Date.now();
   // ── 1. Атомарный lock: переводим в paid только если статус ещё НЕ paid.
   //      Если count === 0 — кто-то другой уже активировал, выходим.
   const lock = await db.order.updateMany({
@@ -27,8 +28,14 @@ export async function activateOrder(orderId: string): Promise<void> {
     data: { status: "paid", paidAt: new Date() },
   });
   if (lock.count === 0) {
+    console.log(
+      `[activate-order] order ${orderId} уже paid (идемпотентный повтор)`
+    );
     return; // уже активирован — идемпотентно
   }
+  console.log(
+    `[activate-order] order ${orderId} переведён pending→paid (lock acquired)`
+  );
 
   // ── 2. Читаем заказ со снапшотом оффера (используется при активации).
   const order = await db.order.findUnique({
@@ -124,6 +131,10 @@ export async function activateOrder(orderId: string): Promise<void> {
   }).catch((e) => {
     console.error("[activate-order] не смог отправить email:", e);
   });
+  console.log(
+    `[activate-order] order ${orderId} активирован полностью за ${Date.now() - t0}ms ` +
+      `(courses=${courseIds.length}, tariff=${tariff ?? "—"}, welcome-sent)`
+  );
 }
 
 /**

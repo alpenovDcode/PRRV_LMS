@@ -54,6 +54,7 @@ export async function middleware(request: NextRequest) {
     path.startsWith("/api/tg-webhook/") || // Telegram inbound — authed via X-Telegram-Bot-Api-Secret-Token
     path.startsWith("/api/tg-cron/") ||    // External cron tick — authed via TG_CRON_SECRET
     path.startsWith("/api/messaging/webhook/") || // IG/MAX inbound — authed внутри роута (HMAC/uniq URL)
+    path.startsWith("/api/messaging/instagram/oauth/callback") || // IG OAuth callback от Meta — authed via state (one-shot) внутри роута
     path.startsWith("/api/payments/webhook") || // CloudPayments/ЮKassa webhook — authed via HMAC внутри роута
     path.startsWith("/api/pay/") ||    // Публичные платёжные ссылки — authed via paymentLinkToken внутри роута
     path.startsWith("/pay/") ||        // Публичные страницы оплаты по ссылке

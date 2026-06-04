@@ -86,9 +86,26 @@ export function detectEventType(
 
 // ─── Маппинг статуса CP → наш PaymentStatus ────────────────────────────────
 
-function mapStatus(eventType: CpEventType): PaymentStatusResult["status"] {
+/**
+ * Маппинг типа события CP в наш PaymentStatus.
+ *
+ * Важный нюанс по Pay-событию:
+ *   • Single-схема (одностадийная): CP шлёт Pay с Status=Completed —
+ *     деньги списаны → "paid", активируем заказ.
+ *   • Dual-схема (двухстадийная): CP шлёт Pay с Status=Authorized —
+ *     это только холд, деньги в банке клиента, но НЕ у мерчанта.
+ *     Активировать заказ нельзя: клиент получит курс без реальной оплаты,
+ *     а холд через 7 дней истечёт. Ждём Confirm-event.
+ *   • Confirm в Dual: холд подтверждён, деньги у мерчанта → "paid".
+ */
+function mapStatus(
+  eventType: CpEventType,
+  payload: Record<string, string>
+): PaymentStatusResult["status"] {
   switch (eventType) {
     case "Pay":
+      if (payload.Status === "Authorized") return "waiting_for_capture";
+      return "paid";
     case "Confirm":
       return "paid";
     case "Fail":
@@ -146,7 +163,7 @@ export async function parseCpWebhook(
     providerPaymentId: String(transactionId),
     // CP передаёт наш orderId через InvoiceId (мы прокидываем туда в createPayment).
     merchantOrderId: payload.InvoiceId || undefined,
-    status: mapStatus(eventType),
+    status: mapStatus(eventType, payload),
     paymentMethod: deriveMethod(payload),
     raw: { ...payload, _eventType: eventType, _amount: amount },
     ackResponse: { code: 0 }, // CP требует именно такой формат
