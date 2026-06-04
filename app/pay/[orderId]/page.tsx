@@ -27,6 +27,8 @@ interface OrderInfo {
   customerName: string | null;
   /** Серверный флаг: подключен ли ОТП Банк (есть OTP_SHOP_CODE). */
   otpEnabled: boolean;
+  /** true для гостевых ссылок: показываем форму «ФИО + email» перед оплатой. */
+  needsGuestInfo: boolean;
 }
 
 type PayMethod = "cloudpayments" | "otp";
@@ -54,6 +56,50 @@ function PayContent() {
   /** После клика «ОТП» — клиент уехал в smart-form, на нашей странице
    * показываем сообщение «заявка отправлена в банк, ждём решение». */
   const [otpStarted, setOtpStarted] = useState(false);
+
+  // Guest-форма: ФИО + email + (опц.) телефон. Если у заказа userId IS NULL
+  // (флаг needsGuestInfo), показываем форму вместо кнопки «Оплатить» — после
+  // submit вызываем /identify и перерисовываем страницу как обычную оплату.
+  const [guestFullName, setGuestFullName] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
+  const [guestPhone, setGuestPhone] = useState("");
+  const [identifying, setIdentifying] = useState(false);
+
+  const handleIdentify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!guestFullName.trim() || !guestEmail.trim()) return;
+    setIdentifying(true);
+    setError("");
+    try {
+      const res = await fetch(
+        `/api/pay/${orderId}/identify?token=${encodeURIComponent(token)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fullName: guestFullName.trim(),
+            email: guestEmail.trim(),
+            phone: guestPhone.trim() || undefined,
+          }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setError(data.error ?? "Не удалось сохранить данные");
+        return;
+      }
+      // Перезагружаем info заказа — теперь needsGuestInfo=false, появятся
+      // кнопки оплаты.
+      const fresh = await fetch(
+        `/api/pay/${orderId}?token=${encodeURIComponent(token)}`
+      ).then((r) => r.json());
+      if (fresh?.success) setOrder(fresh.data);
+    } catch {
+      setError("Ошибка сети");
+    } finally {
+      setIdentifying(false);
+    }
+  };
 
   useEffect(() => {
     fetch(`/api/pay/${orderId}?token=${encodeURIComponent(token)}`)
@@ -250,6 +296,80 @@ function PayContent() {
             </div>
           )}
 
+          {/* Гостевая форма «ФИО + email» — до identify это весь UX страницы.
+              После успешного submit needsGuestInfo=false, форма уходит, и
+              появляются обычные кнопки оплаты. */}
+          {order.needsGuestInfo ? (
+            <form onSubmit={handleIdentify} className="space-y-3">
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+                Заполни свои данные — после этого появится кнопка оплаты.
+                Доступ к курсу откроется автоматически после оплаты.
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-700">
+                  Имя и фамилия
+                </label>
+                <input
+                  type="text"
+                  value={guestFullName}
+                  onChange={(e) => setGuestFullName(e.target.value)}
+                  required
+                  placeholder="Иван Иванов"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-700">
+                  E-mail
+                </label>
+                <input
+                  type="email"
+                  value={guestEmail}
+                  onChange={(e) => setGuestEmail(e.target.value)}
+                  required
+                  placeholder="ivan@mail.ru"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  На этот email придут данные для входа в личный кабинет.
+                </p>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-700">
+                  Телефон <span className="text-gray-400">(не обязательно)</span>
+                </label>
+                <input
+                  type="tel"
+                  value={guestPhone}
+                  onChange={(e) => setGuestPhone(e.target.value)}
+                  placeholder="+7 999 123-45-67"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+
+              {error && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={identifying || !guestFullName.trim() || !guestEmail.trim()}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-4 text-lg font-bold text-white shadow-lg shadow-blue-500/25 transition-colors hover:bg-blue-700 disabled:opacity-50"
+              >
+                {identifying ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" /> Сохраняем…
+                  </>
+                ) : (
+                  <>Продолжить</>
+                )}
+              </button>
+            </form>
+          ) : (
+            <>
           {/* Информационная плашка про статус заявки в ОТП */}
           {otpStarted && (
             <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
@@ -325,6 +445,8 @@ function PayContent() {
             <ShieldCheck className="w-3.5 h-3.5 text-green-500" />
             Защищённая оплата · CloudPayments {order.otpEnabled && "· ОТП Банк"}
           </div>
+            </>
+          )}
         </div>
       </div>
     </div>

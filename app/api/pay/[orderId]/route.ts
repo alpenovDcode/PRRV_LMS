@@ -33,6 +33,8 @@ export async function GET(
       paymentLinkToken: true,
       snapshotOfferTitle: true,
       paidAt: true,
+      userId: true,
+      guestFullName: true,
       offer: { select: { title: true, description: true } },
       user: { select: { fullName: true } },
     } as any,
@@ -53,6 +55,11 @@ export async function GET(
   // ОТП доступен, если на сервере задан OTP_SHOP_CODE. Фронт по этому флагу
   // показывает кнопку «В кредит/рассрочку (ОТП Банк)» рядом с основной.
   const otpEnabled = !!process.env.OTP_SHOP_CODE;
+  // needsGuestInfo: гостевой заказ без привязки к юзеру. Фронт по этому флагу
+  // показывает форму «ФИО + email», прежде чем дать оплачивать. После
+  // успешного POST /api/pay/[orderId]/identify флаг становится false и
+  // отображается обычная страница оплаты.
+  const needsGuestInfo = !orderAny.userId;
 
   return NextResponse.json({
     success: true,
@@ -64,8 +71,10 @@ export async function GET(
       paidAt: orderAny.paidAt,
       offerTitle: orderAny.snapshotOfferTitle ?? orderAny.offer?.title ?? "",
       offerDescription: orderAny.offer?.description ?? null,
-      customerName: orderAny.user?.fullName ?? null,
+      customerName:
+        orderAny.user?.fullName ?? orderAny.guestFullName ?? null,
       otpEnabled,
+      needsGuestInfo,
     },
   });
 }
