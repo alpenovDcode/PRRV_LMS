@@ -79,12 +79,26 @@ export async function GET(req: NextRequest) {
 // ─── POST: создание заказа для пользователя админом ────────────────────────
 
 const createSchema = z.object({
-  userId: z.string().uuid(),
+  /**
+   * userId обязателен, КРОМЕ режима guest. Гостевые ссылки — заказ
+   * без привязки к юзеру: клиент сам заполняет ФИО/email на странице
+   * оплаты, и в этот момент userId привязывается.
+   */
+  userId: z.string().uuid().optional(),
   offerId: z.string().uuid(),
   reason: z.string().max(500).optional(),
-  /** Отправить email клиенту со ссылкой. По умолчанию true. */
+  /** Отправить email клиенту со ссылкой. По умолчанию true (для guest = false). */
   sendEmail: z.boolean().default(true),
-});
+  /**
+   * "user" (дефолт) — обычный заказ под существующего юзера.
+   * "guest"         — гостевая ссылка для менеджера, без юзера. Клиент
+   *                    заполнит ФИО/email на /pay/[orderId] перед оплатой.
+   */
+  mode: z.enum(["user", "guest"]).default("user"),
+}).refine(
+  (data) => data.mode === "guest" || !!data.userId,
+  { message: "userId обязателен, если mode не guest", path: ["userId"] }
+);
 
 /**
  * POST /api/admin/orders
@@ -108,17 +122,22 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
-      const { userId, offerId, reason, sendEmail: sendEmailFlag } = parsed.data;
+      const { userId, offerId, reason, sendEmail: sendEmailFlag, mode } = parsed.data;
+      const isGuest = mode === "guest";
 
-      // Проверяем что юзер и оффер существуют
+      // Юзер ищем только в режиме user. В guest-режиме привязка произойдёт
+      // позже через POST /api/pay/[orderId]/identify, когда клиент заполнит
+      // ФИО и email на странице оплаты.
       const [user, offer] = await Promise.all([
-        db.user.findUnique({
-          where: { id: userId },
-          select: { id: true, email: true, fullName: true },
-        }),
+        isGuest
+          ? Promise.resolve(null)
+          : db.user.findUnique({
+              where: { id: userId! },
+              select: { id: true, email: true, fullName: true },
+            }),
         db.offer.findUnique({ where: { id: offerId, isActive: true } }),
       ]);
-      if (!user) {
+      if (!isGuest && !user) {
         return NextResponse.json(
           { success: false, error: "Пользователь не найден" },
           { status: 404 }
@@ -135,7 +154,8 @@ export async function POST(req: NextRequest) {
 
       const order = await db.order.create({
         data: {
-          userId,
+          // В guest-режиме userId не задаём — он проставится при /identify.
+          userId: isGuest ? null : userId!,
           offerId,
           amount: offer.price,
           currency: offer.currency,
@@ -154,24 +174,27 @@ export async function POST(req: NextRequest) {
 
       await logAction(
         authedReq.user!.userId,
-        "ORDER_CREATED_FOR_USER",
+        isGuest ? "ORDER_CREATED_GUEST_LINK" : "ORDER_CREATED_FOR_USER",
         "Order",
         order.id,
         {
-          forUserId: userId,
-          forUserEmail: user.email,
+          mode,
+          forUserId: userId ?? null,
+          forUserEmail: user?.email ?? null,
           offerId,
           offerTitle: offer.title,
           amount: offer.price.toString(),
           reason: reason ?? null,
-          emailSent: sendEmailFlag,
+          emailSent: sendEmailFlag && !isGuest,
         }
       ).catch(() => {});
 
       // ── Опционально шлём клиенту email со ссылкой ──────────────────────
+      // Для guest-ссылки email клиента ещё не известен — менеджер сам
+      // отправит её любым каналом.
       let emailSent = false;
       let emailError: string | null = null;
-      if (sendEmailFlag && user.email) {
+      if (!isGuest && sendEmailFlag && user?.email) {
         try {
           const formattedAmount = new Intl.NumberFormat("ru-RU", {
             style: "currency",
@@ -202,7 +225,10 @@ export async function POST(req: NextRequest) {
           data: {
             orderId: order.id,
             paymentUrl,
-            user: { email: user.email, fullName: user.fullName },
+            user: user
+              ? { email: user.email, fullName: user.fullName }
+              : null,
+            mode,
             offer: { title: offer.title, price: offer.price.toString() },
             emailSent,
             emailError,

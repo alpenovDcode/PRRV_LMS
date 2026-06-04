@@ -686,8 +686,19 @@ model Offer {
 /// Заказ — запись о платеже пользователя за оффер.
 model Order {
   id                 String      @id @default(uuid())
-  userId             String      @map("user_id")
+  /// nullable: гостевые заказы (созданные менеджером по «гостевой ссылке
+  /// оплаты») сначала не привязаны к юзеру — userId проставляется в момент,
+  /// когда клиент заполняет ФИО+email на странице оплаты.
+  userId             String?     @map("user_id")
   offerId            String      @map("offer_id")
+  /// Что клиент ввёл на guest-форме перед оплатой. Сохраняем для аудита
+  /// даже после того, как заказ привязан к существующему юзеру.
+  guestFullName      String?     @map("guest_full_name")
+  guestEmail         String?     @map("guest_email")
+  guestPhone         String?     @map("guest_phone")
+  /// true, если LMS-юзер был создан заново из guest-данных. После оплаты
+  /// activate-order по этому флагу шлёт welcome-email с временным паролем.
+  userCreatedFromGuest Boolean   @default(false) @map("user_created_from_guest")
   amount             Decimal     @db.Decimal(10, 2)
   currency           String      @default("RUB")
   status             OrderStatus @default(pending)
@@ -721,7 +732,7 @@ model Order {
   createdAt          DateTime    @default(now()) @map("created_at")
   updatedAt          DateTime    @updatedAt @map("updated_at")
 
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user  User? @relation(fields: [userId], references: [id], onDelete: Cascade)
   offer Offer @relation(fields: [offerId], references: [id], onDelete: Restrict)
 
   @@index([userId])

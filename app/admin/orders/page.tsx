@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Search, RefreshCw, CheckCircle, Clock, XCircle, RotateCcw, Filter, X, AlertTriangle, Loader2, Plus, Copy, ExternalLink } from "lucide-react";
+import { Search, RefreshCw, CheckCircle, Clock, XCircle, RotateCcw, Filter, X, AlertTriangle, Loader2, Plus, Copy, ExternalLink, UserPlus } from "lucide-react";
 
 interface Order {
   id: string;
@@ -49,6 +49,7 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [refundTarget, setRefundTarget] = useState<Order | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [showGuestLink, setShowGuestLink] = useState(false);
   const [toast, setToast] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -89,6 +90,13 @@ export default function OrdersPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowGuestLink(true)}
+            className="flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-200 hover:border-blue-400 hover:text-blue-700 text-sm font-medium rounded-lg transition-colors"
+            title="Создать гостевую ссылку — клиент заполнит ФИО+email сам"
+          >
+            <UserPlus className="w-4 h-4" /> Гостевая ссылка
+          </button>
           <button
             onClick={() => setShowCreate(true)}
             className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
@@ -228,6 +236,22 @@ export default function OrdersPage() {
       {showCreate && (
         <CreateOrderModal
           onClose={() => setShowCreate(false)}
+          onDone={(msg) => {
+            setToast({ kind: "ok", text: msg });
+            setTimeout(() => setToast(null), 5000);
+            load();
+          }}
+          onError={(msg) => {
+            setToast({ kind: "err", text: msg });
+            setTimeout(() => setToast(null), 5000);
+          }}
+        />
+      )}
+
+      {/* Guest payment link modal */}
+      {showGuestLink && (
+        <GuestLinkModal
+          onClose={() => setShowGuestLink(false)}
           onDone={(msg) => {
             setToast({ kind: "ok", text: msg });
             setTimeout(() => setToast(null), 5000);
@@ -756,6 +780,208 @@ function CreateOrderModal({
             >
               Готово
             </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Гостевая ссылка оплаты. В отличие от CreateOrderModal — здесь НЕ нужен
+ * существующий юзер: только оффер. Клиент сам заполнит ФИО/email на
+ * странице оплаты, и в этот момент LMS его привяжет (найдёт по email или
+ * создаст нового). Менеджер получает готовый URL и отправляет любому
+ * потенциальному клиенту.
+ */
+function GuestLinkModal({
+  onClose,
+  onDone,
+  onError,
+}: {
+  onClose: () => void;
+  onDone: (msg: string) => void;
+  onError: (msg: string) => void;
+}) {
+  const [offers, setOffers] = useState<OfferOption[]>([]);
+  const [selectedOfferId, setSelectedOfferId] = useState("");
+  const [reason, setReason] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [result, setResult] = useState<{ paymentUrl: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/admin/offers")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success || Array.isArray(d?.data?.offers)) {
+          setOffers(d.data?.offers ?? d.data ?? []);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleCreate = async () => {
+    if (!selectedOfferId) return;
+    setCreating(true);
+    try {
+      const res = await fetch("/api/admin/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "guest",
+          offerId: selectedOfferId,
+          reason: reason.trim() || undefined,
+          sendEmail: false,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setResult({ paymentUrl: data.data.paymentUrl });
+      } else {
+        onError(data.error ?? "Не удалось создать ссылку");
+      }
+    } catch {
+      onError("Ошибка сети");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleCopy = async () => {
+    if (!result) return;
+    try {
+      await navigator.clipboard.writeText(result.paymentUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      onError("Не удалось скопировать");
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h2 className="font-bold text-gray-900 flex items-center gap-2">
+            <UserPlus className="w-4 h-4 text-blue-500" /> Гостевая ссылка
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {!result ? (
+            <>
+              <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-900">
+                Ссылка для потенциальных клиентов без аккаунта в LMS. Клиент
+                откроет её, заполнит ФИО и email, оплатит — и сразу получит
+                на почту доступ к курсу.
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Оффер
+                </label>
+                <select
+                  value={selectedOfferId}
+                  onChange={(e) => setSelectedOfferId(e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
+                >
+                  <option value="">Выбери оффер…</option>
+                  {offers.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.title} — {o.price} {o.currency ?? "RUB"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Комментарий <span className="text-gray-400">(для аудита)</span>
+                </label>
+                <input
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Напр.: рассылка для подписчиков канала"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  onClick={onClose}
+                  className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
+                >
+                  Отмена
+                </button>
+                <button
+                  onClick={handleCreate}
+                  disabled={!selectedOfferId || creating}
+                  className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {creating ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Создаю…
+                    </>
+                  ) : (
+                    <>Создать ссылку</>
+                  )}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="rounded-lg bg-green-50 border border-green-200 p-3 text-sm text-green-800 flex items-start gap-2">
+                <CheckCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>
+                  Гостевая ссылка готова. Отправь её клиенту — он заполнит свои
+                  данные и оплатит, после чего получит доступ к курсу автоматически.
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Ссылка
+                </label>
+                <div className="flex gap-2">
+                  <code className="flex-1 rounded-lg bg-gray-50 border border-gray-200 px-3 py-2 text-xs font-mono break-all">
+                    {result.paymentUrl}
+                  </code>
+                  <button
+                    onClick={handleCopy}
+                    className="px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg flex items-center gap-1.5"
+                  >
+                    {copied ? (
+                      <>
+                        <CheckCircle className="w-3.5 h-3.5" /> Скопировано
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" /> Копировать
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  onClick={() => {
+                    onDone("Гостевая ссылка создана");
+                    onClose();
+                  }}
+                  className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg"
+                >
+                  Готово
+                </button>
+              </div>
+            </>
           )}
         </div>
       </div>
