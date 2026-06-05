@@ -93,12 +93,21 @@ export async function GET(req: NextRequest) {
         include: { user: { select: { id: true, email: true, fullName: true } } },
       });
 
+      const GC_STATUS_MAP: Record<string, string> = {
+        "завершён": "paid", "завершен": "paid", "оплачен": "paid",
+        "новый": "pending", "ожидает оплаты": "pending", "в обработке": "pending",
+        "отменён": "cancelled", "отменен": "cancelled",
+        "возврат": "refunded",
+      };
+      const mapGcStatus = (s: string | null) =>
+        s ? (GC_STATUS_MAP[s.toLowerCase()] ?? "pending") : "pending";
+
       const lmsNormalized = lmsOrders.map((o) => ({ ...o, source: "lms" as const }));
       const gcNormalized = gcOrders.map((o) => ({
         id: o.id,
         source: "gc" as const,
         gcOrderId: o.gcOrderId,
-        status: o.status ?? "—",
+        status: mapGcStatus(o.status),
         amount: o.amount?.toString() ?? "0",
         currency: o.currency ?? "RUB",
         paymentMethod: o.paymentMethod ?? null,

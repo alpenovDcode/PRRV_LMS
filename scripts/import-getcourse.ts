@@ -13,11 +13,17 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import * as dotenv from "dotenv";
 import { PrismaClient } from "@prisma/client";
 
+// Локально: подгружаем .env.local если нет DATABASE_URL
 if (!process.env.DATABASE_URL) {
-  dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const dotenv = require("dotenv");
+    dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
+  } catch {
+    // dotenv не установлен (production) — используем переменные окружения контейнера
+  }
 }
 
 const db = new PrismaClient();
