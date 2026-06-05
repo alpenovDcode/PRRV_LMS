@@ -30,6 +30,20 @@ export const FC_LOGIN = process.env.FC_LOGIN || "";
 export const FC_PASSWORD = process.env.FC_PASSWORD || "";
 export const FC_POINT_ID = process.env.FC_POINT_ID || "";
 
+/**
+ * Сервер Freshcredit на :5046 отдаёт неполную цепочку TLS-сертификатов
+ * (нет промежуточного CA), из-за чего Node-fetch ругается
+ * UNABLE_TO_VERIFY_LEAF_SIGNATURE. Этот флаг точечно отключает TLS-
+ * валидацию ТОЛЬКО для запросов к Freshcredit. Все остальные fetch'и
+ * в приложении (CloudPayments, ОТП, Bitrix, прочее) работают со
+ * стандартной проверкой.
+ *
+ * Дефолт true, потому что без него интеграция не работает. Когда
+ * Freshcredit починят SSL — поставить "false" (или убрать env).
+ */
+export const FC_INSECURE_TLS =
+  (process.env.FC_INSECURE_TLS ?? "true").toLowerCase() !== "false";
+
 /** Код товара из справочника. 9 = «Курсы и тренинги» — самое подходящее для LMS. */
 export const FC_GOODS_CODE = parseInt(process.env.FC_GOODS_CODE || "9", 10);
 

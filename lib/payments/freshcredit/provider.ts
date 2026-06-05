@@ -37,6 +37,7 @@ import {
   assertFcConfig,
 } from "./config";
 import { getAccessToken } from "./auth";
+import { fcFetch } from "./fetch";
 
 export class FreshcreditProvider implements PaymentProvider {
   readonly name = "freshcredit";
@@ -78,7 +79,7 @@ export class FreshcreditProvider implements PaymentProvider {
       callbackUrl: input.returnUrl,
     };
 
-    const resp = await fetch(`${FC_API_BASE}/createOrder`, {
+    const resp = await fcFetch(`${FC_API_BASE}/createOrder`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -123,7 +124,7 @@ export class FreshcreditProvider implements PaymentProvider {
   async getPaymentStatus(providerPaymentId: string): Promise<PaymentStatusResult> {
     try {
       const token = await getAccessToken();
-      const resp = await fetch(
+      const resp = await fcFetch(
         `${FC_API_BASE}/checkStatus/${encodeURIComponent(providerPaymentId)}`,
         {
           method: "GET",
@@ -165,7 +166,7 @@ export class FreshcreditProvider implements PaymentProvider {
     };
     if (input.amount != null) body.sum = input.amount;
 
-    const resp = await fetch(`${FC_API_BASE}/refund`, {
+    const resp = await fcFetch(`${FC_API_BASE}/refund`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

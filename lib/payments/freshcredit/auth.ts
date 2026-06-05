@@ -16,6 +16,7 @@
  */
 
 import { FC_API_BASE, FC_LOGIN, FC_PASSWORD, assertFcConfig } from "./config";
+import { fcFetch } from "./fetch";
 
 interface LoginResponse {
   token: string;
@@ -37,7 +38,7 @@ const SAFETY_MS = 60_000;
 
 async function loginAndCache(): Promise<string> {
   assertFcConfig();
-  const resp = await fetch(`${FC_API_BASE}/login`, {
+  const resp = await fcFetch(`${FC_API_BASE}/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ login: FC_LOGIN, password: FC_PASSWORD }),
