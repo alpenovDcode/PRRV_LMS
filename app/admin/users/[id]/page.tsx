@@ -55,6 +55,7 @@ import { z } from "zod";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AccessManager } from "./_components/access-manager";
+import { GetcourseTab } from "./_components/getcourse-tab";
 
 type UserRole = "student" | "admin" | "curator";
 
@@ -513,6 +514,7 @@ export default function AdminUserDetailPage() {
           <TabsTrigger value="profile">Профиль</TabsTrigger>
           <TabsTrigger value="access">Доступы</TabsTrigger>
           <TabsTrigger value="certificates">Сертификаты</TabsTrigger>
+          <TabsTrigger value="data">Данные</TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile" className="space-y-6">
@@ -983,6 +985,10 @@ export default function AdminUserDetailPage() {
 
         <TabsContent value="certificates" className="space-y-6">
           <UserCertificates userId={userId} />
+        </TabsContent>
+
+        <TabsContent value="data" className="space-y-4">
+          <GetcourseTab userId={userId} />
         </TabsContent>
       </Tabs>
     </div>

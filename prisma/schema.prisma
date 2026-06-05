@@ -66,6 +66,7 @@ model User {
   questionMessages        QuestionMessage[]
   brief                   Brief?
   tgSubscribers           TgSubscriber[]
+  getcourseData           GetcourseData?
 
   @@index([email])
   @@map("users")
@@ -2070,3 +2071,13 @@ model BriefFile {
   @@map("brief_files")
 }
 
+
+model GetcourseData {
+  id         String   @id @default(uuid())
+  userId     String   @unique @map("user_id")
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  data       Json
+  importedAt DateTime @default(now()) @map("imported_at")
+
+  @@map("getcourse_data")
+}
