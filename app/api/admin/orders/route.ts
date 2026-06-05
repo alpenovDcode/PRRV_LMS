@@ -7,21 +7,19 @@ import { randomBytes } from "crypto";
 import { logAction } from "@/lib/audit";
 import { sendEmail, emailTemplates } from "@/lib/email-service";
 
-// Zod-схема для query params. Маппинг строки→число, ограничения на длину.
 const querySchema = z.object({
-  page: z
-    .coerce.number()
-    .int()
-    .min(1)
-    .max(10_000)
-    .default(1),
-  status: z
-    .enum(["pending", "waiting_for_capture", "paid", "cancelled", "refunded"])
-    .optional(),
+  page: z.coerce.number().int().min(1).max(10_000).default(1),
+  status: z.string().max(50).optional(),
   search: z.string().max(100).optional(),
 });
 
-/** GET /api/admin/orders?page=1&status=paid&search=email */
+/**
+ * GET /api/admin/orders?page=1&status=...&search=...
+ *
+ * Возвращает объединённый список LMS + GetCourse заказов.
+ * LMS-заказы показываются на первой странице поверх GC-заказов.
+ * Каждый элемент содержит поле source: "lms" | "gc".
+ */
 export async function GET(req: NextRequest) {
   return withAuth(
     req,
@@ -41,43 +39,83 @@ export async function GET(req: NextRequest) {
       const { page, status, search } = parsed.data;
       const limit = 50;
 
-      const where: any = {};
-      if (status) where.status = status;
+      // Фильтр LMS
+      const lmsWhere: any = {};
+      if (status) lmsWhere.status = status;
       if (search) {
-        // Ищем и по привязанному юзеру, и по guest-полям — чтобы менеджер
-        // мог найти гостевой заказ по введённому клиентом email/ФИО до
-        // того, как заказ привяжется к LMS-юзеру.
-        where.OR = [
-          {
-            user: {
-              OR: [
-                { email: { contains: search, mode: "insensitive" } },
-                { fullName: { contains: search, mode: "insensitive" } },
-              ],
-            },
-          },
+        lmsWhere.OR = [
+          { user: { OR: [{ email: { contains: search, mode: "insensitive" } }, { fullName: { contains: search, mode: "insensitive" } }] } },
           { guestEmail: { contains: search, mode: "insensitive" } },
           { guestFullName: { contains: search, mode: "insensitive" } },
         ];
       }
 
-      const [orders, total] = await Promise.all([
-        db.order.findMany({
-          where,
-          orderBy: { createdAt: "desc" },
-          skip: (page - 1) * limit,
-          take: limit,
-          include: {
-            user: { select: { id: true, email: true, fullName: true } },
-            offer: { select: { id: true, title: true } },
-          },
-        }),
-        db.order.count({ where }),
+      // Фильтр GC
+      const gcWhere: any = {};
+      if (status) gcWhere.status = { contains: status, mode: "insensitive" };
+      if (search) {
+        gcWhere.OR = [
+          { email: { contains: search, mode: "insensitive" } },
+          { customerName: { contains: search, mode: "insensitive" } },
+        ];
+      }
+
+      // LMS заказы на странице 1 (их мало, всегда помещаются)
+      const [lmsOrders, lmsTotal, gcTotal] = await Promise.all([
+        page === 1
+          ? db.order.findMany({
+              where: lmsWhere,
+              orderBy: { createdAt: "desc" },
+              take: limit,
+              include: {
+                user: { select: { id: true, email: true, fullName: true } },
+                offer: { select: { id: true, title: true } },
+              },
+            })
+          : Promise.resolve([]),
+        db.order.count({ where: lmsWhere }),
+        db.getcourseOrder.count({ where: gcWhere }),
       ]);
+
+      // GC заказы заполняют остаток страницы 1, потом идут самостоятельно
+      const gcSlotOnPage1 = limit - lmsOrders.length;
+      const gcSkip =
+        page === 1
+          ? 0
+          : gcSlotOnPage1 + (page - 2) * limit;
+      const gcTake = page === 1 ? gcSlotOnPage1 : limit;
+
+      const gcOrders = await db.getcourseOrder.findMany({
+        where: gcWhere,
+        orderBy: { gcCreatedAt: "desc" },
+        skip: gcSkip,
+        take: gcTake,
+        include: { user: { select: { id: true, email: true, fullName: true } } },
+      });
+
+      const lmsNormalized = lmsOrders.map((o) => ({ ...o, source: "lms" as const }));
+      const gcNormalized = gcOrders.map((o) => ({
+        id: o.id,
+        source: "gc" as const,
+        gcOrderId: o.gcOrderId,
+        status: o.status ?? "—",
+        amount: o.amount?.toString() ?? "0",
+        currency: o.currency ?? "RUB",
+        paymentMethod: o.paymentMethod ?? null,
+        paidAt: o.gcPaidAt?.toISOString() ?? null,
+        createdAt: (o.gcCreatedAt ?? o.importedAt).toISOString(),
+        user: o.user ?? null,
+        offer: { id: o.id, title: o.composition?.substring(0, 120) ?? "—" },
+        customerName: o.customerName,
+        email: o.email,
+        data: o.data,
+      }));
+
+      const total = lmsTotal + gcTotal;
 
       return NextResponse.json({
         success: true,
-        data: orders,
+        data: [...lmsNormalized, ...gcNormalized],
         meta: { total, page, limit, pages: Math.ceil(total / limit) },
       });
     },
