@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { Loader2, CheckCircle, ShieldCheck, CreditCard, AlertTriangle, Landmark } from "lucide-react";
+import { Loader2, CheckCircle, ShieldCheck, CreditCard, AlertTriangle, Landmark, Wallet } from "lucide-react";
 
 /**
  * Публичная страница оплаты по ссылке от админа.
@@ -27,11 +27,13 @@ interface OrderInfo {
   customerName: string | null;
   /** Серверный флаг: подключен ли ОТП Банк (есть OTP_SHOP_CODE). */
   otpEnabled: boolean;
+  /** Серверный флаг: подключен ли Freshcredit (есть FC_POINT_ID + FC_LOGIN/PASSWORD). */
+  freshcreditEnabled: boolean;
   /** true для гостевых ссылок: показываем форму «ФИО + email» перед оплатой. */
   needsGuestInfo: boolean;
 }
 
-type PayMethod = "cloudpayments" | "otp";
+type PayMethod = "cloudpayments" | "otp" | "freshcredit";
 
 function formatPrice(amount: string, currency: string) {
   return new Intl.NumberFormat("ru-RU", {
@@ -142,10 +144,10 @@ function PayContent() {
       }
 
       if (data.data.kind === "redirect") {
-        // ОТП открываем в новой вкладке, чтобы клиент мог вернуться на нашу
-        // страницу и увидеть статус заявки. Остальных redirect-провайдеров
-        // (если появятся) — переходим в той же вкладке.
-        if (method === "otp") {
+        // ОТП и Freshcredit открываем в новой вкладке, чтобы клиент мог
+        // вернуться на нашу страницу и увидеть статус заявки. Остальных
+        // redirect-провайдеров (если появятся) — переходим в той же вкладке.
+        if (method === "otp" || method === "freshcredit") {
           window.open(data.data.confirmationUrl, "_blank", "noopener,noreferrer");
           setOtpStarted(true);
           setPaying(null);
@@ -441,9 +443,47 @@ function PayContent() {
             </>
           )}
 
+          {/* Альтернатива — Freshcredit (BNPL/кредит/рассрочка). Показываем,
+              только если на сервере есть FC_POINT_ID. */}
+          {order.freshcreditEnabled && (
+            <>
+              {!order.otpEnabled && (
+                <div className="flex items-center gap-3 my-6">
+                  <div className="flex-1 h-px bg-gray-200" />
+                  <span className="text-xs text-gray-400 uppercase tracking-wide">или</span>
+                  <div className="flex-1 h-px bg-gray-200" />
+                </div>
+              )}
+
+              <button
+                onClick={() => handlePay("freshcredit")}
+                disabled={!!paying}
+                className={`w-full py-4 bg-white hover:bg-gray-50 text-gray-900 font-semibold rounded-xl border-2 border-gray-200 hover:border-violet-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-2.5 ${
+                  order.otpEnabled ? "mt-2" : ""
+                }`}
+              >
+                {paying === "freshcredit" ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" /> Открываем заявку…
+                  </>
+                ) : (
+                  <>
+                    <Wallet className="w-5 h-5 text-violet-600" />
+                    В кредит или рассрочку (Freshcredit)
+                  </>
+                )}
+              </button>
+              <p className="mt-2 text-xs text-gray-500 text-center">
+                Решение за пару минут · кредит и BNPL-рассрочка от партнёра
+              </p>
+            </>
+          )}
+
           <div className="flex items-center gap-1.5 justify-center mt-4 text-xs text-gray-400">
             <ShieldCheck className="w-3.5 h-3.5 text-green-500" />
-            Защищённая оплата · CloudPayments {order.otpEnabled && "· ОТП Банк"}
+            Защищённая оплата · CloudPayments
+            {order.otpEnabled && " · ОТП Банк"}
+            {order.freshcreditEnabled && " · Freshcredit"}
           </div>
             </>
           )}

@@ -30,6 +30,17 @@ interface PaymentSettings {
  * пароль) хранятся в env и сюда НЕ попадают — отдаём только маскированный
  * shopCode, IP whitelist, наш webhook URL и флаги «настроено / нет».
  */
+interface FreshcreditStatus {
+  enabled: boolean;
+  pointIdMasked: string | null;
+  goodsCode: string;
+  creditType: string;
+  restConfigured: boolean;
+  webhookIps: string[];
+  webhookUrl: string;
+  apiBase: string;
+}
+
 interface OtpStatus {
   enabled: boolean;
   shopCodeMasked: string | null;
@@ -137,6 +148,7 @@ const OBJECT_OPTIONS = [
 export default function PaymentSettingsPage() {
   const [settings, setSettings] = useState<PaymentSettings | null>(null);
   const [otp, setOtp] = useState<OtpStatus | null>(null);
+  const [freshcredit, setFreshcredit] = useState<FreshcreditStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
@@ -166,6 +178,7 @@ export default function PaymentSettingsPage() {
           setRestrictedMethods(s.restrictedMethods);
           setPaymentSchema(s.paymentSchema);
           if (d.otp) setOtp(d.otp as OtpStatus);
+          if (d.freshcredit) setFreshcredit(d.freshcredit as FreshcreditStatus);
         }
       })
       .finally(() => setLoading(false));
@@ -561,6 +574,131 @@ export default function PaymentSettingsPage() {
             <p className="text-xs text-gray-500 pt-1">
               После подключения передай куратору наш webhook URL и наш домен,
               чтобы они зарегистрировали интеграцию у себя.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* ─── Freshcredit ──────────────────────────────────────────── */}
+      <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+              <Landmark className="w-5 h-5 text-violet-600" /> Freshcredit
+              <span className="text-xs font-normal text-gray-400">
+                кредит и BNPL-рассрочка
+              </span>
+            </h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Альтернатива CloudPayments. Секреты в env, не в БД.
+            </p>
+          </div>
+          {freshcredit?.enabled ? (
+            <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-green-50 text-green-700 border border-green-200">
+              <CheckCircle className="w-3.5 h-3.5" /> Подключено
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-500 border border-gray-200">
+              <AlertTriangle className="w-3.5 h-3.5" /> Не настроено
+            </span>
+          )}
+        </div>
+
+        {freshcredit?.enabled ? (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+              <KV
+                label="Point ID"
+                value={freshcredit.pointIdMasked ?? "—"}
+                mono
+              />
+              <KV
+                label="Код товара"
+                value={`${freshcredit.goodsCode} (см. справочник)`}
+              />
+              <KV
+                label="Тип продукта"
+                value={
+                  freshcredit.creditType === "1"
+                    ? "1 — Кредит"
+                    : freshcredit.creditType === "2"
+                    ? "2 — Рассрочка"
+                    : freshcredit.creditType === "[1,2]"
+                    ? "Кредит + Рассрочка"
+                    : freshcredit.creditType
+                }
+              />
+              <KV
+                label="API"
+                value={freshcredit.apiBase.includes("test") ? "Тест" : "Прод"}
+              />
+              <div className="sm:col-span-2">
+                <div className="text-xs text-gray-500 mb-1">
+                  IP whitelist webhook
+                </div>
+                {freshcredit.webhookIps.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {freshcredit.webhookIps.map((ip) => (
+                      <span
+                        key={ip}
+                        className="text-xs font-mono bg-gray-50 border border-gray-200 px-2 py-0.5 rounded"
+                      >
+                        {ip}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-amber-700">
+                    ⚠ FC_WEBHOOK_IPS пуст — webhook принимает любые IP. На проде
+                    задать обязательно.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="border-t border-gray-100 pt-3">
+              <div className="text-xs text-gray-500 mb-1">
+                Webhook URL для менеджера Freshcredit
+              </div>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 text-xs font-mono bg-gray-50 border border-gray-200 px-2.5 py-1.5 rounded break-all">
+                  {freshcredit.webhookUrl}
+                </code>
+                <button
+                  onClick={() => {
+                    navigator.clipboard
+                      .writeText(freshcredit.webhookUrl)
+                      .catch(() => {});
+                    setToast({ kind: "ok", text: "URL скопирован" });
+                    setTimeout(() => setToast(null), 2000);
+                  }}
+                  className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
+                  title="Скопировать"
+                >
+                  <Copy className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="text-sm text-gray-600 bg-gray-50 border border-gray-100 rounded-lg p-4 space-y-2">
+            <p>
+              Чтобы подключить Freshcredit, добавь в env переменные и пересобери
+              приложение:
+            </p>
+            <ul className="font-mono text-xs space-y-0.5 ml-4 list-disc text-gray-700">
+              <li>FC_POINT_ID — UUID торговой точки, выдаёт менеджер</li>
+              <li>FC_LOGIN / FC_PASSWORD — техническая учётная запись</li>
+              <li>FC_WEBHOOK_IPS — IP-адреса Freshcredit (защита webhook)</li>
+              <li>FC_GOODS_CODE — по умолчанию 9 (Курсы и тренинги)</li>
+              <li>
+                FC_API_BASE — переключить на тест:
+                https://formapitest.freshcredit.ru:5047/widget-api
+              </li>
+            </ul>
+            <p className="text-xs text-gray-500 pt-1">
+              После подключения передай менеджеру наш webhook URL — они
+              настроят отправку статусов на нашу сторону.
             </p>
           </div>
         )}

@@ -73,7 +73,30 @@ export async function GET(req: NextRequest) {
         webhookUrl: `${appUrl}/api/payments/webhook/otp`,
       };
 
-      return NextResponse.json({ success: true, data: row, otp });
+      // Аналогично для Freshcredit — публичные поля из env, без секретов.
+      const fcPointId = process.env.FC_POINT_ID || "";
+      const fcLogin = !!process.env.FC_LOGIN;
+      const fcPassword = !!process.env.FC_PASSWORD;
+      const freshcredit = {
+        enabled: !!fcPointId && fcLogin && fcPassword,
+        pointIdMasked: fcPointId
+          ? fcPointId.length > 6
+            ? `${"•".repeat(Math.max(0, fcPointId.length - 6))}${fcPointId.slice(-6)}`
+            : fcPointId
+          : null,
+        goodsCode: process.env.FC_GOODS_CODE || "9",
+        creditType: process.env.FC_CREDIT_TYPE || "[1,2]",
+        restConfigured: fcLogin && fcPassword,
+        webhookIps: (process.env.FC_WEBHOOK_IPS || "")
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean),
+        webhookUrl: `${appUrl}/api/payments/webhook/freshcredit`,
+        apiBase:
+          process.env.FC_API_BASE || "https://formapi.freshcredit.ru:5046/widget-api",
+      };
+
+      return NextResponse.json({ success: true, data: row, otp, freshcredit });
     },
     { roles: [UserRole.admin] }
   );
