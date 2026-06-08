@@ -8,6 +8,7 @@ import { CoursePerformance } from "@/components/admin/analytics/course-performan
 import { HomeworkProgressChart } from "@/components/admin/analytics/homework-progress";
 import { GroupLessonViewsChart } from "@/components/admin/analytics/group-lesson-views";
 import { StudentsTable } from "@/components/admin/analytics/students-table";
+import { CertificationsTable } from "@/components/admin/analytics/certifications-table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState } from "react";
@@ -80,6 +81,10 @@ export default function AnalyticsPage() {
           <TabsTrigger value="courses">Курсы</TabsTrigger>
           <TabsTrigger value="groups">Группы и ДЗ</TabsTrigger>
           <TabsTrigger value="students">Продуктовая аналитика</TabsTrigger>
+          {/* Сертификационные анкеты — отдельный раздел: таблица всех
+              сабмишенов на уроки type=certification_form со сводкой,
+              фильтрами, ответами и экспортом CSV. */}
+          <TabsTrigger value="certifications">Сертификация</TabsTrigger>
         </TabsList>
         
         <TabsContent value="overview" className="space-y-4">
@@ -108,6 +113,10 @@ export default function AnalyticsPage() {
 
         <TabsContent value="students" className="space-y-4">
           <StudentsTable />
+        </TabsContent>
+
+        <TabsContent value="certifications" className="space-y-4">
+          <CertificationsTable />
         </TabsContent>
       </Tabs>
     </div>
