@@ -13,7 +13,11 @@ import { toast } from "sonner";
 
 interface ImportResp {
   dryRun: boolean;
+  /** "standard" — наш формат, "salebot" — авто-конверт из SaleBot. */
+  format: "standard" | "salebot";
   totalRows: number;
+  /** Сколько строк дошло до импорта после SaleBot-маппинга (если он сработал). */
+  mappedRows: number;
   created: number;
   updated: number;
   skipped: number;
@@ -114,6 +118,36 @@ export default function ImportSubscribersPage() {
               увидите ошибки до того, как изменения попадут в базу
             </li>
           </ul>
+
+          <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 space-y-1">
+            <div className="font-medium">
+              📥 Выгрузка из SaleBot — распознаётся автоматически
+            </div>
+            <div>
+              Если ваш CSV из SaleBot (колонка{" "}
+              <code className="bg-white px-1 rounded">
+                Идентификатор внутри мессенджера
+              </code>
+              ) — мы сами замэппим: ID, имя, @username, UTM, email, phone,
+              теги, метки и списки попадут в карточку подписчика. Строки с
+              мессенджером, отличным от Telegram, скипнутся (отчёт покажет).
+            </div>
+          </div>
+
+          <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 space-y-1">
+            <div className="font-medium flex items-center gap-1">
+              <AlertTriangle className="h-3.5 w-3.5" /> Важно про Telegram
+            </div>
+            <div>
+              Импорт кладёт записи в БД. Но Telegram <b>не разрешает боту
+              первым писать пользователю</b> — пока импортированный
+              подписчик сам не нажмёт <code>/start</code> у этого бота,
+              рассылка ему не уйдёт (Telegram вернёт «bot can't initiate
+              conversation»). До этого момента записи годны для аналитики,
+              сегментации и синка в CRM. Исключение — если вы импортируете
+              CSV в <b>тот же самый бот</b>, с которого выгрузка.
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -191,9 +225,18 @@ export default function ImportSubscribersPage() {
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <div className="flex flex-wrap gap-2">
+              {result.format === "salebot" && (
+                <Badge className="bg-purple-600">SaleBot CSV</Badge>
+              )}
               <Badge variant="outline">
                 Всего строк: <span className="ml-1 font-mono">{result.totalRows}</span>
               </Badge>
+              {result.format === "salebot" && result.mappedRows !== result.totalRows && (
+                <Badge variant="outline">
+                  Пригодных к импорту:{" "}
+                  <span className="ml-1 font-mono">{result.mappedRows}</span>
+                </Badge>
+              )}
               <Badge variant="default" className="bg-emerald-600">
                 Создано: {result.created}
               </Badge>

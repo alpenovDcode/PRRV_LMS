@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { withAuth } from "@/lib/api-middleware";
 import { parseCsv } from "@/lib/tg/csv-parse";
+import { adaptSalebotCsv } from "@/lib/tg/csv-salebot-adapter";
 import type { Prisma } from "@prisma/client";
 
 export const runtime = "nodejs";
@@ -12,17 +13,24 @@ export const dynamic = "force-dynamic";
 // на батчи, чтобы не уронить веб-процесс длинной транзакцией.
 const MAX_ROWS = 10_000;
 
-// Импорт списка подписчиков из CSV.
+// Импорт списка подписчиков из CSV. Поддерживаются 2 формата:
 //
-// Распознаваемые колонки заголовка (case-insensitive, можно в любом порядке):
-//   chatId      — telegram numeric id (required, integer)
-//   firstName   — имя
-//   lastName    — фамилия
-//   username    — телеграм-username (без @)
-//   languageCode — код языка (ru, en)
-//   tags        — теги через `;` или `|`, например `vip;promo2025`
-//   customFields — пары `ключ=значение`, разделённые `;`, например
-//                  `age=25;city=Moscow`
+// 1. Стандартный (наш) — колонки (case-insensitive, в любом порядке):
+//      chatId      — telegram numeric id (required, integer)
+//      firstName   — имя
+//      lastName    — фамилия
+//      username    — телеграм-username (без @)
+//      languageCode — код языка (ru, en)
+//      tags        — теги через `;` или `|`, например `vip;promo2025`
+//      customFields — пары `ключ=значение`, разделённые `;`, например
+//                     `age=25;city=Moscow`
+//
+// 2. SaleBot CSV (выгрузка из SaleBot) — детектируется автоматически по
+//    наличию колонки «Идентификатор внутри мессенджера». Адаптер
+//    в lib/tg/csv-salebot-adapter.ts превращает её строки в стандартный
+//    формат + добавляет тег `imported:salebot` и `salebot:<bot_name>` для
+//    последующей фильтрации. Строки с мессенджером, отличным от Telegram,
+//    автоматически скипаются (и попадают в errors[] с пометкой SaleBot).
 //
 // Поведение:
 //   match by (botId, chatId)
@@ -31,7 +39,15 @@ const MAX_ROWS = 10_000;
 //   • если не найден — создаём с tgUserId = chatId (для импорта это
 //     допустимо — позже он подтянется из апдейтов)
 //
-// Возвращает: { created, updated, skipped, errors[] }
+// ВАЖНО — про Telegram API: импорт кладёт записи в БД и связывает их по
+// chat_id. Но первым писать пользователю боту нельзя — это ограничение
+// Telegram. Поэтому пока импортированный подписчик сам не нажмёт /start
+// у этого бота, sendMessage вернёт `Forbidden: bot can't initiate
+// conversation with a user`. Рассылки полетят только тем, кто пришёл
+// сам. До этого момента запись пригодна для аналитики, сегментации,
+// синка в CRM (Bitrix24), но не для исходящих сообщений в TG.
+//
+// Возвращает: { created, updated, skipped, errors[], format }
 //
 // dryRun=true — ничего не пишет, только возвращает что бы случилось.
 const inputSchema = z.object({
@@ -88,9 +104,30 @@ export async function POST(
         );
       }
 
+      // ── SaleBot CSV: автоматическое распознавание + конвертация ─────────
+      // Если в заголовке колонка «Идентификатор внутри мессенджера» — это
+      // выгрузка SaleBot. Преобразуем её строки в наш стандартный формат
+      // (chatId/firstName/lastName/username/tags/customFields), а после
+      // импорта добавим в отчёт информацию про скипнутые строки (другие
+      // мессенджеры, пустой chat_id).
+      let effectiveHeaders = parsedCsv.headers;
+      let effectiveRows = parsedCsv.rows;
+      let salebotSkipped: Array<{ row: number; reason: string }> = [];
+      let formatDetected: "standard" | "salebot" = "standard";
+      const salebotAdapt = adaptSalebotCsv({
+        headers: parsedCsv.headers,
+        rows: parsedCsv.rows,
+      });
+      if (salebotAdapt) {
+        formatDetected = "salebot";
+        effectiveHeaders = salebotAdapt.headers;
+        effectiveRows = salebotAdapt.rows;
+        salebotSkipped = salebotAdapt.skipped;
+      }
+
       // Нормализуем заголовки в lower-case для подбора нечувствительного к регистру.
       const headerMap = new Map<string, string>();
-      for (const h of parsedCsv.headers) {
+      for (const h of effectiveHeaders) {
         headerMap.set(h.toLowerCase(), h);
       }
       const getCol = (
@@ -105,7 +142,7 @@ export async function POST(
 
       // Pre-fetch existing subscribers by chatId (one DB hit, не N+1).
       const chatIds: string[] = [];
-      for (const r of parsedCsv.rows) {
+      for (const r of effectiveRows) {
         const ci = getCol(r, "chatId");
         if (ci) chatIds.push(String(ci).trim());
       }
@@ -136,8 +173,8 @@ export async function POST(
       let updated = 0;
       let skipped = 0;
 
-      for (let idx = 0; idx < parsedCsv.rows.length; idx++) {
-        const row = parsedCsv.rows[idx];
+      for (let idx = 0; idx < effectiveRows.length; idx++) {
+        const row = effectiveRows[idx];
         const rowNum = idx + 2; // +1 for header, +1 for 1-based numbering
         const chatId = getCol(row, "chatId");
         if (!chatId) {
@@ -228,18 +265,32 @@ export async function POST(
         }
       }
 
+      // SaleBot-скипы (другой мессенджер, пустой chat_id, не-число)
+      // подмешиваем к errors[] с понятной отметкой формата, чтобы
+      // отчёт в UI был полный.
+      const fmtErrors = [
+        ...salebotSkipped.map((s) => ({
+          row: s.row,
+          message: `SaleBot: ${s.reason}`,
+        })),
+        ...errors,
+      ];
+      const totalSkipped = skipped + salebotSkipped.length;
+
       return NextResponse.json({
         success: true,
         data: {
           dryRun,
+          format: formatDetected,
           totalRows: parsedCsv.rows.length,
+          mappedRows: effectiveRows.length,
           created,
           updated,
-          skipped,
-          errors: errors.slice(0, 100), // не сливать клиенту тысячи ошибок
-          errorsTotal: errors.length,
+          skipped: totalSkipped,
+          errors: fmtErrors.slice(0, 100), // не сливать клиенту тысячи ошибок
+          errorsTotal: fmtErrors.length,
           delimiter: parsedCsv.delimiter,
-          headers: parsedCsv.headers,
+          headers: effectiveHeaders,
         },
       });
     },
