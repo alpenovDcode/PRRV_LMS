@@ -8,10 +8,15 @@ function parseAnswers(content: string | null): Record<string, string> | null {
   if (!content) return null;
   try {
     const parsed = JSON.parse(content);
-    return parsed._answers ?? null;
-  } catch {
-    return null;
-  }
+    // Structured format: { _answers: { "question": "answer" } }
+    if (parsed && typeof parsed === "object" && parsed._answers) {
+      return parsed._answers;
+    }
+  } catch {}
+  // Fallback: treat raw content as a single freeform answer
+  const trimmed = content.trim();
+  if (trimmed) return { "Ответ": trimmed };
+  return null;
 }
 
 export async function GET(

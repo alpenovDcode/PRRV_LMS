@@ -10,6 +10,7 @@ import { GroupLessonViewsChart } from "@/components/admin/analytics/group-lesson
 import { StudentsTable } from "@/components/admin/analytics/students-table";
 import { StreamDetail, StreamData } from "@/components/admin/analytics/stream-detail";
 import { SurveyAnalytics } from "@/components/admin/analytics/survey-analytics";
+import { QuestionsAnalytics } from "@/components/admin/analytics/questions-analytics";
 import { AtRiskAlert } from "@/components/admin/analytics/at-risk-alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -106,6 +107,7 @@ export default function AnalyticsPage() {
           <TabsTrigger value="streams">Потоки</TabsTrigger>
           <TabsTrigger value="surveys">Опросы / NPS</TabsTrigger>
           <TabsTrigger value="students">Студенты</TabsTrigger>
+          <TabsTrigger value="questions">Вопросы</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
@@ -202,6 +204,10 @@ export default function AnalyticsPage() {
 
         <TabsContent value="students" className="space-y-4">
           <StudentsTable />
+        </TabsContent>
+
+        <TabsContent value="questions" className="space-y-4">
+          <QuestionsAnalytics />
         </TabsContent>
 
       </Tabs>
