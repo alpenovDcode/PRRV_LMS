@@ -14,59 +14,46 @@ export async function GET(request: NextRequest) {
         const thirtyDaysAgo = subDays(now, 30);
 
         // Parallelize queries for performance
+        const sevenDaysAgo = subDays(now, 7);
+
         const [
           totalUsers,
-          newUsersLast30Days,
-          activeUsersLast30Days,
+          totalStudents,
+          newStudentsLast30Days,
+          totalGroups,
           totalCourses,
           totalEnrollments,
           pendingHomeworks,
+          recentProgressUsers,
         ] = await Promise.all([
           db.user.count(),
-          db.user.count({
+          db.user.count({ where: { role: "student" } }),
+          db.user.count({ where: { role: "student", createdAt: { gte: thirtyDaysAgo } } }),
+          db.group.count(),
+          db.course.count({ where: { isPublished: true } }),
+          db.enrollment.count({ where: { status: "active" } }),
+          db.homeworkSubmission.count({ where: { status: "pending" } }),
+          // Active students = enrolled students with lesson progress updated in last 7 days
+          db.lessonProgress.groupBy({
+            by: ["userId"],
             where: {
-              createdAt: {
-                gte: thirtyDaysAgo,
-              },
-            },
-          }),
-          db.userSession.count({
-            where: {
-              lastActivityAt: {
-                gte: thirtyDaysAgo,
-              },
-              isActive: true, // Assuming active sessions imply active users roughly, or distinct userId count would be better but Prisma count distinct is specific
-            },
-          }),
-          db.course.count({
-            where: {
-              isPublished: true,
-            },
-          }),
-          db.enrollment.count({
-            where: {
-              status: "active",
-            },
-          }),
-          db.homeworkSubmission.count({
-            where: {
-              status: "pending",
+              lastUpdated: { gte: sevenDaysAgo },
+              user: { enrollments: { some: { status: "active" } } },
             },
           }),
         ]);
 
-        // For active users, session count might be misleading if one user has multiple sessions. 
-        // A better approach for "Active Users" is counting distinct users who have logged in or acted recently.
-        // Since Prisma count distinct is limited, let's try a different approach if needed, 
-        // but for overview simple session count or just "new users" is often enough. 
-        // Let's stick to "New Users" as a growth metric and "Total Users".
-        
+        const activeStudentsLast7Days = recentProgressUsers.length;
+
         const data = {
           totalUsers,
-          newUsersLast30Days,
+          totalStudents,
+          newStudentsLast30Days,
+          totalGroups,
           totalCourses,
           totalEnrollments,
           pendingHomeworks,
+          activeStudentsLast7Days,
         };
 
         return NextResponse.json<ApiResponse>({ success: true, data }, { status: 200 });

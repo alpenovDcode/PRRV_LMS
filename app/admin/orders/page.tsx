@@ -171,72 +171,91 @@ export default function OrdersPage() {
             ) : orders.length === 0 ? (
               <tr><td colSpan={7} className="text-center py-12 text-gray-400">Заказов не найдено</td></tr>
             ) : (
-              orders.map((order) => (
-                <tr
-                  key={order.id}
-                  className="hover:bg-gray-50 transition-colors cursor-pointer"
-                  onClick={() => setDetailsOrder(order)}
-                >
-                  <td className="px-4 py-3">
-                    {order.user ? (
-                      <a
-                        href={`/admin/users/${order.user.id}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="hover:text-blue-600 transition-colors"
-                      >
-                        <div className="font-medium text-gray-900 truncate max-w-[180px]">
-                          {order.user.fullName || order.user.email}
-                        </div>
-                        <div className="text-gray-400 text-xs truncate max-w-[180px]">
-                          {order.user.email}
-                        </div>
-                      </a>
-                    ) : (
-                      // Гостевой заказ: user ещё не привязан. Показываем то,
-                      // что клиент ввёл в форме (если уже /identify), либо
-                      // плашку «гостевая ссылка».
-                      <div className="text-gray-500">
-                        <div className="font-medium text-gray-700 truncate max-w-[180px] flex items-center gap-1.5">
-                          <UserPlus className="w-3 h-3 text-blue-500" />
-                          {(order as any).guestFullName || "Гостевая ссылка"}
-                        </div>
-                        <div className="text-gray-400 text-xs truncate max-w-[180px]">
-                          {(order as any).guestEmail || "клиент ещё не открыл ссылку"}
+              orders.map((order) => {
+                const isGC = (order as any).source === "gc";
+                const gcOrder = isGC ? (order as any) : null;
+                return (
+                  <tr
+                    key={order.id}
+                    className="hover:bg-gray-50 transition-colors cursor-pointer"
+                    onClick={() => setDetailsOrder(order)}
+                  >
+                    <td className="px-4 py-3">
+                      <div className="flex items-start gap-1.5">
+                        {isGC && (
+                          <span className="mt-0.5 shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-600 border border-orange-200">
+                            GC
+                          </span>
+                        )}
+                        <div className="min-w-0">
+                          {order.user ? (
+                            <a
+                              href={`/admin/users/${order.user.id}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="hover:text-blue-600 transition-colors"
+                            >
+                              <div className="font-medium text-gray-900 truncate max-w-[180px]">
+                                {order.user.fullName || order.user.email}
+                              </div>
+                              <div className="text-gray-400 text-xs truncate max-w-[180px]">
+                                {order.user.email}
+                              </div>
+                            </a>
+                          ) : isGC ? (
+                            <div>
+                              <div className="font-medium text-gray-700 truncate max-w-[180px]">
+                                {gcOrder.customerName || gcOrder.email}
+                              </div>
+                              <div className="text-gray-400 text-xs truncate max-w-[180px]">
+                                {gcOrder.email}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-gray-500">
+                              <div className="font-medium text-gray-700 truncate max-w-[180px] flex items-center gap-1.5">
+                                <UserPlus className="w-3 h-3 text-blue-500" />
+                                {(order as any).guestFullName || "Гостевая ссылка"}
+                              </div>
+                              <div className="text-gray-400 text-xs truncate max-w-[180px]">
+                                {(order as any).guestEmail || "клиент ещё не открыл ссылку"}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="text-gray-700 truncate max-w-[180px] block">{order.offer.title}</span>
-                  </td>
-                  <td className="px-4 py-3 font-semibold text-gray-900 whitespace-nowrap">
-                    {formatPrice(order.amount, order.currency)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusBadge status={order.status} />
-                  </td>
-                  <td className="px-4 py-3 text-gray-500 text-xs">
-                    {order.paymentMethod ?? "—"}
-                  </td>
-                  <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">
-                    {order.paidAt ? formatDate(order.paidAt) : formatDate(order.createdAt)}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    {order.status === "paid" && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setRefundTarget(order);
-                        }}
-                        className="text-xs text-red-600 hover:bg-red-50 px-2 py-1 rounded transition-colors inline-flex items-center gap-1"
-                        title="Возврат денег"
-                      >
-                        <RotateCcw className="w-3 h-3" /> Вернуть
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-gray-700 truncate max-w-[180px] block">{order.offer.title}</span>
+                    </td>
+                    <td className="px-4 py-3 font-semibold text-gray-900 whitespace-nowrap">
+                      {formatPrice(order.amount, order.currency)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={order.status} />
+                    </td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">
+                      {order.paymentMethod ?? "—"}
+                    </td>
+                    <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">
+                      {order.paidAt ? formatDate(order.paidAt) : formatDate(order.createdAt)}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {!isGC && order.status === "paid" && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRefundTarget(order);
+                          }}
+                          className="text-xs text-red-600 hover:bg-red-50 px-2 py-1 rounded transition-colors inline-flex items-center gap-1"
+                          title="Возврат денег"
+                        >
+                          <RotateCcw className="w-3 h-3" /> Вернуть
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

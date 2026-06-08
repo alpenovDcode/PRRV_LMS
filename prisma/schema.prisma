@@ -66,6 +66,8 @@ model User {
   questionMessages        QuestionMessage[]
   brief                   Brief?
   tgSubscribers           TgSubscriber[]
+  getcourseData           GetcourseData?
+  getcourseOrders         GetcourseOrder[]
 
   @@index([email])
   @@map("users")
@@ -2070,3 +2072,41 @@ model BriefFile {
   @@map("brief_files")
 }
 
+
+model GetcourseOrder {
+  id            String    @id @default(uuid())
+  gcOrderId     String    @unique @map("gc_order_id")
+  gcNumber      String?   @map("gc_number")
+  gcUserId      String?   @map("gc_user_id")
+  customerName  String?   @map("customer_name")
+  email         String
+  phone         String?
+  composition   String?   @db.Text
+  status        String?
+  amount        Decimal?  @db.Decimal(12, 2)
+  amountPaid    Decimal?  @map("amount_paid") @db.Decimal(12, 2)
+  currency      String?   @default("RUB")
+  paymentMethod String?   @map("payment_method")
+  gcCreatedAt   DateTime? @map("gc_created_at")
+  gcPaidAt      DateTime? @map("gc_paid_at")
+  userId        String?   @map("user_id")
+  user          User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  data          Json
+  importedAt    DateTime  @default(now()) @map("imported_at")
+
+  @@index([email])
+  @@index([userId])
+  @@index([status])
+  @@index([gcCreatedAt])
+  @@map("getcourse_orders")
+}
+
+model GetcourseData {
+  id         String   @id @default(uuid())
+  userId     String   @unique @map("user_id")
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  data       Json
+  importedAt DateTime @default(now()) @map("imported_at")
+
+  @@map("getcourse_data")
+}

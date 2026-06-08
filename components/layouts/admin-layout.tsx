@@ -87,7 +87,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
   });
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-screen bg-background overflow-x-hidden">
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/50 lg:hidden"
@@ -211,7 +211,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className={cn(
-        "flex flex-1 flex-col transition-all duration-300",
+        "flex flex-1 flex-col min-w-0 transition-all duration-300",
         isCollapsed ? "lg:pl-20" : "lg:pl-64"
       )}>
         <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-primary/10 bg-white/95 px-4 sm:px-6 backdrop-blur supports-[backdrop-filter]:bg-white/80 shadow-soft">
