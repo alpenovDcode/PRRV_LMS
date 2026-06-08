@@ -51,17 +51,32 @@ function answerColor(val: string): string {
 }
 
 function AnswerCell({ value }: { value: string | undefined }) {
+  const [expanded, setExpanded] = useState(false);
+
   if (value === undefined) return <span className="text-muted-foreground">—</span>;
   const num = parseFloat(value);
   if (!isNaN(num)) {
     return <span className={answerColor(value)}>{value}</span>;
   }
-  // Long text: truncate with title tooltip
   if (value.length > 40) {
     return (
-      <span title={value} className="cursor-help underline decoration-dotted text-xs">
-        {value.slice(0, 38)}…
-      </span>
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="text-left text-xs hover:text-foreground transition-colors"
+      >
+        {expanded ? (
+          <span>
+            {value}
+            <span className="ml-1 text-muted-foreground underline">скрыть</span>
+          </span>
+        ) : (
+          <span>
+            <span className="underline decoration-dotted">{value.slice(0, 38)}…</span>
+            <span className="ml-1 text-muted-foreground">читать</span>
+          </span>
+        )}
+      </button>
     );
   }
   return <span className="text-sm">{value}</span>;
