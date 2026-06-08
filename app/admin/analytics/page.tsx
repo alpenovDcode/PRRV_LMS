@@ -8,6 +8,7 @@ import { CoursePerformance } from "@/components/admin/analytics/course-performan
 import { HomeworkProgressChart } from "@/components/admin/analytics/homework-progress";
 import { GroupLessonViewsChart } from "@/components/admin/analytics/group-lesson-views";
 import { StudentsTable } from "@/components/admin/analytics/students-table";
+import { CertificationsTable } from "@/components/admin/analytics/certifications-table";
 import { StreamDetail, StreamData } from "@/components/admin/analytics/stream-detail";
 import { SurveyAnalytics } from "@/components/admin/analytics/survey-analytics";
 import { QuestionsAnalytics } from "@/components/admin/analytics/questions-analytics";
@@ -108,6 +109,11 @@ export default function AnalyticsPage() {
           <TabsTrigger value="surveys">Опросы / NPS</TabsTrigger>
           <TabsTrigger value="students">Студенты</TabsTrigger>
           <TabsTrigger value="questions">Вопросы</TabsTrigger>
+          {/* Сертификационные анкеты — детальный реестр всех сабмишенов
+              на уроки type=certification_form. Дополняет общий обзор в
+              «Опросы / NPS»: тут таблица с фильтрами, ответами по каждому
+              студенту и экспортом CSV. */}
+          <TabsTrigger value="certifications">Сертификация</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
@@ -208,6 +214,10 @@ export default function AnalyticsPage() {
 
         <TabsContent value="questions" className="space-y-4">
           <QuestionsAnalytics />
+        </TabsContent>
+
+        <TabsContent value="certifications" className="space-y-4">
+          <CertificationsTable />
         </TabsContent>
 
       </Tabs>
