@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { withAuth } from "@/lib/api-middleware";
 import { parseCsv } from "@/lib/tg/csv-parse";
 import { adaptSalebotCsv } from "@/lib/tg/csv-salebot-adapter";
+import { ensureSalebotFieldDefinitions } from "@/lib/tg/salebot-field-definitions";
 import type { Prisma } from "@prisma/client";
 
 export const runtime = "nodejs";
@@ -245,7 +246,21 @@ export async function POST(
         }
       }
 
+      // Для SaleBot-формата: автоматически заводим TgCustomField
+      // definitions (email, phone, UTM, salebot_*, amo_client_id, ...).
+      // С ними поля в карточке подписчика становятся типизированными:
+      // email кликабельный, phone с маской, в фильтрах сегментов их
+      // можно использовать как «email содержит @yandex.ru». Существующие
+      // definitions НЕ перезаписываются.
+      let fieldsCreated: { createdCount: number; createdKeys: string[] } = {
+        createdCount: 0,
+        createdKeys: [],
+      };
       if (!dryRun) {
+        if (formatDetected === "salebot") {
+          fieldsCreated = await ensureSalebotFieldDefinitions(db, params.botId);
+        }
+
         if (toCreate.length > 0) {
           await db.tgSubscriber.createMany({
             data: toCreate,
@@ -291,6 +306,10 @@ export async function POST(
           errorsTotal: fmtErrors.length,
           delimiter: parsedCsv.delimiter,
           headers: effectiveHeaders,
+          // Сколько TgCustomField definitions было заведено в этом
+          // прогоне. Если формат не salebot или все уже были — 0.
+          customFieldsCreated: fieldsCreated.createdCount,
+          customFieldKeysCreated: fieldsCreated.createdKeys,
         },
       });
     },

@@ -25,6 +25,10 @@ interface ImportResp {
   errorsTotal: number;
   delimiter: "," | ";";
   headers: string[];
+  /** Кол-во TgCustomField definitions, заведённых на этом импорте. */
+  customFieldsCreated?: number;
+  /** Какие именно key — для показа админу в отчёте. */
+  customFieldKeysCreated?: string[];
 }
 
 export default function ImportSubscribersPage() {
@@ -253,6 +257,22 @@ export default function ImportSubscribersPage() {
             <div className="text-xs text-muted-foreground">
               Распознанные колонки: {result.headers.join(", ") || "—"}
             </div>
+            {!!result.customFieldsCreated && result.customFieldsCreated > 0 && (
+              <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-xs text-emerald-900 space-y-1">
+                <div className="font-medium">
+                  ✨ Заведены типизированные поля ({result.customFieldsCreated})
+                </div>
+                <div>
+                  В разделе «Поля» этого бота созданы определения для:{" "}
+                  <span className="font-mono">
+                    {(result.customFieldKeysCreated ?? []).join(", ")}
+                  </span>
+                  . Теперь в карточке подписчика email кликабельный, телефон с
+                  маской, UTM и прочие SaleBot-поля показываются типизированно
+                  и доступны в фильтрах сегментов.
+                </div>
+              </div>
+            )}
             {result.errorsTotal > 0 && (
               <div className="space-y-1">
                 <div className="text-xs font-medium text-amber-700">
