@@ -100,8 +100,9 @@ export default function BotFlowsPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
-      <Link href="/admin/messaging" className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-4">
-        <ArrowLeft className="w-4 h-4" /> К списку аккаунтов
+      {/* Список «Каналы» переехал в /admin/bots — там TG и MAX одним списком. */}
+      <Link href="/admin/bots" className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-4">
+        <ArrowLeft className="w-4 h-4" /> К списку ботов
       </Link>
 
       <div className="flex items-center justify-between mb-6">
