@@ -5,7 +5,13 @@ import { withAuth } from "@/lib/api-middleware";
 import {
   flowExportSchema,
   analyzeImportWarnings,
+  type ImportWarning,
 } from "@/lib/tg/flow-export";
+import {
+  convertSalebotToFlowExport,
+  isSalebotFlowExport,
+  type SalebotImportWarning,
+} from "@/lib/tg/salebot-flow-converter";
 import { trackEvent } from "@/lib/tg/events";
 
 export const runtime = "nodejs";
@@ -39,8 +45,13 @@ export async function POST(
         );
       }
 
-      // Если data — строка, парсим и валидируем уже как FlowExport.
+      // Если data — строка, парсим JSON и решаем формат: наш FlowExport
+      // или выгрузка SaleBot (auto-detect по полям messages/connections).
       let exp;
+      let salebotWarnings: SalebotImportWarning[] = [];
+      let salebotStats: Record<string, number> | null = null;
+      let formatDetected: "flow_export" | "salebot" = "flow_export";
+
       if (typeof parsed.data.data === "string") {
         let asJson: unknown;
         try {
@@ -57,25 +68,48 @@ export async function POST(
             { status: 400 }
           );
         }
-        const parsedExp = flowExportSchema.safeParse(asJson);
-        if (!parsedExp.success) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: {
-                code: "BAD_EXPORT",
-                message: `Файл не похож на flow-export: ${parsedExp.error.message}`,
-              },
-            },
-            { status: 400 }
+        // 1) SaleBot-выгрузка — конвертируем в наш FlowExport.
+        if (isSalebotFlowExport(asJson)) {
+          formatDetected = "salebot";
+          const result = convertSalebotToFlowExport(
+            asJson,
+            parsed.data.name ?? "SaleBot import"
           );
+          exp = result.flow;
+          salebotWarnings = result.warnings;
+          salebotStats = result.stats;
+        } else {
+          // 2) Иначе — ждём наш формат FlowExport.
+          const parsedExp = flowExportSchema.safeParse(asJson);
+          if (!parsedExp.success) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: {
+                  code: "BAD_EXPORT",
+                  message: `Файл не похож ни на flow-export, ни на SaleBot-выгрузку: ${parsedExp.error.message}`,
+                },
+              },
+              { status: 400 }
+            );
+          }
+          exp = parsedExp.data;
         }
-        exp = parsedExp.data;
       } else {
         exp = parsed.data.data;
       }
 
-      const warnings = analyzeImportWarnings(exp);
+      const exportWarnings: ImportWarning[] = analyzeImportWarnings(exp);
+      // SaleBot-предупреждения подмешиваем к общим — UI рендерит единым
+      // списком (поле message читается и там и там).
+      const warnings = [
+        ...exportWarnings,
+        ...salebotWarnings.map((w) => ({
+          code: `SALEBOT_${w.code}` as ImportWarning["code"],
+          nodeId: w.nodeId ?? null,
+          message: w.message,
+        })),
+      ];
 
       // Sanity-check: все ссылки внутри графа разрешаются. (Zod-схема
       // уже не пропустит мусор, но битые ссылки между нодами проверяем
@@ -130,6 +164,8 @@ export async function POST(
             nodeCount: exp.graph.nodes.length,
             triggerCount: exp.triggers.length,
             warnings,
+            format: formatDetected,
+            salebotStats,
           },
         });
       }
@@ -166,6 +202,8 @@ export async function POST(
           nodeCount: exp.graph.nodes.length,
           triggerCount: exp.triggers.length,
           warnings,
+          format: formatDetected,
+          salebotStats,
         },
       });
     },
