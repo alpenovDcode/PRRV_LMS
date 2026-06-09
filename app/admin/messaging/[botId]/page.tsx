@@ -5,6 +5,14 @@ import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  RefreshCw,
+  ShieldCheck,
+  XCircle,
+} from "lucide-react";
 
 /**
  * Страница «Обзор» для одного MAX/мессенджер-бота.
@@ -30,6 +38,18 @@ interface OverviewData {
   topTags: Array<{ tag: string; count: number }>;
 }
 
+interface HealthData {
+  channel: "telegram" | "instagram" | "max";
+  isActive: boolean;
+  tokenValid: boolean;
+  tokenMatches: boolean;
+  tokenError: string | null;
+  botName: string | null;
+  externalAccountId: string;
+  tokenExpiresAt: string | null;
+  lastInboundAt: string | null;
+}
+
 export default function MessagingBotOverviewPage() {
   const params = useParams<{ botId: string }>();
   const botId = params.botId;
@@ -41,6 +61,20 @@ export default function MessagingBotOverviewPage() {
       return r.data?.data as OverviewData;
     },
     refetchInterval: 30_000,
+  });
+
+  // Health-check делает реальный HTTP к MAX — не автообновляем, юзер
+  // дёргает «Обновить». Открытие страницы тоже триггерит один запрос.
+  const {
+    data: health,
+    isFetching: healthFetching,
+    refetch: refetchHealth,
+  } = useQuery({
+    queryKey: ["messaging-bot-health", botId],
+    queryFn: async () => {
+      const r = await apiClient.get(`/admin/messaging/bots/${botId}/health`);
+      return r.data?.data as HealthData;
+    },
   });
 
   return (
@@ -115,15 +149,149 @@ export default function MessagingBotOverviewPage() {
         </Card>
       </div>
 
-      {/* Пояснение о будущих фичах. Этап B заменит это конкретными
-          блоками: «Состояние вебхука», «Логи», «Расписание». */}
-      <Card className="border-dashed bg-muted/30">
-        <CardContent className="py-4 text-xs text-muted-foreground">
-          В ближайших обновлениях этой страницы появятся: состояние
-          вебхука MAX, расписание сценариев и логи событий — по аналогии
-          с разделом Telegram-бота.
+      {/* Состояние бота — health-check. Запрос дёргает getMe() у MAX
+          и смотрит, когда было последнее входящее. */}
+      <Card>
+        <CardHeader className="pb-2 flex flex-row items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-violet-500" />
+            Состояние бота
+          </CardTitle>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => refetchHealth()}
+            disabled={healthFetching}
+            className="gap-1 h-8"
+          >
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${
+                healthFetching ? "animate-spin" : ""
+              }`}
+            />
+            Обновить
+          </Button>
+        </CardHeader>
+        <CardContent className="text-sm space-y-2">
+          <HealthRow
+            label="Токен валиден"
+            ok={health?.tokenValid ?? null}
+            okText={
+              health?.botName
+                ? `${health.botName} (${health.externalAccountId})`
+                : "ответ получен"
+            }
+            errorText={
+              health?.tokenError
+                ? `Ошибка: ${health.tokenError.slice(0, 200)}`
+                : "—"
+            }
+          />
+          <HealthRow
+            label="Токен совпадает с записью"
+            ok={
+              health
+                ? health.tokenValid
+                  ? health.tokenMatches
+                  : null
+                : null
+            }
+            okText="ok"
+            errorText={
+              health?.tokenValid
+                ? "ID бота не совпадает с externalAccountId — токен возможно от другого бота"
+                : "проверка пропущена"
+            }
+          />
+          {health?.tokenExpiresAt && (
+            <HealthRow
+              label="Срок токена"
+              ok={
+                health.tokenExpiresAt
+                  ? new Date(health.tokenExpiresAt).getTime() - Date.now() >
+                    7 * 24 * 60 * 60 * 1000
+                  : null
+              }
+              okText={`до ${new Date(
+                health.tokenExpiresAt
+              ).toLocaleDateString("ru-RU")}`}
+              errorText={`истечёт ${new Date(
+                health.tokenExpiresAt
+              ).toLocaleDateString("ru-RU")} — пора обновлять`}
+            />
+          )}
+          <HealthRow
+            label="Последнее входящее"
+            ok={
+              health?.lastInboundAt
+                ? Date.now() - new Date(health.lastInboundAt).getTime() <
+                  24 * 60 * 60 * 1000
+                : null
+            }
+            okText={
+              health?.lastInboundAt
+                ? new Date(health.lastInboundAt).toLocaleString("ru-RU")
+                : "—"
+            }
+            errorText={
+              health?.lastInboundAt
+                ? `${new Date(
+                    health.lastInboundAt
+                  ).toLocaleString("ru-RU")} — давно не пишут`
+                : "ни одного входящего за всё время"
+            }
+          />
+          {!health?.isActive && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 flex items-center gap-2">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Бот отключён в админке — обработка входящих остановлена.
+            </div>
+          )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+/**
+ * Одна строка health-чека. ok=true рендерим зелёным с галочкой, false —
+ * красным с крестиком, null — серым с дефисом (проверка не выполнялась
+ * или пока загружается).
+ */
+function HealthRow({
+  label,
+  ok,
+  okText,
+  errorText,
+}: {
+  label: string;
+  ok: boolean | null;
+  okText: string;
+  errorText: string;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <div className="flex items-center gap-2">
+        {ok === true ? (
+          <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+        ) : ok === false ? (
+          <XCircle className="h-4 w-4 text-rose-600" />
+        ) : (
+          <div className="h-4 w-4 rounded-full bg-zinc-200" />
+        )}
+        <span>{label}</span>
+      </div>
+      <span
+        className={
+          ok === true
+            ? "text-xs text-emerald-700"
+            : ok === false
+              ? "text-xs text-rose-700"
+              : "text-xs text-muted-foreground"
+        }
+      >
+        {ok === false ? errorText : okText}
+      </span>
     </div>
   );
 }

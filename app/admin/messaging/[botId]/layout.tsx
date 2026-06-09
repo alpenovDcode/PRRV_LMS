@@ -16,6 +16,7 @@ import {
   FormInput,
   Inbox,
   Plug,
+  FileText,
 } from "lucide-react";
 
 /**
@@ -80,6 +81,7 @@ export default function MessagingBotDetailLayout({
     { href: `/admin/messaging/${botId}/fields`, label: "Поля", icon: FormInput },
     { href: `/admin/messaging/${botId}/tracking`, label: "Ссылки/UTM", icon: Link2 },
     { href: `/admin/messaging/${botId}/analytics`, label: "Аналитика", icon: LineChart },
+    { href: `/admin/messaging/${botId}/logs`, label: "Логи", icon: FileText },
     { href: `/admin/messaging/${botId}/bitrix`, label: "Bitrix24", icon: Plug },
   ];
 
