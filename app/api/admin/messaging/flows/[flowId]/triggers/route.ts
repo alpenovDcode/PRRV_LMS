@@ -12,11 +12,17 @@ const createSchema = z.object({
     "mention",
     "subscriber_joined",
     "manual",
+    "link_clicked",
+    "external_event",
   ]),
   keywords: z.array(z.string().min(1).max(200)).max(50).default([]),
   matchType: z.enum(["exact", "contains", "regex", "starts_with"]).default("contains"),
   caseSensitive: z.boolean().default(false),
   mediaIds: z.array(z.string()).max(20).default([]),
+  /** Для type=link_clicked — id трекинговой ссылки. NULL = любая ссылка бота. */
+  trackingLinkId: z.string().uuid().nullable().optional(),
+  /** Для type=external_event — имя события из webhook'а. */
+  eventName: z.string().min(1).max(200).nullable().optional(),
 });
 
 /** POST /api/admin/messaging/flows/[flowId]/triggers — добавить триггер */

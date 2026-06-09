@@ -1172,6 +1172,14 @@ enum MessagingTriggerType {
   subscriber_joined
   /// Ручной запуск через API/UI
   manual
+  /// Запуск при клике подписчика по трекинговой ссылке /r/<slug>.
+  /// SaleBot-аналог: «link_was_pressed <URL>». Привязка к конкретной
+  /// ссылке — через MessagingTrigger.trackingLinkId (или slug).
+  link_clicked
+  /// Запуск по внешнему webhook от GetCourse / amoCRM / собственного
+  /// сервиса. SaleBot-аналог: «getcourse <event_name>» и кастомные
+  /// «autointensiv_*». Имя события — в MessagingTrigger.eventName.
+  external_event
 }
 
 enum MessagingFlowRunStatus {
@@ -1227,6 +1235,13 @@ model MessagingTrigger {
   /// Для keyword_comment / mention — ограничение по конкретному посту (media_id),
   /// пусто = на все посты.
   mediaIds        String[]             @default([]) @map("media_ids")
+  /// Для type=link_clicked — id трекинговой ссылки, на которую должен
+  /// прийти клик. NULL = «любая ссылка этого бота».
+  trackingLinkId  String?              @map("tracking_link_id")
+  /// Для type=external_event — имя события из внешнего webhook
+  /// (например "getcourse:purchase" или "autointensiv:enter"). NULL =
+  /// триггер не активен, пока имя не задано.
+  eventName       String?              @map("event_name")
   /// Метрики
   triggerCount    Int                  @default(0) @map("trigger_count")
   lastTriggeredAt DateTime?            @map("last_triggered_at")
@@ -1235,6 +1250,8 @@ model MessagingTrigger {
 
   @@index([flowId])
   @@index([type])
+  @@index([type, eventName])
+  @@index([type, trackingLinkId])
   @@map("messaging_triggers")
 }
 
