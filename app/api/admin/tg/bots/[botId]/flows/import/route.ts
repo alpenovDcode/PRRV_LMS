@@ -12,6 +12,10 @@ import {
   isSalebotFlowExport,
   type SalebotImportWarning,
 } from "@/lib/tg/salebot-flow-converter";
+import {
+  extractSalebotVariables,
+  ensureSalebotFlowFields,
+} from "@/lib/tg/salebot-flow-variables";
 import { trackEvent } from "@/lib/tg/events";
 
 export const runtime = "nodejs";
@@ -51,6 +55,13 @@ export async function POST(
       let salebotWarnings: SalebotImportWarning[] = [];
       let salebotStats: Record<string, number> | null = null;
       let formatDetected: "flow_export" | "salebot" = "flow_export";
+      // Сырой SaleBot payload — нужен ниже для extractSalebotVariables
+      // (наш конвертер не сохраняет исходные #{var} в чистом виде,
+      // он их превращает в {{var}}; для угадывания типа полей удобнее
+      // ходить по оригинальной структуре).
+      let salebotPayload:
+        | { messages: any[]; connections: any[] }
+        | null = null;
 
       if (typeof parsed.data.data === "string") {
         let asJson: unknown;
@@ -71,6 +82,7 @@ export async function POST(
         // 1) SaleBot-выгрузка — конвертируем в наш FlowExport.
         if (isSalebotFlowExport(asJson)) {
           formatDetected = "salebot";
+          salebotPayload = asJson as { messages: any[]; connections: any[] };
           const result = convertSalebotToFlowExport(
             asJson,
             parsed.data.name ?? "SaleBot import"
@@ -155,6 +167,15 @@ export async function POST(
         }
       }
 
+      // ── Если это SaleBot, заранее извлекаем переменные —
+      // используем и в dry-run отчёте, и при реальном импорте.
+      const variablesPreview = salebotPayload
+        ? extractSalebotVariables({
+            messages: salebotPayload.messages,
+            connections: salebotPayload.connections,
+          })
+        : [];
+
       if (parsed.data.dryRun) {
         return NextResponse.json({
           success: true,
@@ -166,6 +187,15 @@ export async function POST(
             warnings,
             format: formatDetected,
             salebotStats,
+            // В dry-run показываем «будут заведены такие-то поля» —
+            // без реального createMany. Уже существующие пометятся
+            // как skipped после реального импорта.
+            variablesDetected: variablesPreview.map((v) => ({
+              key: v.key,
+              type: v.type,
+              label: v.label,
+              source: Array.from(v.source),
+            })),
           },
         });
       }
@@ -181,6 +211,23 @@ export async function POST(
                            // сначала проверит и подключит зависимости
         },
       });
+
+      // ── Авто-создание TgCustomField definitions из найденных
+      //    переменных. Только для SaleBot-формата (для нашего
+      //    flow-export админ управляет полями вручную).
+      //    Идемпотентно: существующие поля НЕ перезаписываются.
+      let fieldsCreated: {
+        createdCount: number;
+        createdKeys: string[];
+        skippedKeys: string[];
+      } = { createdCount: 0, createdKeys: [], skippedKeys: [] };
+      if (formatDetected === "salebot" && variablesPreview.length > 0) {
+        fieldsCreated = await ensureSalebotFlowFields(
+          db,
+          params.botId,
+          variablesPreview
+        );
+      }
 
       trackEvent({
         type: "flow.imported",
@@ -204,6 +251,18 @@ export async function POST(
           warnings,
           format: formatDetected,
           salebotStats,
+          // Сколько TgCustomField definitions создано на этом импорте
+          // и какие ключи. skippedKeys — те, что уже существовали и не
+          // тронуты (защита кастомизации админа).
+          customFieldsCreated: fieldsCreated.createdCount,
+          customFieldKeysCreated: fieldsCreated.createdKeys,
+          customFieldKeysSkipped: fieldsCreated.skippedKeys,
+          variablesDetected: variablesPreview.map((v) => ({
+            key: v.key,
+            type: v.type,
+            label: v.label,
+            source: Array.from(v.source),
+          })),
         },
       });
     },
