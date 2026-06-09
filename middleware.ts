@@ -58,6 +58,8 @@ export async function middleware(request: NextRequest) {
     path.startsWith("/api/payments/webhook") || // CloudPayments/ЮKassa webhook — authed via HMAC внутри роута
     path.startsWith("/api/pay/") ||    // Публичные платёжные ссылки — authed via paymentLinkToken внутри роута
     path.startsWith("/pay/") ||        // Публичные страницы оплаты по ссылке
+    path.startsWith("/offer/") ||      // Публичные страницы офферов /offer/<slug> — лендинг для рассылок
+    path.startsWith("/api/offer/") ||  // Публичный API оффера: GET данных + POST покупки (rate-limit + honeypot внутри роута)
     path.startsWith("/m/") ||          // Tracking-редиректы messaging
     path.startsWith("/g/") ||          // «Умные» UTM-редиректы Telegram (SaleBot-style)
     path.startsWith("/r/") ||          // Outbound click-tracking из исходящих кнопок
