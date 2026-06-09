@@ -1093,6 +1093,7 @@ model MessagingBot {
   auditLogs         MessagingBotAuditLog[]
   bitrixConfig      MessagingBitrixConfig?
   trackingLinks     MessagingTrackingLink[]
+  scheduledFlows    MessagingScheduledFlow[]
 
   createdAt         DateTime         @default(now()) @map("created_at")
   updatedAt         DateTime         @updatedAt @map("updated_at")
@@ -1514,6 +1515,48 @@ model MessagingTrackingClick {
   @@index([linkId, createdAt])
   @@index([subscriberId, createdAt])
   @@map("messaging_tracking_clicks")
+}
+
+/// Запланированный запуск воронки. Структура зеркалит TgScheduledFlow:
+/// fire-and-forget single-shot задача — в момент scheduledAt cron-tick
+/// собирает аудиторию по filter и стартует MessagingFlowRun для каждого
+/// подписчика. Повторений нет — это разовый запуск (для повторяющихся
+/// рассылок есть MessagingBroadcast).
+///
+/// filter — JSON shape:
+///   {
+///     "allActive": true,            // всем активным
+///     "tagsAny":   ["promo"],       // хотя бы один тег
+///     "tagsAll":   ["paid", "vip"], // все теги
+///     "excludeTags": ["unsubscribed"],
+///     "subscriberIds": ["<id>"]     // если задан — игнорим остальное
+///   }
+///
+/// status: scheduled → running → completed | failed | cancelled
+model MessagingScheduledFlow {
+  id              String       @id @default(uuid())
+  botId           String       @map("bot_id")
+  bot             MessagingBot @relation(fields: [botId], references: [id], onDelete: Cascade)
+  flowId          String       @map("flow_id")
+  /// Денормализованный человекочитаемый заголовок (имя самого flow
+  /// может потом поменяться, а в истории расписания хочется видеть
+  /// то, что было задано).
+  name            String
+  filter          Json         @default("{}")
+  scheduledAt     DateTime     @map("scheduled_at")
+  status          String       @default("scheduled")
+  startedAt       DateTime?    @map("started_at")
+  finishedAt      DateTime?    @map("finished_at")
+  totalLaunched   Int          @default(0) @map("total_launched")
+  totalFailed     Int          @default(0) @map("total_failed")
+  lastError       String?      @db.Text @map("last_error")
+  createdById     String?      @map("created_by_id")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  @@index([botId, status])
+  @@index([status, scheduledAt])
+  @@map("messaging_scheduled_flows")
 }
 
 model TgMessage {

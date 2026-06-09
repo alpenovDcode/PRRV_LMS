@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { processDueRuns } from "@/lib/tg/flow-engine";
 import { processBroadcasts } from "@/lib/tg/broadcast";
 import { processScheduledFlows } from "@/lib/tg/scheduled-flow";
+import { processMessagingScheduledFlows } from "@/lib/messaging/scheduled-flow";
 import { writeCronHeartbeat } from "@/lib/tg/cron-heartbeat";
 import { timingSafeEqual } from "crypto";
 
@@ -60,6 +61,15 @@ async function handle(request: NextRequest) {
     console.error("[tg-cron] processScheduledFlows failed", e);
     return { processed: 0, error: String(e) };
   });
+  // Тот же tick параллельно гоняет MAX/мессенджер расписания.
+  // Не блокируем друг друга — каждый процессор делает свой take(5),
+  // воркер ходит по обоим источникам последовательно.
+  const messagingScheduledFlows = await processMessagingScheduledFlows().catch(
+    (e) => {
+      console.error("[tg-cron] processMessagingScheduledFlows failed", e);
+      return { processed: 0, error: String(e) };
+    }
+  );
   const durationMs = Date.now() - start;
   // Heartbeat: пишем «я живой» в Redis, чтобы админка показала статус.
   // Любая ошибка тут не должна валить тик — heartbeat обнимает свои
@@ -78,5 +88,6 @@ async function handle(request: NextRequest) {
     runs,
     broadcasts,
     scheduledFlows,
+    messagingScheduledFlows,
   });
 }

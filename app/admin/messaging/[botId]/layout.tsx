@@ -18,6 +18,7 @@ import {
   Plug,
   FileText,
   Users,
+  CalendarClock,
 } from "lucide-react";
 
 /**
@@ -79,6 +80,7 @@ export default function MessagingBotDetailLayout({
     { href: `/admin/messaging/${botId}/subscribers`, label: "Подписчики", icon: Users },
     { href: `/admin/messaging/${botId}/flows`, label: "Сценарии", icon: Workflow },
     { href: `/admin/messaging/${botId}/broadcasts`, label: "Рассылки", icon: Send },
+    { href: `/admin/messaging/${botId}/scheduled-flows`, label: "Расписание", icon: CalendarClock },
     { href: `/admin/messaging/${botId}/lists`, label: "Списки", icon: ListChecks },
     { href: `/admin/messaging/${botId}/fields`, label: "Поля", icon: FormInput },
     { href: `/admin/messaging/${botId}/tracking`, label: "Ссылки/UTM", icon: Link2 },
