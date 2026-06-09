@@ -5,7 +5,17 @@ import { withAuth } from "@/lib/api-middleware";
 import {
   flowExportSchema,
   analyzeImportWarnings,
+  type ImportWarning,
 } from "@/lib/tg/flow-export";
+import {
+  convertSalebotToFlowExport,
+  isSalebotFlowExport,
+  type SalebotImportWarning,
+} from "@/lib/tg/salebot-flow-converter";
+import {
+  extractSalebotVariables,
+  ensureSalebotFlowFields,
+} from "@/lib/tg/salebot-flow-variables";
 import { trackEvent } from "@/lib/tg/events";
 
 export const runtime = "nodejs";
@@ -39,8 +49,20 @@ export async function POST(
         );
       }
 
-      // Если data — строка, парсим и валидируем уже как FlowExport.
+      // Если data — строка, парсим JSON и решаем формат: наш FlowExport
+      // или выгрузка SaleBot (auto-detect по полям messages/connections).
       let exp;
+      let salebotWarnings: SalebotImportWarning[] = [];
+      let salebotStats: Record<string, number> | null = null;
+      let formatDetected: "flow_export" | "salebot" = "flow_export";
+      // Сырой SaleBot payload — нужен ниже для extractSalebotVariables
+      // (наш конвертер не сохраняет исходные #{var} в чистом виде,
+      // он их превращает в {{var}}; для угадывания типа полей удобнее
+      // ходить по оригинальной структуре).
+      let salebotPayload:
+        | { messages: any[]; connections: any[] }
+        | null = null;
+
       if (typeof parsed.data.data === "string") {
         let asJson: unknown;
         try {
@@ -57,25 +79,49 @@ export async function POST(
             { status: 400 }
           );
         }
-        const parsedExp = flowExportSchema.safeParse(asJson);
-        if (!parsedExp.success) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: {
-                code: "BAD_EXPORT",
-                message: `Файл не похож на flow-export: ${parsedExp.error.message}`,
-              },
-            },
-            { status: 400 }
+        // 1) SaleBot-выгрузка — конвертируем в наш FlowExport.
+        if (isSalebotFlowExport(asJson)) {
+          formatDetected = "salebot";
+          salebotPayload = asJson as { messages: any[]; connections: any[] };
+          const result = convertSalebotToFlowExport(
+            asJson,
+            parsed.data.name ?? "SaleBot import"
           );
+          exp = result.flow;
+          salebotWarnings = result.warnings;
+          salebotStats = result.stats;
+        } else {
+          // 2) Иначе — ждём наш формат FlowExport.
+          const parsedExp = flowExportSchema.safeParse(asJson);
+          if (!parsedExp.success) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: {
+                  code: "BAD_EXPORT",
+                  message: `Файл не похож ни на flow-export, ни на SaleBot-выгрузку: ${parsedExp.error.message}`,
+                },
+              },
+              { status: 400 }
+            );
+          }
+          exp = parsedExp.data;
         }
-        exp = parsedExp.data;
       } else {
         exp = parsed.data.data;
       }
 
-      const warnings = analyzeImportWarnings(exp);
+      const exportWarnings: ImportWarning[] = analyzeImportWarnings(exp);
+      // SaleBot-предупреждения подмешиваем к общим — UI рендерит единым
+      // списком (поле message читается и там и там).
+      const warnings = [
+        ...exportWarnings,
+        ...salebotWarnings.map((w) => ({
+          code: `SALEBOT_${w.code}` as ImportWarning["code"],
+          nodeId: w.nodeId ?? null,
+          message: w.message,
+        })),
+      ];
 
       // Sanity-check: все ссылки внутри графа разрешаются. (Zod-схема
       // уже не пропустит мусор, но битые ссылки между нодами проверяем
@@ -121,6 +167,15 @@ export async function POST(
         }
       }
 
+      // ── Если это SaleBot, заранее извлекаем переменные —
+      // используем и в dry-run отчёте, и при реальном импорте.
+      const variablesPreview = salebotPayload
+        ? extractSalebotVariables({
+            messages: salebotPayload.messages,
+            connections: salebotPayload.connections,
+          })
+        : [];
+
       if (parsed.data.dryRun) {
         return NextResponse.json({
           success: true,
@@ -130,6 +185,17 @@ export async function POST(
             nodeCount: exp.graph.nodes.length,
             triggerCount: exp.triggers.length,
             warnings,
+            format: formatDetected,
+            salebotStats,
+            // В dry-run показываем «будут заведены такие-то поля» —
+            // без реального createMany. Уже существующие пометятся
+            // как skipped после реального импорта.
+            variablesDetected: variablesPreview.map((v) => ({
+              key: v.key,
+              type: v.type,
+              label: v.label,
+              source: Array.from(v.source),
+            })),
           },
         });
       }
@@ -145,6 +211,23 @@ export async function POST(
                            // сначала проверит и подключит зависимости
         },
       });
+
+      // ── Авто-создание TgCustomField definitions из найденных
+      //    переменных. Только для SaleBot-формата (для нашего
+      //    flow-export админ управляет полями вручную).
+      //    Идемпотентно: существующие поля НЕ перезаписываются.
+      let fieldsCreated: {
+        createdCount: number;
+        createdKeys: string[];
+        skippedKeys: string[];
+      } = { createdCount: 0, createdKeys: [], skippedKeys: [] };
+      if (formatDetected === "salebot" && variablesPreview.length > 0) {
+        fieldsCreated = await ensureSalebotFlowFields(
+          db,
+          params.botId,
+          variablesPreview
+        );
+      }
 
       trackEvent({
         type: "flow.imported",
@@ -166,6 +249,20 @@ export async function POST(
           nodeCount: exp.graph.nodes.length,
           triggerCount: exp.triggers.length,
           warnings,
+          format: formatDetected,
+          salebotStats,
+          // Сколько TgCustomField definitions создано на этом импорте
+          // и какие ключи. skippedKeys — те, что уже существовали и не
+          // тронуты (защита кастомизации админа).
+          customFieldsCreated: fieldsCreated.createdCount,
+          customFieldKeysCreated: fieldsCreated.createdKeys,
+          customFieldKeysSkipped: fieldsCreated.skippedKeys,
+          variablesDetected: variablesPreview.map((v) => ({
+            key: v.key,
+            type: v.type,
+            label: v.label,
+            source: Array.from(v.source),
+          })),
         },
       });
     },

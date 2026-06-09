@@ -62,12 +62,24 @@ export function buildFlowExport(args: BuildExportArgs): FlowExport {
 // Анализ потенциальных проблем при импорте в новый бот. НЕ блокирует
 // импорт — это warnings для админа.
 export interface ImportWarning {
+  /**
+   * Известные коды + префикс `SALEBOT_*` для предупреждений от
+   * конвертера SaleBot-выгрузок (см. lib/tg/salebot-flow-converter.ts).
+   * UI рендерит их единым списком, отличая по префиксу.
+   */
   code:
     | "MEDIA_FILE_ID"
     | "GOTO_FLOW_ID"
     | "LIST_ID"
     | "ACTION_LIST_ID"
-    | "TRIGGER_TRACKING_LINK";
+    | "TRIGGER_TRACKING_LINK"
+    | "SALEBOT_MULTI_OUTGOING"
+    | "SALEBOT_QUIET_HOURS_LOST"
+    | "SALEBOT_TRIGGER_MANUAL"
+    | "SALEBOT_UNSUPPORTED_TYPE"
+    | "SALEBOT_MULTI_START"
+    | "SALEBOT_ORPHAN_NODE"
+    | "SALEBOT_EMPTY_TEXT_FALLBACK";
   nodeId: string | null;
   message: string;
 }
