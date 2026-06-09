@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Send, Plus, Trash2, Clock, CheckCircle, XCircle, Loader2, X, AlertTriangle } from "lucide-react";
+import { Send, Plus, Trash2, Clock, CheckCircle, XCircle, Loader2, X, AlertTriangle } from "lucide-react";
 
 interface Broadcast {
   id: string;
@@ -81,15 +80,7 @@ export default function BroadcastsPage() {
   };
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <Link
-        href={`/admin/messaging/${botId}/flows`}
-        className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-4"
-      >
-        <ArrowLeft className="w-4 h-4" /> К воронкам
-      </Link>
-
-      <div className="flex items-center justify-between mb-6">
+    <div className="max-w-5xl mx-auto"><div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <Send className="w-6 h-6 text-blue-500" /> Рассылки

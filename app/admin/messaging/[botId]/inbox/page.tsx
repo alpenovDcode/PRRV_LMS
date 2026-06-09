@@ -1,11 +1,9 @@
 "use client";
 
 import { useEffect, useState, useRef, useMemo } from "react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
-  ArrowLeft,
-  Send,
+    Send,
   Hand,
   Bot,
   MessageSquare,
@@ -244,15 +242,7 @@ export default function InboxPage() {
   }, [detail]);
 
   return (
-    <div className="p-6 max-w-[1500px] mx-auto">
-      <Link
-        href={`/admin/messaging/${botId}/flows`}
-        className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-4"
-      >
-        <ArrowLeft className="w-4 h-4" /> К воронкам
-      </Link>
-
-      <div className="flex items-center justify-between mb-4">
+    <div className="max-w-[1500px] mx-auto"><div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
           <MessageSquare className="w-6 h-6 text-blue-500" /> Inbox
         </h1>

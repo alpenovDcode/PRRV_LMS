@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { recordEvent, EVENT_TYPES } from "@/lib/messaging/events";
+import { startFlow } from "@/lib/messaging/engine/runner";
+import { MessagingTriggerType } from "@prisma/client";
 
 /**
  * GET /m/[slug]?s=<subscriberId>
@@ -82,6 +84,60 @@ export async function GET(
       data: { clickCount: { increment: 1 } },
     })
     .catch(() => {});
+
+  // ── link_clicked-триггеры: SaleBot-аналог «link_was_pressed <URL>» ──
+  // Если у этого бота есть триггеры типа link_clicked с конкретной
+  // ссылкой или wildcard'ом — запустим их воронки. Только когда клик
+  // совершил идентифицированный подписчик (без ?s= тригернуть некого).
+  if (validSubscriberId) {
+    try {
+      const triggers = await db.messagingTrigger.findMany({
+        where: {
+          type: MessagingTriggerType.link_clicked,
+          // trackingLinkId либо точно совпадает с этой ссылкой, либо NULL =
+          // «любая ссылка этого бота» (но при NULL нужно ещё проверить
+          // что flow привязан именно к этому боту — делаем include).
+          OR: [
+            { trackingLinkId: link.id },
+            { trackingLinkId: null },
+          ],
+          flow: { botId: link.botId, isActive: true },
+        },
+        select: { id: true, flowId: true, trackingLinkId: true },
+      });
+      for (const t of triggers) {
+        startFlow({
+          flowId: t.flowId,
+          subscriberId: validSubscriberId,
+          initialContext: {
+            trigger: "link_clicked",
+            triggerId: t.id,
+            trackingLinkId: link.id,
+            trackingSlug: slug,
+            targetUrl: link.targetUrl,
+          },
+        }).catch((e) => {
+          console.warn(
+            `[tracking-redirect] startFlow failed for trigger ${t.id}:`,
+            e
+          );
+        });
+        db.messagingTrigger
+          .update({
+            where: { id: t.id },
+            data: {
+              triggerCount: { increment: 1 },
+              lastTriggeredAt: new Date(),
+            },
+          })
+          .catch(() => {});
+      }
+    } catch (e) {
+      // Запуск триггеров не должен валить redirect — клиент уже должен
+      // уйти на targetUrl.
+      console.warn("[tracking-redirect] link_clicked triggers failed:", e);
+    }
+  }
 
   return NextResponse.redirect(link.targetUrl, 302);
 }

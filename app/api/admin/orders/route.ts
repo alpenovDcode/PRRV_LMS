@@ -11,14 +11,60 @@ const querySchema = z.object({
   page: z.coerce.number().int().min(1).max(10_000).default(1),
   status: z.string().max(50).optional(),
   search: z.string().max(100).optional(),
+  /**
+   * Отдельный поиск по названию оффера — case-insensitive contains.
+   * Работает И для LMS-заказов (Order.offer.title / snapshotOfferTitle),
+   * И для GetCourse-заказов (GetcourseOrder.composition).
+   * Можно комбинировать с search: «Иванов» + «Прорыв» вернёт
+   * только заказы Иванова на офферы со словом «Прорыв».
+   */
+  offer: z.string().max(100).optional(),
 });
 
 /**
- * GET /api/admin/orders?page=1&status=...&search=...
+ * Маппинг русских GC-статусов → наш канон. Используется и для
+ * нормализации в ответе, и для подсчёта выручки (нам нужно знать
+ * какие именно строки GC-статуса считать «оплаченными»).
+ */
+const GC_STATUS_MAP: Record<string, string> = {
+  "завершён": "paid",
+  "завершен": "paid",
+  "оплачен": "paid",
+  "новый": "pending",
+  "ожидает оплаты": "pending",
+  "в обработке": "pending",
+  "отменён": "cancelled",
+  "отменен": "cancelled",
+  "возврат": "refunded",
+};
+
+/** Все варианты GC-статуса, которые мы считаем «paid» (с учётом регистра). */
+const GC_PAID_STATUSES = (() => {
+  const lower = Object.entries(GC_STATUS_MAP)
+    .filter(([, mapped]) => mapped === "paid")
+    .map(([s]) => s);
+  // У нас case-insensitive здесь не сработает в Prisma `in`, поэтому
+  // генерируем все нужные регистровые варианты вручную.
+  const out = new Set<string>();
+  for (const s of lower) {
+    out.add(s);
+    out.add(s.charAt(0).toUpperCase() + s.slice(1));
+    out.add(s.toUpperCase());
+  }
+  return Array.from(out);
+})();
+
+/**
+ * GET /api/admin/orders?page=1&status=...&search=...&offer=...
  *
  * Возвращает объединённый список LMS + GetCourse заказов.
  * LMS-заказы показываются на первой странице поверх GC-заказов.
  * Каждый элемент содержит поле source: "lms" | "gc".
+ *
+ * meta.totalRevenue — сумма по ОПЛАЧЕННЫМ (status=paid) заказам с
+ * применёнными фильтрами, по обоим источникам (LMS + GC). Считается
+ * через _sum: { amount } — не зависит от пагинации, видно реальную
+ * выручку, а не только то что попало на текущую страницу.
  */
 export async function GET(req: NextRequest) {
   return withAuth(
@@ -36,7 +82,7 @@ export async function GET(req: NextRequest) {
           { status: 400 }
         );
       }
-      const { page, status, search } = parsed.data;
+      const { page, status, search, offer } = parsed.data;
       const limit = 50;
 
       // Фильтр LMS
@@ -49,6 +95,21 @@ export async function GET(req: NextRequest) {
           { guestFullName: { contains: search, mode: "insensitive" } },
         ];
       }
+      if (offer) {
+        // Поиск по названию оффера. Для LMS это либо текущее offer.title,
+        // либо snapshot — старые заказы могут указывать на удалённый/
+        // переименованный оффер, а snapshotOfferTitle хранит то, что было
+        // в момент покупки.
+        lmsWhere.AND = [
+          ...(lmsWhere.AND ?? []),
+          {
+            OR: [
+              { offer: { title: { contains: offer, mode: "insensitive" } } },
+              { snapshotOfferTitle: { contains: offer, mode: "insensitive" } },
+            ],
+          },
+        ];
+      }
 
       // Фильтр GC
       const gcWhere: any = {};
@@ -59,23 +120,65 @@ export async function GET(req: NextRequest) {
           { customerName: { contains: search, mode: "insensitive" } },
         ];
       }
+      if (offer) {
+        // У GetCourse «оффер» хранится в поле composition (строка с
+        // содержимым заказа). Точного отдельного title нет — composition
+        // обычно «Курс Прорыв — Лидер роста · Тариф Standart», поэтому
+        // contains-поиск тут самое уместное.
+        gcWhere.AND = [
+          ...(gcWhere.AND ?? []),
+          { composition: { contains: offer, mode: "insensitive" } },
+        ];
+      }
 
-      // LMS заказы на странице 1 (их мало, всегда помещаются)
-      const [lmsOrders, lmsTotal, gcTotal] = await Promise.all([
-        page === 1
-          ? db.order.findMany({
-              where: lmsWhere,
-              orderBy: { createdAt: "desc" },
-              take: limit,
-              include: {
-                user: { select: { id: true, email: true, fullName: true } },
-                offer: { select: { id: true, title: true } },
-              },
-            })
-          : Promise.resolve([]),
-        db.order.count({ where: lmsWhere }),
-        db.getcourseOrder.count({ where: gcWhere }),
-      ]);
+      // Выручку считаем только по «оплаченным». Если пользователь явно
+      // отфильтровал на pending/cancelled/refunded — пропускаем sum
+      // (по логике «сколько денег принесли эти заказы» — ноль).
+      const shouldCalcRevenue = !status || status === "paid";
+
+      // LMS заказы на странице 1 (их мало, всегда помещаются) + counts
+      // обоих источников + выручка (sum по paid в каждом).
+      const [lmsOrders, lmsTotal, gcTotal, lmsRevenueAgg, gcRevenueAgg] =
+        await Promise.all([
+          page === 1
+            ? db.order.findMany({
+                where: lmsWhere,
+                orderBy: { createdAt: "desc" },
+                take: limit,
+                include: {
+                  user: { select: { id: true, email: true, fullName: true } },
+                  offer: { select: { id: true, title: true } },
+                },
+              })
+            : Promise.resolve([]),
+          db.order.count({ where: lmsWhere }),
+          db.getcourseOrder.count({ where: gcWhere }),
+          shouldCalcRevenue
+            ? db.order.aggregate({
+                where: { ...lmsWhere, status: "paid" },
+                _sum: { amount: true },
+              })
+            : Promise.resolve({ _sum: { amount: null } } as const),
+          shouldCalcRevenue
+            ? db.getcourseOrder.aggregate({
+                where: {
+                  // Для GC берём те же фильтры (offer/search), но статус
+                  // переопределяем нашим перечнем русских вариантов
+                  // «paid», игнорируя contains-поиск, который мог быть в
+                  // gcWhere.status.
+                  ...gcWhere,
+                  status: { in: GC_PAID_STATUSES },
+                },
+                _sum: { amount: true },
+              })
+            : Promise.resolve({ _sum: { amount: null } } as const),
+        ]);
+
+      // Считаем общую выручку. Decimal | null → number, складываем.
+      const toNum = (v: unknown): number =>
+        v == null ? 0 : typeof v === "number" ? v : Number(v.toString());
+      const totalRevenue =
+        toNum(lmsRevenueAgg._sum.amount) + toNum(gcRevenueAgg._sum.amount);
 
       // GC заказы заполняют остаток страницы 1, потом идут самостоятельно
       const gcSlotOnPage1 = limit - lmsOrders.length;
@@ -93,12 +196,6 @@ export async function GET(req: NextRequest) {
         include: { user: { select: { id: true, email: true, fullName: true } } },
       });
 
-      const GC_STATUS_MAP: Record<string, string> = {
-        "завершён": "paid", "завершен": "paid", "оплачен": "paid",
-        "новый": "pending", "ожидает оплаты": "pending", "в обработке": "pending",
-        "отменён": "cancelled", "отменен": "cancelled",
-        "возврат": "refunded",
-      };
       const mapGcStatus = (s: string | null) =>
         s ? (GC_STATUS_MAP[s.toLowerCase()] ?? "pending") : "pending";
 
@@ -125,7 +222,18 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         success: true,
         data: [...lmsNormalized, ...gcNormalized],
-        meta: { total, page, limit, pages: Math.ceil(total / limit) },
+        meta: {
+          total,
+          page,
+          limit,
+          pages: Math.ceil(total / limit),
+          // Сумма всех оплаченных заказов под текущие фильтры — не зависит
+          // от пагинации. Число (рубли), не строка. Валюту считаем общей —
+          // у нас и LMS, и GC в RUB. Если позже добавятся USD-офферы,
+          // надо будет разбить по currency.
+          totalRevenue,
+          totalRevenueCurrency: "RUB",
+        },
       });
     },
     { roles: [UserRole.admin, UserRole.curator] }

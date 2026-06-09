@@ -413,7 +413,10 @@ async function executeNode(
 
     case "delay": {
       const sec = Math.max(60, Math.min(7_776_000, node.seconds));
-      const waitUntil = new Date(Date.now() + sec * 1000);
+      let waitUntil = new Date(Date.now() + sec * 1000);
+      if (node.quietHours) {
+        waitUntil = shiftIfInQuietHours(waitUntil, node.quietHours);
+      }
       return { kind: "sleep", waitUntil, nextNodeId: node.next, context };
     }
 
@@ -449,35 +452,108 @@ async function executeNode(
   }
 }
 
+/**
+ * Извлечь значение из контекста по описанию clause.field/.variable.
+ * Возвращает строку (для текстовых операций) и numeric-вариант (для
+ * gt/lt — пустые строки и `null` → NaN, чтобы сравнения честно falsy).
+ */
+function readField(
+  clause: { field: string; variable?: string },
+  context: Record<string, unknown>
+): { str: string; num: number } {
+  let raw: unknown = "";
+  if (clause.field === "lastInput") raw = context.lastInput ?? "";
+  else if (clause.field === "lastPayload") raw = context.lastPayload ?? "";
+  else if (clause.field === "variable" && clause.variable) {
+    raw = context[clause.variable] ?? "";
+  }
+  const str = raw === null || raw === undefined ? "" : String(raw);
+  const num = typeof raw === "number" ? raw : str === "" ? NaN : Number(str);
+  return { str, num };
+}
+
+/**
+ * Сравнение одного clause. Поддерживает SaleBot-набор операторов плюс
+ * gt/lt для чисел. Регистронезависимо по умолчанию для строк.
+ */
+function evalClause(
+  clause: import("./graph-types").ConditionClause,
+  context: Record<string, unknown>
+): boolean {
+  const { str, num } = readField(clause, context);
+  const caseSensitive = clause.caseSensitive ?? false;
+  const haystack = caseSensitive ? str : str.toLowerCase();
+  const needle = caseSensitive
+    ? String(clause.value ?? "")
+    : String(clause.value ?? "").toLowerCase();
+
+  switch (clause.operator) {
+    case "is_empty":
+      return str === "";
+    case "is_not_empty":
+      return str !== "";
+    case "eq":
+      return haystack === needle;
+    case "neq":
+      return haystack !== needle;
+    case "contains":
+      return haystack.includes(needle);
+    case "starts_with":
+      return haystack.startsWith(needle);
+    case "regex":
+      try {
+        return new RegExp(String(clause.value ?? ""), caseSensitive ? "" : "i").test(str);
+      } catch {
+        return false;
+      }
+    case "gt":
+      return !isNaN(num) && num > Number(clause.value ?? "");
+    case "lt":
+      return !isNaN(num) && num < Number(clause.value ?? "");
+    case "gte":
+      return !isNaN(num) && num >= Number(clause.value ?? "");
+    case "lte":
+      return !isNaN(num) && num <= Number(clause.value ?? "");
+    default:
+      return false;
+  }
+}
+
 function evalConditionBranches(
   node: ConditionNode,
   context: Record<string, unknown>
 ): string | null {
-  const lastInput = String(context.lastInput ?? "");
-  const lastPayload = String(context.lastPayload ?? "");
-
   for (const branch of node.branches) {
-    const haystack = branch.field === "lastPayload" ? lastPayload : lastInput;
-    const value = branch.caseSensitive ? branch.value : branch.value.toLowerCase();
-    const sample = branch.caseSensitive ? haystack : haystack.toLowerCase();
-
-    let matched = false;
-    switch (branch.match) {
-      case "exact":
-        matched = sample === value;
-        break;
-      case "starts_with":
-        matched = sample.startsWith(value);
-        break;
-      case "contains":
-        matched = sample.includes(value);
-        break;
-      case "regex":
-        try {
-          matched = new RegExp(branch.value, branch.caseSensitive ? "" : "i").test(haystack);
-        } catch {}
-        break;
+    // ── Backward-compat: старый формат «одно условие на ветке» без
+    // clauses[], когда у ветки прямо есть field/match/value.
+    let clauses: import("./graph-types").ConditionClause[] | undefined =
+      branch.clauses;
+    if (!clauses || clauses.length === 0) {
+      if (branch.match && branch.field) {
+        // Маппим старый match в новый operator.
+        const op =
+          branch.match === "exact"
+            ? "eq"
+            : (branch.match as "contains" | "starts_with" | "regex");
+        clauses = [
+          {
+            field: branch.field,
+            operator: op,
+            value: branch.value ?? "",
+            caseSensitive: branch.caseSensitive,
+          },
+        ];
+      } else {
+        // Пустая ветка — никогда не срабатывает.
+        continue;
+      }
     }
+
+    const join = branch.join ?? "and";
+    const results = clauses.map((c) => evalClause(c, context));
+    const matched =
+      join === "or" ? results.some(Boolean) : results.every(Boolean);
+
     if (matched) return branch.next;
   }
   return node.onNoMatch;
@@ -518,4 +594,71 @@ async function markFailed(runId: string, error: string): Promise<void> {
     subscriberId: run.subscriberId,
     data: { flowId: run.flowId, runId, error: error.slice(0, 500) },
   });
+}
+
+/**
+ * Сдвинуть `when` до выхода из «тихого окна» (quiet hours) по указанной
+ * таймзоне. Если `when` попадает в [fromHour, toHour) — переносится на
+ * `toHour:00` (того же дня или следующего). Окно может оборачиваться
+ * через полночь (например fromHour=22, toHour=8 = ночное окно).
+ *
+ * Реализация через Intl.DateTimeFormat — без зависимостей; работает
+ * на любой IANA таймзоне.
+ */
+function shiftIfInQuietHours(
+  when: Date,
+  qh: import("./graph-types").QuietHours
+): Date {
+  const tz = qh.timeZone || "Europe/Moscow";
+  const fromH = clampHour(qh.fromHour);
+  const toH = clampHour(qh.toHour);
+  if (fromH === toH) return when; // окно нулевой длины — игнорим
+
+  // Час в нужной TZ. `formatToParts` даёт нам локальный час без
+  // математики со смещениями (которая не учитывает DST).
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    hour: "2-digit",
+    hour12: false,
+  });
+  const hourStr = fmt.formatToParts(when).find((p) => p.type === "hour")?.value ?? "0";
+  const localHour = parseInt(hourStr, 10);
+
+  // В окне ли локальный час?
+  const inWindow =
+    fromH < toH
+      ? localHour >= fromH && localHour < toH // обычное окно (например 12..18)
+      : localHour >= fromH || localHour < toH; // через полночь (22..8)
+
+  if (!inWindow) return when;
+
+  // Целевой момент — toH:00:00 в нужной TZ, не раньше `when`.
+  // Считаем дельту в минутах от локального времени до toH:00.
+  //   например 23:30 MSK + (8:00 - 23:30) % 24h = 8:00 следующего дня.
+  // На переходе DST возможна погрешность в час — это допустимо для
+  // use-case «утром не раньше 8:00».
+  const minuteStr =
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      minute: "2-digit",
+      hour12: false,
+    })
+      .formatToParts(when)
+      .find((p) => p.type === "minute")?.value ?? "0";
+  const localMinute = parseInt(minuteStr, 10);
+
+  // Дельта в минутах от текущего локального момента до toH:00.
+  let deltaMin =
+    ((toH - localHour + 24) % 24) * 60 - localMinute;
+  // Если ровно 0 (мы уже на границе) или попало в прошлое (из-за
+  // секунд) — добавляем сутки. На границе мы хотим уже выйти из окна,
+  // а не остаться в нём.
+  if (deltaMin <= 0) deltaMin += 24 * 60;
+
+  return new Date(when.getTime() + deltaMin * 60 * 1000);
+}
+
+function clampHour(h: number): number {
+  if (!Number.isFinite(h)) return 0;
+  return Math.max(0, Math.min(23, Math.floor(h)));
 }

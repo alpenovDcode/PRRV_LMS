@@ -157,24 +157,59 @@ export interface WaitReplyNode {
   actions?: NodeAction[];
 }
 
-/** Условный переход по ответу подписчика (context.lastInput / lastPayload). */
+/**
+ * Условный переход. Сравнивает значения из контекста (lastInput,
+ * lastPayload и произвольные переменные) с константами/шаблонами.
+ *
+ * Сложные условия (SaleBot-аналог `var != 1 and var != ""`) выражаются
+ * через массив `clauses` внутри ветки + `join: "and" | "or"`. Между
+ * ветками — всегда OR (первая сработавшая = выбранная).
+ *
+ * Backward-compat: старый формат с одним `field/match/value` на ветке
+ * тоже понимается (оборачивается в одно clause при выполнении).
+ */
+export type ConditionField = "lastInput" | "lastPayload" | "variable";
+export type ConditionOperator =
+  | "eq" // ==
+  | "neq" // !=
+  | "contains"
+  | "starts_with"
+  | "regex"
+  | "is_empty" // value игнорируется
+  | "is_not_empty"
+  | "gt" // числовое >
+  | "lt" // числовое <
+  | "gte"
+  | "lte";
+
+export interface ConditionClause {
+  field: ConditionField;
+  /** Имя переменной в context (для field=variable). */
+  variable?: string;
+  operator: ConditionOperator;
+  /** Шаблон ({{...}}) или константа. Для is_empty/is_not_empty не нужен. */
+  value?: string;
+  caseSensitive?: boolean;
+}
+
+export interface ConditionBranch {
+  /** Новый формат — массив условий объединённых через `join`. */
+  clauses?: ConditionClause[];
+  /** Логическое объединение clauses. Дефолт "and". */
+  join?: "and" | "or";
+  /** Старый формат (одно условие на ветке) — для backward-compat. */
+  field?: "lastInput" | "lastPayload";
+  match?: "exact" | "contains" | "regex" | "starts_with";
+  value?: string;
+  caseSensitive?: boolean;
+  /** Куда переходить, если ветка сработала. */
+  next: string | null;
+}
+
 export interface ConditionNode {
   type: "condition";
-  /**
-   * Правила матчинга. Первое сработавшее = выбранная ветка.
-   * Если ни одно не сработало — onNoMatch.
-   */
-  branches: Array<{
-    /** Какое поле проверяем: lastInput (текст) | lastPayload (от quick reply) */
-    field: "lastInput" | "lastPayload";
-    /** Как сравнивать */
-    match: "exact" | "contains" | "regex" | "starts_with";
-    /** Значение/паттерн */
-    value: string;
-    caseSensitive?: boolean;
-    /** Куда переходить если совпало */
-    next: string | null;
-  }>;
+  /** Первая сработавшая ветка = выбранная. OR между ветками. */
+  branches: ConditionBranch[];
   onNoMatch: string | null;
   actions?: NodeAction[];
 }
@@ -201,13 +236,33 @@ export interface EndNode {
  *
  * Максимум 90 дней (7,776,000 сек) — больше не имеет смысла, и Postgres
  * timestamp не сломается.
+ *
+ * `quietHours` — SaleBot-аналог «shift_to_next_day»: если расчётное
+ * время отправки попадает в «тихий период» (по умолчанию 22:00–08:00
+ * по Москве), отложить до конца окна. Полезно для длинных автоворонок,
+ * где иначе сообщения летят в 3 часа ночи и убивают engagement.
  */
+export interface QuietHours {
+  /** Начало окна, час 0–23 (по timeZone). */
+  fromHour: number;
+  /** Конец окна, час 0–23. Можно меньше fromHour (через полночь). */
+  toHour: number;
+  /** IANA timezone, например "Europe/Moscow". Дефолт "Europe/Moscow". */
+  timeZone?: string;
+}
+
 export interface DelayNode {
   type: "delay";
   /** На сколько отложить (секунды). Минимум 60 (1 мин), максимум 7776000 (90 дней). */
   seconds: number;
   next: string | null;
   actions?: NodeAction[];
+  /**
+   * Если задано — расчётное `now+seconds` сдвигается до конца этого
+   * окна, если в него попадает. SaleBot shift_to_next_day = fromHour:22
+   * toHour:8 в Europe/Moscow.
+   */
+  quietHours?: QuietHours;
 }
 
 /**

@@ -1093,6 +1093,7 @@ model MessagingBot {
   auditLogs         MessagingBotAuditLog[]
   bitrixConfig      MessagingBitrixConfig?
   trackingLinks     MessagingTrackingLink[]
+  scheduledFlows    MessagingScheduledFlow[]
 
   createdAt         DateTime         @default(now()) @map("created_at")
   updatedAt         DateTime         @updatedAt @map("updated_at")
@@ -1171,6 +1172,14 @@ enum MessagingTriggerType {
   subscriber_joined
   /// Ручной запуск через API/UI
   manual
+  /// Запуск при клике подписчика по трекинговой ссылке /r/<slug>.
+  /// SaleBot-аналог: «link_was_pressed <URL>». Привязка к конкретной
+  /// ссылке — через MessagingTrigger.trackingLinkId (или slug).
+  link_clicked
+  /// Запуск по внешнему webhook от GetCourse / amoCRM / собственного
+  /// сервиса. SaleBot-аналог: «getcourse <event_name>» и кастомные
+  /// «autointensiv_*». Имя события — в MessagingTrigger.eventName.
+  external_event
 }
 
 enum MessagingFlowRunStatus {
@@ -1226,6 +1235,13 @@ model MessagingTrigger {
   /// Для keyword_comment / mention — ограничение по конкретному посту (media_id),
   /// пусто = на все посты.
   mediaIds        String[]             @default([]) @map("media_ids")
+  /// Для type=link_clicked — id трекинговой ссылки, на которую должен
+  /// прийти клик. NULL = «любая ссылка этого бота».
+  trackingLinkId  String?              @map("tracking_link_id")
+  /// Для type=external_event — имя события из внешнего webhook
+  /// (например "getcourse:purchase" или "autointensiv:enter"). NULL =
+  /// триггер не активен, пока имя не задано.
+  eventName       String?              @map("event_name")
   /// Метрики
   triggerCount    Int                  @default(0) @map("trigger_count")
   lastTriggeredAt DateTime?            @map("last_triggered_at")
@@ -1234,6 +1250,8 @@ model MessagingTrigger {
 
   @@index([flowId])
   @@index([type])
+  @@index([type, eventName])
+  @@index([type, trackingLinkId])
   @@map("messaging_triggers")
 }
 
@@ -1514,6 +1532,48 @@ model MessagingTrackingClick {
   @@index([linkId, createdAt])
   @@index([subscriberId, createdAt])
   @@map("messaging_tracking_clicks")
+}
+
+/// Запланированный запуск воронки. Структура зеркалит TgScheduledFlow:
+/// fire-and-forget single-shot задача — в момент scheduledAt cron-tick
+/// собирает аудиторию по filter и стартует MessagingFlowRun для каждого
+/// подписчика. Повторений нет — это разовый запуск (для повторяющихся
+/// рассылок есть MessagingBroadcast).
+///
+/// filter — JSON shape:
+///   {
+///     "allActive": true,            // всем активным
+///     "tagsAny":   ["promo"],       // хотя бы один тег
+///     "tagsAll":   ["paid", "vip"], // все теги
+///     "excludeTags": ["unsubscribed"],
+///     "subscriberIds": ["<id>"]     // если задан — игнорим остальное
+///   }
+///
+/// status: scheduled → running → completed | failed | cancelled
+model MessagingScheduledFlow {
+  id              String       @id @default(uuid())
+  botId           String       @map("bot_id")
+  bot             MessagingBot @relation(fields: [botId], references: [id], onDelete: Cascade)
+  flowId          String       @map("flow_id")
+  /// Денормализованный человекочитаемый заголовок (имя самого flow
+  /// может потом поменяться, а в истории расписания хочется видеть
+  /// то, что было задано).
+  name            String
+  filter          Json         @default("{}")
+  scheduledAt     DateTime     @map("scheduled_at")
+  status          String       @default("scheduled")
+  startedAt       DateTime?    @map("started_at")
+  finishedAt      DateTime?    @map("finished_at")
+  totalLaunched   Int          @default(0) @map("total_launched")
+  totalFailed     Int          @default(0) @map("total_failed")
+  lastError       String?      @db.Text @map("last_error")
+  createdById     String?      @map("created_by_id")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  @@index([botId, status])
+  @@index([status, scheduledAt])
+  @@map("messaging_scheduled_flows")
 }
 
 model TgMessage {

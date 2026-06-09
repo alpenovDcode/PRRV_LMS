@@ -48,6 +48,53 @@ export async function POST(
 }
 
 /**
+ * GET /api/admin/messaging/bots/[id] — данные одного бота.
+ *
+ * Нужно для шапки страницы /admin/messaging/[botId]/* (layout рисует
+ * заголовок «<title> · <externalAccountId> · N подписчиков»). Не отдаём
+ * tokenEnc — он только для серверных вызовов API мессенджера.
+ */
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  return withAuth(
+    req,
+    async () => {
+      const { id } = await params;
+      const bot = await db.messagingBot.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          channel: true,
+          externalAccountId: true,
+          title: true,
+          isActive: true,
+          tokenExpiresAt: true,
+          meta: true,
+          createdAt: true,
+          _count: { select: { subscribers: true } },
+        },
+      });
+      if (!bot) {
+        return NextResponse.json(
+          { success: false, error: "Бот не найден" },
+          { status: 404 }
+        );
+      }
+      return NextResponse.json({
+        success: true,
+        data: {
+          ...bot,
+          subscriberCount: bot._count.subscribers,
+        },
+      });
+    },
+    { roles: [UserRole.admin] }
+  );
+}
+
+/**
  * DELETE /api/admin/messaging/bots/[id]?mode=disable|delete
  *
  * mode=disable (по умолчанию) — soft: isActive = false. Можно переподключить

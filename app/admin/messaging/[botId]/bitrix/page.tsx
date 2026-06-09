@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft, Plus, Trash2, Save } from "lucide-react";
+import { Plus, Trash2, Save } from "lucide-react";
 
 interface FieldMapping {
   lmsVar: string;
@@ -76,15 +75,7 @@ export default function BitrixConfigPage() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <Link
-        href={`/admin/messaging/${botId}/flows`}
-        className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-4"
-      >
-        <ArrowLeft className="w-4 h-4" /> К воронкам
-      </Link>
-
-      <div className="flex items-center justify-between mb-6">
+    <div className="max-w-4xl mx-auto"><div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Bitrix24</h1>
           <p className="text-sm text-gray-500 mt-0.5">Синхронизация подписчиков</p>
