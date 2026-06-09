@@ -30,7 +30,18 @@ interface Order {
   paymentLinkToken?: string | null;
 }
 
-interface Meta { total: number; page: number; pages: number; }
+interface Meta {
+  total: number;
+  page: number;
+  pages: number;
+  /**
+   * Общая выручка по ОПЛАЧЕННЫМ заказам, по всем страницам, с
+   * применёнными фильтрами. Считается на бэке через _sum(amount).
+   * При фильтре по статусу != "paid" будет 0.
+   */
+  totalRevenue?: number;
+  totalRevenueCurrency?: string;
+}
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   pending:             { label: "Ожидает",    color: "text-yellow-600 bg-yellow-50 border-yellow-200", icon: Clock },
@@ -68,6 +79,7 @@ export default function OrdersPage() {
   const [showGuestLink, setShowGuestLink] = useState(false);
   const [toast, setToast] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [search, setSearch] = useState("");
+  const [offerSearch, setOfferSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
 
@@ -75,6 +87,7 @@ export default function OrdersPage() {
     setLoading(true);
     const params = new URLSearchParams({ page: String(page) });
     if (search) params.set("search", search);
+    if (offerSearch) params.set("offer", offerSearch);
     if (statusFilter) params.set("status", statusFilter);
 
     fetch(`/api/admin/orders?${params}`)
@@ -84,13 +97,21 @@ export default function OrdersPage() {
         setMeta(d.meta ?? { total: 0, page: 1, pages: 1 });
       })
       .finally(() => setLoading(false));
-  }, [page, search, statusFilter]);
+  }, [page, search, offerSearch, statusFilter]);
 
   useEffect(load, [load]);
 
-  const totalRevenue = orders
+  // Выручка на текущей странице — для второй строки заголовка.
+  // Главная цифра берётся из meta.totalRevenue (считается на бэке по всем).
+  const pageRevenue = orders
     .filter((o) => o.status === "paid")
     .reduce((s, o) => s + Number(o.amount), 0);
+  const fmtRub = (n: number) =>
+    new Intl.NumberFormat("ru-RU", {
+      style: "currency",
+      currency: meta.totalRevenueCurrency ?? "RUB",
+      maximumFractionDigits: 0,
+    }).format(n);
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -99,9 +120,18 @@ export default function OrdersPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Заказы</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {meta.total} заказов · выручка на странице:{" "}
-            <span className="font-semibold text-green-600">
-              {new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format(totalRevenue)}
+            {meta.total.toLocaleString("ru-RU")} заказов
+            {meta.totalRevenue !== undefined && (
+              <>
+                {" · "}общая выручка:{" "}
+                <span className="font-semibold text-green-600">
+                  {fmtRub(meta.totalRevenue)}
+                </span>
+              </>
+            )}
+            <span className="text-gray-400">
+              {" · на странице: "}
+              {fmtRub(pageRevenue)}
             </span>
           </p>
         </div>
@@ -127,12 +157,25 @@ export default function OrdersPage() {
 
       {/* Фильтры */}
       <div className="flex gap-3 mb-4 flex-wrap">
+        {/* Поиск по пользователю */}
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             placeholder="Email или имя пользователя…"
+            className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+          />
+        </div>
+        {/* Поиск по названию оффера (LMS + GC). Можно комбинировать с
+            поиском по клиенту: «Иванов» + «Прорыв» → только заказы
+            Иванова на офферы со словом «Прорыв». */}
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            value={offerSearch}
+            onChange={(e) => { setOfferSearch(e.target.value); setPage(1); }}
+            placeholder="Название оффера…"
             className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
           />
         </div>
