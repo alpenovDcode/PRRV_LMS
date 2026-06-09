@@ -678,6 +678,12 @@ model Offer {
   features    String[]    @default([])
   /// Порядок отображения
   sortOrder   Int         @default(0) @map("sort_order")
+  /// Публичный URL-slug для прямой страницы оплаты /offer/<slug>.
+  /// Если задан и оффер активен — любой N посетителей может пройти
+  /// форму (ФИО+email+телефон) и оплатить; каждый получает СВОЙ Order.
+  /// Для постов в TG, рассылок, рекламы. null = публичной страницы нет,
+  /// продаём только через гостевую ссылку менеджера или /admin/orders.
+  publicSlug  String?     @unique @map("public_slug")
   orders      Order[]
   createdAt   DateTime    @default(now()) @map("created_at")
   updatedAt   DateTime    @updatedAt @map("updated_at")
