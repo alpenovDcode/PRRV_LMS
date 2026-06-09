@@ -13,14 +13,16 @@ const REVIEW_URL = (id: string) => `https://otzovik.com/review_${id}.html`;
 
 export async function scrapeOtzovik(
   maxPages = 5,
-  // IDs already in DB — used to skip individual page fetches for known reviews
   existingIds: Set<string> = new Set(),
-  // IDs that already have a saved response — no need to re-fetch their pages
   alreadyResponded: Set<string> = new Set()
 ): Promise<ScrapedReview[]> {
   const reviews: ScrapedReview[] = [];
   const seen = new Set<string>();
+  const idsNeedingResponse: string[] = [];
 
+  // Фаза 1: обходим все страницы и собираем метаданные отзывов.
+  // Индивидуальные запросы за ответами делаем только ПОСЛЕ — иначе Otzovik
+  // блокирует IP после ~40 быстрых запросов и страница 2 уже не отдаётся.
   for (let page = 1; page <= maxPages; page++) {
     const url = page === 1 ? BASE_URL : `${BASE_URL}?page=${page}`;
     let html: string;
@@ -41,9 +43,6 @@ export async function scrapeOtzovik(
 
     const reviewBlocks = html.split(/(?=<[^>]+itemtype="http:\/\/schema\.org\/Review")/);
     let gotNew = false;
-    const pageReviews: ScrapedReview[] = [];
-    // Only fetch individual pages for reviews that don't have a response cached
-    const idsNeedingResponse: string[] = [];
 
     for (const block of reviewBlocks) {
       const idMatch = block.match(/class="review-title"\s+href="\/review_(\d+)\.html"/);
@@ -68,17 +67,8 @@ export async function scrapeOtzovik(
       const commentCountMatch = block.match(/itemprop="commentCount">(\d+)</);
       const commentCount = parseInt(commentCountMatch?.[1] ?? "0", 10);
 
-      const review: ScrapedReview = {
-        externalId,
-        author,
-        rating,
-        text,
-        url: REVIEW_URL(externalId),
-        publishedAt,
-      };
-      pageReviews.push(review);
+      reviews.push({ externalId, author, rating, text, url: REVIEW_URL(externalId), publishedAt });
 
-      // Fetch individual page only if: has comments AND response not already cached
       if (commentCount > 0 && !alreadyResponded.has(externalId)) {
         idsNeedingResponse.push(externalId);
       }
@@ -86,17 +76,21 @@ export async function scrapeOtzovik(
       if (!existingIds.has(externalId)) gotNew = true;
     }
 
-    // Fetch official responses only for reviews that need it
-    if (idsNeedingResponse.length > 0) {
-      const responseMap = await fetchOfficialResponses(idsNeedingResponse);
-      for (const r of pageReviews) {
-        const fresh = responseMap.get(r.externalId);
-        if (fresh) r.businessResponse = fresh;
-      }
-    }
+    if (!gotNew && page > 1) break;
 
-    reviews.push(...pageReviews);
-    if (!gotNew && page > 1) break; // all reviews on this page were already known — stop
+    // Пауза между запросами страниц, чтобы не получить бан
+    if (page < maxPages) {
+      await new Promise((r) => setTimeout(r, 1_200));
+    }
+  }
+
+  // Фаза 2: докачиваем ответы организации уже после того, как все страницы собраны
+  if (idsNeedingResponse.length > 0) {
+    const responseMap = await fetchOfficialResponses(idsNeedingResponse);
+    for (const r of reviews) {
+      const fresh = responseMap.get(r.externalId);
+      if (fresh) r.businessResponse = fresh;
+    }
   }
 
   return reviews;
@@ -124,7 +118,7 @@ async function fetchOfficialResponses(ids: string[]): Promise<Map<string, string
           const response = extractOfficialComment(html);
           if (response) map.set(id, response);
         } catch {
-          // skip on error
+          // пропускаем при ошибке
         }
       })
     );
