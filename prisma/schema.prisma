@@ -2110,3 +2110,21 @@ model GetcourseData {
 
   @@map("getcourse_data")
 }
+
+model ExternalReview {
+  id          String   @id @default(uuid())
+  source      String   // "otzovik" | "yandex_maps"
+  externalId  String?  @map("external_id")
+  author      String
+  rating      Float
+  text        String   @db.Text
+  url         String?
+  publishedAt DateTime @map("published_at")
+  businessResponse String?  @db.Text @map("business_response")
+  fetchedAt        DateTime @default(now()) @map("fetched_at")
+
+  @@unique([source, externalId])
+  @@index([source])
+  @@index([publishedAt])
+  @@map("external_reviews")
+}

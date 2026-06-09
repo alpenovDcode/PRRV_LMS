@@ -3,7 +3,49 @@ import { withAuth } from "@/lib/api-middleware";
 import { db } from "@/lib/db";
 import { UserRole } from "@prisma/client";
 import { decrypt } from "@/lib/messaging/encryption";
-import { unsubscribeFromMessagingWebhook } from "@/lib/messaging/instagram/oauth";
+import { unsubscribeFromMessagingWebhook, subscribeToMessagingWebhook } from "@/lib/messaging/instagram/oauth";
+
+/**
+ * POST /api/admin/messaging/bots/[id]?action=resubscribe
+ *
+ * Принудительно переподписывает Instagram-бота на webhook Meta.
+ * Используется для диагностики и исправления ситуации когда messages не приходят.
+ */
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  return withAuth(
+    req,
+    async () => {
+      const { id } = await params;
+      const url = new URL(req.url);
+      const action = url.searchParams.get("action");
+
+      if (action !== "resubscribe") {
+        return NextResponse.json({ success: false, error: "Неизвестный action" }, { status: 400 });
+      }
+
+      const bot = await db.messagingBot.findUnique({ where: { id } });
+      if (!bot) {
+        return NextResponse.json({ success: false, error: "Не найдено" }, { status: 404 });
+      }
+      if (bot.channel !== "instagram") {
+        return NextResponse.json({ success: false, error: "Только для Instagram-ботов" }, { status: 400 });
+      }
+
+      try {
+        await subscribeToMessagingWebhook(bot.externalAccountId, decrypt(bot.tokenEnc));
+        return NextResponse.json({ success: true, message: "Переподписка выполнена успешно" });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error("[bot/resubscribe] failed:", msg);
+        return NextResponse.json({ success: false, error: msg }, { status: 500 });
+      }
+    },
+    { roles: [UserRole.admin] }
+  );
+}
 
 /**
  * DELETE /api/admin/messaging/bots/[id]?mode=disable|delete

@@ -176,7 +176,7 @@ export async function subscribeToMessagingWebhook(
   if (parsed && typeof parsed === "object" && (parsed as Record<string, unknown>).success === false) {
     throw new Error(`IG webhook subscribe returned success=false: ${respText.slice(0, 300)}`);
   }
-  console.log("[ig-oauth] subscribeToMessagingWebhook OK:", respText.slice(0, 200));
+  console.warn("[ig-oauth] subscribeToMessagingWebhook OK:", respText.slice(0, 200));
 }
 
 /**

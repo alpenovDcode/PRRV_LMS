@@ -12,6 +12,7 @@ import { CertificationsTable } from "@/components/admin/analytics/certifications
 import { StreamDetail, StreamData } from "@/components/admin/analytics/stream-detail";
 import { SurveyAnalytics } from "@/components/admin/analytics/survey-analytics";
 import { QuestionsAnalytics } from "@/components/admin/analytics/questions-analytics";
+import { ReviewsAnalytics } from "@/components/admin/analytics/reviews-analytics";
 import { AtRiskAlert } from "@/components/admin/analytics/at-risk-alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -109,11 +110,8 @@ export default function AnalyticsPage() {
           <TabsTrigger value="surveys">Опросы / NPS</TabsTrigger>
           <TabsTrigger value="students">Студенты</TabsTrigger>
           <TabsTrigger value="questions">Вопросы</TabsTrigger>
-          {/* Сертификационные анкеты — детальный реестр всех сабмишенов
-              на уроки type=certification_form. Дополняет общий обзор в
-              «Опросы / NPS»: тут таблица с фильтрами, ответами по каждому
-              студенту и экспортом CSV. */}
           <TabsTrigger value="certifications">Сертификация</TabsTrigger>
+          <TabsTrigger value="reviews">Отзывы</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
@@ -218,6 +216,10 @@ export default function AnalyticsPage() {
 
         <TabsContent value="certifications" className="space-y-4">
           <CertificationsTable />
+        </TabsContent>
+
+        <TabsContent value="reviews" className="space-y-4">
+          <ReviewsAnalytics />
         </TabsContent>
 
       </Tabs>
