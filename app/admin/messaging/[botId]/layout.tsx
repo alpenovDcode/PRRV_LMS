@@ -17,6 +17,7 @@ import {
   Inbox,
   Plug,
   FileText,
+  Users,
 } from "lucide-react";
 
 /**
@@ -75,6 +76,7 @@ export default function MessagingBotDetailLayout({
   const tabs = [
     { href: `/admin/messaging/${botId}`, label: "Обзор", icon: BarChart3 },
     { href: `/admin/messaging/${botId}/inbox`, label: "Inbox", icon: Inbox },
+    { href: `/admin/messaging/${botId}/subscribers`, label: "Подписчики", icon: Users },
     { href: `/admin/messaging/${botId}/flows`, label: "Сценарии", icon: Workflow },
     { href: `/admin/messaging/${botId}/broadcasts`, label: "Рассылки", icon: Send },
     { href: `/admin/messaging/${botId}/lists`, label: "Списки", icon: ListChecks },
