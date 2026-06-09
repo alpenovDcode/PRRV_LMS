@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { Plus, Pencil, Trash2, ToggleLeft, ToggleRight, Tag, Clock, BookOpen, Search, X, Check } from "lucide-react";
+import { Plus, Pencil, Trash2, ToggleLeft, ToggleRight, Tag, Clock, BookOpen, Search, X, Check, Link as LinkIcon, Copy } from "lucide-react";
+import { toast } from "sonner";
 
 interface CourseOption {
   id: string;
@@ -23,6 +24,8 @@ interface Offer {
   tariff: string | null;
   features: string[];
   sortOrder: number;
+  /** Публичный slug — URL /offer/<slug> для рассылок/постов в TG. */
+  publicSlug: string | null;
   _count: { orders: number };
 }
 
@@ -71,6 +74,7 @@ function OfferForm({
     features: (initial?.features ?? []).join("\n"),
     sortOrder: String(initial?.sortOrder ?? 0),
     isActive: initial?.isActive ?? true,
+    publicSlug: initial?.publicSlug ?? "",
   });
   // courseIds — массив; селектор управляет им через CoursePicker
   const [courseIds, setCourseIds] = useState<string[]>(initial?.courseIds ?? []);
@@ -93,6 +97,9 @@ function OfferForm({
         courseIds,
         sortOrder: parseInt(form.sortOrder) || 0,
         isActive: form.isActive,
+        publicSlug: form.publicSlug.trim()
+          ? form.publicSlug.trim().toLowerCase()
+          : null,
       });
     } catch (e: any) {
       setError(e.message);
@@ -208,6 +215,37 @@ function OfferForm({
           >
             <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.isActive ? "translate-x-5" : "translate-x-1"}`} />
           </button>
+        </div>
+
+        {/* Публичная ссылка на оффер — для постов в TG / рассылок */}
+        <div className="md:col-span-2">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Публичная ссылка (slug)
+          </label>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-400 whitespace-nowrap">
+              /offer/
+            </span>
+            <input
+              value={form.publicSlug}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  publicSlug: e.target.value
+                    .toLowerCase()
+                    .replace(/[^a-z0-9-]/g, ""),
+                })
+              }
+              placeholder="proriv-vr"
+              className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-mono"
+            />
+          </div>
+          <p className="text-[11px] text-gray-500 mt-1">
+            Если задан — любой посетитель сможет открыть страницу оплаты по
+            этой ссылке. Каждый получит свой заказ. Латиница, цифры и дефис.
+            Оставьте пустым, чтобы оффер продавался только через гостевые
+            ссылки менеджера.
+          </p>
         </div>
       </div>
 
@@ -371,6 +409,37 @@ export default function OffersPage() {
 
                   {/* Действия */}
                   <div className="flex items-center gap-2 shrink-0">
+                    {offer.publicSlug && (
+                      <>
+                        <a
+                          href={`/offer/${offer.publicSlug}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-lg transition-colors"
+                          title="Открыть публичную страницу"
+                        >
+                          <LinkIcon className="w-3 h-3" /> /offer/
+                          {offer.publicSlug}
+                        </a>
+                        <button
+                          onClick={() => {
+                            const url = `${
+                              typeof window !== "undefined"
+                                ? window.location.origin
+                                : "https://prrv.tech"
+                            }/offer/${offer.publicSlug}`;
+                            navigator.clipboard
+                              .writeText(url)
+                              .then(() => toast.success("Ссылка скопирована"))
+                              .catch(() => toast.error("Не удалось скопировать"));
+                          }}
+                          className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                          title="Скопировать публичную ссылку"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
                     <a
                       href={`/checkout/${offer.id}`}
                       target="_blank"

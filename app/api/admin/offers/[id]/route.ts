@@ -15,6 +15,17 @@ const patchSchema = z.object({
   tariff: z.enum(["VR", "LR", "SR"]).nullable().optional(),
   features: z.array(z.string()).optional(),
   sortOrder: z.number().int().optional(),
+  /**
+   * Публичный slug. `null` — отключить публичную страницу, оставив
+   * оффер активным только для гостевых ссылок менеджера.
+   */
+  publicSlug: z
+    .string()
+    .min(2)
+    .max(80)
+    .regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/, "Только латиница, цифры и дефис")
+    .nullable()
+    .optional(),
 });
 
 /** PATCH /api/admin/offers/[id] */

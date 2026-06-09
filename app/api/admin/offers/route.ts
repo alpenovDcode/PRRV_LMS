@@ -17,6 +17,17 @@ const offerSchema = z
     tariff: z.enum(["VR", "LR", "SR"]).nullable().optional(),
     features: z.array(z.string().max(200)).max(30).default([]),
     sortOrder: z.number().int().default(0),
+    /**
+     * Публичный slug для страницы /offer/<slug>. URL-safe строка,
+     * только латиница / цифры / дефис. Null = публичной страницы нет.
+     */
+    publicSlug: z
+      .string()
+      .min(2)
+      .max(80)
+      .regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/, "Только латиница, цифры и дефис")
+      .nullable()
+      .optional(),
   })
   .refine(
     (d) => d.oldPrice == null || d.oldPrice >= d.price,
