@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Plus, MessageSquare, ToggleLeft, ToggleRight, Trash2, ArrowLeft, Zap, BarChart3, Link2 } from "lucide-react";
+// Шапка бота (название, табы) теперь живёт в layout.tsx — здесь только
+// контент таба «Сценарии».
+import { Plus, MessageSquare, ToggleLeft, ToggleRight, Trash2, Zap } from "lucide-react";
 import Link from "next/link";
 
 interface Flow {
@@ -99,61 +101,15 @@ export default function BotFlowsPage() {
   };
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      {/* Список «Каналы» переехал в /admin/bots — там TG и MAX одним списком. */}
-      <Link href="/admin/bots" className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-4">
-        <ArrowLeft className="w-4 h-4" /> К списку ботов
-      </Link>
-
+    <div className="max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Воронки</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Бот #{botId.slice(0, 8)}</p>
+          <h1 className="text-lg font-semibold">Сценарии</h1>
+          <p className="text-xs text-muted-foreground">
+            Воронки сообщений с триггерами и узлами.
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href={`/admin/messaging/${botId}/inbox`}
-            className="text-sm px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            Inbox
-          </Link>
-          <Link
-            href={`/admin/messaging/${botId}/analytics`}
-            className="text-sm px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-1"
-          >
-            <BarChart3 className="w-4 h-4" /> Аналитика
-          </Link>
-          <Link
-            href={`/admin/messaging/${botId}/tracking`}
-            className="text-sm px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-1"
-          >
-            <Link2 className="w-4 h-4" /> Ссылки
-          </Link>
-          <Link
-            href={`/admin/messaging/${botId}/bitrix`}
-            className="text-sm px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            Bitrix24
-          </Link>
-          <Link
-            href={`/admin/messaging/${botId}/broadcasts`}
-            className="text-sm px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            Рассылки
-          </Link>
-          <Link
-            href={`/admin/messaging/${botId}/lists`}
-            className="text-sm px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            Списки
-          </Link>
-          <Link
-            href={`/admin/messaging/${botId}/fields`}
-            className="text-sm px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            Поля
-          </Link>
-        </div>
+        {/* Действия (создание, импорт) рендерятся ниже в карточке. */}
       </div>
 
       {/* Создание новой */}

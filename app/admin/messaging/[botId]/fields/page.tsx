@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Plus, Trash2, X, Loader2, Variable } from "lucide-react";
+import { Plus, Trash2, X, Loader2, Variable } from "lucide-react";
 
 interface CustomField {
   id: string;
@@ -49,15 +48,7 @@ export default function FieldsPage() {
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <Link
-        href={`/admin/messaging/${botId}/flows`}
-        className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-4"
-      >
-        <ArrowLeft className="w-4 h-4" /> К воронкам
-      </Link>
-
-      <div className="flex items-center justify-between mb-6">
+    <div className="max-w-4xl mx-auto"><div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <Variable className="w-6 h-6 text-purple-500" /> Поля подписчиков
