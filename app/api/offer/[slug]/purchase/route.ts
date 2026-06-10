@@ -143,6 +143,8 @@ export async function POST(
       );
     }
   }
+  // Ключи — человекочитаемые label'ы (а не машинные key), чтобы в
+  // карточке заказа админ сразу видел «Город: Москва», а не «city: ...».
   const customAnswers: Record<string, string> = {};
   for (const field of formConfig.customFields) {
     const val = (data.customAnswers?.[field.key] ?? "").trim();
@@ -163,7 +165,7 @@ export async function POST(
       }
     }
     if (val !== "") {
-      customAnswers[field.key] = val;
+      customAnswers[field.label] = val;
     }
   }
 
