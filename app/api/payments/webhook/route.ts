@@ -86,6 +86,41 @@ export async function POST(req: NextRequest) {
     return ackOk(result.ackResponse);
   }
 
+  // ── Спасаем клиентские данные из старого ykSnapshot ────────────────
+  // Заказы, созданные ДО выноса анкеты/UTM в отдельные колонки, держат
+  // их в ykSnapshot. Ниже мы перезапишем ykSnapshot данными провайдера,
+  // поэтому СНАЧАЛА вытащим formAnswers/utm и положим в выделенные
+  // колонки (только если они там ещё пусты). Спасает «зависшие»
+  // pending-заказы при первой же оплате/смене статуса.
+  const preserved: { formAnswers?: any; utm?: any } = {};
+  try {
+    const cur = await db.order.findUnique({
+      where: { id: order.id },
+      select: { ykSnapshot: true, formAnswers: true, utm: true } as any,
+    });
+    const snap = (cur as any)?.ykSnapshot;
+    if (
+      !(cur as any)?.formAnswers &&
+      snap &&
+      typeof snap === "object" &&
+      snap.formAnswers &&
+      typeof snap.formAnswers === "object"
+    ) {
+      preserved.formAnswers = snap.formAnswers;
+    }
+    if (
+      !(cur as any)?.utm &&
+      snap &&
+      typeof snap === "object" &&
+      snap.utm &&
+      typeof snap.utm === "object"
+    ) {
+      preserved.utm = snap.utm;
+    }
+  } catch {
+    // best-effort — не блокируем обработку платежа
+  }
+
   // Если у заказа ещё нет ykPaymentId — сохраняем (используем для последующих
   // webhook'ов от того же провайдера, чтобы lookup был O(1) по индексу).
   if (!order.ykPaymentId && result.providerPaymentId !== order.id) {
@@ -141,6 +176,7 @@ export async function POST(req: NextRequest) {
         data: {
           paymentMethod: result.paymentMethod ?? undefined,
           ykSnapshot: result.raw as any,
+          ...preserved,
         },
       });
     } catch (err) {
@@ -160,6 +196,7 @@ export async function POST(req: NextRequest) {
         status: "refunded",
         paymentMethod: result.paymentMethod ?? undefined,
         ykSnapshot: result.raw as any,
+        ...preserved,
       };
       if (!(cur as any)?.refundedAt) {
         data.refundedAt = new Date();
@@ -178,6 +215,7 @@ export async function POST(req: NextRequest) {
           status: newStatus,
           paymentMethod: result.paymentMethod ?? undefined,
           ykSnapshot: result.raw as any,
+          ...preserved,
         },
       });
     } catch (err) {
