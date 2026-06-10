@@ -19,6 +19,20 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle2, Loader2 } from "lucide-react";
 
+interface CustomField {
+  key: string;
+  label: string;
+  type: "text" | "email" | "tel" | "number" | "select" | "textarea";
+  required: boolean;
+  hint?: string;
+  options?: string[];
+}
+
+interface FormConfig {
+  phone: { show: boolean; required: boolean };
+  customFields: CustomField[];
+}
+
 interface OfferData {
   id: string;
   title: string;
@@ -28,6 +42,7 @@ interface OfferData {
   currency: string;
   features: string[];
   accessDays: number | null;
+  formConfig: FormConfig;
 }
 
 function formatPrice(amount: string, currency: string) {
@@ -54,6 +69,13 @@ export default function PublicOfferPage() {
   const [website, setWebsite] = useState(""); // honeypot
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Ответы на кастомные поля оффера: { <key>: <value> }.
+  const [customAnswers, setCustomAnswers] = useState<Record<string, string>>(
+    {}
+  );
+
+  const phoneCfg = offer?.formConfig?.phone ?? { show: true, required: false };
+  const customFields = offer?.formConfig?.customFields ?? [];
 
   useEffect(() => {
     fetch(`/api/offer/${slug}`)
@@ -81,6 +103,7 @@ export default function PublicOfferPage() {
         phone: phone.trim() || undefined,
         consent,
         website: website || undefined,
+        customAnswers,
       };
       // UTM-метки из URL
       for (const k of [
@@ -241,18 +264,79 @@ export default function PublicOfferPage() {
                   На него придёт письмо с доступом к курсу
                 </p>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-zinc-600 mb-1">
-                  Телефон
-                </label>
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                  placeholder="+7 (000) 000-00-00"
-                />
-              </div>
+              {phoneCfg.show && (
+                <div>
+                  <label className="block text-xs font-medium text-zinc-600 mb-1">
+                    Телефон {phoneCfg.required && "*"}
+                  </label>
+                  <input
+                    type="tel"
+                    required={phoneCfg.required}
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    placeholder="+7 (000) 000-00-00"
+                  />
+                </div>
+              )}
+
+              {/* Кастомные поля оффера */}
+              {customFields.map((f) => (
+                <div key={f.key}>
+                  <label className="block text-xs font-medium text-zinc-600 mb-1">
+                    {f.label} {f.required && "*"}
+                  </label>
+                  {f.type === "select" ? (
+                    <select
+                      required={f.required}
+                      value={customAnswers[f.key] ?? ""}
+                      onChange={(e) =>
+                        setCustomAnswers((p) => ({
+                          ...p,
+                          [f.key]: e.target.value,
+                        }))
+                      }
+                      className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                    >
+                      <option value="">— выберите —</option>
+                      {(f.options ?? []).map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                  ) : f.type === "textarea" ? (
+                    <textarea
+                      required={f.required}
+                      rows={2}
+                      value={customAnswers[f.key] ?? ""}
+                      onChange={(e) =>
+                        setCustomAnswers((p) => ({
+                          ...p,
+                          [f.key]: e.target.value,
+                        }))
+                      }
+                      className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                    />
+                  ) : (
+                    <input
+                      type={f.type}
+                      required={f.required}
+                      value={customAnswers[f.key] ?? ""}
+                      onChange={(e) =>
+                        setCustomAnswers((p) => ({
+                          ...p,
+                          [f.key]: e.target.value,
+                        }))
+                      }
+                      className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                  )}
+                  {f.hint && (
+                    <p className="text-[10px] text-zinc-400 mt-1">{f.hint}</p>
+                  )}
+                </div>
+              ))}
 
               <label className="flex items-start gap-2 text-xs text-zinc-600 mt-2">
                 <input

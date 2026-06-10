@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/api-middleware";
 import { db } from "@/lib/db";
-import { UserRole } from "@prisma/client";
+import { UserRole, Prisma } from "@prisma/client";
 import { z } from "zod";
+import { formConfigSchema } from "@/lib/offers/form-config";
 
 const patchSchema = z.object({
   title: z.string().min(1).optional(),
@@ -26,6 +27,7 @@ const patchSchema = z.object({
     .regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/, "Только латиница, цифры и дефис")
     .nullable()
     .optional(),
+  formConfig: formConfigSchema.nullable().optional(),
 });
 
 /** PATCH /api/admin/offers/[id] */
@@ -36,9 +38,21 @@ export async function PATCH(
   return withAuth(req, async () => {
     const { id } = await params;
     const body = await req.json();
-    const data = patchSchema.parse(body);
+    const { formConfig, ...data } = patchSchema.parse(body);
 
-    const offer = await db.offer.update({ where: { id }, data });
+    const offer = await db.offer.update({
+      where: { id },
+      data: {
+        ...data,
+        // null → очистить (Prisma.JsonNull), объект → записать,
+        // undefined → не трогать.
+        ...(formConfig === null
+          ? { formConfig: Prisma.JsonNull }
+          : formConfig !== undefined
+            ? { formConfig: formConfig as object }
+            : {}),
+      },
+    });
     return NextResponse.json({ success: true, data: offer });
   }, { roles: [UserRole.admin] });
 }

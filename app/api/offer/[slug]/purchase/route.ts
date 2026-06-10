@@ -24,6 +24,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
+import { linkGuestOrder } from "@/lib/payments/link-guest-order";
+import { normalizeFormConfig } from "@/lib/offers/form-config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,6 +47,8 @@ const schema = z.object({
   consent: z.boolean().refine((v) => v === true, "Подтвердите согласие"),
   /** Honeypot — если бот заполнил, мы тихо отклонимся. */
   website: z.string().optional(),
+  /** Ответы на кастомные поля оффера: { <key>: <value> }. */
+  customAnswers: z.record(z.string(), z.string().max(2000)).optional(),
   /** UTM-метки, прокинутые со страницы. Все опциональны. */
   utm_source: z.string().max(120).optional(),
   utm_medium: z.string().max(120).optional(),
@@ -127,6 +131,44 @@ export async function POST(
     );
   }
 
+  // ── Серверная валидация по конфигу формы ───────────────────────────
+  // Клиент мог обойти браузерную валидацию (или вообще постить напрямую),
+  // поэтому required-поля и обязательность телефона проверяем здесь.
+  const formConfig = normalizeFormConfig((offer as any).formConfig);
+  if (formConfig.phone.show && formConfig.phone.required) {
+    if (!data.phone || data.phone.trim() === "") {
+      return NextResponse.json(
+        { success: false, error: "Укажите телефон" },
+        { status: 400 }
+      );
+    }
+  }
+  // Ключи — человекочитаемые label'ы (а не машинные key), чтобы в
+  // карточке заказа админ сразу видел «Город: Москва», а не «city: ...».
+  const customAnswers: Record<string, string> = {};
+  for (const field of formConfig.customFields) {
+    const val = (data.customAnswers?.[field.key] ?? "").trim();
+    if (field.required && val === "") {
+      return NextResponse.json(
+        { success: false, error: `Заполните поле «${field.label}»` },
+        { status: 400 }
+      );
+    }
+    // select — значение должно быть из options (защита от подмены)
+    if (field.type === "select" && val !== "") {
+      const opts = field.options ?? [];
+      if (!opts.includes(val)) {
+        return NextResponse.json(
+          { success: false, error: `Недопустимое значение поля «${field.label}»` },
+          { status: 400 }
+        );
+      }
+    }
+    if (val !== "") {
+      customAnswers[field.label] = val;
+    }
+  }
+
   // ── Создаём Order. userId=null (привяжется при /identify, но мы уже
   //    заполняем guest-поля прямо сейчас — клиенту не придётся ещё раз
   //    вводить те же данные на /pay).
@@ -140,10 +182,15 @@ export async function POST(
     term: data.utm_term ?? null,
   };
   // ykSnapshot.utm — самое подходящее место для атрибуции, оно уже
-  // отображается в карточке заказа. Если у заказа потом будет реальный
-  // webhook от провайдера — там тоже остаётся ykSnapshot со своим
-  // содержимым (seenEvents, lastState, ...), мы не перезатираем.
-  const ykSnapshot: Record<string, unknown> = { utm, source: "public_offer" };
+  // отображается в карточке заказа. formAnswers — ответы на кастомные
+  // поля оффера (видны в карточке заказа). Если у заказа потом будет
+  // реальный webhook от провайдера — там тоже остаётся ykSnapshot
+  // со своим содержимым (seenEvents, lastState, ...), мы не перезатираем.
+  const ykSnapshot: Record<string, unknown> = {
+    utm,
+    source: "public_offer",
+    ...(Object.keys(customAnswers).length > 0 ? { formAnswers: customAnswers } : {}),
+  };
 
   const order = await db.order.create({
     data: {
@@ -162,6 +209,21 @@ export async function POST(
       guestPhone: data.phone || null,
       ykSnapshot: ykSnapshot as object,
     } as any,
+  });
+
+  // Сразу привязываем (или создаём) пользователя по email — те же
+  // данные, что клиент ввёл на лендинге, не нужно спрашивать второй раз
+  // на /pay. После этого Order.userId проставлен → needsGuestInfo=false →
+  // на странице оплаты сразу видны методы оплаты, без формы.
+  // Best-effort: если линковка упала (например гонка email-unique) —
+  // заказ всё равно создан, на /pay покажется fallback-форма.
+  await linkGuestOrder({
+    orderId: order.id,
+    fullName: data.fullName.trim(),
+    email: data.email,
+    phone: data.phone || null,
+  }).catch((e) => {
+    console.warn("[offer/purchase] linkGuestOrder failed:", e);
   });
 
   // Audit. logAction требует существующего userId; для публичного

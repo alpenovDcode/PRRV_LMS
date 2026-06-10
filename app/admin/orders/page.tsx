@@ -1145,6 +1145,23 @@ function OrderDetailsModal({
     ykSnapshot && typeof (ykSnapshot as any).lastState === "string"
       ? (ykSnapshot as any).lastState
       : null;
+  // Ответы на кастомные поля оффера (из публичной формы /offer/<slug>).
+  const formAnswers =
+    ykSnapshot &&
+    typeof (ykSnapshot as any).formAnswers === "object" &&
+    (ykSnapshot as any).formAnswers !== null
+      ? ((ykSnapshot as any).formAnswers as Record<string, unknown>)
+      : null;
+  // UTM-метки с публичной формы оффера.
+  const utm =
+    ykSnapshot &&
+    typeof (ykSnapshot as any).utm === "object" &&
+    (ykSnapshot as any).utm !== null
+      ? ((ykSnapshot as any).utm as Record<string, unknown>)
+      : null;
+  const utmEntries = utm
+    ? Object.entries(utm).filter(([, v]) => v != null && v !== "")
+    : [];
 
   return (
     <div
@@ -1237,6 +1254,44 @@ function OrderDetailsModal({
               </div>
             )}
           </div>
+
+          {/* Ответы на кастомные поля формы оффера */}
+          {formAnswers && Object.keys(formAnswers).length > 0 && (
+            <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-3 space-y-2">
+              <div className="text-xs font-semibold text-blue-700 uppercase tracking-wide">
+                Анкета (поля формы оффера)
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+                {Object.entries(formAnswers).map(([k, v]) => (
+                  <div key={k}>
+                    <div className="text-[11px] text-gray-500">{k}</div>
+                    <div className="text-gray-900 break-words">
+                      {v === null || v === undefined || v === ""
+                        ? "—"
+                        : String(v)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* UTM-метки (атрибуция перехода по публичной ссылке) */}
+          {utmEntries.length > 0 && (
+            <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 space-y-1">
+              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                UTM-метки
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                {utmEntries.map(([k, v]) => (
+                  <div key={k}>
+                    <span className="text-gray-400">{k}:</span>{" "}
+                    <span className="text-gray-800 font-mono">{String(v)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Платёжная диагностика */}
           {(order.ykPaymentId || ykSnapshot || cpStatus || lastState) && (

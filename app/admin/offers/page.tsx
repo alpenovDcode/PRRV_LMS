@@ -26,8 +26,38 @@ interface Offer {
   sortOrder: number;
   /** Публичный slug — URL /offer/<slug> для рассылок/постов в TG. */
   publicSlug: string | null;
+  /** Конфиг полей публичной формы. */
+  formConfig: OfferFormConfig | null;
   _count: { orders: number };
 }
+
+interface CustomFieldUI {
+  key: string;
+  label: string;
+  type: "text" | "email" | "tel" | "number" | "select" | "textarea";
+  required: boolean;
+  hint?: string;
+  options?: string[];
+}
+
+interface OfferFormConfig {
+  phone: { show: boolean; required: boolean };
+  customFields: CustomFieldUI[];
+}
+
+const DEFAULT_FORM_CONFIG: OfferFormConfig = {
+  phone: { show: true, required: false },
+  customFields: [],
+};
+
+const FIELD_TYPE_LABELS: Record<CustomFieldUI["type"], string> = {
+  text: "Текст",
+  email: "Email",
+  tel: "Телефон",
+  number: "Число",
+  select: "Выбор из списка",
+  textarea: "Многострочный текст",
+};
 
 const TARIFF_LABELS: Record<string, string> = { VR: "VR", LR: "LR", SR: "SR" };
 
@@ -78,6 +108,10 @@ function OfferForm({
   });
   // courseIds — массив; селектор управляет им через CoursePicker
   const [courseIds, setCourseIds] = useState<string[]>(initial?.courseIds ?? []);
+  // Конфиг полей публичной формы оффера.
+  const [formConfig, setFormConfig] = useState<OfferFormConfig>(
+    initial?.formConfig ?? DEFAULT_FORM_CONFIG
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -100,6 +134,24 @@ function OfferForm({
         publicSlug: form.publicSlug.trim()
           ? form.publicSlug.trim().toLowerCase()
           : null,
+        // Чистим перед отправкой: выкидываем поля без key/label (zod
+        // требует key /^[a-z][a-z0-9_]*$/), у select оставляем только
+        // непустые options.
+        formConfig: {
+          phone: formConfig.phone,
+          customFields: formConfig.customFields
+            .filter((f) => f.key && f.label.trim())
+            .map((f) => ({
+              key: f.key,
+              label: f.label.trim(),
+              type: f.type,
+              required: f.required,
+              ...(f.hint ? { hint: f.hint } : {}),
+              ...(f.type === "select"
+                ? { options: (f.options ?? []).filter(Boolean) }
+                : {}),
+            })),
+        },
       });
     } catch (e: any) {
       setError(e.message);
@@ -247,6 +299,182 @@ function OfferForm({
             ссылки менеджера.
           </p>
         </div>
+
+        {/* Конфиг полей публичной формы — показываем только если есть slug */}
+        {form.publicSlug.trim() && (
+          <div className="md:col-span-2 border border-gray-200 rounded-xl p-4 bg-gray-50/50">
+            <div className="text-sm font-medium text-gray-700 mb-1">
+              Поля формы на публичной странице
+            </div>
+            <p className="text-[11px] text-gray-500 mb-3">
+              ФИО и Email — всегда обязательны (нужны для доступа к курсу).
+              Ниже настраивается телефон и дополнительные поля.
+            </p>
+
+            {/* Телефон */}
+            <div className="flex items-center gap-4 mb-3 text-sm flex-wrap">
+              <span className="font-medium text-gray-700">Телефон:</span>
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formConfig.phone.show}
+                  onChange={(e) =>
+                    setFormConfig((c) => ({
+                      ...c,
+                      phone: { ...c.phone, show: e.target.checked },
+                    }))
+                  }
+                />
+                показывать
+              </label>
+              <label
+                className={`flex items-center gap-1.5 ${
+                  formConfig.phone.show
+                    ? "cursor-pointer"
+                    : "opacity-40 cursor-not-allowed"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  disabled={!formConfig.phone.show}
+                  checked={formConfig.phone.required}
+                  onChange={(e) =>
+                    setFormConfig((c) => ({
+                      ...c,
+                      phone: { ...c.phone, required: e.target.checked },
+                    }))
+                  }
+                />
+                обязательный
+              </label>
+            </div>
+
+            {/* Кастомные поля */}
+            <div className="space-y-2">
+              {formConfig.customFields.map((field, idx) => (
+                <div
+                  key={idx}
+                  className="bg-white border border-gray-200 rounded-lg p-3 space-y-2"
+                >
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <input
+                      value={field.label}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setFormConfig((c) => {
+                          const cf = [...c.customFields];
+                          cf[idx] = { ...cf[idx], label: v };
+                          // авто-key из label, если key ещё пустой
+                          if (!cf[idx].key) {
+                            cf[idx].key = v
+                              .toLowerCase()
+                              .replace(/[^a-z0-9]+/g, "_")
+                              .replace(/^_+|_+$/g, "")
+                              .slice(0, 40);
+                          }
+                          return { ...c, customFields: cf };
+                        });
+                      }}
+                      placeholder="Подпись (напр. «Город»)"
+                      className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <select
+                      value={field.type}
+                      onChange={(e) =>
+                        setFormConfig((c) => {
+                          const cf = [...c.customFields];
+                          cf[idx] = {
+                            ...cf[idx],
+                            type: e.target.value as CustomFieldUI["type"],
+                          };
+                          return { ...c, customFields: cf };
+                        })
+                      }
+                      className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      {Object.entries(FIELD_TYPE_LABELS).map(([v, l]) => (
+                        <option key={v} value={v}>
+                          {l}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {field.type === "select" && (
+                    <input
+                      value={(field.options ?? []).join(", ")}
+                      onChange={(e) =>
+                        setFormConfig((c) => {
+                          const cf = [...c.customFields];
+                          cf[idx] = {
+                            ...cf[idx],
+                            options: e.target.value
+                              .split(",")
+                              .map((s) => s.trim())
+                              .filter(Boolean),
+                          };
+                          return { ...c, customFields: cf };
+                        })
+                      }
+                      placeholder="Варианты через запятую: Нет, 1-3 года, 3+"
+                      className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  )}
+
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={field.required}
+                        onChange={(e) =>
+                          setFormConfig((c) => {
+                            const cf = [...c.customFields];
+                            cf[idx] = { ...cf[idx], required: e.target.checked };
+                            return { ...c, customFields: cf };
+                          })
+                        }
+                      />
+                      обязательное
+                    </label>
+                    <span className="text-[10px] text-gray-400 font-mono">
+                      key: {field.key || "—"}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFormConfig((c) => ({
+                          ...c,
+                          customFields: c.customFields.filter(
+                            (_, i) => i !== idx
+                          ),
+                        }))
+                      }
+                      className="text-xs text-red-500 hover:bg-red-50 px-2 py-1 rounded"
+                    >
+                      Удалить
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                setFormConfig((c) => ({
+                  ...c,
+                  customFields: [
+                    ...c.customFields,
+                    { key: "", label: "", type: "text", required: false },
+                  ],
+                }))
+              }
+              className="mt-2 text-xs text-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-200 transition-colors"
+            >
+              + Добавить поле
+            </button>
+          </div>
+        )}
       </div>
 
       {error && <p className="text-sm text-red-500">{error}</p>}

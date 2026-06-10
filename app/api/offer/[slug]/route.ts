@@ -13,6 +13,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { normalizeFormConfig } from "@/lib/offers/form-config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,6 +35,7 @@ export async function GET(
       currency: true,
       features: true,
       accessDays: true,
+      formConfig: true,
     },
   });
 
@@ -55,6 +57,7 @@ export async function GET(
       currency: offer.currency,
       features: offer.features,
       accessDays: offer.accessDays,
+      formConfig: normalizeFormConfig(offer.formConfig),
     },
   });
 }
