@@ -40,9 +40,11 @@ class ApiClient {
           _retry?: boolean;
         };
 
-        // Не обрабатываем 401 на публичных роутах
+        // Не обрабатываем 401 на публичных роутах (гость без сессии —
+        // норма, нельзя кидать его на /login). /offer/ и /pay/ — публичные
+        // страницы оплаты, открытые любому посетителю.
         const currentPath = typeof window !== "undefined" ? window.location.pathname : "";
-        const publicRoutes = ["/login", "/register", "/recover-password", "/l/", "/legal", "/maintenance", "/no-access"];
+        const publicRoutes = ["/login", "/register", "/recover-password", "/l/", "/legal", "/maintenance", "/no-access", "/offer/", "/pay/"];
         const isPublicRoute = currentPath === "/" || publicRoutes.some(route => currentPath.startsWith(route));
         
         if (error.response?.status === 401 && !originalRequest._retry && !isPublicRoute) {
