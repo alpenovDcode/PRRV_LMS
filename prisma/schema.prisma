@@ -684,6 +684,18 @@ model Offer {
   /// Для постов в TG, рассылок, рекламы. null = публичной страницы нет,
   /// продаём только через гостевую ссылку менеджера или /admin/orders.
   publicSlug  String?     @unique @map("public_slug")
+  /// Конфиг полей формы на публичной странице /offer/<slug>. JSON shape:
+  ///   {
+  ///     "phone": { "show": true, "required": false },
+  ///     "customFields": [
+  ///       { "key": "city", "label": "Город", "type": "text", "required": false },
+  ///       { "key": "exp",  "label": "Опыт",  "type": "select",
+  ///         "required": true, "options": ["Нет","1-3","3+"] }
+  ///     ]
+  ///   }
+  /// ФИО и email всегда обязательны (нужны для создания юзера и письма) —
+  /// в конфиге не настраиваются. null = дефолт (ФИО+email+телефон-опц).
+  formConfig  Json?       @map("form_config")
   orders      Order[]
   createdAt   DateTime    @default(now()) @map("created_at")
   updatedAt   DateTime    @updatedAt @map("updated_at")

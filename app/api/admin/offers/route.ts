@@ -3,6 +3,7 @@ import { withAuth } from "@/lib/api-middleware";
 import { db } from "@/lib/db";
 import { UserRole } from "@prisma/client";
 import { z } from "zod";
+import { formConfigSchema } from "@/lib/offers/form-config";
 
 const offerSchema = z
   .object({
@@ -28,6 +29,8 @@ const offerSchema = z
       .regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/, "Только латиница, цифры и дефис")
       .nullable()
       .optional(),
+    /** Конфиг полей формы публичной страницы. null = дефолт. */
+    formConfig: formConfigSchema.nullable().optional(),
   })
   .refine(
     (d) => d.oldPrice == null || d.oldPrice >= d.price,
@@ -49,9 +52,16 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   return withAuth(req, async () => {
     const body = await req.json();
-    const data = offerSchema.parse(body);
+    const { formConfig, ...data } = offerSchema.parse(body);
 
-    const offer = await db.offer.create({ data });
+    const offer = await db.offer.create({
+      data: {
+        ...data,
+        // Prisma не принимает raw null для Json — нормализуем: undefined
+        // (поле не трогаем) если не передали, иначе кладём объект.
+        ...(formConfig != null ? { formConfig: formConfig as object } : {}),
+      },
+    });
     return NextResponse.json({ success: true, data: offer }, { status: 201 });
   }, { roles: [UserRole.admin] });
 }
