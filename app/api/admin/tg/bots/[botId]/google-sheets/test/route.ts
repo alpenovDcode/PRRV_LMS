@@ -63,13 +63,28 @@ export async function POST(
             row,
             reason: "test",
           }),
+          redirect: "follow",
           signal: AbortSignal.timeout(15_000),
         });
+        const text = await resp.text().catch(() => "");
         if (!resp.ok) {
-          const text = await resp.text().catch(() => "");
           return NextResponse.json({
             success: false,
             error: `HTTP ${resp.status} ${text.slice(0, 200)}`,
+          });
+        }
+        // 200 + HTML = редирект на логин Google (деплой не «Кто угодно»).
+        const trimmed = text.trim();
+        if (
+          trimmed.startsWith("<") ||
+          trimmed.toLowerCase().includes("<html") ||
+          trimmed.toLowerCase().includes("<!doctype")
+        ) {
+          return NextResponse.json({
+            success: false,
+            error:
+              "Вебхук вернул HTML, а не JSON. Деплой Apps Script должен быть " +
+              "с доступом «Кто угодно», и скрипт должен быть авторизован.",
           });
         }
         return NextResponse.json({ success: true });

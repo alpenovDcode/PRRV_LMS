@@ -78,9 +78,10 @@ const FIELD_HINTS = [
   "var.<переменная>",
 ];
 
-const APPS_SCRIPT = `// Apps Script для приёма строк от LMS и upsert по ключу (chat_id).
+const APPS_SCRIPT = `// Apps Script для приёма строк от LMS и upsert по ключу (колонка A = chat_id).
 // Вставьте в Расширения → Apps Script, разверните как Веб-приложение
 // (доступ «Кто угодно»). Опционально задайте SECRET — он же в настройках LMS.
+// Поддерживает и одиночную строку (realtime), и массив строк (массовая выгрузка).
 const SECRET = ""; // если задан — LMS должна слать тот же секрет
 
 function doPost(e) {
@@ -91,28 +92,45 @@ function doPost(e) {
     }
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
     const headers = data.headers || [];
-    const row = data.row || [];
-    const key = String(data.key || "");
 
     // Заголовки в первой строке, если лист пуст.
     if (sheet.getLastRow() === 0 && headers.length) {
       sheet.appendRow(headers);
     }
-    // Upsert по колонке A (ключ).
+
+    // Батч (массив строк) или одиночная строка.
+    const rows = Array.isArray(data.rows)
+      ? data.rows
+      : (data.row ? [data.row] : []);
+    if (!rows.length) return ok({ ok: true, written: 0 });
+
+    // Карта существующих ключей (колонка A) → номер строки. Читаем один раз.
     const lastRow = sheet.getLastRow();
-    let found = 0;
-    if (key && lastRow > 1) {
+    const keyToRow = {};
+    if (lastRow > 1) {
       const keys = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
       for (let i = 0; i < keys.length; i++) {
-        if (String(keys[i][0]) === key) { found = i + 2; break; }
+        keyToRow[String(keys[i][0])] = i + 2;
       }
     }
-    if (found) {
-      sheet.getRange(found, 1, 1, row.length).setValues([row]);
-    } else {
-      sheet.appendRow(row);
+
+    const toAppend = [];
+    for (var r = 0; r < rows.length; r++) {
+      const row = rows[r];
+      const key = String(row[0] || "");
+      const found = key ? keyToRow[key] : 0;
+      if (found) {
+        sheet.getRange(found, 1, 1, row.length).setValues([row]);
+      } else {
+        toAppend.push(row);
+        if (key) keyToRow[key] = sheet.getLastRow() + toAppend.length;
+      }
     }
-    return ok({ ok: true });
+    if (toAppend.length) {
+      sheet.getRange(sheet.getLastRow() + 1, 1, toAppend.length, toAppend[0].length)
+        .setValues(toAppend);
+    }
+    return ok({ ok: true, written: rows.length });
   } catch (err) {
     return ok({ error: String(err) });
   }
@@ -186,6 +204,33 @@ export default function GoogleSheetsPage() {
     },
     onError: (e: any) =>
       toast.error(e?.response?.data?.error ?? "Ошибка проверки"),
+  });
+
+  const exportAll = useMutation({
+    mutationFn: async () => {
+      const r = await apiClient.post(
+        `/admin/tg/bots/${botId}/google-sheets/export-all`
+      );
+      return r.data as {
+        success: boolean;
+        error?: string | null;
+        data: { total: number; sent: number; failed: number };
+      };
+    },
+    onSuccess: (d) => {
+      if (d.success) {
+        toast.success(
+          `Выгружено ${d.data.sent} из ${d.data.total}${
+            d.data.failed ? `, не дошло ${d.data.failed}` : ""
+          }`
+        );
+        queryClient.invalidateQueries({ queryKey: ["tg-gsheets", botId] });
+      } else {
+        toast.error(`Ошибка: ${d.error ?? "неизвестно"}`);
+      }
+    },
+    onError: (e: any) =>
+      toast.error(e?.response?.data?.error ?? "Ошибка массовой выгрузки"),
   });
 
   if (isLoading) {
@@ -397,6 +442,41 @@ export default function GoogleSheetsPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Массовая выгрузка текущей базы */}
+      <Card className="border-emerald-200 bg-emerald-50/40">
+        <CardContent className="py-4 flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <div className="font-medium text-sm">Выгрузить текущую базу</div>
+            <div className="text-xs text-muted-foreground">
+              Зальёт всех уже существующих подписчиков в таблицу одним
+              разом (upsert по chat_id — дубли не создаются). Авто-экспорт
+              новых работает отдельно.
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => {
+              if (
+                confirm(
+                  "Выгрузить всю текущую базу подписчиков в таблицу? Существующие строки обновятся, новые добавятся."
+                )
+              ) {
+                exportAll.mutate();
+              }
+            }}
+            disabled={exportAll.isPending || !webhookUrl.trim()}
+            className="gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-100"
+          >
+            {exportAll.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Sheet className="h-4 w-4" />
+            )}
+            {exportAll.isPending ? "Выгружаю…" : "Выгрузить всю базу"}
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* Действия */}
       <div className="flex items-center gap-2">
