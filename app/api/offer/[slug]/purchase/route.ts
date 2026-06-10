@@ -24,6 +24,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
+import { linkGuestOrder } from "@/lib/payments/link-guest-order";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -162,6 +163,21 @@ export async function POST(
       guestPhone: data.phone || null,
       ykSnapshot: ykSnapshot as object,
     } as any,
+  });
+
+  // Сразу привязываем (или создаём) пользователя по email — те же
+  // данные, что клиент ввёл на лендинге, не нужно спрашивать второй раз
+  // на /pay. После этого Order.userId проставлен → needsGuestInfo=false →
+  // на странице оплаты сразу видны методы оплаты, без формы.
+  // Best-effort: если линковка упала (например гонка email-unique) —
+  // заказ всё равно создан, на /pay покажется fallback-форма.
+  await linkGuestOrder({
+    orderId: order.id,
+    fullName: data.fullName.trim(),
+    email: data.email,
+    phone: data.phone || null,
+  }).catch((e) => {
+    console.warn("[offer/purchase] linkGuestOrder failed:", e);
   });
 
   // Audit. logAction требует существующего userId; для публичного
