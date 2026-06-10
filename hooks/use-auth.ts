@@ -46,10 +46,15 @@ export function useAuth() {
       }
     },
     retry: false,
-    // Токены теперь в httpOnly cookies, проверяем только публичные страницы
-    enabled: typeof window !== "undefined" && 
+    // Токены в httpOnly cookies. На публичных страницах (логин, лендинги,
+    // страницы оплаты /offer/ и /pay/) НЕ дёргаем /auth/me — иначе гость
+    // без сессии получит 401, а интерсептор по цепочке refresh→logout
+    // кинет его на /login. Эти страницы открыты любому посетителю.
+    enabled: typeof window !== "undefined" &&
       !["/login", "/register", "/recover-password", "/maintenance", "/no-access"].includes(window.location.pathname) &&
-      !window.location.pathname.startsWith("/l/"),
+      !window.location.pathname.startsWith("/l/") &&
+      !window.location.pathname.startsWith("/offer/") &&
+      !window.location.pathname.startsWith("/pay/"),
   });
 
   const loginMutation = useMutation({
