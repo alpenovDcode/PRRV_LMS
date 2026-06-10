@@ -62,15 +62,59 @@ const DEFAULT_COLUMNS: SheetColumn[] = [
   { field: "subscribedAt", header: "Подписался" },
 ];
 
+// Полный набор — паритет с CSV-выгрузкой. Кнопка «Добавить все поля».
+const FULL_COLUMNS: SheetColumn[] = [
+  { field: "chatId", header: "Chat ID" },
+  { field: "username", header: "Username" },
+  { field: "firstName", header: "Имя" },
+  { field: "lastName", header: "Фамилия" },
+  { field: "languageCode", header: "Язык" },
+  { field: "field.email", header: "Email" },
+  { field: "field.phone", header: "Телефон" },
+  { field: "lmsEmail", header: "LMS email" },
+  { field: "lmsName", header: "LMS ФИО" },
+  { field: "tags", header: "Теги" },
+  { field: "field.utm_source", header: "UTM source" },
+  { field: "field.utm_medium", header: "UTM medium" },
+  { field: "field.utm_campaign", header: "UTM campaign" },
+  { field: "field.utm_content", header: "UTM content" },
+  { field: "field.utm_term", header: "UTM term" },
+  { field: "firstTouchSlug", header: "Первое касание (slug)" },
+  { field: "firstTouchAt", header: "Первое касание (время)" },
+  { field: "lastTouchSlug", header: "Последнее касание (slug)" },
+  { field: "lastTouchAt", header: "Последнее касание (время)" },
+  { field: "subscribedAt", header: "Подписался" },
+  { field: "lastSeenAt", header: "Последняя активность" },
+  { field: "isBlocked", header: "Заблокировал бота" },
+  { field: "messagesIn", header: "Входящих" },
+  { field: "messagesOut", header: "Исходящих" },
+  { field: "journey", header: "Путь клиента (CJM)" },
+  { field: "lastFlow", header: "Текущая воронка" },
+  { field: "lastNode", header: "Текущий узел" },
+];
+
 const FIELD_HINTS = [
   "chatId",
+  "username",
   "firstName",
   "lastName",
-  "username",
+  "languageCode",
   "tags",
   "source",
+  "lmsEmail",
+  "lmsName",
+  "firstTouchSlug",
+  "firstTouchAt",
+  "lastTouchSlug",
+  "lastTouchAt",
   "subscribedAt",
   "lastSeenAt",
+  "isBlocked",
+  "messagesIn",
+  "messagesOut",
+  "journey",
+  "lastFlow",
+  "lastNode",
   "field.email",
   "field.phone",
   "field.utm_source",
@@ -406,16 +450,32 @@ export default function GoogleSheetsPage() {
               <option key={f} value={f} />
             ))}
           </datalist>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() =>
-              setColumns((c) => [...c, { field: "", header: "" }])
-            }
-            className="gap-1"
-          >
-            <Plus className="h-3.5 w-3.5" /> Колонка
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                setColumns((c) => [...c, { field: "", header: "" }])
+              }
+              className="gap-1"
+            >
+              <Plus className="h-3.5 w-3.5" /> Колонка
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setColumns(FULL_COLUMNS)}
+              className="gap-1 text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+              title="Заменить колонки полным набором — как в CSV-выгрузке подписчиков"
+            >
+              <Sheet className="h-3.5 w-3.5" /> Добавить все поля (как в CSV)
+            </Button>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            «Все поля» включают язык, LMS-email/ФИО, касания, счётчики
+            сообщений и путь клиента (CJM). Тяжёлые поля (сообщения, CJM)
+            считаются при экспорте, могут чуть замедлить выгрузку.
+          </p>
         </CardContent>
       </Card>
 
