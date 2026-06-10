@@ -23,6 +23,10 @@ interface Order {
   ykPaymentId?: string | null;
   ykConfirmationUrl?: string | null;
   ykSnapshot?: Record<string, unknown> | null;
+  /** Ответы на кастомные поля оффера — отдельная колонка (не затирается webhook'ом). */
+  formAnswers?: Record<string, unknown> | null;
+  /** UTM перехода — отдельная колонка. */
+  utm?: Record<string, unknown> | null;
   snapshotOfferTitle?: string | null;
   refundedAt?: string | null;
   refundReason?: string | null;
@@ -1145,20 +1149,26 @@ function OrderDetailsModal({
     ykSnapshot && typeof (ykSnapshot as any).lastState === "string"
       ? (ykSnapshot as any).lastState
       : null;
-  // Ответы на кастомные поля оффера (из публичной формы /offer/<slug>).
+  // Ответы на кастомные поля оффера. Сначала из отдельной колонки
+  // (order.formAnswers — не затирается webhook'ом), для старых заказов
+  // fallback на ykSnapshot.formAnswers.
   const formAnswers =
-    ykSnapshot &&
-    typeof (ykSnapshot as any).formAnswers === "object" &&
-    (ykSnapshot as any).formAnswers !== null
-      ? ((ykSnapshot as any).formAnswers as Record<string, unknown>)
-      : null;
-  // UTM-метки с публичной формы оффера.
+    order.formAnswers && typeof order.formAnswers === "object"
+      ? (order.formAnswers as Record<string, unknown>)
+      : ykSnapshot &&
+          typeof (ykSnapshot as any).formAnswers === "object" &&
+          (ykSnapshot as any).formAnswers !== null
+        ? ((ykSnapshot as any).formAnswers as Record<string, unknown>)
+        : null;
+  // UTM-метки: тоже из отдельной колонки, fallback на ykSnapshot.utm.
   const utm =
-    ykSnapshot &&
-    typeof (ykSnapshot as any).utm === "object" &&
-    (ykSnapshot as any).utm !== null
-      ? ((ykSnapshot as any).utm as Record<string, unknown>)
-      : null;
+    order.utm && typeof order.utm === "object"
+      ? (order.utm as Record<string, unknown>)
+      : ykSnapshot &&
+          typeof (ykSnapshot as any).utm === "object" &&
+          (ykSnapshot as any).utm !== null
+        ? ((ykSnapshot as any).utm as Record<string, unknown>)
+        : null;
   const utmEntries = utm
     ? Object.entries(utm).filter(([, v]) => v != null && v !== "")
     : [];

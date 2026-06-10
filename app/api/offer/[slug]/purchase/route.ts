@@ -181,16 +181,7 @@ export async function POST(
     content: data.utm_content ?? null,
     term: data.utm_term ?? null,
   };
-  // ykSnapshot.utm — самое подходящее место для атрибуции, оно уже
-  // отображается в карточке заказа. formAnswers — ответы на кастомные
-  // поля оффера (видны в карточке заказа). Если у заказа потом будет
-  // реальный webhook от провайдера — там тоже остаётся ykSnapshot
-  // со своим содержимым (seenEvents, lastState, ...), мы не перезатираем.
-  const ykSnapshot: Record<string, unknown> = {
-    utm,
-    source: "public_offer",
-    ...(Object.keys(customAnswers).length > 0 ? { formAnswers: customAnswers } : {}),
-  };
+  const hasUtm = Object.values(utm).some((v) => v != null && v !== "");
 
   const order = await db.order.create({
     data: {
@@ -207,7 +198,13 @@ export async function POST(
       guestFullName: data.fullName.trim(),
       guestEmail: data.email,
       guestPhone: data.phone || null,
-      ykSnapshot: ykSnapshot as object,
+      // Анкета и UTM — в ОТДЕЛЬНЫХ колонках (не в ykSnapshot): webhook
+      // провайдера перезаписывает ykSnapshot своими данными при оплате,
+      // и эти поля затёрлись бы. Здесь — переживают любой webhook.
+      ...(Object.keys(customAnswers).length > 0
+        ? { formAnswers: customAnswers }
+        : {}),
+      ...(hasUtm ? { utm } : {}),
     } as any,
   });
 

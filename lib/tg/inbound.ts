@@ -195,6 +195,12 @@ async function upsertSubscriber(args: {
     subscriberId: created.id,
     properties: { source: "inbound" },
   }).catch(() => {});
+  // Авто-экспорт нового лида в Google Sheets (если настроен). Best-effort,
+  // не блокирует обработку апдейта. Динамический импорт — чтобы не тянуть
+  // зависимость в каждый inbound, если экспорт не используется.
+  import("./google-sheets")
+    .then((m) => m.exportSubscriberToSheet(bot.id, created.id, "created"))
+    .catch(() => {});
   return { subscriber: created, created: true };
 }
 

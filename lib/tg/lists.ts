@@ -157,6 +157,15 @@ export async function fireTagTriggers(args: {
 }): Promise<void> {
   const sub = await db.tgSubscriber.findUnique({ where: { id: args.subscriberId } });
   if (!sub || sub.isBlocked) return;
+
+  // Авто-экспорт в Google Sheets при добавлении нужного тега (например
+  // «оставил заявку» — к этому моменту email/utm уже заполнены воронкой).
+  // Best-effort, динамический импорт. Только для tag_added.
+  if (args.kind === "tag_added") {
+    import("./google-sheets")
+      .then((m) => m.maybeExportOnTag(args.botId, args.subscriberId, args.tag))
+      .catch(() => {});
+  }
   const flows = await db.tgFlow.findMany({ where: { botId: args.botId, isActive: true } });
   const firedOnce = new Set<string>(sub.firedOnceTriggers ?? []);
   const matched: Array<{ flowId: string; triggerIndex: number; priority: number; onlyOnce: boolean }> = [];
