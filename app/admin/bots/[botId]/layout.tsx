@@ -19,6 +19,7 @@ import {
   CalendarClock,
   Inbox,
   Plug,
+  Sheet,
 } from "lucide-react";
 
 export default function BotDetailLayout({ children }: { children: React.ReactNode }) {
@@ -53,6 +54,7 @@ export default function BotDetailLayout({ children }: { children: React.ReactNod
     { href: `/admin/bots/${botId}/analytics`, label: "Аналитика", icon: LineChart },
     { href: `/admin/bots/${botId}/logs`, label: "Логи", icon: FileText },
     { href: `/admin/bots/${botId}/bitrix`, label: "Bitrix24", icon: Plug },
+    { href: `/admin/bots/${botId}/google-sheets`, label: "Google Sheets", icon: Sheet },
   ];
 
   return (
