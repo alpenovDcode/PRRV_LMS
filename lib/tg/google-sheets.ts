@@ -151,18 +151,60 @@ export async function exportSubscriberToSheet(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-      // Apps Script может думать пару секунд — но не вечно.
+      // Apps Script отвечает 302 → googleusercontent; fetch следует за
+      // редиректом сам (redirect: "follow" по умолчанию).
+      redirect: "follow",
       signal: AbortSignal.timeout(15_000),
     });
 
+    const text = await resp.text().catch(() => "");
+
     if (!resp.ok) {
-      const text = await resp.text().catch(() => "");
       const err = `HTTP ${resp.status} ${text.slice(0, 200)}`;
       await db.tgGoogleSheetsConfig
         .update({ where: { botId }, data: { lastError: err } })
         .catch(() => {});
       return { ok: false, error: err };
     }
+
+    // КЛЮЧЕВАЯ ПРОВЕРКА: статус 200 ещё НЕ значит успех. Если деплой
+    // Apps Script не «Кто угодно» (или скрипт не авторизован), Google
+    // редиректит POST на страницу логина — она отдаёт 200 с HTML, а
+    // doPost даже не запускается. Поэтому считаем успехом ТОЛЬКО если
+    // тело — наш JSON { ok: true }. HTML ⇒ неверный деплой.
+    const trimmed = text.trim();
+    const looksHtml =
+      trimmed.startsWith("<") ||
+      trimmed.toLowerCase().includes("<!doctype") ||
+      trimmed.toLowerCase().includes("<html");
+    let parsed: any = null;
+    if (!looksHtml) {
+      try {
+        parsed = JSON.parse(trimmed);
+      } catch {
+        /* не JSON */
+      }
+    }
+
+    if (looksHtml) {
+      const err =
+        "Вебхук вернул HTML вместо JSON. Скорее всего деплой Apps Script " +
+        "сделан НЕ с доступом «Кто угодно», либо скрипт не авторизован. " +
+        "Передеплойте Web App с доступом «Кто угодно» и при первом запуске " +
+        "нажмите «Разрешить доступ».";
+      await db.tgGoogleSheetsConfig
+        .update({ where: { botId }, data: { lastError: err } })
+        .catch(() => {});
+      return { ok: false, error: err };
+    }
+    if (parsed && parsed.error) {
+      const err = `Скрипт вернул ошибку: ${String(parsed.error).slice(0, 200)}`;
+      await db.tgGoogleSheetsConfig
+        .update({ where: { botId }, data: { lastError: err } })
+        .catch(() => {});
+      return { ok: false, error: err };
+    }
+    // parsed.ok === true (или просто валидный JSON без error) — успех.
 
     await db.tgGoogleSheetsConfig
       .update({
