@@ -728,8 +728,17 @@ model Order {
   ykConfirmationUrl  String?     @db.Text @map("yk_confirmation_url")
   /// Метод оплаты, выбранный пользователем (bank_card, sbp, installments, …)
   paymentMethod      String?     @map("payment_method")
-  /// Сырой объект платежа из ЮКассы (последний известный)
+  /// Сырой объект платежа из ЮКассы (последний известный). ВНИМАНИЕ:
+  /// перезаписывается webhook'ом провайдера при смене статуса —
+  /// НЕ хранить здесь данные клиента (анкета/utm), они затрутся.
   ykSnapshot         Json?       @map("yk_snapshot")
+  /// Ответы на кастомные поля формы оффера (см. Offer.formConfig).
+  /// Отдельная колонка, чтобы webhook провайдера их не затирал.
+  /// { "<label>": "<value>" }.
+  formAnswers        Json?       @map("form_answers")
+  /// UTM-метки перехода (с публичной страницы оффера). Отдельно от
+  /// ykSnapshot по той же причине.
+  utm                Json?
   paidAt             DateTime?   @map("paid_at")
   /// Токен для публичной ссылки оплаты. Заказы созданные админом для
   /// клиента имеют этот токен — клиент открывает /pay/[orderId]?token=...
