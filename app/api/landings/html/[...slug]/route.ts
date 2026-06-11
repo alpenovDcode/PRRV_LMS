@@ -29,6 +29,7 @@ export async function GET(
     default: "landing_template.html",
     prepodavay: path.join("landings", "prepodavay.html"),
     "prepodavay-tg": path.join("landings", "prepodavay-tg.html"),
+    "prrv-summer": path.join("landings", "prrv-summer.html"),
   };
   const templateKey: string = settings.htmlTemplate?.template || "default";
   const templateFile = TEMPLATES[templateKey] || TEMPLATES.default;
