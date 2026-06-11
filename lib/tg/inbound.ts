@@ -117,12 +117,35 @@ interface TgMyChatMember {
   from: TgUser;
   new_chat_member: { status: string };
 }
+// chat_member: апдейт о смене статуса ЛЮБОГО участника чата (нужен,
+// чтобы считать вступления в каналы). Бот должен быть админом канала
+// и подписан на `chat_member` в allowed_updates.
+interface TgChatMemberUpdate {
+  chat: TgChat;
+  from: TgUser;
+  old_chat_member: { user: TgUser; status: string };
+  new_chat_member: { user: TgUser; status: string };
+  invite_link?: {
+    invite_link: string;
+    name?: string;
+    creator?: TgUser;
+  };
+  date: number;
+}
+interface TgChatJoinRequest {
+  chat: TgChat;
+  from: TgUser;
+  date: number;
+  invite_link?: { invite_link: string; name?: string };
+}
 interface TgUpdate {
   update_id: number;
   message?: TgMessage;
   edited_message?: TgMessage;
   callback_query?: TgCallbackQuery;
   my_chat_member?: TgMyChatMember;
+  chat_member?: TgChatMemberUpdate;
+  chat_join_request?: TgChatJoinRequest;
 }
 
 async function alreadyProcessed(botId: string, updateId: number): Promise<boolean> {
@@ -189,6 +212,14 @@ async function upsertSubscriber(args: {
     where: { id: bot.id },
     data: { subscriberCount: { increment: 1 } },
   });
+  // Бэкафилл: если этот tg_user_id уже был замечен в канале (вступил
+  // раньше, чем нажал /start) — линкуем существующие memberships.
+  db.tgChannelMembership
+    .updateMany({
+      where: { botId: bot.id, tgUserId, subscriberId: null },
+      data: { subscriberId: created.id },
+    })
+    .catch(() => undefined);
   trackEvent({
     type: "subscriber.created",
     botId: bot.id,
@@ -504,8 +535,144 @@ async function applyTrackingLink(args: {
   return { flowId: link.startFlowId ?? undefined };
 }
 
+/** Telegram-статус считается «состоит в канале», если он не left/kicked. */
+function isMemberStatus(s: string): boolean {
+  return s !== "left" && s !== "kicked";
+}
+
+/**
+ * Обрабатывает update.chat_member для подключённых каналов. Идемпотентно:
+ * unique (channel_id, tg_user_id), повтор того же события не плодит дубли.
+ */
+async function handleChatMemberUpdate(
+  bot: TgBot,
+  m: NonNullable<TgUpdate["chat_member"]>
+): Promise<void> {
+  const chatId = String(m.chat.id);
+  const channel = await db.tgChannel.findUnique({
+    where: { botId_chatId: { botId: bot.id, chatId } },
+  });
+  if (!channel || !channel.isActive) return;
+
+  const tgUserId = String(m.new_chat_member.user.id);
+  const wasIn = isMemberStatus(m.old_chat_member.status);
+  const isIn = isMemberStatus(m.new_chat_member.status);
+  const now = new Date(m.date ? m.date * 1000 : Date.now());
+
+  // Резолвим подписчика по botId+tgUserId. SetNull-relation, не fatal,
+  // если не найден — мог вступить в канал, ни разу не нажав /start.
+  const sub = await db.tgSubscriber.findFirst({
+    where: { botId: bot.id, tgUserId },
+    select: { id: true },
+  });
+
+  let inviteLinkName: string | null = null;
+  let inviteLinkUrl: string | null = null;
+  if (m.invite_link) {
+    inviteLinkName = m.invite_link.name ?? null;
+    inviteLinkUrl = m.invite_link.invite_link ?? null;
+  }
+
+  // Идемпотентный upsert по (channel_id, tg_user_id).
+  const prev = await db.tgChannelMembership.findUnique({
+    where: { channelId_tgUserId: { channelId: channel.id, tgUserId } },
+  });
+
+  await db.tgChannelMembership.upsert({
+    where: { channelId_tgUserId: { channelId: channel.id, tgUserId } },
+    create: {
+      botId: bot.id,
+      channelId: channel.id,
+      tgUserId,
+      subscriberId: sub?.id,
+      status: m.new_chat_member.status,
+      inviteLinkName,
+      inviteLinkUrl,
+      joinedAt: isIn ? now : null,
+      leftAt: isIn ? null : now,
+    },
+    update: {
+      subscriberId: sub?.id ?? undefined,
+      status: m.new_chat_member.status,
+      // Имя/URL invite-link фиксируем только при join'е (вход через ссылку);
+      // на leave Telegram их не присылает.
+      ...(isIn && inviteLinkName
+        ? { inviteLinkName, inviteLinkUrl }
+        : {}),
+      ...(isIn && !wasIn ? { joinedAt: now, leftAt: null } : {}),
+      ...(!isIn && wasIn ? { leftAt: now } : {}),
+    },
+  });
+
+  // Атрибуция по invite-link имени → счётчик joinCount.
+  if (isIn && !wasIn && inviteLinkName) {
+    await db.tgChannelInviteLink.updateMany({
+      where: { channelId: channel.id, name: inviteLinkName },
+      data: { joinCount: { increment: 1 } },
+    }).catch(() => undefined);
+  }
+
+  // KPI-события. Новый join = (нет prev и isIn) или (prev был absent → стал present).
+  const isJoin = isIn && (!prev || !wasIn);
+  const isLeave = !!prev && wasIn && !isIn;
+  if (isJoin) {
+    trackEvent({
+      type: "channel.joined",
+      botId: bot.id,
+      subscriberId: sub?.id,
+      properties: {
+        channelId: channel.id,
+        channelChatId: channel.chatId,
+        tgUserId,
+        inviteLinkName,
+        firstSeen: !prev,
+      },
+    }).catch(() => {});
+  } else if (isLeave) {
+    trackEvent({
+      type: "channel.left",
+      botId: bot.id,
+      subscriberId: sub?.id,
+      properties: {
+        channelId: channel.id,
+        channelChatId: channel.chatId,
+        tgUserId,
+        // Был ли это «выгнан»/«заблокирован» админом vs ушёл сам.
+        kicked: m.new_chat_member.status === "kicked",
+      },
+    }).catch(() => {});
+  }
+}
+
 export async function handleUpdate(bot: TgBot, update: TgUpdate): Promise<void> {
   if (await alreadyProcessed(bot.id, update.update_id)) return;
+
+  // --- chat_member: вступления/выходы в подключённых каналах -------------
+  if (update.chat_member) {
+    await handleChatMemberUpdate(bot, update.chat_member);
+    return;
+  }
+
+  // --- chat_join_request: пока только лог-событие; одобрение приходит ----
+  // отдельным chat_member-апдейтом (если кто-то одобрил).
+  if (update.chat_join_request) {
+    const r = update.chat_join_request;
+    const channel = await db.tgChannel.findUnique({
+      where: { botId_chatId: { botId: bot.id, chatId: String(r.chat.id) } },
+    });
+    if (channel?.isActive) {
+      trackEvent({
+        type: "channel.join_requested",
+        botId: bot.id,
+        properties: {
+          channelId: channel.id,
+          tgUserId: String(r.from.id),
+          inviteLinkName: r.invite_link?.name,
+        },
+      }).catch(() => {});
+    }
+    return;
+  }
 
   // --- my_chat_member: track blocked/unblocked ---
   if (update.my_chat_member) {

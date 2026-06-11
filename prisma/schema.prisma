@@ -965,6 +965,9 @@ model TgBot {
   scheduledFlows  TgScheduledFlow[]
   bitrixConfig    TgBitrixConfig?
   googleSheetsConfig TgGoogleSheetsConfig?
+  channels        TgChannel[]
+  channelInviteLinks TgChannelInviteLink[]
+  channelMemberships TgChannelMembership[]
 
   @@index([username])
   @@map("tg_bots")
@@ -1104,6 +1107,7 @@ model TgSubscriber {
   events          TgEvent[]
   broadcastDeliveries TgBroadcastRecipient[]
   lists           TgSubscriberList[]
+  channelMemberships TgChannelMembership[]
 
   @@unique([botId, chatId])
   @@index([botId, isBlocked])
@@ -2061,6 +2065,107 @@ model TgMediaFile {
   @@index([botId, kind, createdAt])
   @@index([botId, fileUniqueId])
   @@map("tg_media_files")
+}
+
+// =====================================================================
+// Channels — Telegram-каналы/супергруппы, привязанные к боту-админу.
+// Бот должен быть админом канала, иначе Telegram не присылает
+// chat_member-апдейты и тут будет пусто.
+// =====================================================================
+model TgChannel {
+  id              String   @id @default(uuid())
+  botId           String   @map("bot_id")
+  // Telegram chat_id канала. int64 → строкой ради безопасности.
+  chatId          String   @map("chat_id")
+  // Технический username канала (без @), если публичный. Null = приватный.
+  username        String?
+  // Человекочитаемое название (из getChat.title). Кэшируется тут, чтобы
+  // не дёргать Telegram на каждую KPI-страницу.
+  title           String
+  // 'channel' | 'supergroup' — Telegram даёт оба, считаем оба.
+  type            String   @default("channel")
+  // Снимок «до старта учёта»: getChatMemberCount на момент подключения.
+  // Используется как baseline в KPI: «всего сейчас N, из них учтено M, до = N-M».
+  baselineCount   Int      @default(0) @map("baseline_count")
+  baselineAt      DateTime? @map("baseline_at")
+  // false = канал отключён, мы перестаём писать membership-события.
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  bot             TgBot    @relation(fields: [botId], references: [id], onDelete: Cascade)
+  inviteLinks     TgChannelInviteLink[]
+  memberships     TgChannelMembership[]
+
+  @@unique([botId, chatId])
+  @@index([botId, isActive])
+  @@map("tg_channels")
+}
+
+// Именная invite-link на канал — наш аналог UTM-метки. Создаётся через
+// Bot API createChatInviteLink; Telegram потом возвращает её в
+// chat_member.invite_link, по этому имени мы и атрибутируем join.
+model TgChannelInviteLink {
+  id              String   @id @default(uuid())
+  botId           String   @map("bot_id")
+  channelId       String   @map("channel_id")
+  // Имя ссылки = наш slug (≤32 символов по правилам Telegram). По нему
+  // join маппится на конкретный источник.
+  name            String
+  // Полный t.me/+… URL, который вернул Telegram.
+  inviteUrl       String   @map("invite_url") @db.Text
+  // Произвольные UTM-поля {source/medium/campaign/...}.
+  utm             Json     @default("{}")
+  // Скользящий счётчик подтверждённых join'ов через эту ссылку.
+  joinCount       Int      @default(0) @map("join_count")
+  // Опционально: «гостевой лимит» (chat invite member_limit).
+  memberLimit     Int?     @map("member_limit")
+  expiresAt       DateTime? @map("expires_at")
+  // Был ли отзыв через revokeChatInviteLink — старые join'ы сохраняются.
+  revokedAt       DateTime? @map("revoked_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  bot             TgBot    @relation(fields: [botId], references: [id], onDelete: Cascade)
+  channel         TgChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, name])
+  @@index([botId, createdAt])
+  @@map("tg_channel_invite_links")
+}
+
+// Состояние участника канала + история join/leave. Один user — одна
+// запись на канал; повторный join обновляет existing row.
+model TgChannelMembership {
+  id              String   @id @default(uuid())
+  botId           String   @map("bot_id")
+  channelId       String   @map("channel_id")
+  // Telegram user_id вступившего. Может НЕ совпадать ни с одним из
+  // подписчиков бота (в канал можно вступить, ни разу не нажав /start).
+  tgUserId        String   @map("tg_user_id")
+  // Если этот user уже есть среди подписчиков бота — линкуем.
+  // Резолвится best-effort при join и при создании подписчика.
+  subscriberId    String?  @map("subscriber_id")
+  // 'member' | 'left' | 'kicked' | 'restricted' | 'creator' | 'administrator'.
+  // Для KPI считаем «подписался = переход в member» и «вышел = выход из member».
+  status          String
+  // Имя invite-link, которое Telegram прислал в chat_member.invite_link.name
+  // (если есть). По нему ищется TgChannelInviteLink → атрибуция канала.
+  inviteLinkName  String?  @map("invite_link_name")
+  // URL invite-link (для случаев, когда имя не задано).
+  inviteLinkUrl   String?  @map("invite_link_url") @db.Text
+  joinedAt        DateTime? @map("joined_at")
+  leftAt          DateTime? @map("left_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  bot             TgBot      @relation(fields: [botId], references: [id], onDelete: Cascade)
+  channel         TgChannel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  subscriber      TgSubscriber? @relation(fields: [subscriberId], references: [id], onDelete: SetNull)
+
+  @@unique([channelId, tgUserId])
+  @@index([botId, channelId, status])
+  @@index([botId, subscriberId])
+  @@index([botId, joinedAt])
+  @@map("tg_channel_memberships")
 }
 
 // =====================================================================

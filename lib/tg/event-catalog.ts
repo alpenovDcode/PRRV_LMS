@@ -243,6 +243,31 @@ const INFO: Record<string, EventMeta> = {
     severity: "info",
     icon: "🔗",
   },
+  "channel.joined": {
+    label: "Вступил в канал",
+    description:
+      "Юзер вступил в один из подключённых каналов (бот = админ). " +
+      "properties.channelId — какой канал, properties.inviteLinkName — " +
+      "через какую трекинг-ссылку (если есть).",
+    severity: "info",
+    icon: "📢",
+  },
+  "channel.left": {
+    label: "Вышел из канала",
+    description:
+      "Юзер покинул канал или был выгнан админом. properties.kicked = " +
+      "true, если выгнали; false, если ушёл сам.",
+    severity: "info",
+    icon: "📤",
+  },
+  "channel.join_requested": {
+    label: "Заявка на вступление",
+    description:
+      "Юзер подал заявку на вступление в канал с включённой модерацией. " +
+      "Одобрение/отклонение прилетит отдельным channel.joined / channel.left.",
+    severity: "info",
+    icon: "✋",
+  },
   "redirect.clicked": {
     label: "Клик по трекинг-кнопке",
     description:

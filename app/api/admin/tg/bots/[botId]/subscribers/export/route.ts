@@ -55,6 +55,14 @@ const BASE_COLUMNS = [
   "messages_out",
 ] as const;
 
+// Колонки про подключённые TG-каналы (статус member; для статусов
+// left/kicked поля пустые).
+const CHANNEL_COLUMNS = [
+  "channels_joined",
+  "channels_first_join_at",
+  "channels_invite_names",
+] as const;
+
 // CJM-колонки в конце.
 const CJM_COLUMNS = ["journey", "last_flow", "last_node"] as const;
 
@@ -198,6 +206,54 @@ export async function GET(
         }
       }
 
+      // ── Подключённые каналы и активные membership'ы подписчика. ────
+      // Считаем только status NOT IN (left, kicked) — то есть «сейчас
+      // числится в канале».
+      const channelTitleById = new Map<string, string>();
+      const channels = await db.tgChannel.findMany({
+        where: { botId },
+        select: { id: true, title: true },
+      });
+      for (const c of channels) channelTitleById.set(c.id, c.title);
+
+      const channelsBySub = new Map<
+        string,
+        { titles: string[]; firstJoinAt: Date | null; inviteNames: string[] }
+      >();
+      if (subIds.length > 0 && channels.length > 0) {
+        const memberships = await db.tgChannelMembership.findMany({
+          where: {
+            botId,
+            subscriberId: { in: subIds },
+            status: { notIn: ["left", "kicked"] },
+          },
+          select: {
+            subscriberId: true,
+            channelId: true,
+            joinedAt: true,
+            inviteLinkName: true,
+          },
+        });
+        for (const m of memberships) {
+          if (!m.subscriberId) continue;
+          const cur =
+            channelsBySub.get(m.subscriberId) ?? {
+              titles: [] as string[],
+              firstJoinAt: null as Date | null,
+              inviteNames: [] as string[],
+            };
+          const title = channelTitleById.get(m.channelId);
+          if (title && !cur.titles.includes(title)) cur.titles.push(title);
+          if (m.inviteLinkName && !cur.inviteNames.includes(m.inviteLinkName)) {
+            cur.inviteNames.push(m.inviteLinkName);
+          }
+          if (m.joinedAt && (!cur.firstJoinAt || m.joinedAt < cur.firstJoinAt)) {
+            cur.firstJoinAt = m.joinedAt;
+          }
+          channelsBySub.set(m.subscriberId, cur);
+        }
+      }
+
       // ── Текущая позиция в воронке (last_flow / last_node). ─────────
       const lastRunBySub = new Map<string, { flowId: string; node: string | null; status: string }>();
       if (subIds.length > 0) {
@@ -227,7 +283,12 @@ export async function GET(
       const customHeaders = customFieldDefs.map(
         (f) => f.label || f.key
       );
-      const allHeaders = [...BASE_COLUMNS, ...customHeaders, ...CJM_COLUMNS];
+      const allHeaders = [
+        ...BASE_COLUMNS,
+        ...customHeaders,
+        ...CHANNEL_COLUMNS,
+        ...CJM_COLUMNS,
+      ];
       const rows: string[] = ["﻿" + allHeaders.map(csvEscape).join(";")];
 
       for (const s of subscribers) {
@@ -287,9 +348,20 @@ export async function GET(
         // Кастомные поля — в том же порядке, что заголовки.
         const customRow = customFieldDefs.map((f) => fieldVal(f.key));
 
+        const ch = channelsBySub.get(s.id);
+        const channelsRow = [
+          (ch?.titles ?? []).join(","),
+          ch?.firstJoinAt ? ch.firstJoinAt.toISOString() : "",
+          (ch?.inviteNames ?? []).join(","),
+        ];
+
         const cjmRow = [journey, lastFlow, lastNode];
 
-        rows.push([...baseRow, ...customRow, ...cjmRow].map(csvEscape).join(";"));
+        rows.push(
+          [...baseRow, ...customRow, ...channelsRow, ...cjmRow]
+            .map(csvEscape)
+            .join(";")
+        );
       }
 
       const csv = rows.join("\r\n");

@@ -13,18 +13,58 @@ import { StatCard } from "@/components/admin/tg/analytics/stat-card";
 type Attribution = "first" | "last";
 type GroupBy = "source" | "campaign" | "slug";
 
+interface UtmRow {
+  key: string;
+  clicks: number;
+  subscribed: number;
+  active: number;
+  channelJoined: number;
+  paid: number;
+  revenue: number;
+  flagProblematic: boolean;
+  prevSubscribed?: number;
+  prevActive?: number;
+}
+
 interface UtmResp {
-  rows: Array<{
-    key: string;
+  rows: UtmRow[];
+  totals: {
     clicks: number;
     subscribed: number;
     active: number;
+    channelJoined: number;
     paid: number;
     revenue: number;
-    flagProblematic: boolean;
-  }>;
-  totals: { clicks: number; subscribed: number; active: number; paid: number; revenue: number };
+    prevSubscribed?: number;
+    prevActive?: number;
+  };
   insights: { bestKey: string | null; problematicKey: string | null };
+  prevPeriod?: { from: string; to: string };
+}
+
+/** Δ-бэйдж: процент изменения с цветом и направлением. */
+function DeltaPill({ now, prev }: { now: number; prev: number | undefined }) {
+  if (prev === undefined) return null;
+  if (prev === 0 && now === 0) {
+    return <span className="text-[10px] text-muted-foreground">—</span>;
+  }
+  if (prev === 0) {
+    return <span className="text-[10px] text-emerald-600">+нов</span>;
+  }
+  const delta = ((now - prev) / prev) * 100;
+  const sign = delta > 0 ? "+" : "";
+  const color =
+    delta > 0
+      ? "text-emerald-600"
+      : delta < 0
+      ? "text-rose-600"
+      : "text-muted-foreground";
+  return (
+    <span className={`text-[10px] ${color}`}>
+      {sign}
+      {delta.toFixed(0)}%
+    </span>
+  );
 }
 
 export default function UtmPage() {
@@ -33,12 +73,18 @@ export default function UtmPage() {
   const periodParams = usePeriodParams();
   const [attribution, setAttribution] = useState<Attribution>("first");
   const [groupBy, setGroupBy] = useState<GroupBy>("source");
+  const [compare, setCompare] = useState(false);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["tg-analytics-utm", botId, attribution, groupBy, periodParams],
+    queryKey: ["tg-analytics-utm", botId, attribution, groupBy, compare, periodParams],
     queryFn: async () => {
       const r = await apiClient.get(`/admin/tg/bots/${botId}/analytics/utm`, {
-        params: { attribution, groupBy, ...periodParams },
+        params: {
+          attribution,
+          groupBy,
+          ...periodParams,
+          ...(compare ? { compare: "prev" } : {}),
+        },
       });
       return r.data?.data as UtmResp;
     },
@@ -70,13 +116,47 @@ export default function UtmPage() {
               { value: "slug", label: "Slug" },
             ]}
           />
+          <label className="flex cursor-pointer items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={compare}
+              onChange={(e) => setCompare(e.target.checked)}
+              className="h-3.5 w-3.5 cursor-pointer rounded border-input"
+            />
+            <span className="text-muted-foreground">
+              Сравнить с прошлым периодом
+            </span>
+          </label>
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-5">
         <StatCard label="Клики" value={data?.totals.clicks ?? "—"} />
-        <StatCard label="Подписки" value={data?.totals.subscribed ?? "—"} />
-        <StatCard label="Активные (7д)" value={data?.totals.active ?? "—"} />
+        <StatCard
+          label="Подписки"
+          value={data?.totals.subscribed ?? "—"}
+          hint={
+            compare && data ? (
+              <DeltaPill
+                now={data.totals.subscribed}
+                prev={data.totals.prevSubscribed}
+              />
+            ) : undefined
+          }
+        />
+        <StatCard
+          label="Активные (7д)"
+          value={data?.totals.active ?? "—"}
+          hint={
+            compare && data ? (
+              <DeltaPill now={data.totals.active} prev={data.totals.prevActive} />
+            ) : undefined
+          }
+        />
+        <StatCard
+          label="Вступили в канал"
+          value={data?.totals.channelJoined ?? "—"}
+        />
         <StatCard label="Конв. clicks→subs" value={
           data?.totals.clicks
             ? `${((data.totals.subscribed / data.totals.clicks) * 100).toFixed(1)}%`
@@ -138,8 +218,12 @@ export default function UtmPage() {
                   <th className="px-4 py-2 font-medium">Ключ</th>
                   <th className="px-4 py-2 font-medium text-right">Клики</th>
                   <th className="px-4 py-2 font-medium text-right">Подписки</th>
+                  {compare && (
+                    <th className="px-4 py-2 font-medium text-right">Δ</th>
+                  )}
                   <th className="px-4 py-2 font-medium">Конв. clicks→subs</th>
                   <th className="px-4 py-2 font-medium text-right">Активные</th>
+                  <th className="px-4 py-2 font-medium text-right">В канале</th>
                   <th className="px-4 py-2 font-medium text-right">Оплат</th>
                 </tr>
               </thead>
@@ -161,6 +245,14 @@ export default function UtmPage() {
                       </td>
                       <td className="px-4 py-2 text-right">{r.clicks}</td>
                       <td className="px-4 py-2 text-right">{r.subscribed}</td>
+                      {compare && (
+                        <td className="px-4 py-2 text-right">
+                          <DeltaPill
+                            now={r.subscribed}
+                            prev={r.prevSubscribed}
+                          />
+                        </td>
+                      )}
                       <td className="px-4 py-2">
                         <div className="flex items-center gap-2">
                           <div className="h-2 w-full max-w-32 overflow-hidden rounded-full bg-muted">
@@ -177,6 +269,7 @@ export default function UtmPage() {
                         </div>
                       </td>
                       <td className="px-4 py-2 text-right">{r.active}</td>
+                      <td className="px-4 py-2 text-right">{r.channelJoined}</td>
                       <td className="px-4 py-2 text-right text-muted-foreground">—</td>
                     </tr>
                   );
