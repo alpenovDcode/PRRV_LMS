@@ -424,7 +424,16 @@ export function tgSetWebhook(
   encryptedToken: string,
   url: string,
   secretToken: string,
-  allowedUpdates: string[] = ["message", "edited_message", "callback_query", "my_chat_member"]
+  // `chat_member` нужен для отслеживания вступлений в каналы (бот = админ).
+  // `chat_join_request` — если канал с заявками; обрабатываем тем же путём.
+  allowedUpdates: string[] = [
+    "message",
+    "edited_message",
+    "callback_query",
+    "my_chat_member",
+    "chat_member",
+    "chat_join_request",
+  ]
 ) {
   return callApi<true>(encryptedToken, "setWebhook", {
     url,
@@ -450,6 +459,59 @@ export interface WebhookInfo {
 
 export function tgGetWebhookInfo(encryptedToken: string) {
   return callApi<WebhookInfo>(encryptedToken, "getWebhookInfo", {});
+}
+
+// ── Channel admin helpers ──────────────────────────────────────────────
+
+export interface TgChatInfo {
+  id: number;
+  type: "private" | "group" | "supergroup" | "channel";
+  title?: string;
+  username?: string;
+}
+
+export function tgGetChat(encryptedToken: string, chatId: string | number) {
+  return callApi<TgChatInfo>(encryptedToken, "getChat", { chat_id: chatId });
+}
+
+export function tgGetChatMemberCount(encryptedToken: string, chatId: string | number) {
+  return callApi<number>(encryptedToken, "getChatMemberCount", { chat_id: chatId });
+}
+
+export interface TgChatInviteLink {
+  invite_link: string;
+  name?: string;
+  creates_join_request?: boolean;
+  is_primary?: boolean;
+  is_revoked?: boolean;
+  expire_date?: number;
+  member_limit?: number;
+}
+
+export function tgCreateChatInviteLink(
+  encryptedToken: string,
+  chatId: string | number,
+  opts: { name: string; memberLimit?: number; expireDate?: Date } = { name: "" }
+) {
+  return callApi<TgChatInviteLink>(encryptedToken, "createChatInviteLink", {
+    chat_id: chatId,
+    name: opts.name,
+    ...(opts.memberLimit ? { member_limit: opts.memberLimit } : {}),
+    ...(opts.expireDate
+      ? { expire_date: Math.floor(opts.expireDate.getTime() / 1000) }
+      : {}),
+  });
+}
+
+export function tgRevokeChatInviteLink(
+  encryptedToken: string,
+  chatId: string | number,
+  inviteLink: string
+) {
+  return callApi<TgChatInviteLink>(encryptedToken, "revokeChatInviteLink", {
+    chat_id: chatId,
+    invite_link: inviteLink,
+  });
 }
 
 // Maps Telegram error_code -> our recipient.status.

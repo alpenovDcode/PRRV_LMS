@@ -75,6 +75,9 @@ export const FULL_SHEET_COLUMNS: SheetColumn[] = [
   { field: "isBlocked", header: "Заблокировал бота" },
   { field: "messagesIn", header: "Входящих" },
   { field: "messagesOut", header: "Исходящих" },
+  { field: "channelsJoined", header: "Каналы (сейчас)" },
+  { field: "channelsFirstJoinAt", header: "Первое вступление в канал" },
+  { field: "channelsInviteNames", header: "Через какие invite-link" },
   { field: "journey", header: "Путь клиента (CJM)" },
   { field: "lastFlow", header: "Текущая воронка" },
   { field: "lastNode", header: "Текущий узел" },
@@ -108,6 +111,9 @@ export interface SubExtras {
   journey: string;
   lastFlow: string;
   lastNode: string;
+  channelsJoined: string;
+  channelsFirstJoinAt: string;
+  channelsInviteNames: string;
 }
 
 const EMPTY_EXTRAS: SubExtras = {
@@ -116,18 +122,26 @@ const EMPTY_EXTRAS: SubExtras = {
   journey: "",
   lastFlow: "",
   lastNode: "",
+  channelsJoined: "",
+  channelsFirstJoinAt: "",
+  channelsInviteNames: "",
 };
 
 /** Колонки, требующие тяжёлых данных (сообщения / события / runs). */
 export function neededExtras(columns: SheetColumn[]): {
   messages: boolean;
   journey: boolean;
+  channels: boolean;
 } {
   const fields = new Set(columns.map((c) => c.field));
   return {
     messages: fields.has("messagesIn") || fields.has("messagesOut"),
     journey:
       fields.has("journey") || fields.has("lastFlow") || fields.has("lastNode"),
+    channels:
+      fields.has("channelsJoined") ||
+      fields.has("channelsFirstJoinAt") ||
+      fields.has("channelsInviteNames"),
   };
 }
 
@@ -194,6 +208,12 @@ function resolveField(field: string, sub: SubData, extras: SubExtras): string {
       return extras.lastFlow;
     case "lastNode":
       return extras.lastNode;
+    case "channelsJoined":
+      return extras.channelsJoined;
+    case "channelsFirstJoinAt":
+      return extras.channelsFirstJoinAt;
+    case "channelsInviteNames":
+      return extras.channelsInviteNames;
     default:
       return "";
   }
@@ -279,11 +299,15 @@ function formatJourneyStep(
 async function computeExtras(
   botId: string,
   subIds: string[],
-  which: { messages: boolean; journey: boolean }
+  which: { messages: boolean; journey: boolean; channels: boolean }
 ): Promise<Map<string, SubExtras>> {
   const out = new Map<string, SubExtras>();
   for (const id of subIds) out.set(id, { ...EMPTY_EXTRAS });
-  if (subIds.length === 0 || (!which.messages && !which.journey)) return out;
+  if (
+    subIds.length === 0 ||
+    (!which.messages && !which.journey && !which.channels)
+  )
+    return out;
 
   if (which.messages) {
     const grouped = await db.tgMessage.groupBy({
@@ -344,6 +368,56 @@ async function computeExtras(
       if (e) {
         e.lastFlow = `${flowName.get(r.flowId) ?? r.flowId} (${r.status})`;
         e.lastNode = r.currentNodeId ?? "";
+      }
+    }
+  }
+
+  if (which.channels) {
+    const channels = await db.tgChannel.findMany({
+      where: { botId },
+      select: { id: true, title: true },
+    });
+    const titleById = new Map(channels.map((c) => [c.id, c.title]));
+    if (channels.length > 0) {
+      const memberships = await db.tgChannelMembership.findMany({
+        where: {
+          botId,
+          subscriberId: { in: subIds },
+          status: { notIn: ["left", "kicked"] },
+        },
+        select: {
+          subscriberId: true,
+          channelId: true,
+          joinedAt: true,
+          inviteLinkName: true,
+        },
+      });
+      const aggBySub = new Map<
+        string,
+        { titles: Set<string>; firstJoin: Date | null; invites: Set<string> }
+      >();
+      for (const m of memberships) {
+        if (!m.subscriberId) continue;
+        const cur =
+          aggBySub.get(m.subscriberId) ?? {
+            titles: new Set<string>(),
+            firstJoin: null as Date | null,
+            invites: new Set<string>(),
+          };
+        const t = titleById.get(m.channelId);
+        if (t) cur.titles.add(t);
+        if (m.inviteLinkName) cur.invites.add(m.inviteLinkName);
+        if (m.joinedAt && (!cur.firstJoin || m.joinedAt < cur.firstJoin)) {
+          cur.firstJoin = m.joinedAt;
+        }
+        aggBySub.set(m.subscriberId, cur);
+      }
+      for (const [sid, agg] of aggBySub) {
+        const e = out.get(sid);
+        if (!e) continue;
+        e.channelsJoined = Array.from(agg.titles).join(", ");
+        e.channelsInviteNames = Array.from(agg.invites).join(", ");
+        e.channelsFirstJoinAt = agg.firstJoin ? agg.firstJoin.toISOString() : "";
       }
     }
   }

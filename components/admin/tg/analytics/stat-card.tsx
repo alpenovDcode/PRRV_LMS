@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 
 export function StatCard({
@@ -9,14 +10,16 @@ export function StatCard({
 }: {
   label: string;
   value: number | string | null | undefined;
-  hint?: string;
+  hint?: ReactNode;
 }) {
   return (
     <Card>
       <CardContent className="py-4">
         <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
         <div className="mt-1 text-2xl font-semibold">{value == null ? "—" : value}</div>
-        {hint && <div className="mt-1 text-xs text-muted-foreground">{hint}</div>}
+        {hint != null && hint !== false && (
+          <div className="mt-1 text-xs text-muted-foreground">{hint}</div>
+        )}
       </CardContent>
     </Card>
   );

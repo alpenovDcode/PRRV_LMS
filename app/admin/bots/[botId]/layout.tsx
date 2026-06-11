@@ -20,6 +20,7 @@ import {
   Inbox,
   Plug,
   Sheet,
+  Megaphone,
 } from "lucide-react";
 
 export default function BotDetailLayout({ children }: { children: React.ReactNode }) {
@@ -51,6 +52,7 @@ export default function BotDetailLayout({ children }: { children: React.ReactNod
     { href: `/admin/bots/${botId}/lists`, label: "Списки", icon: ListChecks },
     { href: `/admin/bots/${botId}/fields`, label: "Поля", icon: FormInput },
     { href: `/admin/bots/${botId}/links`, label: "Ссылки/UTM", icon: Link2 },
+    { href: `/admin/bots/${botId}/channels`, label: "Каналы", icon: Megaphone },
     { href: `/admin/bots/${botId}/analytics`, label: "Аналитика", icon: LineChart },
     { href: `/admin/bots/${botId}/logs`, label: "Логи", icon: FileText },
     { href: `/admin/bots/${botId}/bitrix`, label: "Bitrix24", icon: Plug },
