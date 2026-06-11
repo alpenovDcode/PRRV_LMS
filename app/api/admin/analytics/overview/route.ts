@@ -3,23 +3,21 @@ import { withAuth } from "@/lib/api-middleware";
 import { db } from "@/lib/db";
 import { ApiResponse } from "@/types";
 import { UserRole } from "@prisma/client";
-import { subDays } from "date-fns";
+import { rangeToFromDate } from "@/lib/analytics-range";
 
 export async function GET(request: NextRequest) {
   return withAuth(
     request,
     async () => {
       try {
-        const now = new Date();
-        const thirtyDaysAgo = subDays(now, 30);
-
-        // Parallelize queries for performance
-        const sevenDaysAgo = subDays(now, 7);
+        const url = new URL(request.url);
+        const range = url.searchParams.get("range") ?? "30d";
+        const fromDate = rangeToFromDate(range);
 
         const [
           totalUsers,
           totalStudents,
-          newStudentsLast30Days,
+          newStudentsInRange,
           totalGroups,
           totalCourses,
           totalEnrollments,
@@ -28,44 +26,50 @@ export async function GET(request: NextRequest) {
         ] = await Promise.all([
           db.user.count(),
           db.user.count({ where: { role: "student" } }),
-          db.user.count({ where: { role: "student", createdAt: { gte: thirtyDaysAgo } } }),
+          db.user.count({
+            where: {
+              role: "student",
+              ...(fromDate ? { createdAt: { gte: fromDate } } : {}),
+            },
+          }),
           db.group.count(),
           db.course.count({ where: { isPublished: true } }),
           db.enrollment.count({ where: { status: "active" } }),
           db.homeworkSubmission.count({ where: { status: "pending" } }),
-          // Active students = enrolled students with lesson progress updated in last 7 days
           db.lessonProgress.groupBy({
             by: ["userId"],
             where: {
-              lastUpdated: { gte: sevenDaysAgo },
+              ...(fromDate ? { lastUpdated: { gte: fromDate } } : {}),
               user: { enrollments: { some: { status: "active" } } },
             },
           }),
         ]);
 
-        const activeStudentsLast7Days = recentProgressUsers.length;
+        const activeStudentsInRange = recentProgressUsers.length;
 
-        const data = {
-          totalUsers,
-          totalStudents,
-          newStudentsLast30Days,
-          totalGroups,
-          totalCourses,
-          totalEnrollments,
-          pendingHomeworks,
-          activeStudentsLast7Days,
-        };
-
-        return NextResponse.json<ApiResponse>({ success: true, data }, { status: 200 });
+        return NextResponse.json<ApiResponse>(
+          {
+            success: true,
+            data: {
+              totalUsers,
+              totalStudents,
+              newStudentsInRange,
+              totalGroups,
+              totalCourses,
+              totalEnrollments,
+              pendingHomeworks,
+              activeStudentsInRange,
+              range,
+            },
+          },
+          { status: 200 }
+        );
       } catch (error) {
         console.error("Analytics overview error:", error);
         return NextResponse.json<ApiResponse>(
           {
             success: false,
-            error: {
-              code: "INTERNAL_ERROR",
-              message: "Не удалось получить данные аналитики",
-            },
+            error: { code: "INTERNAL_ERROR", message: "Не удалось получить данные аналитики" },
           },
           { status: 500 }
         );

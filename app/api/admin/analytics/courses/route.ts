@@ -3,13 +3,17 @@ import { withAuth } from "@/lib/api-middleware";
 import { db } from "@/lib/db";
 import { ApiResponse } from "@/types";
 import { UserRole } from "@prisma/client";
+import { rangeToFromDate } from "@/lib/analytics-range";
 
 export async function GET(request: NextRequest) {
   return withAuth(
     request,
     async () => {
       try {
-        // 1. Fetch all courses with their lesson structure
+        const url = new URL(request.url);
+        const range = url.searchParams.get("range") ?? "all";
+        const fromDate = rangeToFromDate(range);
+
         const courses = await db.course.findMany({
           select: {
             id: true,
@@ -22,7 +26,6 @@ export async function GET(request: NextRequest) {
           },
         });
 
-        // 2. Build course ↔ lesson maps
         const courseLessonIds: Record<string, string[]> = {};
         const lessonCourseMap: Record<string, string> = {};
         for (const course of courses) {
@@ -36,9 +39,12 @@ export async function GET(request: NextRequest) {
         }
         const allLessonIds = Object.keys(lessonCourseMap);
 
-        // 3. Fetch all active enrollments in one query
+        // Enrollments filtered by range (new enrollments in period)
         const enrollments = await db.enrollment.findMany({
-          where: { status: "active" },
+          where: {
+            status: "active",
+            ...(fromDate ? { createdAt: { gte: fromDate } } : {}),
+          },
           select: { userId: true, courseId: true },
         });
 
@@ -62,7 +68,6 @@ export async function GET(request: NextRequest) {
           return NextResponse.json<ApiResponse>({ success: true, data }, { status: 200 });
         }
 
-        // 4. Fetch ALL completed progress in ONE query, deduplicated by (userId, lessonId)
         const completedProgress = await db.lessonProgress.findMany({
           where: {
             userId: { in: allEnrolledUserIds },
@@ -73,7 +78,6 @@ export async function GET(request: NextRequest) {
           distinct: ["userId", "lessonId"],
         });
 
-        // Group: courseId → userId → Set<lessonId>
         const completedByCourseUser: Record<string, Record<string, Set<string>>> = {};
         for (const p of completedProgress) {
           const courseId = lessonCourseMap[p.lessonId];
@@ -83,7 +87,6 @@ export async function GET(request: NextRequest) {
           completedByCourseUser[courseId][p.userId].add(p.lessonId);
         }
 
-        // 5. Fetch all ratings in ONE query — only from enrolled users
         const ratingRecords = await db.lessonProgress.findMany({
           where: {
             userId: { in: allEnrolledUserIds },
@@ -97,13 +100,11 @@ export async function GET(request: NextRequest) {
         for (const p of ratingRecords) {
           const courseId = lessonCourseMap[p.lessonId];
           if (!courseId) continue;
-          // Only include ratings from users actually enrolled in this course
           if (!enrolledUsersByCourse[courseId]?.has(p.userId)) continue;
           if (!ratingsByCourse[courseId]) ratingsByCourse[courseId] = [];
           ratingsByCourse[courseId].push(p.rating!);
         }
 
-        // 6. Assemble response
         const data = courses.map((course) => {
           const enrolledUsers = enrolledUsersByCourse[course.id] ?? new Set<string>();
           const totalLessons = courseLessonIds[course.id].length;

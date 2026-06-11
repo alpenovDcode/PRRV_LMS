@@ -3,16 +3,25 @@ import { withAuth } from '@/lib/api-middleware';
 import { db } from '@/lib/db';
 import { UserRole } from '@prisma/client';
 import { ApiResponse } from '@/types';
+import { rangeToFromDate } from '@/lib/analytics-range';
 
 export async function GET(request: NextRequest) {
   return withAuth(
     request,
     async () => {
       try {
+        const url = new URL(request.url);
+        const range = url.searchParams.get('range') ?? 'all';
+        const fromDate = rangeToFromDate(range);
+
         // 1. Fetch students with their groups, progress, and homework
         const students = await db.user.findMany({
           where: {
             role: 'student',
+            // When range is set — show only students active in the period
+            ...(fromDate
+              ? { progress: { some: { lastUpdated: { gte: fromDate } } } }
+              : {}),
           },
           select: {
             id: true,

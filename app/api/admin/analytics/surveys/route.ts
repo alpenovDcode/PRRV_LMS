@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { ApiResponse } from "@/types";
 import { UserRole } from "@prisma/client";
 import { format } from "date-fns";
+import { rangeToFromDate } from "@/lib/analytics-range";
 
 function calcNPS(scores: number[]): { nps: number | null; promoters: number; detractors: number; neutrals: number; total: number } {
   const total = scores.length;
@@ -128,8 +129,16 @@ export async function GET(request: NextRequest) {
     request,
     async () => {
       try {
+        const url = new URL(request.url);
+        const range = url.searchParams.get("range") ?? "all";
+        const fromDate = rangeToFromDate(range);
+
         const homeworkSelect = {
-          where: { status: { not: "rejected" as const }, lessonId: { not: null } },
+          where: {
+            status: { not: "rejected" as const },
+            lessonId: { not: null },
+            ...(fromDate ? { createdAt: { gte: fromDate } } : {}),
+          },
           select: {
             userId: true,
             content: true,

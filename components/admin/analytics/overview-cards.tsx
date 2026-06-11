@@ -1,21 +1,24 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, BookOpen, GraduationCap, FileText, Activity, Layers, TrendingUp, TrendingDown } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { rangeLabel } from "@/lib/analytics-range";
 
 interface OverviewData {
   totalUsers: number;
   totalStudents: number;
-  newStudentsLast30Days: number;
+  newStudentsInRange: number;
   totalGroups: number;
   totalCourses: number;
   totalEnrollments: number;
   pendingHomeworks: number;
-  activeStudentsLast7Days: number;
+  activeStudentsInRange: number;
+  range?: string;
 }
 
 interface OverviewCardsProps {
   data: OverviewData;
   isLoading: boolean;
+  range?: string;
 }
 
 function PrimaryCard({
@@ -27,7 +30,7 @@ function PrimaryCard({
   trend?: { label: string; positive: boolean };
   icon: React.ElementType;
   iconColor: string;
-  accent: string; // Tailwind bg color class for left border
+  accent: string;
 }) {
   return (
     <Card className={`border-l-4 ${accent}`}>
@@ -73,7 +76,7 @@ function SecondaryCard({
   );
 }
 
-export function OverviewCards({ data, isLoading }: OverviewCardsProps) {
+export function OverviewCards({ data, isLoading, range }: OverviewCardsProps) {
   if (isLoading || !data) {
     return (
       <div className="space-y-4">
@@ -97,8 +100,12 @@ export function OverviewCards({ data, isLoading }: OverviewCardsProps) {
     );
   }
 
+  const effectiveRange = range ?? data.range ?? "30d";
+  const periodLabel = rangeLabel(effectiveRange);
+  const isAllTime = effectiveRange === "all";
+
   const activePct = data.totalStudents > 0
-    ? Math.round((data.activeStudentsLast7Days / data.totalStudents) * 100)
+    ? Math.round((data.activeStudentsInRange / data.totalStudents) * 100)
     : 0;
 
   const activityLabel =
@@ -110,20 +117,22 @@ export function OverviewCards({ data, isLoading }: OverviewCardsProps) {
 
   return (
     <div className="space-y-4">
-      {/* Row 1: primary metrics */}
       <div className="grid gap-4 md:grid-cols-2">
         <PrimaryCard
           title="Студентов"
           value={data.totalStudents}
-          sub={`всего в системе`}
-          trend={{ label: `+${data.newStudentsLast30Days} новых за 30 дней`, positive: data.newStudentsLast30Days > 0 }}
+          sub="всего в системе"
+          trend={{
+            label: `+${data.newStudentsInRange} новых${isAllTime ? " за всё время" : ` за ${periodLabel}`}`,
+            positive: data.newStudentsInRange > 0,
+          }}
           icon={Users}
           iconColor="text-blue-500"
           accent="border-l-blue-500"
         />
         <PrimaryCard
-          title="Активных за 7 дней"
-          value={data.activeStudentsLast7Days}
+          title={isAllTime ? "Активных студентов" : `Активных за ${periodLabel}`}
+          value={data.activeStudentsInRange}
           sub={`${activePct}% от всех студентов`}
           trend={{ label: activityLabel, positive: activityPositive }}
           icon={Activity}
@@ -132,7 +141,6 @@ export function OverviewCards({ data, isLoading }: OverviewCardsProps) {
         />
       </div>
 
-      {/* Row 2: secondary metrics */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <SecondaryCard
           title="Потоков / Групп"

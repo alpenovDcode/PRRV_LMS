@@ -37,6 +37,7 @@ import {
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { RefreshCw, Star, ExternalLink, MessageSquare } from "lucide-react";
+import { rangeToFromDate } from "@/lib/analytics-range";
 
 interface ReviewRow {
   id: string;
@@ -119,15 +120,17 @@ function SentimentBar({ label, count, total, color }: {
   );
 }
 
-export function ReviewsAnalytics() {
+export function ReviewsAnalytics({ range = "all" }: { range?: string }) {
   const [sourceFilter, setSourceFilter] = useState<string>("all");
   const queryClient = useQueryClient();
 
   const { data, isLoading, isError } = useQuery<ReviewsData>({
-    queryKey: ["admin-reviews-analytics", sourceFilter],
+    queryKey: ["admin-reviews-analytics", sourceFilter, range],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (sourceFilter !== "all") params.set("source", sourceFilter);
+      const fromDate = rangeToFromDate(range);
+      if (fromDate) params.set("from", fromDate.toISOString());
       const res = await fetch(`/api/admin/analytics/reviews?${params}`);
       const json = await res.json();
       if (!json.success) throw new Error(json.error?.message ?? "Ошибка");

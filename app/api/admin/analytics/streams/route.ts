@@ -3,16 +3,17 @@ import { withAuth } from "@/lib/api-middleware";
 import { db } from "@/lib/db";
 import { ApiResponse } from "@/types";
 import { UserRole } from "@prisma/client";
-
-const ACTIVE_DAYS = 7;
+import { rangeToFromDate } from "@/lib/analytics-range";
+import { subDays } from "date-fns";
 
 export async function GET(request: NextRequest) {
   return withAuth(
     request,
     async () => {
       try {
-        const activeThreshold = new Date();
-        activeThreshold.setDate(activeThreshold.getDate() - ACTIVE_DAYS);
+        const url = new URL(request.url);
+        const range = url.searchParams.get("range") ?? "30d";
+        const activeThreshold = rangeToFromDate(range) ?? subDays(new Date(), 30);
 
         const groups = await db.group.findMany({
           select: {

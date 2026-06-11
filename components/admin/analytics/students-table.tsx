@@ -90,7 +90,7 @@ function LastActivityCell({ value }: { value: string | null }) {
   );
 }
 
-export function StudentsTable() {
+export function StudentsTable({ range = "all" }: { range?: string }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [groupFilter, setGroupFilter] = useState<string>("all");
   const [groupPopoverOpen, setGroupPopoverOpen] = useState(false);
@@ -100,9 +100,9 @@ export function StudentsTable() {
   const [expandedStudentId, setExpandedStudentId] = useState<string | null>(null);
 
   const { data: students, isLoading } = useQuery<StudentAnalytics[]>({
-    queryKey: ["admin", "analytics", "students"],
+    queryKey: ["admin", "analytics", "students", range],
     queryFn: async () => {
-      const response = await apiClient.get("/admin/analytics/students");
+      const response = await apiClient.get(`/admin/analytics/students?range=${range}`);
       return response.data.data;
     },
   });

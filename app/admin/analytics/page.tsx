@@ -27,9 +27,9 @@ export default function AnalyticsPage() {
   const [streamSearch, setStreamSearch] = useState("");
 
   const { data: overview, isLoading: isLoadingOverview } = useQuery({
-    queryKey: ["admin", "analytics", "overview"],
+    queryKey: ["admin", "analytics", "overview", range],
     queryFn: async () => {
-      const response = await apiClient.get("/admin/analytics/overview");
+      const response = await apiClient.get(`/admin/analytics/overview?range=${range}`);
       return response.data.data;
     },
   });
@@ -43,33 +43,33 @@ export default function AnalyticsPage() {
   });
 
   const { data: courses, isLoading: isLoadingCourses } = useQuery({
-    queryKey: ["admin", "analytics", "courses"],
+    queryKey: ["admin", "analytics", "courses", range],
     queryFn: async () => {
-      const response = await apiClient.get("/admin/analytics/courses");
+      const response = await apiClient.get(`/admin/analytics/courses?range=${range}`);
       return response.data.data;
     },
   });
 
   const { data: homeworkData, isLoading: isLoadingHomework } = useQuery({
-    queryKey: ["admin", "analytics", "homework"],
+    queryKey: ["admin", "analytics", "homework", range],
     queryFn: async () => {
-      const response = await apiClient.get("/admin/analytics/homework");
+      const response = await apiClient.get(`/admin/analytics/homework?range=${range}`);
       return response.data.data;
     },
   });
 
   const { data: streamsData, isLoading: isLoadingStreams } = useQuery({
-    queryKey: ["admin", "analytics", "streams"],
+    queryKey: ["admin", "analytics", "streams", range],
     queryFn: async () => {
-      const response = await apiClient.get("/admin/analytics/streams");
+      const response = await apiClient.get(`/admin/analytics/streams?range=${range}`);
       return response.data.data as StreamData[];
     },
   });
 
   const { data: surveysData, isLoading: isLoadingSurveys } = useQuery({
-    queryKey: ["admin", "analytics", "surveys"],
+    queryKey: ["admin", "analytics", "surveys", range],
     queryFn: async () => {
-      const response = await apiClient.get("/admin/analytics/surveys");
+      const response = await apiClient.get(`/admin/analytics/surveys?range=${range}`);
       return response.data.data;
     },
   });
@@ -115,7 +115,7 @@ export default function AnalyticsPage() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
-          <OverviewCards data={overview} isLoading={isLoadingOverview} />
+          <OverviewCards data={overview} isLoading={isLoadingOverview} range={range} />
           <AtRiskAlert
             streams={streamsData}
             isLoading={isLoadingStreams}
@@ -190,7 +190,7 @@ export default function AnalyticsPage() {
           )}
         </TabsContent>
 
-        {/* ===== НОВАЯ ВКЛАДКА: ОПРОСЫ / NPS ===== */}
+        {/* ===== ВКЛАДКА: ОПРОСЫ / NPS ===== */}
         <TabsContent value="surveys" className="space-y-4">
           {isLoadingSurveys ? (
             <div className="space-y-3">
@@ -207,7 +207,7 @@ export default function AnalyticsPage() {
         </TabsContent>
 
         <TabsContent value="students" className="space-y-4">
-          <StudentsTable />
+          <StudentsTable range={range} />
         </TabsContent>
 
         <TabsContent value="questions" className="space-y-4">
@@ -219,7 +219,7 @@ export default function AnalyticsPage() {
         </TabsContent>
 
         <TabsContent value="reviews" className="space-y-4">
-          <ReviewsAnalytics />
+          <ReviewsAnalytics range={range} />
         </TabsContent>
 
       </Tabs>
