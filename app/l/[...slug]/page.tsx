@@ -10,6 +10,7 @@ const HTML_TEMPLATES: Record<string, string> = {
   default: "landing_template.html",
   prepodavay: path.join("landings", "prepodavay.html"),
   "prepodavay-tg": path.join("landings", "prepodavay-tg.html"),
+  "prrv-summer": path.join("landings", "prrv-summer.html"),
 };
 
 export const dynamic = "force-dynamic";
@@ -71,16 +72,30 @@ export default async function LandingPage({
     )
       .map((m) => `<script src="${m[1]}" type="text/javascript" defer></script>`)
       .join("");
+
+    // Скрипты из <head> сохраняем целиком — там сидят инициализаторы
+    // Яндекс.Метрики/GA и прочих трекеров. В <body> inline-скрипты
+    // вырезаем, чтобы не тащить устаревшие куски разметки.
+    const headMatch = raw.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
+    const headInlineScripts = headMatch
+      ? Array.from(headMatch[1].matchAll(/<script(?![^>]*\bsrc=)[^>]*>[\s\S]*?<\/script>/gi))
+          .map((m) => m[0])
+          .join("\n")
+      : "";
+    // <noscript> из head тоже полезно сохранить (fallback-pixel Метрики).
+    const headNoscripts = headMatch
+      ? Array.from(headMatch[1].matchAll(/<noscript[\s\S]*?<\/noscript>/gi))
+          .map((m) => m[0])
+          .join("\n")
+      : "";
+
     const bodyMatch = raw.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-    // Вырезаем inline-скрипты (в top-документе они не нужны, iframe убран),
-    // оставляем внешние трекинг-скрипты (scriptTags) — они в исходном HTML
-    // видны боту tgtrack и исполняются при разборе страницы.
     const bodyInner = (bodyMatch ? bodyMatch[1] : raw).replace(
       /<script[\s\S]*?<\/script>/gi,
       ""
     );
 
-    const inner = `<style>${styles}</style>${scriptTags}${bodyInner}`;
+    const inner = `<style>${styles}</style>${scriptTags}${headInlineScripts}${headNoscripts}${bodyInner}`;
     return <div dangerouslySetInnerHTML={{ __html: inner }} />;
   }
 

@@ -461,6 +461,7 @@ export default function LandingConstructor({
                                               <option value="default">Антикризисный план 2026</option>
                                               <option value="prepodavay">Преподавай — MAX (трекинг)</option>
                                               <option value="prepodavay-tg">Преподавай — Telegram (трекинг)</option>
+                                              <option value="prrv-summer">Прорыв — лето для репетитора</option>
                                           </select>
                                       </div>
                                       <div className="p-4 bg-orange-50 rounded-2xl border border-orange-100 text-[11px] text-orange-700 font-medium italic">
