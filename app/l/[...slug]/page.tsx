@@ -2,6 +2,7 @@ import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import LandingPageClient from "@/components/landing/LandingPageClient";
 import { cookies } from "next/headers";
+import Script from "next/script";
 import fs from "fs";
 import path from "path";
 
@@ -67,22 +68,27 @@ export default async function LandingPage({
     const styles = Array.from(raw.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi))
       .map((m) => m[1])
       .join("\n");
-    const scriptTags = Array.from(
-      raw.matchAll(/<script[^>]+src="([^"]+)"[^>]*>\s*<\/script>/gi)
-    )
-      .map((m) => `<script src="${m[1]}" type="text/javascript" defer></script>`)
-      .join("");
 
-    // Скрипты из <head> сохраняем целиком — там сидят инициализаторы
-    // Яндекс.Метрики/GA и прочих трекеров. В <body> inline-скрипты
-    // вырезаем, чтобы не тащить устаревшие куски разметки.
+    // Внешние скрипты (Я.Метрика tag.js, tgtrack и т.п.) — собираем их
+    // src'ы, рендерим через <Script> от Next.js. dangerouslySetInnerHTML
+    // не исполняет встроенные <script>-теги: они попадают в DOM как
+    // мёртвый текст, и трекеры не инициализируются.
+    const externalScriptSrcs = Array.from(
+      raw.matchAll(/<script[^>]+src="([^"]+)"[^>]*>\s*<\/script>/gi)
+    ).map((m) => m[1]);
+
+    // Inline-скрипты из <head> — там сидят инициализаторы Я.Метрики/GA.
+    // Получаем тело каждого <script>...</script>, чтобы прокинуть в next/script.
     const headMatch = raw.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
-    const headInlineScripts = headMatch
-      ? Array.from(headMatch[1].matchAll(/<script(?![^>]*\bsrc=)[^>]*>[\s\S]*?<\/script>/gi))
-          .map((m) => m[0])
-          .join("\n")
-      : "";
-    // <noscript> из head тоже полезно сохранить (fallback-pixel Метрики).
+    const headInlineScriptBodies = headMatch
+      ? Array.from(
+          headMatch[1].matchAll(
+            /<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi
+          )
+        ).map((m) => m[1])
+      : [];
+    // <noscript> из head оставляем как есть — браузер сам выполнит его при
+    // отключённом JS, dangerouslySetInnerHTML тут работает корректно.
     const headNoscripts = headMatch
       ? Array.from(headMatch[1].matchAll(/<noscript[\s\S]*?<\/noscript>/gi))
           .map((m) => m[0])
@@ -95,8 +101,27 @@ export default async function LandingPage({
       ""
     );
 
-    const inner = `<style>${styles}</style>${scriptTags}${headInlineScripts}${headNoscripts}${bodyInner}`;
-    return <div dangerouslySetInnerHTML={{ __html: inner }} />;
+    const inner = `<style>${styles}</style>${headNoscripts}${bodyInner}`;
+    return (
+      <>
+        <div dangerouslySetInnerHTML={{ __html: inner }} />
+        {externalScriptSrcs.map((src, i) => (
+          <Script
+            key={`ext-${i}`}
+            src={src}
+            strategy="afterInteractive"
+          />
+        ))}
+        {headInlineScriptBodies.map((body, i) => (
+          <Script
+            key={`inl-${i}`}
+            id={`landing-inline-${i}`}
+            strategy="afterInteractive"
+            dangerouslySetInnerHTML={{ __html: body }}
+          />
+        ))}
+      </>
+    );
   }
 
   // Restore State from Cookie
