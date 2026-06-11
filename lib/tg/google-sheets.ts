@@ -46,29 +46,104 @@ export const DEFAULT_SHEET_COLUMNS: SheetColumn[] = [
 ];
 
 /**
- * Вычисляет значение одной колонки для подписчика. Возвращает строку
- * (для таблицы всё — текст).
+ * Полный набор колонок — паритет с CSV-выгрузкой подписчиков. Кнопка
+ * «Добавить все поля» в UI подставляет именно его. chatId обязательно
+ * первый (ключ upsert).
  */
-function resolveField(
-  field: string,
-  sub: {
-    chatId: string;
-    firstName: string | null;
-    lastName: string | null;
-    username: string | null;
-    tags: string[];
-    subscribedAt: Date;
-    lastSeenAt: Date | null;
-    firstTouchSlug: string | null;
-    customFields: unknown;
-    variables: unknown;
-  }
-): string {
+export const FULL_SHEET_COLUMNS: SheetColumn[] = [
+  { field: "chatId", header: "Chat ID" },
+  { field: "username", header: "Username" },
+  { field: "firstName", header: "Имя" },
+  { field: "lastName", header: "Фамилия" },
+  { field: "languageCode", header: "Язык" },
+  { field: "field.email", header: "Email" },
+  { field: "field.phone", header: "Телефон" },
+  { field: "lmsEmail", header: "LMS email" },
+  { field: "lmsName", header: "LMS ФИО" },
+  { field: "tags", header: "Теги" },
+  { field: "field.utm_source", header: "UTM source" },
+  { field: "field.utm_medium", header: "UTM medium" },
+  { field: "field.utm_campaign", header: "UTM campaign" },
+  { field: "field.utm_content", header: "UTM content" },
+  { field: "field.utm_term", header: "UTM term" },
+  { field: "firstTouchSlug", header: "Первое касание (slug)" },
+  { field: "firstTouchAt", header: "Первое касание (время)" },
+  { field: "lastTouchSlug", header: "Последнее касание (slug)" },
+  { field: "lastTouchAt", header: "Последнее касание (время)" },
+  { field: "subscribedAt", header: "Подписался" },
+  { field: "lastSeenAt", header: "Последняя активность" },
+  { field: "isBlocked", header: "Заблокировал бота" },
+  { field: "messagesIn", header: "Входящих" },
+  { field: "messagesOut", header: "Исходящих" },
+  { field: "journey", header: "Путь клиента (CJM)" },
+  { field: "lastFlow", header: "Текущая воронка" },
+  { field: "lastNode", header: "Текущий узел" },
+];
+
+/** Расширенный набор данных подписчика для построения строки. */
+export interface SubData {
+  id: string;
+  chatId: string;
+  firstName: string | null;
+  lastName: string | null;
+  username: string | null;
+  languageCode: string | null;
+  tags: string[];
+  subscribedAt: Date;
+  lastSeenAt: Date | null;
+  isBlocked: boolean;
+  firstTouchSlug: string | null;
+  firstTouchAt: Date | null;
+  lastTouchSlug: string | null;
+  lastTouchAt: Date | null;
+  customFields: unknown;
+  variables: unknown;
+  lmsUser: { email: string; fullName: string | null } | null;
+}
+
+/** Тяжёлые вычисляемые поля (считаются только если нужны колонки). */
+export interface SubExtras {
+  messagesIn: number;
+  messagesOut: number;
+  journey: string;
+  lastFlow: string;
+  lastNode: string;
+}
+
+const EMPTY_EXTRAS: SubExtras = {
+  messagesIn: 0,
+  messagesOut: 0,
+  journey: "",
+  lastFlow: "",
+  lastNode: "",
+};
+
+/** Колонки, требующие тяжёлых данных (сообщения / события / runs). */
+export function neededExtras(columns: SheetColumn[]): {
+  messages: boolean;
+  journey: boolean;
+} {
+  const fields = new Set(columns.map((c) => c.field));
+  return {
+    messages: fields.has("messagesIn") || fields.has("messagesOut"),
+    journey:
+      fields.has("journey") || fields.has("lastFlow") || fields.has("lastNode"),
+  };
+}
+
+/**
+ * Вычисляет значение одной колонки. Всё приводится к строке.
+ */
+function resolveField(field: string, sub: SubData, extras: SubExtras): string {
   if (field.startsWith("field.")) {
     const key = field.slice("field.".length);
     const cf = (sub.customFields as Record<string, unknown>) ?? {};
-    const v = cf[key];
-    return v == null ? "" : String(v);
+    const a = cf[key];
+    if (a != null && a !== "") return String(a);
+    // fallback на variables (разные воронки кладут в разный scope)
+    const vars = (sub.variables as Record<string, unknown>) ?? {};
+    const b = vars[key];
+    return b == null ? "" : String(b);
   }
   if (field.startsWith("var.")) {
     const key = field.slice("var.".length);
@@ -85,17 +160,195 @@ function resolveField(
       return sub.lastName ?? "";
     case "username":
       return sub.username ? `@${sub.username}` : "";
+    case "languageCode":
+      return sub.languageCode ?? "";
     case "tags":
       return (sub.tags ?? []).join(", ");
     case "source":
       return sub.firstTouchSlug ?? "";
+    case "lmsEmail":
+      return sub.lmsUser?.email ?? "";
+    case "lmsName":
+      return sub.lmsUser?.fullName ?? "";
+    case "firstTouchSlug":
+      return sub.firstTouchSlug ?? "";
+    case "firstTouchAt":
+      return sub.firstTouchAt?.toISOString() ?? "";
+    case "lastTouchSlug":
+      return sub.lastTouchSlug ?? "";
+    case "lastTouchAt":
+      return sub.lastTouchAt?.toISOString() ?? "";
     case "subscribedAt":
       return sub.subscribedAt.toISOString();
     case "lastSeenAt":
       return sub.lastSeenAt?.toISOString() ?? "";
+    case "isBlocked":
+      return sub.isBlocked ? "1" : "0";
+    case "messagesIn":
+      return String(extras.messagesIn);
+    case "messagesOut":
+      return String(extras.messagesOut);
+    case "journey":
+      return extras.journey;
+    case "lastFlow":
+      return extras.lastFlow;
+    case "lastNode":
+      return extras.lastNode;
     default:
       return "";
   }
+}
+
+/** Поля select для SubData. */
+const SUB_DATA_SELECT = {
+  id: true,
+  chatId: true,
+  firstName: true,
+  lastName: true,
+  username: true,
+  languageCode: true,
+  tags: true,
+  subscribedAt: true,
+  lastSeenAt: true,
+  isBlocked: true,
+  firstTouchSlug: true,
+  firstTouchAt: true,
+  lastTouchSlug: true,
+  lastTouchAt: true,
+  customFields: true,
+  variables: true,
+  lmsUser: { select: { email: true, fullName: true } },
+} as const;
+
+// ── CJM (journey) ───────────────────────────────────────────────────────
+const JOURNEY_EVENT_TYPES = [
+  "subscriber.created",
+  "subscriber.lms_linked",
+  "trigger.matched",
+  "flow.started",
+  "flow.completed",
+  "flow.failed",
+  "tag.added",
+  "tag.removed",
+  "list.joined",
+  "list.left",
+  "broadcast.delivered",
+];
+const EVENT_LABEL: Record<string, string> = {
+  "subscriber.created": "пришёл",
+  "subscriber.lms_linked": "привязан LMS",
+  "trigger.matched": "триггер",
+  "flow.started": "старт сценария",
+  "flow.completed": "сценарий завершён",
+  "flow.failed": "сценарий упал",
+  "tag.added": "тег +",
+  "tag.removed": "тег −",
+  "list.joined": "в список",
+  "list.left": "из списка",
+  "broadcast.delivered": "рассылка",
+};
+
+function formatJourneyStep(
+  at: Date,
+  type: string,
+  props: Record<string, unknown>,
+  flowName: Map<string, string>
+): string {
+  const time = at.toLocaleString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const label = EVENT_LABEL[type] ?? type;
+  let detail = "";
+  if (type === "flow.started" || type === "flow.completed" || type === "flow.failed") {
+    const fid = typeof props.flowId === "string" ? props.flowId : null;
+    if (fid) detail = `«${flowName.get(fid) ?? fid}»`;
+  } else if ((type === "tag.added" || type === "tag.removed") && typeof props.tag === "string") {
+    detail = props.tag;
+  }
+  return `${time} ${label}${detail ? " " + detail : ""}`;
+}
+
+/**
+ * Считает extras (сообщения / journey / текущая воронка) для набора
+ * подписчиков — bulk-запросами. `which` управляет тем, что вообще
+ * считать (чтобы не делать лишних запросов когда колонки не нужны).
+ */
+async function computeExtras(
+  botId: string,
+  subIds: string[],
+  which: { messages: boolean; journey: boolean }
+): Promise<Map<string, SubExtras>> {
+  const out = new Map<string, SubExtras>();
+  for (const id of subIds) out.set(id, { ...EMPTY_EXTRAS });
+  if (subIds.length === 0 || (!which.messages && !which.journey)) return out;
+
+  if (which.messages) {
+    const grouped = await db.tgMessage.groupBy({
+      by: ["subscriberId", "direction"],
+      where: { botId, subscriberId: { in: subIds } },
+      _count: { _all: true },
+    });
+    for (const g of grouped) {
+      const e = out.get(g.subscriberId);
+      if (!e) continue;
+      if (g.direction === "in") e.messagesIn += g._count._all;
+      else if (g.direction === "out") e.messagesOut += g._count._all;
+    }
+  }
+
+  if (which.journey) {
+    const flows = await db.tgFlow.findMany({
+      where: { botId },
+      select: { id: true, name: true },
+    });
+    const flowName = new Map(flows.map((f) => [f.id, f.name]));
+
+    const events = await db.tgEvent.findMany({
+      where: { botId, subscriberId: { in: subIds }, type: { in: JOURNEY_EVENT_TYPES } },
+      orderBy: { occurredAt: "asc" },
+      select: { subscriberId: true, type: true, properties: true, occurredAt: true },
+      take: 200_000,
+    });
+    const stepsBySub = new Map<string, string[]>();
+    for (const ev of events) {
+      if (!ev.subscriberId) continue;
+      const arr = stepsBySub.get(ev.subscriberId) ?? [];
+      arr.push(
+        formatJourneyStep(
+          ev.occurredAt,
+          ev.type,
+          (ev.properties as Record<string, unknown>) ?? {},
+          flowName
+        )
+      );
+      stepsBySub.set(ev.subscriberId, arr);
+    }
+    for (const [sid, steps] of stepsBySub) {
+      const e = out.get(sid);
+      if (e) e.journey = steps.join(" → ");
+    }
+
+    const runs = await db.tgFlowRun.findMany({
+      where: { subscriberId: { in: subIds }, flow: { botId } },
+      orderBy: { startedAt: "desc" },
+      select: { subscriberId: true, flowId: true, currentNodeId: true, status: true },
+    });
+    const seenRun = new Set<string>();
+    for (const r of runs) {
+      if (seenRun.has(r.subscriberId)) continue;
+      seenRun.add(r.subscriberId);
+      const e = out.get(r.subscriberId);
+      if (e) {
+        e.lastFlow = `${flowName.get(r.flowId) ?? r.flowId} (${r.status})`;
+        e.lastNode = r.currentNodeId ?? "";
+      }
+    }
+  }
+
+  return out;
 }
 
 /**
@@ -120,24 +373,17 @@ export async function exportSubscriberToSheet(
 
     const sub = await db.tgSubscriber.findUnique({
       where: { id: subscriberId },
-      select: {
-        chatId: true,
-        firstName: true,
-        lastName: true,
-        username: true,
-        tags: true,
-        subscribedAt: true,
-        lastSeenAt: true,
-        firstTouchSlug: true,
-        customFields: true,
-        variables: true,
-      },
+      select: SUB_DATA_SELECT,
     });
     if (!sub) return { ok: false, error: "subscriber not found" };
 
     const columns = parseColumns(config.columns);
     const headers = columns.map((c) => c.header);
-    const row = columns.map((c) => resolveField(c.field, sub));
+    // extras считаем только если в колонках есть тяжёлые поля.
+    const which = neededExtras(columns);
+    const extrasMap = await computeExtras(botId, [sub.id], which);
+    const extras = extrasMap.get(sub.id) ?? EMPTY_EXTRAS;
+    const row = columns.map((c) => resolveField(c.field, sub as SubData, extras));
 
     const body = {
       secret: config.secret || undefined,
@@ -248,23 +494,22 @@ export async function exportAllSubscribers(
   const subs = await db.tgSubscriber.findMany({
     where: { botId },
     orderBy: { subscribedAt: "asc" },
-    select: {
-      chatId: true,
-      firstName: true,
-      lastName: true,
-      username: true,
-      tags: true,
-      subscribedAt: true,
-      lastSeenAt: true,
-      firstTouchSlug: true,
-      customFields: true,
-      variables: true,
-    },
+    select: SUB_DATA_SELECT,
   });
 
   const columns = parseColumns(config.columns);
   const headers = columns.map((c) => c.header);
-  const allRows = subs.map((s) => columns.map((c) => resolveField(c.field, s)));
+  const which = neededExtras(columns);
+  const extrasMap = await computeExtras(
+    botId,
+    subs.map((s) => s.id),
+    which
+  );
+  const allRows = subs.map((s) =>
+    columns.map((c) =>
+      resolveField(c.field, s as SubData, extrasMap.get(s.id) ?? EMPTY_EXTRAS)
+    )
+  );
 
   const BATCH = 200;
   let sent = 0;
@@ -286,10 +531,31 @@ export async function exportAllSubscribers(
         signal: AbortSignal.timeout(60_000), // батч большой — даём минуту
       });
       const text = await resp.text().catch(() => "");
-      if (!resp.ok || isHtmlResponse(text)) {
+      // Парсим ответ: новый скрипт возвращает { ok, written: N }. Если
+      // поля written НЕТ — задеплоен СТАРЫЙ скрипт без поддержки батча,
+      // он молча проигнорировал rows[]. Это и есть «выгрузилось 0».
+      let parsed: any = null;
+      if (!isHtmlResponse(text)) {
+        try {
+          parsed = JSON.parse(text.trim());
+        } catch {
+          /* не JSON */
+        }
+      }
+      const oldScript =
+        resp.ok &&
+        !isHtmlResponse(text) &&
+        parsed &&
+        typeof parsed.written === "undefined";
+
+      if (!resp.ok || isHtmlResponse(text) || oldScript) {
         const err = isHtmlResponse(text)
           ? "Вебхук вернул HTML — деплой Apps Script не «Кто угодно» или скрипт не авторизован."
-          : `HTTP ${resp.status} ${text.slice(0, 150)}`;
+          : oldScript
+            ? "Скрипт Apps Script устарел (не поддерживает массовую выгрузку). " +
+              "Скопируйте новый скрипт из инструкции выше, замените код и " +
+              "передеплойте (Управление развёртываниями → Новая версия)."
+            : `HTTP ${resp.status} ${text.slice(0, 150)}`;
         // Первый батч провалился — нет смысла продолжать.
         if (i === 0) {
           await db.tgGoogleSheetsConfig
