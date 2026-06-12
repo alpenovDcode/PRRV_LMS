@@ -66,6 +66,9 @@ export default function NewBroadcastPage() {
   // pickerForIndex = индекс ряда вложений, для которого открыт диалог
   // выбора из медиа-библиотеки; null = диалог закрыт.
   const [pickerForIndex, setPickerForIndex] = useState<number | null>(null);
+  // Отправить медиа отдельным сообщением (mediaPlacement=before). Снимает
+  // caption-лимит 1024 — текст уйдёт полным до 4096 символов.
+  const [mediaBefore, setMediaBefore] = useState(false);
   const [buttonsText, setButtonsText] = useState(""); // one per line: label|url
   const [tagsAny, setTagsAny] = useState<string[]>([]);
   const [newTag, setNewTag] = useState("");
@@ -120,6 +123,8 @@ export default function NewBroadcastPage() {
           text,
           attachments: cleanAttachments.length > 0 ? cleanAttachments : undefined,
           buttonRows: buttonRows.length > 0 ? buttonRows : undefined,
+          mediaPlacement:
+            mediaBefore && cleanAttachments.length > 0 ? "before" : undefined,
         },
         filter: {
           tagsAny: tagsAny.length > 0 ? tagsAny : undefined,
@@ -187,6 +192,8 @@ export default function NewBroadcastPage() {
             text,
             attachments: cleanAttachments.length > 0 ? cleanAttachments : undefined,
             buttonRows: buttonRows.length > 0 ? buttonRows : undefined,
+            mediaPlacement:
+              mediaBefore && cleanAttachments.length > 0 ? "before" : undefined,
           },
           recipients,
         }
@@ -326,6 +333,26 @@ export default function NewBroadcastPage() {
               (caption) Telegram возьмёт из поля «Текст» выше — первая
               картинка её получит.
             </p>
+            {attachments.length > 0 && (
+              <label className="mt-2 flex items-start gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={mediaBefore}
+                  onChange={(e) => setMediaBefore(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="font-medium text-foreground">
+                    Отправить медиа отдельным сообщением, текст — следующим
+                  </span>
+                  <span className="block text-muted-foreground">
+                    Снимает лимит подписи в 1024 символа: гифка/фото уходит
+                    первым сообщением без подписи, потом текст с кнопками
+                    отдельно (до 4096 символов).
+                  </span>
+                </span>
+              </label>
+            )}
           </div>
           <div>
             <Label>Кнопки (по одной в строке: «Текст | https://...»)</Label>

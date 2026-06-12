@@ -139,6 +139,11 @@ export const messagePayloadSchema = z.object({
   parseMode: z.enum(["HTML", "MarkdownV2"]).optional(),
   // Disable web preview override.
   disablePreview: z.boolean().optional(),
+  // Где жить тексту относительно медиа:
+  //   "caption" (по умолчанию) — текст подписью к медиа. Лимит 1024 символа.
+  //   "before"                 — медиа без подписи, текст отдельным сообщением
+  //                              с кнопками. Снимает лимит 1024, текст до 4096.
+  mediaPlacement: z.enum(["caption", "before"]).optional(),
   // Suppress notification sound. Useful for low-priority side-effect
   // messages so we don't ping every subscriber at 3am.
   disableNotification: z.boolean().optional(),
