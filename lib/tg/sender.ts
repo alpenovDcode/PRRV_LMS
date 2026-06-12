@@ -117,18 +117,24 @@ export interface SendOptions {
 }
 
 export async function sendBotMessage(opts: SendOptions): Promise<SendResult> {
-  // Forwarded-боты «наблюдают» через внешний бэк (например prepodavai).
-  // Этот бэк сам отвечает пользователю — если LMS тоже отправит сообщение,
-  // юзер получит дубль. Поэтому скипаем отправку, возвращая «успех» с
-  // пометкой; вызывающий код (flow-engine, broadcast, operator reply)
-  // выполнится дальше нормально, но в Telegram ничего не уйдёт.
+  // Forwarded-боты «наблюдают» через внешний бэк (например prepodavai),
+  // который сам реагирует на входящие. Чтобы не плодить дубли, режем
+  // ТОЛЬКО реактивные источники (flow/trigger): на любой инкоминг
+  // ответит prepodavai, а наш flow-engine просто запишет state.
+  //
+  // Push-инициативные источники (broadcast — рассылка, manual —
+  // оператор из Inbox) безопасны: prepodavai сам их никогда не пошлёт,
+  // дубля не будет. Их пропускаем как обычно.
   const botMode = await db.tgBot.findUnique({
     where: { id: opts.botId },
     select: { connectionMode: true } as any,
   });
-  if ((botMode as any)?.connectionMode === "forwarded") {
+  if (
+    (botMode as any)?.connectionMode === "forwarded" &&
+    (opts.sourceType === "flow" || opts.sourceType === "trigger")
+  ) {
     console.log(
-      `[tg-sender] forwarded-режим (бот ${opts.botId}) — исходящее пропущено`
+      `[tg-sender] forwarded-режим (бот ${opts.botId}, source=${opts.sourceType}) — исходящее пропущено`
     );
     // Возвращаем синтетический result: успех, без tgMessageId — flow-engine
     // не упадёт, продолжит выполнение следующих узлов (теги/переменные/сегменты),
