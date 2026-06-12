@@ -15,6 +15,7 @@
 import { db } from "../db";
 import { messagePayloadSchema, type FlowMessagePayload } from "./flow-schema";
 import { sendBotMessage } from "./sender";
+import { rewriteUrlButtons } from "./redirect-tracking";
 import { buildEvalContext, snapBot, snapSubscriber } from "./vars";
 import { trackEvent } from "./events";
 import type { TgBot, TgBroadcast, TgSubscriber, Prisma } from "@prisma/client";
@@ -24,6 +25,24 @@ interface BroadcastFilter {
   tagsAny?: string[];
   tagsAll?: string[];
   excludeTags?: string[];
+  /**
+   * UTM-сегмент: включить подписчиков, у которых first_touch_slug ИЛИ
+   * last_touch_slug совпадает с одним из перечисленных slug'ов. Матчим
+   * оба touch-поля, чтобы захватить и тех, кто пришёл через ссылку
+   * впервые, и тех, кто на неё кликнул повторно.
+   */
+  slugsAny?: string[];
+  excludeSlugs?: string[];
+  /**
+   * Сегментация по «дате захода в бота». subscribedAt — когда подписчик
+   * впервые написал боту (нажал /start). lastSeenAt — последняя любая
+   * активность подписчика. Каждая граница опциональна, можно задавать
+   * только нижнюю или только верхнюю.
+   */
+  subscribedFrom?: string | Date;
+  subscribedTo?: string | Date;
+  lastSeenFrom?: string | Date;
+  lastSeenTo?: string | Date;
   subscriberIds?: string[];
 }
 
@@ -42,10 +61,52 @@ function buildWhere(botId: string, filter: BroadcastFilter): Prisma.TgSubscriber
   if (filter.tagsAll && filter.tagsAll.length > 0) {
     where.tags = { ...(where.tags as object), hasEvery: filter.tagsAll };
   }
+  // tag-exclude и slug-exclude совместимы — складываем в массив NOT.
+  const notClauses: Prisma.TgSubscriberWhereInput[] = [];
   if (filter.excludeTags && filter.excludeTags.length > 0) {
-    where.NOT = { tags: { hasSome: filter.excludeTags } };
+    notClauses.push({ tags: { hasSome: filter.excludeTags } });
   }
+  if (filter.excludeSlugs && filter.excludeSlugs.length > 0) {
+    notClauses.push({
+      OR: [
+        { firstTouchSlug: { in: filter.excludeSlugs } },
+        { lastTouchSlug: { in: filter.excludeSlugs } },
+      ],
+    });
+  }
+  if (notClauses.length > 0) {
+    where.NOT = notClauses;
+  }
+  if (filter.slugsAny && filter.slugsAny.length > 0) {
+    where.OR = [
+      { firstTouchSlug: { in: filter.slugsAny } },
+      { lastTouchSlug: { in: filter.slugsAny } },
+    ];
+  }
+  // Диапазоны дат. JSON-фильтр может прийти с ISO-строками — coerce в Date.
+  const subRange = dateRange(filter.subscribedFrom, filter.subscribedTo);
+  if (subRange) where.subscribedAt = subRange;
+  const seenRange = dateRange(filter.lastSeenFrom, filter.lastSeenTo);
+  if (seenRange) where.lastSeenAt = seenRange;
   return where;
+}
+
+function dateRange(
+  from: string | Date | undefined,
+  to: string | Date | undefined
+): { gte?: Date; lte?: Date } | null {
+  const f = toDate(from);
+  const t = toDate(to);
+  if (!f && !t) return null;
+  const r: { gte?: Date; lte?: Date } = {};
+  if (f) r.gte = f;
+  if (t) r.lte = t;
+  return r;
+}
+function toDate(v: string | Date | undefined): Date | null {
+  if (!v) return null;
+  const d = v instanceof Date ? v : new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
 async function materializeRecipients(broadcast: TgBroadcast): Promise<number> {
@@ -226,12 +287,21 @@ async function sendOne(
     return;
   }
 
+  // Оборачиваем URL-кнопки в /r/<slug>?s=<subscriberId>, чтобы клики
+  // считались с привязкой к подписчику (тот же механизм, что в flow-engine).
+  // Без trackClicks=false кнопки переписываются по умолчанию.
+  const trackedPayload = await rewriteUrlButtons({
+    payload,
+    botId: bot.id,
+    subscriberId: rec.subscriber.id,
+  }).catch(() => payload); // best-effort: если редирект-трекинг лёг, шлём как есть
+
   const res = await sendBotMessage({
     botId: bot.id,
     encryptedToken: bot.tokenEncrypted,
     subscriberId: rec.subscriber.id,
     chatId: rec.subscriber.chatId,
-    payload,
+    payload: trackedPayload,
     renderCtx: buildEvalContext({
       subscriber: snapSubscriber(rec.subscriber),
       bot: snapBot(bot),

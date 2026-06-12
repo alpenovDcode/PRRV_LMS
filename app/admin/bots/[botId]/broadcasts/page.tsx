@@ -98,7 +98,14 @@ export default function BroadcastsListPage() {
               <tbody>
                 {data.map((b) => (
                   <tr key={b.id} className="border-b last:border-0">
-                    <td className="p-3 font-medium">{b.name}</td>
+                    <td className="p-3 font-medium">
+                      <Link
+                        href={`/admin/bots/${botId}/broadcasts/${b.id}`}
+                        className="hover:underline"
+                      >
+                        {b.name}
+                      </Link>
+                    </td>
                     <td className="p-3">
                       <Badge variant={statusVariant[b.status] ?? "secondary"}>{b.status}</Badge>
                     </td>

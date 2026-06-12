@@ -78,6 +78,9 @@ export const FULL_SHEET_COLUMNS: SheetColumn[] = [
   { field: "channelsJoined", header: "Каналы (сейчас)" },
   { field: "channelsFirstJoinAt", header: "Первое вступление в канал" },
   { field: "channelsInviteNames", header: "Через какие invite-link" },
+  { field: "broadcastsReceived", header: "Рассылок получено" },
+  { field: "linkClicks", header: "Кликов по ссылкам" },
+  { field: "lastLinkClickAt", header: "Последний клик по ссылке" },
   { field: "journey", header: "Путь клиента (CJM)" },
   { field: "lastFlow", header: "Текущая воронка" },
   { field: "lastNode", header: "Текущий узел" },
@@ -114,6 +117,9 @@ export interface SubExtras {
   channelsJoined: string;
   channelsFirstJoinAt: string;
   channelsInviteNames: string;
+  broadcastsReceived: number;
+  linkClicks: number;
+  lastLinkClickAt: string;
 }
 
 const EMPTY_EXTRAS: SubExtras = {
@@ -125,6 +131,9 @@ const EMPTY_EXTRAS: SubExtras = {
   channelsJoined: "",
   channelsFirstJoinAt: "",
   channelsInviteNames: "",
+  broadcastsReceived: 0,
+  linkClicks: 0,
+  lastLinkClickAt: "",
 };
 
 /** Колонки, требующие тяжёлых данных (сообщения / события / runs). */
@@ -132,6 +141,7 @@ export function neededExtras(columns: SheetColumn[]): {
   messages: boolean;
   journey: boolean;
   channels: boolean;
+  engagement: boolean;
 } {
   const fields = new Set(columns.map((c) => c.field));
   return {
@@ -142,6 +152,10 @@ export function neededExtras(columns: SheetColumn[]): {
       fields.has("channelsJoined") ||
       fields.has("channelsFirstJoinAt") ||
       fields.has("channelsInviteNames"),
+    engagement:
+      fields.has("broadcastsReceived") ||
+      fields.has("linkClicks") ||
+      fields.has("lastLinkClickAt"),
   };
 }
 
@@ -214,6 +228,12 @@ function resolveField(field: string, sub: SubData, extras: SubExtras): string {
       return extras.channelsFirstJoinAt;
     case "channelsInviteNames":
       return extras.channelsInviteNames;
+    case "broadcastsReceived":
+      return String(extras.broadcastsReceived);
+    case "linkClicks":
+      return String(extras.linkClicks);
+    case "lastLinkClickAt":
+      return extras.lastLinkClickAt;
     default:
       return "";
   }
@@ -299,13 +319,13 @@ function formatJourneyStep(
 async function computeExtras(
   botId: string,
   subIds: string[],
-  which: { messages: boolean; journey: boolean; channels: boolean }
+  which: { messages: boolean; journey: boolean; channels: boolean; engagement: boolean }
 ): Promise<Map<string, SubExtras>> {
   const out = new Map<string, SubExtras>();
   for (const id of subIds) out.set(id, { ...EMPTY_EXTRAS });
   if (
     subIds.length === 0 ||
-    (!which.messages && !which.journey && !which.channels)
+    (!which.messages && !which.journey && !which.channels && !which.engagement)
   )
     return out;
 
@@ -418,6 +438,34 @@ async function computeExtras(
         e.channelsJoined = Array.from(agg.titles).join(", ");
         e.channelsInviteNames = Array.from(agg.invites).join(", ");
         e.channelsFirstJoinAt = agg.firstJoin ? agg.firstJoin.toISOString() : "";
+      }
+    }
+  }
+
+  if (which.engagement) {
+    const recs = await db.tgBroadcastRecipient.groupBy({
+      by: ["subscriberId"],
+      where: { subscriberId: { in: subIds }, status: "sent" },
+      _count: { _all: true },
+    });
+    for (const r of recs) {
+      const e = out.get(r.subscriberId);
+      if (e) e.broadcastsReceived = r._count._all;
+    }
+    const links = await db.tgRedirectLink.findMany({
+      where: { botId, subscriberId: { in: subIds }, clickCount: { gt: 0 } },
+      select: { subscriberId: true, clickCount: true, lastClickAt: true },
+    });
+    for (const l of links) {
+      if (!l.subscriberId) continue;
+      const e = out.get(l.subscriberId);
+      if (!e) continue;
+      e.linkClicks += l.clickCount;
+      if (l.lastClickAt) {
+        // Храним самую свежую дату как ISO-строку для последующего сравнения.
+        if (!e.lastLinkClickAt || l.lastClickAt.toISOString() > e.lastLinkClickAt) {
+          e.lastLinkClickAt = l.lastClickAt.toISOString();
+        }
       }
     }
   }

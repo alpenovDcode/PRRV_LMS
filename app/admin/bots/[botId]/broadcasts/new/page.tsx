@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Send, X } from "lucide-react";
+import { Send, X, FlaskConical } from "lucide-react";
 
 export default function NewBroadcastPage() {
   const params = useParams<{ botId: string }>();
@@ -26,7 +26,27 @@ export default function NewBroadcastPage() {
   const [newTag, setNewTag] = useState("");
   const [excludeTags, setExcludeTags] = useState<string[]>([]);
   const [newExclude, setNewExclude] = useState("");
+  const [slugsAny, setSlugsAny] = useState<string[]>([]);
+  const [newSlug, setNewSlug] = useState("");
+  const [excludeSlugs, setExcludeSlugs] = useState<string[]>([]);
+  const [newExcludeSlug, setNewExcludeSlug] = useState("");
+  // Диапазоны дат сегментации. YYYY-MM-DD из <input type="date">.
+  const [subscribedFrom, setSubscribedFrom] = useState("");
+  const [subscribedTo, setSubscribedTo] = useState("");
+  const [lastSeenFrom, setLastSeenFrom] = useState("");
+  const [lastSeenTo, setLastSeenTo] = useState("");
   const [startNow, setStartNow] = useState(false);
+  const [testRecipients, setTestRecipients] = useState("");
+
+  // Подсказки по UTM-slug'ам — берём из трекинг-ссылок бота.
+  const { data: slugSuggestions } = useQuery({
+    queryKey: ["tg-tracking-links-slugs", botId],
+    queryFn: async () => {
+      const r = await apiClient.get(`/admin/tg/bots/${botId}/tracking-links`);
+      const links = (r.data?.data?.links ?? []) as Array<{ slug: string; name: string }>;
+      return links.map((l) => ({ slug: l.slug, name: l.name }));
+    },
+  });
 
   const create = useMutation({
     mutationFn: async () => {
@@ -49,6 +69,22 @@ export default function NewBroadcastPage() {
         filter: {
           tagsAny: tagsAny.length > 0 ? tagsAny : undefined,
           excludeTags: excludeTags.length > 0 ? excludeTags : undefined,
+          slugsAny: slugsAny.length > 0 ? slugsAny : undefined,
+          excludeSlugs: excludeSlugs.length > 0 ? excludeSlugs : undefined,
+          // from = 00:00 локального дня, to = 23:59:59.999, чтобы границы
+          // совпадали с интуитивным «весь день включительно».
+          subscribedFrom: subscribedFrom
+            ? new Date(`${subscribedFrom}T00:00:00`).toISOString()
+            : undefined,
+          subscribedTo: subscribedTo
+            ? new Date(`${subscribedTo}T23:59:59.999`).toISOString()
+            : undefined,
+          lastSeenFrom: lastSeenFrom
+            ? new Date(`${lastSeenFrom}T00:00:00`).toISOString()
+            : undefined,
+          lastSeenTo: lastSeenTo
+            ? new Date(`${lastSeenTo}T23:59:59.999`).toISOString()
+            : undefined,
           allActive: true,
         },
         startNow,
@@ -61,6 +97,59 @@ export default function NewBroadcastPage() {
       router.push(`/admin/bots/${botId}/broadcasts`);
     },
     onError: (e: any) => toast.error(e?.response?.data?.error?.message || "Ошибка"),
+  });
+
+  const testSend = useMutation({
+    mutationFn: async () => {
+      const recipients = testRecipients
+        .split(/[\s,;]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (recipients.length === 0) {
+        throw new Error("Укажите хотя бы один chat_id или subscriber-id");
+      }
+      const buttonRows = buttonsText
+        .split("\n")
+        .map((l) => l.trim())
+        .filter(Boolean)
+        .map((l) => {
+          const [label, url] = l.split("|").map((s) => s.trim());
+          return [{ text: label, url }];
+        });
+      const r = await apiClient.post(
+        `/admin/tg/bots/${botId}/broadcasts/test-send`,
+        {
+          message: {
+            text,
+            photoUrl: photoUrl || undefined,
+            buttonRows: buttonRows.length > 0 ? buttonRows : undefined,
+          },
+          recipients,
+        }
+      );
+      return r.data?.data as {
+        sent: number;
+        total: number;
+        missing: string[];
+        results: Array<{ chatId: string; ok: boolean; error?: string }>;
+      };
+    },
+    onSuccess: (data) => {
+      const failed = data.results.filter((r) => !r.ok).length;
+      const missing = data.missing.length;
+      if (data.sent > 0 && failed === 0 && missing === 0) {
+        toast.success(`Отправлено ${data.sent} получателям`);
+      } else {
+        toast(
+          `Отправлено ${data.sent}/${data.total}. Не доставлено: ${failed}. Не найдено: ${missing}.`,
+          { duration: 6000 }
+        );
+      }
+    },
+    onError: (e: any) =>
+      toast.error(
+        e?.response?.data?.error?.message ?? e?.message ?? "Ошибка тестовой отправки"
+      ),
   });
 
   return (
@@ -126,8 +215,44 @@ export default function NewBroadcastPage() {
             input={newExclude}
             setInput={setNewExclude}
           />
+          <TagEditor
+            label="Включить по UTM-ссылке (slug — first/last touch):"
+            tags={slugsAny}
+            setTags={setSlugsAny}
+            input={newSlug}
+            setInput={setNewSlug}
+            placeholder="slug трекинг-ссылки"
+            datalistId="utm-slug-suggestions"
+            suggestions={slugSuggestions}
+          />
+          <TagEditor
+            label="Исключить по UTM-ссылке (slug):"
+            tags={excludeSlugs}
+            setTags={setExcludeSlugs}
+            input={newExcludeSlug}
+            setInput={setNewExcludeSlug}
+            placeholder="slug трекинг-ссылки"
+            datalistId="utm-slug-suggestions"
+            suggestions={slugSuggestions}
+          />
+          <DateRangeFilter
+            label="Подписался (нажал /start) в диапазоне:"
+            from={subscribedFrom}
+            to={subscribedTo}
+            setFrom={setSubscribedFrom}
+            setTo={setSubscribedTo}
+          />
+          <DateRangeFilter
+            label="Последняя активность в диапазоне:"
+            from={lastSeenFrom}
+            to={lastSeenTo}
+            setFrom={setLastSeenFrom}
+            setTo={setLastSeenTo}
+          />
           <p className="text-xs text-muted-foreground">
-            Если оба списка пустые — рассылка отправится всем активным (не заблокировавшим бота) подписчикам.
+            UTM-сегмент матчит подписчиков, у которых slug совпадает с first_touch_slug
+            или last_touch_slug. Если все списки пустые — рассылка отправится всем активным
+            (не заблокировавшим бота) подписчикам.
           </p>
           <label className="flex items-center gap-2 text-sm pt-2">
             <input
@@ -137,6 +262,42 @@ export default function NewBroadcastPage() {
             />
             Запустить сразу (иначе сохраним как черновик).
           </label>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">
+            Тестовая отправка
+            <span className="ml-2 text-xs text-muted-foreground font-normal">
+              до 5 получателей, не влияет на статистику основной рассылки
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div>
+            <Label>chat_id или subscriber-id через пробел/запятую</Label>
+            <Input
+              value={testRecipients}
+              onChange={(e) => setTestRecipients(e.target.value)}
+              placeholder="123456789, 987654321"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              chat_id видно в карточке подписчика. Подставьте 1-2 своих
+              тестовых аккаунта.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => testSend.mutate()}
+            disabled={
+              !text.trim() || !testRecipients.trim() || testSend.isPending
+            }
+          >
+            <FlaskConical className="mr-2 h-4 w-4" />
+            {testSend.isPending ? "Отправляю…" : "Отправить тест"}
+          </Button>
         </CardContent>
       </Card>
 
@@ -153,12 +314,57 @@ export default function NewBroadcastPage() {
   );
 }
 
+function DateRangeFilter(props: {
+  label: string;
+  from: string;
+  to: string;
+  setFrom: (v: string) => void;
+  setTo: (v: string) => void;
+}) {
+  return (
+    <div>
+      <Label>{props.label}</Label>
+      <div className="mt-1 flex flex-wrap items-center gap-2">
+        <Input
+          type="date"
+          value={props.from}
+          onChange={(e) => props.setFrom(e.target.value)}
+          className="w-44"
+        />
+        <span className="text-xs text-muted-foreground">—</span>
+        <Input
+          type="date"
+          value={props.to}
+          onChange={(e) => props.setTo(e.target.value)}
+          className="w-44"
+        />
+        {(props.from || props.to) && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              props.setFrom("");
+              props.setTo("");
+            }}
+          >
+            сброс
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TagEditor(props: {
   label: string;
   tags: string[];
   setTags: (t: string[]) => void;
   input: string;
   setInput: (v: string) => void;
+  placeholder?: string;
+  /** Если задан — у инпута появляется <datalist> с подсказками. */
+  datalistId?: string;
+  suggestions?: Array<{ slug: string; name: string }>;
 }) {
   return (
     <div>
@@ -177,7 +383,8 @@ function TagEditor(props: {
         <Input
           value={props.input}
           onChange={(e) => props.setInput(e.target.value)}
-          placeholder="тег"
+          placeholder={props.placeholder ?? "тег"}
+          list={props.datalistId}
         />
         <Button
           size="sm"
@@ -191,6 +398,15 @@ function TagEditor(props: {
           добавить
         </Button>
       </div>
+      {props.datalistId && props.suggestions && props.suggestions.length > 0 && (
+        <datalist id={props.datalistId}>
+          {props.suggestions.map((s) => (
+            <option key={s.slug} value={s.slug}>
+              {s.name}
+            </option>
+          ))}
+        </datalist>
+      )}
     </div>
   );
 }
