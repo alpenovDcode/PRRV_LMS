@@ -11,7 +11,26 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Send, X, FlaskConical } from "lucide-react";
+import { Send, X, FlaskConical, Plus } from "lucide-react";
+
+// Telegram-типы медиа. Каждое требует свой sendXxx-метод; в album
+// (2+ файла) можно класть только photo + video, остальные шлются по
+// одному (sender это уже умеет).
+const MEDIA_KINDS = [
+  { value: "photo", label: "Фото" },
+  { value: "video", label: "Видео" },
+  { value: "animation", label: "GIF / Анимация" },
+  { value: "document", label: "Документ / файл" },
+  { value: "audio", label: "Аудио" },
+  { value: "voice", label: "Голосовое" },
+  { value: "video_note", label: "Видеосообщение (кружок)" },
+] as const;
+
+type MediaKind = (typeof MEDIA_KINDS)[number]["value"];
+interface MediaItem {
+  kind: MediaKind;
+  url: string;
+}
 
 export default function NewBroadcastPage() {
   const params = useParams<{ botId: string }>();
@@ -20,7 +39,7 @@ export default function NewBroadcastPage() {
 
   const [name, setName] = useState("");
   const [text, setText] = useState("");
-  const [photoUrl, setPhotoUrl] = useState("");
+  const [attachments, setAttachments] = useState<MediaItem[]>([]);
   const [buttonsText, setButtonsText] = useState(""); // one per line: label|url
   const [tagsAny, setTagsAny] = useState<string[]>([]);
   const [newTag, setNewTag] = useState("");
@@ -59,11 +78,15 @@ export default function NewBroadcastPage() {
           return [{ text: label, url }];
         });
 
+      const cleanAttachments = attachments
+        .map((a) => ({ kind: a.kind, url: a.url.trim() }))
+        .filter((a) => a.url.length > 0);
+
       const payload: any = {
         name,
         message: {
           text,
-          photoUrl: photoUrl || undefined,
+          attachments: cleanAttachments.length > 0 ? cleanAttachments : undefined,
           buttonRows: buttonRows.length > 0 ? buttonRows : undefined,
         },
         filter: {
@@ -116,12 +139,15 @@ export default function NewBroadcastPage() {
           const [label, url] = l.split("|").map((s) => s.trim());
           return [{ text: label, url }];
         });
+      const cleanAttachments = attachments
+        .map((a) => ({ kind: a.kind, url: a.url.trim() }))
+        .filter((a) => a.url.length > 0);
       const r = await apiClient.post(
         `/admin/tg/bots/${botId}/broadcasts/test-send`,
         {
           message: {
             text,
-            photoUrl: photoUrl || undefined,
+            attachments: cleanAttachments.length > 0 ? cleanAttachments : undefined,
             buttonRows: buttonRows.length > 0 ? buttonRows : undefined,
           },
           recipients,
@@ -177,12 +203,65 @@ export default function NewBroadcastPage() {
             />
           </div>
           <div>
-            <Label>Картинка (URL, опционально)</Label>
-            <Input
-              value={photoUrl}
-              onChange={(e) => setPhotoUrl(e.target.value)}
-              placeholder="https://..."
-            />
+            <Label>Медиа-вложения (опционально)</Label>
+            <div className="mt-1 space-y-2">
+              {attachments.map((a, i) => (
+                <div key={i} className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={a.kind}
+                    onChange={(e) => {
+                      const next = [...attachments];
+                      next[i] = { ...next[i], kind: e.target.value as MediaKind };
+                      setAttachments(next);
+                    }}
+                    className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                  >
+                    {MEDIA_KINDS.map((k) => (
+                      <option key={k.value} value={k.value}>
+                        {k.label}
+                      </option>
+                    ))}
+                  </select>
+                  <Input
+                    value={a.url}
+                    onChange={(e) => {
+                      const next = [...attachments];
+                      next[i] = { ...next[i], url: e.target.value };
+                      setAttachments(next);
+                    }}
+                    placeholder="https://… (прямая ссылка на файл)"
+                    className="flex-1 min-w-[260px]"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      setAttachments(attachments.filter((_, idx) => idx !== i))
+                    }
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+              {attachments.length < 10 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setAttachments([...attachments, { kind: "photo", url: "" }])
+                  }
+                >
+                  <Plus className="mr-1 h-3 w-3" />
+                  Добавить медиа
+                </Button>
+              )}
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Поддерживаются прямые URL на файл (https://…). 2–10 фото/видео
+              склеятся в альбом; остальные типы шлются по одному. Подпись
+              (caption) Telegram возьмёт из поля «Текст» выше — первая
+              картинка её получит.
+            </p>
           </div>
           <div>
             <Label>Кнопки (по одной в строке: «Текст | https://...»)</Label>
