@@ -116,6 +116,110 @@ export interface SendOptions {
   sourceId?: string;
 }
 
+// Отправка ТОЛЬКО медиа — без подписи и кнопок. Используется в split-режиме:
+// сначала шлём гифку/фото, потом отдельным сообщением текст с CTA.
+// Запись в tg_messages делаем минимальную (mediaType/mediaFileId), чтобы
+// в Inbox/CSV было видно «здесь админ прислал гифку».
+async function sendMediaOnly(
+  opts: SendOptions,
+  attachments: MediaAttachment[]
+): Promise<void> {
+  if (attachments.length === 0) return;
+  const primary = attachments[0];
+  const ref = mediaRef(primary);
+  if (!ref) return;
+  const disableNotification = opts.payload.disableNotification;
+
+  // 2+ photo/video — media_group без caption.
+  if (isAlbumCompatible(attachments)) {
+    const items: MediaGroupItem[] = attachments.map((a) => ({
+      type: a.kind as "photo" | "video",
+      media: mediaRef(a)!,
+    }));
+    const r = await tgSendMediaGroup(opts.encryptedToken, opts.chatId, items, {
+      disable_notification: disableNotification,
+    });
+    if (r.ok && r.result && r.result.length > 0) {
+      await db.tgMessage.create({
+        data: {
+          botId: opts.botId,
+          subscriberId: opts.subscriberId,
+          direction: "out",
+          tgMessageId: String(r.result[0].message_id),
+          text: null,
+          mediaType: primary.kind,
+          mediaFileId: primary.fileId ?? null,
+          sourceType: opts.sourceType,
+          sourceId: opts.sourceId,
+        },
+      });
+    }
+    return;
+  }
+
+  // Одиночное медиа без caption — по типу.
+  let r: TgApiResult<TgMessageResult>;
+  switch (primary.kind) {
+    case "photo":
+      r = await tgSendPhoto(opts.encryptedToken, opts.chatId, ref, {
+        disable_notification: disableNotification,
+      });
+      break;
+    case "video":
+      r = await tgSendVideo(opts.encryptedToken, opts.chatId, ref, {
+        disable_notification: disableNotification,
+        duration: primary.duration,
+      });
+      break;
+    case "animation":
+      r = await tgSendAnimation(opts.encryptedToken, opts.chatId, ref, {
+        disable_notification: disableNotification,
+        duration: primary.duration,
+      });
+      break;
+    case "voice":
+      r = await tgSendVoice(opts.encryptedToken, opts.chatId, ref, {
+        disable_notification: disableNotification,
+        duration: primary.duration,
+      });
+      break;
+    case "audio":
+      r = await tgSendAudio(opts.encryptedToken, opts.chatId, ref, {
+        disable_notification: disableNotification,
+        duration: primary.duration,
+      });
+      break;
+    case "document":
+      r = await tgSendDocument(opts.encryptedToken, opts.chatId, ref, {
+        disable_notification: disableNotification,
+      });
+      break;
+    case "video_note":
+      r = await tgSendVideoNote(opts.encryptedToken, opts.chatId, ref, {
+        disable_notification: disableNotification,
+        duration: primary.duration,
+      });
+      break;
+    default:
+      return;
+  }
+  if (r.ok && r.result) {
+    await db.tgMessage.create({
+      data: {
+        botId: opts.botId,
+        subscriberId: opts.subscriberId,
+        direction: "out",
+        tgMessageId: String(r.result.message_id),
+        text: null,
+        mediaType: primary.kind,
+        mediaFileId: primary.fileId ?? null,
+        sourceType: opts.sourceType,
+        sourceId: opts.sourceId,
+      },
+    });
+  }
+}
+
 export async function sendBotMessage(opts: SendOptions): Promise<SendResult> {
   // Forwarded-боты «наблюдают» через внешний бэк (например prepodavai),
   // который сам реагирует на входящие. Чтобы не плодить дубли, режем
@@ -158,6 +262,22 @@ export async function sendBotMessage(opts: SendOptions): Promise<SendResult> {
   attachments = attachments.filter((a) => mediaRef(a) !== null);
 
   await waitForSendBudget(opts.botId, opts.chatId);
+
+  // -- Split mode: медиа первым сообщением (без подписи/кнопок), потом
+  // текст с кнопками отдельным сообщением. Снимает caption-лимит 1024
+  // и даёт полные 4096 символов на текст. Записываем оба сообщения
+  // в tg_messages (как два отдельных out), но возвращаем результат
+  // ТЕКСТОВОГО — он несёт логически основное сообщение с CTA.
+  if (opts.payload.mediaPlacement === "before" && attachments.length > 0) {
+    await sendMediaOnly(opts, attachments);
+    await waitForSendBudget(opts.botId, opts.chatId);
+    const result = await tgSendMessage(opts.encryptedToken, opts.chatId, safeText, {
+      parse_mode: parseMode,
+      disable_web_page_preview: opts.payload.disablePreview ?? true,
+      reply_markup: replyMarkup,
+    });
+    return recordResult(opts, result, safeText);
+  }
 
   // -- Zero attachments: plain text message ----------------------------
   if (attachments.length === 0) {
