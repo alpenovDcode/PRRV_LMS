@@ -34,6 +34,12 @@ const filterSchema = z.object({
   // UTM-сегмент: матчим по first_touch_slug ИЛИ last_touch_slug.
   slugsAny: z.array(z.string()).optional(),
   excludeSlugs: z.array(z.string()).optional(),
+  // Диапазон по дате подписки (когда впервые нажал /start) — каждая граница опциональна.
+  subscribedFrom: z.coerce.date().optional(),
+  subscribedTo: z.coerce.date().optional(),
+  // Диапазон по последней активности подписчика.
+  lastSeenFrom: z.coerce.date().optional(),
+  lastSeenTo: z.coerce.date().optional(),
   subscriberIds: z.array(z.string()).optional(),
 });
 

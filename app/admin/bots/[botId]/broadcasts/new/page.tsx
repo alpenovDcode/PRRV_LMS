@@ -30,6 +30,11 @@ export default function NewBroadcastPage() {
   const [newSlug, setNewSlug] = useState("");
   const [excludeSlugs, setExcludeSlugs] = useState<string[]>([]);
   const [newExcludeSlug, setNewExcludeSlug] = useState("");
+  // Диапазоны дат сегментации. YYYY-MM-DD из <input type="date">.
+  const [subscribedFrom, setSubscribedFrom] = useState("");
+  const [subscribedTo, setSubscribedTo] = useState("");
+  const [lastSeenFrom, setLastSeenFrom] = useState("");
+  const [lastSeenTo, setLastSeenTo] = useState("");
   const [startNow, setStartNow] = useState(false);
 
   // Подсказки по UTM-slug'ам — берём из трекинг-ссылок бота.
@@ -65,6 +70,20 @@ export default function NewBroadcastPage() {
           excludeTags: excludeTags.length > 0 ? excludeTags : undefined,
           slugsAny: slugsAny.length > 0 ? slugsAny : undefined,
           excludeSlugs: excludeSlugs.length > 0 ? excludeSlugs : undefined,
+          // from = 00:00 локального дня, to = 23:59:59.999, чтобы границы
+          // совпадали с интуитивным «весь день включительно».
+          subscribedFrom: subscribedFrom
+            ? new Date(`${subscribedFrom}T00:00:00`).toISOString()
+            : undefined,
+          subscribedTo: subscribedTo
+            ? new Date(`${subscribedTo}T23:59:59.999`).toISOString()
+            : undefined,
+          lastSeenFrom: lastSeenFrom
+            ? new Date(`${lastSeenFrom}T00:00:00`).toISOString()
+            : undefined,
+          lastSeenTo: lastSeenTo
+            ? new Date(`${lastSeenTo}T23:59:59.999`).toISOString()
+            : undefined,
           allActive: true,
         },
         startNow,
@@ -162,6 +181,20 @@ export default function NewBroadcastPage() {
             datalistId="utm-slug-suggestions"
             suggestions={slugSuggestions}
           />
+          <DateRangeFilter
+            label="Подписался (нажал /start) в диапазоне:"
+            from={subscribedFrom}
+            to={subscribedTo}
+            setFrom={setSubscribedFrom}
+            setTo={setSubscribedTo}
+          />
+          <DateRangeFilter
+            label="Последняя активность в диапазоне:"
+            from={lastSeenFrom}
+            to={lastSeenTo}
+            setFrom={setLastSeenFrom}
+            setTo={setLastSeenTo}
+          />
           <p className="text-xs text-muted-foreground">
             UTM-сегмент матчит подписчиков, у которых slug совпадает с first_touch_slug
             или last_touch_slug. Если все списки пустые — рассылка отправится всем активным
@@ -186,6 +219,47 @@ export default function NewBroadcastPage() {
           <Send className="mr-2 h-4 w-4" />
           {startNow ? "Создать и запустить" : "Сохранить черновик"}
         </Button>
+      </div>
+    </div>
+  );
+}
+
+function DateRangeFilter(props: {
+  label: string;
+  from: string;
+  to: string;
+  setFrom: (v: string) => void;
+  setTo: (v: string) => void;
+}) {
+  return (
+    <div>
+      <Label>{props.label}</Label>
+      <div className="mt-1 flex flex-wrap items-center gap-2">
+        <Input
+          type="date"
+          value={props.from}
+          onChange={(e) => props.setFrom(e.target.value)}
+          className="w-44"
+        />
+        <span className="text-xs text-muted-foreground">—</span>
+        <Input
+          type="date"
+          value={props.to}
+          onChange={(e) => props.setTo(e.target.value)}
+          className="w-44"
+        />
+        {(props.from || props.to) && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              props.setFrom("");
+              props.setTo("");
+            }}
+          >
+            сброс
+          </Button>
+        )}
       </div>
     </div>
   );

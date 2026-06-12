@@ -32,6 +32,16 @@ interface BroadcastFilter {
    */
   slugsAny?: string[];
   excludeSlugs?: string[];
+  /**
+   * Сегментация по «дате захода в бота». subscribedAt — когда подписчик
+   * впервые написал боту (нажал /start). lastSeenAt — последняя любая
+   * активность подписчика. Каждая граница опциональна, можно задавать
+   * только нижнюю или только верхнюю.
+   */
+  subscribedFrom?: string | Date;
+  subscribedTo?: string | Date;
+  lastSeenFrom?: string | Date;
+  lastSeenTo?: string | Date;
   subscriberIds?: string[];
 }
 
@@ -72,7 +82,30 @@ function buildWhere(botId: string, filter: BroadcastFilter): Prisma.TgSubscriber
       { lastTouchSlug: { in: filter.slugsAny } },
     ];
   }
+  // Диапазоны дат. JSON-фильтр может прийти с ISO-строками — coerce в Date.
+  const subRange = dateRange(filter.subscribedFrom, filter.subscribedTo);
+  if (subRange) where.subscribedAt = subRange;
+  const seenRange = dateRange(filter.lastSeenFrom, filter.lastSeenTo);
+  if (seenRange) where.lastSeenAt = seenRange;
   return where;
+}
+
+function dateRange(
+  from: string | Date | undefined,
+  to: string | Date | undefined
+): { gte?: Date; lte?: Date } | null {
+  const f = toDate(from);
+  const t = toDate(to);
+  if (!f && !t) return null;
+  const r: { gte?: Date; lte?: Date } = {};
+  if (f) r.gte = f;
+  if (t) r.lte = t;
+  return r;
+}
+function toDate(v: string | Date | undefined): Date | null {
+  if (!v) return null;
+  const d = v instanceof Date ? v : new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
 async function materializeRecipients(broadcast: TgBroadcast): Promise<number> {
