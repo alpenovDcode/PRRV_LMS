@@ -791,6 +791,17 @@ model PaymentSettings {
   restrictedMethods String[] @default([]) @map("restricted_methods")
   /// Single или Dual схема (одностадийная / с холдом)
   paymentSchema     String   @default("Single") @map("payment_schema")
+  /// Включён ли провайдер CloudPayments. Когда false, виджет
+  /// CloudPayments не показывается совсем — клиент видит только
+  /// активных альтернативных провайдеров (ОТП, Freshcredit).
+  cloudpaymentsEnabled Boolean @default(true) @map("cloudpayments_enabled")
+  /// Включён ли ОТП Банк как способ оплаты. По умолчанию true:
+  /// если env-секреты не заданы, провайдер всё равно недоступен;
+  /// флаг даёт админу выключить даже настроенного провайдера
+  /// (например, временно отозвать рассрочку).
+  otpEnabled        Boolean  @default(true) @map("otp_enabled")
+  /// Включён ли Freshcredit как способ оплаты. См. otpEnabled.
+  freshcreditEnabled Boolean @default(true) @map("freshcredit_enabled")
   updatedAt         DateTime @updatedAt @map("updated_at")
   updatedById       String?  @map("updated_by_id")
 

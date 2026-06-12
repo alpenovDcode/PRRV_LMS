@@ -32,6 +32,10 @@ const patchSchema = z.object({
     .max(8)
     .optional(),
   paymentSchema: z.enum(["Single", "Dual"]).optional(),
+  /** Глобальный тоггл провайдеров. False = на чек-ауте этот способ не показывается. */
+  cloudpaymentsEnabled: z.boolean().optional(),
+  otpEnabled: z.boolean().optional(),
+  freshcreditEnabled: z.boolean().optional(),
 });
 
 /**
@@ -56,8 +60,11 @@ export async function GET(req: NextRequest) {
       const otpPassword = !!process.env.OTP_PASSWORD;
       const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://prrv.tech";
 
+      // enabled = env-секреты заданы И админ не выключил вручную.
+      // configured показывает «технически готов», даже если выключен.
       const otp = {
-        enabled: !!otpShop,
+        configured: !!otpShop,
+        enabled: !!otpShop && (row as any).otpEnabled !== false,
         shopCodeMasked: otpShop
           ? otpShop.length > 4
             ? `${"•".repeat(Math.max(0, otpShop.length - 4))}${otpShop.slice(-4)}`
@@ -78,7 +85,9 @@ export async function GET(req: NextRequest) {
       const fcLogin = !!process.env.FC_LOGIN;
       const fcPassword = !!process.env.FC_PASSWORD;
       const freshcredit = {
-        enabled: !!fcPointId && fcLogin && fcPassword,
+        configured: !!fcPointId && fcLogin && fcPassword,
+        enabled:
+          !!fcPointId && fcLogin && fcPassword && (row as any).freshcreditEnabled !== false,
         pointIdMasked: fcPointId
           ? fcPointId.length > 6
             ? `${"•".repeat(Math.max(0, fcPointId.length - 6))}${fcPointId.slice(-6)}`

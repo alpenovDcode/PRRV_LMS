@@ -54,9 +54,22 @@ export async function GET(
   const orderAny = order as any;
   // ОТП / Freshcredit доступны, если на сервере заданы их базовые env.
   // По этим флагам фронт показывает соответствующие кнопки кредита/рассрочки.
-  const otpEnabled = !!process.env.OTP_SHOP_CODE;
-  const freshcreditEnabled =
+  const otpConfigured = !!process.env.OTP_SHOP_CODE;
+  const fcConfigured =
     !!process.env.FC_POINT_ID && !!process.env.FC_LOGIN && !!process.env.FC_PASSWORD;
+  // Тоггл из админки. Дефолты true — для свежих БД до миграции
+  // поведение не меняется. Реальная видимость кнопок = configured И enabled.
+  const settings = await db.paymentSettings.findUnique({
+    where: { id: "default" },
+    select: {
+      cloudpaymentsEnabled: true,
+      otpEnabled: true,
+      freshcreditEnabled: true,
+    } as any,
+  });
+  const cpEnabled = (settings as any)?.cloudpaymentsEnabled !== false;
+  const otpEnabled = otpConfigured && (settings as any)?.otpEnabled !== false;
+  const freshcreditEnabled = fcConfigured && (settings as any)?.freshcreditEnabled !== false;
   // needsGuestInfo: гостевой заказ без привязки к юзеру. Фронт по этому флагу
   // показывает форму «ФИО + email», прежде чем дать оплачивать. После
   // успешного POST /api/pay/[orderId]/identify флаг становится false и
@@ -77,6 +90,7 @@ export async function GET(
         orderAny.user?.fullName ?? orderAny.guestFullName ?? null,
       otpEnabled,
       freshcreditEnabled,
+      cloudpaymentsEnabled: cpEnabled,
       needsGuestInfo,
     },
   });
