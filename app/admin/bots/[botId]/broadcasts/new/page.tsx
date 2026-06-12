@@ -501,7 +501,8 @@ function MediaLibraryDialog({
           limit: 100,
         },
       });
-      return (r.data?.data?.files ?? []) as LibFile[];
+      // Сервер отдаёт { items, nextCursor, countsByKind }.
+      return (r.data?.data?.items ?? []) as LibFile[];
     },
   });
 
