@@ -22,6 +22,9 @@ interface PaymentSettings {
   object: number;
   restrictedMethods: string[];
   paymentSchema: "Single" | "Dual";
+  cloudpaymentsEnabled: boolean;
+  otpEnabled: boolean;
+  freshcreditEnabled: boolean;
   updatedAt: string;
 }
 
@@ -31,6 +34,9 @@ interface PaymentSettings {
  * shopCode, IP whitelist, наш webhook URL и флаги «настроено / нет».
  */
 interface FreshcreditStatus {
+  /** Технически готов (env заполнены) — независимо от admin-тоггла. */
+  configured: boolean;
+  /** Фактически активен (configured И admin не выключил вручную). */
   enabled: boolean;
   pointIdMasked: string | null;
   goodsCode: string;
@@ -42,6 +48,7 @@ interface FreshcreditStatus {
 }
 
 interface OtpStatus {
+  configured: boolean;
   enabled: boolean;
   shopCodeMasked: string | null;
   category: string;
@@ -161,6 +168,9 @@ export default function PaymentSettingsPage() {
   const [object, setObject] = useState(4);
   const [restrictedMethods, setRestrictedMethods] = useState<string[]>([]);
   const [paymentSchema, setPaymentSchema] = useState<"Single" | "Dual">("Single");
+  const [cloudpaymentsEnabled, setCloudpaymentsEnabled] = useState(true);
+  const [otpEnabled, setOtpEnabled] = useState(true);
+  const [freshcreditEnabled, setFreshcreditEnabled] = useState(true);
   const [advancedMode, setAdvancedMode] = useState(false);
 
   useEffect(() => {
@@ -177,6 +187,9 @@ export default function PaymentSettingsPage() {
           setObject(s.object);
           setRestrictedMethods(s.restrictedMethods);
           setPaymentSchema(s.paymentSchema);
+          setCloudpaymentsEnabled(s.cloudpaymentsEnabled ?? true);
+          setOtpEnabled(s.otpEnabled ?? true);
+          setFreshcreditEnabled(s.freshcreditEnabled ?? true);
           if (d.otp) setOtp(d.otp as OtpStatus);
           if (d.freshcredit) setFreshcredit(d.freshcredit as FreshcreditStatus);
         }
@@ -213,6 +226,9 @@ export default function PaymentSettingsPage() {
           object,
           restrictedMethods,
           paymentSchema,
+          cloudpaymentsEnabled,
+          otpEnabled,
+          freshcreditEnabled,
         }),
       });
       const data = await res.json();
@@ -437,34 +453,64 @@ export default function PaymentSettingsPage() {
         </div>
       </div>
 
-      {/* Restricted methods */}
-      <div className="bg-white border border-gray-200 rounded-xl p-5">
-        <h2 className="font-semibold text-gray-900 mb-1">Скрыть методы оплаты в виджете</h2>
-        <p className="text-xs text-gray-500 mb-3">
-          Отметь те, которые НЕ хочешь показывать клиенту. Пусто = все доступные методы видны.
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {PAYMENT_METHODS.map((m) => {
-            const hidden = restrictedMethods.includes(m.value);
-            return (
-              <label
-                key={m.value}
-                className="flex items-center gap-2 p-2 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer"
-              >
-                <input
-                  type="checkbox"
-                  checked={hidden}
-                  onChange={() => toggleMethod(m.value)}
-                />
-                <div className="text-sm">
-                  <span className={hidden ? "text-gray-400 line-through" : "text-gray-900"}>
-                    {m.label}
-                  </span>
-                </div>
-              </label>
-            );
-          })}
+      {/* CloudPayments — общий тоггл + список скрытых методов внутри. */}
+      <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+              <CreditCard className="w-5 h-5 text-blue-500" /> CloudPayments
+              <span className="text-xs font-normal text-gray-400">
+                карты, СБП, Pay-сервисы
+              </span>
+            </h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Основной провайдер. Выключите всю секцию, чтобы клиенты не
+              видели виджет CloudPayments совсем.
+            </p>
+          </div>
+          <Toggle
+            checked={cloudpaymentsEnabled}
+            onChange={setCloudpaymentsEnabled}
+          />
         </div>
+
+        {cloudpaymentsEnabled && (
+          <div className="border-t border-gray-100 pt-4">
+            <h3 className="text-sm font-medium text-gray-900 mb-1">
+              Скрыть отдельные методы в виджете
+            </h3>
+            <p className="text-xs text-gray-500 mb-3">
+              Отметь те, которые НЕ хочешь показывать клиенту. Пусто = все
+              доступные методы видны.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {PAYMENT_METHODS.map((m) => {
+                const hidden = restrictedMethods.includes(m.value);
+                return (
+                  <label
+                    key={m.value}
+                    className="flex items-center gap-2 p-2 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={hidden}
+                      onChange={() => toggleMethod(m.value)}
+                    />
+                    <div className="text-sm">
+                      <span
+                        className={
+                          hidden ? "text-gray-400 line-through" : "text-gray-900"
+                        }
+                      >
+                        {m.label}
+                      </span>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ─── ОТП Банк ─────────────────────────────────────────────── */}
@@ -481,18 +527,29 @@ export default function PaymentSettingsPage() {
               Альтернатива CloudPayments. Конфигурация в env (секреты не хранятся в БД).
             </p>
           </div>
-          {otp?.enabled ? (
-            <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-green-50 text-green-700 border border-green-200">
-              <CheckCircle className="w-3.5 h-3.5" /> Подключено
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-500 border border-gray-200">
-              <AlertTriangle className="w-3.5 h-3.5" /> Не настроено
-            </span>
-          )}
+          <div className="flex flex-col items-end gap-2">
+            {otp?.configured ? (
+              otp.enabled ? (
+                <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-green-50 text-green-700 border border-green-200">
+                  <CheckCircle className="w-3.5 h-3.5" /> Подключено
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                  <AlertTriangle className="w-3.5 h-3.5" /> Настроено, выключено
+                </span>
+              )
+            ) : (
+              <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-500 border border-gray-200">
+                <AlertTriangle className="w-3.5 h-3.5" /> Не настроено
+              </span>
+            )}
+            {otp?.configured && (
+              <Toggle checked={otpEnabled} onChange={setOtpEnabled} />
+            )}
+          </div>
         </div>
 
-        {otp?.enabled ? (
+        {otp?.configured ? (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
               <KV
@@ -593,18 +650,32 @@ export default function PaymentSettingsPage() {
               Альтернатива CloudPayments. Секреты в env, не в БД.
             </p>
           </div>
-          {freshcredit?.enabled ? (
-            <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-green-50 text-green-700 border border-green-200">
-              <CheckCircle className="w-3.5 h-3.5" /> Подключено
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-500 border border-gray-200">
-              <AlertTriangle className="w-3.5 h-3.5" /> Не настроено
-            </span>
-          )}
+          <div className="flex flex-col items-end gap-2">
+            {freshcredit?.configured ? (
+              freshcredit.enabled ? (
+                <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-green-50 text-green-700 border border-green-200">
+                  <CheckCircle className="w-3.5 h-3.5" /> Подключено
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                  <AlertTriangle className="w-3.5 h-3.5" /> Настроено, выключено
+                </span>
+              )
+            ) : (
+              <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-500 border border-gray-200">
+                <AlertTriangle className="w-3.5 h-3.5" /> Не настроено
+              </span>
+            )}
+            {freshcredit?.configured && (
+              <Toggle
+                checked={freshcreditEnabled}
+                onChange={setFreshcreditEnabled}
+              />
+            )}
+          </div>
         </div>
 
-        {freshcredit?.enabled ? (
+        {freshcredit?.configured ? (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
               <KV
@@ -721,6 +792,40 @@ export default function PaymentSettingsPage() {
         </button>
       </div>
     </div>
+  );
+}
+
+/** Свитч включения провайдера. Минималистичный — без библиотек. */
+function Toggle({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label className="flex items-center gap-2 cursor-pointer select-none">
+      <span className="text-xs text-gray-600">
+        {checked ? "Включён" : "Выключен"}
+      </span>
+      <span
+        className={`relative inline-block w-9 h-5 rounded-full transition-colors ${
+          checked ? "bg-blue-500" : "bg-gray-300"
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+            checked ? "translate-x-4" : ""
+          }`}
+        />
+      </span>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="sr-only"
+      />
+    </label>
   );
 }
 

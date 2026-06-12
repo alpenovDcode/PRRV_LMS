@@ -74,27 +74,54 @@ export async function POST(
   const returnUrl = `${appUrl}/pay/${order.id}/success`;
   const offerTitle = orderAny.snapshotOfferTitle ?? orderAny.offer?.title ?? "Оплата";
 
+  // Админ-тоггл провайдеров. Дефолты true, чтобы для свежих БД до
+  // миграции поведение не менялось.
+  const settings = await db.paymentSettings.findUnique({
+    where: { id: "default" },
+    select: {
+      cloudpaymentsEnabled: true,
+      otpEnabled: true,
+      freshcreditEnabled: true,
+    } as any,
+  });
+  const cpEnabled = (settings as any)?.cloudpaymentsEnabled !== false;
+  const otpEnabled = (settings as any)?.otpEnabled !== false;
+  const fcEnabled = (settings as any)?.freshcreditEnabled !== false;
+
   try {
     // Если фронт явно попросил конкретный метод — берём его. ОТП доступен
-    // только если задан OTP_SHOP_CODE (иначе провайдер не сконфигурирован).
+    // только если задан OTP_SHOP_CODE (иначе провайдер не сконфигурирован)
+    // И не выключен админом в /admin/settings/payments.
     let provider;
     if (methodParam === "otp") {
-      if (!process.env.OTP_SHOP_CODE) {
+      if (!process.env.OTP_SHOP_CODE || !otpEnabled) {
         return NextResponse.json(
-          { success: false, error: "ОТП Банк не подключён. Выберите другой способ оплаты." },
+          { success: false, error: "ОТП Банк сейчас недоступен. Выберите другой способ оплаты." },
           { status: 400 }
         );
       }
       provider = getProviderByName("otp" as ProviderName);
     } else if (methodParam === "freshcredit") {
-      if (!process.env.FC_POINT_ID || !process.env.FC_LOGIN) {
+      if (!process.env.FC_POINT_ID || !process.env.FC_LOGIN || !fcEnabled) {
         return NextResponse.json(
-          { success: false, error: "Freshcredit не подключён. Выберите другой способ оплаты." },
+          { success: false, error: "Freshcredit сейчас недоступен. Выберите другой способ оплаты." },
           { status: 400 }
         );
       }
       provider = getProviderByName("freshcredit" as ProviderName);
     } else {
+      // Дефолтный провайдер из env — обычно CloudPayments. Если админ
+      // выключил CP в настройках, отказываем (клиенту в виджете нечего
+      // показывать).
+      if (!cpEnabled) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Карточная оплата временно недоступна. Выберите другой способ оплаты.",
+          },
+          { status: 400 }
+        );
+      }
       provider = getProvider();
     }
     const payment = await provider.createPayment({

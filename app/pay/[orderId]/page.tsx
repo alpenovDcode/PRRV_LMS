@@ -25,10 +25,12 @@ interface OrderInfo {
   offerTitle: string;
   offerDescription: string | null;
   customerName: string | null;
-  /** Серверный флаг: подключен ли ОТП Банк (есть OTP_SHOP_CODE). */
+  /** ОТП доступен: env-секреты заданы И админ не выключил его в /admin/settings/payments. */
   otpEnabled: boolean;
-  /** Серверный флаг: подключен ли Freshcredit (есть FC_POINT_ID + FC_LOGIN/PASSWORD). */
+  /** Freshcredit доступен: env-секреты + админ-тоггл. */
   freshcreditEnabled: boolean;
+  /** CloudPayments включён в админке (env у CP всегда настроен). */
+  cloudpaymentsEnabled: boolean;
   /** true для гостевых ссылок: показываем форму «ФИО + email» перед оплатой. */
   needsGuestInfo: boolean;
 }
@@ -383,22 +385,25 @@ function PayContent() {
             </div>
           )}
 
-          {/* Основная кнопка — CloudPayments (карта / СБП / Долями / Рассрочка CP) */}
-          <button
-            onClick={() => handlePay("cloudpayments")}
-            disabled={!!paying}
-            className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-lg shadow-lg shadow-blue-500/25"
-          >
-            {paying === "cloudpayments" ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" /> Переходим к оплате…
-              </>
-            ) : (
-              <>
-                <CreditCard className="w-5 h-5" /> Оплатить
-              </>
-            )}
-          </button>
+          {/* Основная кнопка — CloudPayments (карта / СБП / Долями / Рассрочка CP).
+              Скрываем целиком, если CP выключен админом в /admin/settings/payments. */}
+          {order.cloudpaymentsEnabled !== false && (
+            <button
+              onClick={() => handlePay("cloudpayments")}
+              disabled={!!paying}
+              className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-lg shadow-lg shadow-blue-500/25"
+            >
+              {paying === "cloudpayments" ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" /> Переходим к оплате…
+                </>
+              ) : (
+                <>
+                  <CreditCard className="w-5 h-5" /> Оплатить
+                </>
+              )}
+            </button>
+          )}
 
           <div className="mt-5 flex flex-wrap gap-2 justify-center">
             {["Карта РФ / не РФ", "СБП", "Долями", "Рассрочка"].map((m) => (
