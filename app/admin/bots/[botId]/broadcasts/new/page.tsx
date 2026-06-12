@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,21 @@ export default function NewBroadcastPage() {
   const [newTag, setNewTag] = useState("");
   const [excludeTags, setExcludeTags] = useState<string[]>([]);
   const [newExclude, setNewExclude] = useState("");
+  const [slugsAny, setSlugsAny] = useState<string[]>([]);
+  const [newSlug, setNewSlug] = useState("");
+  const [excludeSlugs, setExcludeSlugs] = useState<string[]>([]);
+  const [newExcludeSlug, setNewExcludeSlug] = useState("");
   const [startNow, setStartNow] = useState(false);
+
+  // Подсказки по UTM-slug'ам — берём из трекинг-ссылок бота.
+  const { data: slugSuggestions } = useQuery({
+    queryKey: ["tg-tracking-links-slugs", botId],
+    queryFn: async () => {
+      const r = await apiClient.get(`/admin/tg/bots/${botId}/tracking-links`);
+      const links = (r.data?.data?.links ?? []) as Array<{ slug: string; name: string }>;
+      return links.map((l) => ({ slug: l.slug, name: l.name }));
+    },
+  });
 
   const create = useMutation({
     mutationFn: async () => {
@@ -49,6 +63,8 @@ export default function NewBroadcastPage() {
         filter: {
           tagsAny: tagsAny.length > 0 ? tagsAny : undefined,
           excludeTags: excludeTags.length > 0 ? excludeTags : undefined,
+          slugsAny: slugsAny.length > 0 ? slugsAny : undefined,
+          excludeSlugs: excludeSlugs.length > 0 ? excludeSlugs : undefined,
           allActive: true,
         },
         startNow,
@@ -126,8 +142,30 @@ export default function NewBroadcastPage() {
             input={newExclude}
             setInput={setNewExclude}
           />
+          <TagEditor
+            label="Включить по UTM-ссылке (slug — first/last touch):"
+            tags={slugsAny}
+            setTags={setSlugsAny}
+            input={newSlug}
+            setInput={setNewSlug}
+            placeholder="slug трекинг-ссылки"
+            datalistId="utm-slug-suggestions"
+            suggestions={slugSuggestions}
+          />
+          <TagEditor
+            label="Исключить по UTM-ссылке (slug):"
+            tags={excludeSlugs}
+            setTags={setExcludeSlugs}
+            input={newExcludeSlug}
+            setInput={setNewExcludeSlug}
+            placeholder="slug трекинг-ссылки"
+            datalistId="utm-slug-suggestions"
+            suggestions={slugSuggestions}
+          />
           <p className="text-xs text-muted-foreground">
-            Если оба списка пустые — рассылка отправится всем активным (не заблокировавшим бота) подписчикам.
+            UTM-сегмент матчит подписчиков, у которых slug совпадает с first_touch_slug
+            или last_touch_slug. Если все списки пустые — рассылка отправится всем активным
+            (не заблокировавшим бота) подписчикам.
           </p>
           <label className="flex items-center gap-2 text-sm pt-2">
             <input
@@ -159,6 +197,10 @@ function TagEditor(props: {
   setTags: (t: string[]) => void;
   input: string;
   setInput: (v: string) => void;
+  placeholder?: string;
+  /** Если задан — у инпута появляется <datalist> с подсказками. */
+  datalistId?: string;
+  suggestions?: Array<{ slug: string; name: string }>;
 }) {
   return (
     <div>
@@ -177,7 +219,8 @@ function TagEditor(props: {
         <Input
           value={props.input}
           onChange={(e) => props.setInput(e.target.value)}
-          placeholder="тег"
+          placeholder={props.placeholder ?? "тег"}
+          list={props.datalistId}
         />
         <Button
           size="sm"
@@ -191,6 +234,15 @@ function TagEditor(props: {
           добавить
         </Button>
       </div>
+      {props.datalistId && props.suggestions && props.suggestions.length > 0 && (
+        <datalist id={props.datalistId}>
+          {props.suggestions.map((s) => (
+            <option key={s.slug} value={s.slug}>
+              {s.name}
+            </option>
+          ))}
+        </datalist>
+      )}
     </div>
   );
 }

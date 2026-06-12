@@ -24,6 +24,14 @@ interface BroadcastFilter {
   tagsAny?: string[];
   tagsAll?: string[];
   excludeTags?: string[];
+  /**
+   * UTM-сегмент: включить подписчиков, у которых first_touch_slug ИЛИ
+   * last_touch_slug совпадает с одним из перечисленных slug'ов. Матчим
+   * оба touch-поля, чтобы захватить и тех, кто пришёл через ссылку
+   * впервые, и тех, кто на неё кликнул повторно.
+   */
+  slugsAny?: string[];
+  excludeSlugs?: string[];
   subscriberIds?: string[];
 }
 
@@ -42,8 +50,27 @@ function buildWhere(botId: string, filter: BroadcastFilter): Prisma.TgSubscriber
   if (filter.tagsAll && filter.tagsAll.length > 0) {
     where.tags = { ...(where.tags as object), hasEvery: filter.tagsAll };
   }
+  // tag-exclude и slug-exclude совместимы — складываем в массив NOT.
+  const notClauses: Prisma.TgSubscriberWhereInput[] = [];
   if (filter.excludeTags && filter.excludeTags.length > 0) {
-    where.NOT = { tags: { hasSome: filter.excludeTags } };
+    notClauses.push({ tags: { hasSome: filter.excludeTags } });
+  }
+  if (filter.excludeSlugs && filter.excludeSlugs.length > 0) {
+    notClauses.push({
+      OR: [
+        { firstTouchSlug: { in: filter.excludeSlugs } },
+        { lastTouchSlug: { in: filter.excludeSlugs } },
+      ],
+    });
+  }
+  if (notClauses.length > 0) {
+    where.NOT = notClauses;
+  }
+  if (filter.slugsAny && filter.slugsAny.length > 0) {
+    where.OR = [
+      { firstTouchSlug: { in: filter.slugsAny } },
+      { lastTouchSlug: { in: filter.slugsAny } },
+    ];
   }
   return where;
 }

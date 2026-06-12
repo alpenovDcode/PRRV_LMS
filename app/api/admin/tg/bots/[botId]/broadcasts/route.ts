@@ -31,6 +31,9 @@ const filterSchema = z.object({
   tagsAny: z.array(z.string()).optional(),
   tagsAll: z.array(z.string()).optional(),
   excludeTags: z.array(z.string()).optional(),
+  // UTM-сегмент: матчим по first_touch_slug ИЛИ last_touch_slug.
+  slugsAny: z.array(z.string()).optional(),
+  excludeSlugs: z.array(z.string()).optional(),
   subscriberIds: z.array(z.string()).optional(),
 });
 
