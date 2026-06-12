@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Send, X } from "lucide-react";
+import { Send, X, FlaskConical } from "lucide-react";
 
 export default function NewBroadcastPage() {
   const params = useParams<{ botId: string }>();
@@ -36,6 +36,7 @@ export default function NewBroadcastPage() {
   const [lastSeenFrom, setLastSeenFrom] = useState("");
   const [lastSeenTo, setLastSeenTo] = useState("");
   const [startNow, setStartNow] = useState(false);
+  const [testRecipients, setTestRecipients] = useState("");
 
   // Подсказки по UTM-slug'ам — берём из трекинг-ссылок бота.
   const { data: slugSuggestions } = useQuery({
@@ -96,6 +97,59 @@ export default function NewBroadcastPage() {
       router.push(`/admin/bots/${botId}/broadcasts`);
     },
     onError: (e: any) => toast.error(e?.response?.data?.error?.message || "Ошибка"),
+  });
+
+  const testSend = useMutation({
+    mutationFn: async () => {
+      const recipients = testRecipients
+        .split(/[\s,;]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (recipients.length === 0) {
+        throw new Error("Укажите хотя бы один chat_id или subscriber-id");
+      }
+      const buttonRows = buttonsText
+        .split("\n")
+        .map((l) => l.trim())
+        .filter(Boolean)
+        .map((l) => {
+          const [label, url] = l.split("|").map((s) => s.trim());
+          return [{ text: label, url }];
+        });
+      const r = await apiClient.post(
+        `/admin/tg/bots/${botId}/broadcasts/test-send`,
+        {
+          message: {
+            text,
+            photoUrl: photoUrl || undefined,
+            buttonRows: buttonRows.length > 0 ? buttonRows : undefined,
+          },
+          recipients,
+        }
+      );
+      return r.data?.data as {
+        sent: number;
+        total: number;
+        missing: string[];
+        results: Array<{ chatId: string; ok: boolean; error?: string }>;
+      };
+    },
+    onSuccess: (data) => {
+      const failed = data.results.filter((r) => !r.ok).length;
+      const missing = data.missing.length;
+      if (data.sent > 0 && failed === 0 && missing === 0) {
+        toast.success(`Отправлено ${data.sent} получателям`);
+      } else {
+        toast(
+          `Отправлено ${data.sent}/${data.total}. Не доставлено: ${failed}. Не найдено: ${missing}.`,
+          { duration: 6000 }
+        );
+      }
+    },
+    onError: (e: any) =>
+      toast.error(
+        e?.response?.data?.error?.message ?? e?.message ?? "Ошибка тестовой отправки"
+      ),
   });
 
   return (
@@ -208,6 +262,42 @@ export default function NewBroadcastPage() {
             />
             Запустить сразу (иначе сохраним как черновик).
           </label>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">
+            Тестовая отправка
+            <span className="ml-2 text-xs text-muted-foreground font-normal">
+              до 5 получателей, не влияет на статистику основной рассылки
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div>
+            <Label>chat_id или subscriber-id через пробел/запятую</Label>
+            <Input
+              value={testRecipients}
+              onChange={(e) => setTestRecipients(e.target.value)}
+              placeholder="123456789, 987654321"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              chat_id видно в карточке подписчика. Подставьте 1-2 своих
+              тестовых аккаунта.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => testSend.mutate()}
+            disabled={
+              !text.trim() || !testRecipients.trim() || testSend.isPending
+            }
+          >
+            <FlaskConical className="mr-2 h-4 w-4" />
+            {testSend.isPending ? "Отправляю…" : "Отправить тест"}
+          </Button>
         </CardContent>
       </Card>
 
