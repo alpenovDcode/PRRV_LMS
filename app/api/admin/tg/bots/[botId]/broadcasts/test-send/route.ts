@@ -108,7 +108,15 @@ export async function POST(
           results.push({
             chatId: s.chatId,
             ok: res.ok,
-            error: res.ok ? undefined : "send failed",
+            // Пробрасываем точную ошибку Telegram (errorCode + description)
+            // — иначе админ видит «send failed» и не знает, что чинить.
+            error: res.ok
+              ? undefined
+              : res.errorMessage
+              ? `${res.errorCode ? `[${res.errorCode}] ` : ""}${res.errorMessage}`
+              : res.blocked
+              ? "пользователь заблокировал бота"
+              : "Telegram отверг сообщение",
           });
         } catch (e) {
           results.push({

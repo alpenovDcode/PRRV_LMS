@@ -199,16 +199,23 @@ export default function NewBroadcastPage() {
       };
     },
     onSuccess: (data) => {
-      const failed = data.results.filter((r) => !r.ok).length;
-      const missing = data.missing.length;
-      if (data.sent > 0 && failed === 0 && missing === 0) {
+      const failed = data.results.filter((r) => !r.ok);
+      const missing = data.missing;
+      if (data.sent > 0 && failed.length === 0 && missing.length === 0) {
         toast.success(`Отправлено ${data.sent} получателям`);
-      } else {
-        toast(
-          `Отправлено ${data.sent}/${data.total}. Не доставлено: ${failed}. Не найдено: ${missing}.`,
-          { duration: 6000 }
-        );
+        return;
       }
+      // Показываем реальные ошибки Telegram, чтобы можно было починить.
+      const errorLines = failed
+        .map((r) => `${r.chatId}: ${r.error ?? "неизвестная ошибка"}`)
+        .slice(0, 3);
+      const missingLines = missing.slice(0, 3).map((m) => `${m}: не найден в базе`);
+      const lines = [
+        `Отправлено ${data.sent}/${data.total}`,
+        ...errorLines,
+        ...missingLines,
+      ];
+      toast.error(lines.join("\n"), { duration: 12000 });
     },
     onError: (e: any) =>
       toast.error(
