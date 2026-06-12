@@ -63,6 +63,13 @@ const CHANNEL_COLUMNS = [
   "channels_invite_names",
 ] as const;
 
+// Активность по рассылкам / ссылкам (TgBroadcastRecipient + TgRedirectLink).
+const ENGAGEMENT_COLUMNS = [
+  "broadcasts_received",     // сколько рассылок реально доставлено
+  "link_clicks",             // всего кликов по трекинг-ссылкам
+  "last_link_click_at",      // время последнего клика
+] as const;
+
 // CJM-колонки в конце.
 const CJM_COLUMNS = ["journey", "last_flow", "last_node"] as const;
 
@@ -80,6 +87,7 @@ const JOURNEY_EVENT_TYPES = new Set<string>([
   "list.joined",
   "list.left",
   "broadcast.delivered",
+  "redirect.clicked",
   "scheduled_flow.completed",
 ]);
 
@@ -97,6 +105,7 @@ const EVENT_LABEL: Record<string, string> = {
   "list.joined": "в список",
   "list.left": "из списка",
   "broadcast.delivered": "рассылка",
+  "redirect.clicked": "клик по ссылке",
   "scheduled_flow.completed": "плановый сценарий",
 };
 
@@ -206,6 +215,49 @@ export async function GET(
         }
       }
 
+      // ── Активность по рассылкам и трекинг-ссылкам. ─────────────────
+      // Рассылки считаем по TgBroadcastRecipient.status=sent — это значит,
+      // сообщение успешно отправлено в Telegram (не учитываем skipped/failed).
+      const engagementBySub = new Map<
+        string,
+        { broadcasts: number; clicks: number; lastClickAt: Date | null }
+      >();
+      if (subIds.length > 0) {
+        const recs = await db.tgBroadcastRecipient.groupBy({
+          by: ["subscriberId"],
+          where: { subscriberId: { in: subIds }, status: "sent" },
+          _count: { _all: true },
+        });
+        for (const r of recs) {
+          const cur = engagementBySub.get(r.subscriberId) ?? {
+            broadcasts: 0,
+            clicks: 0,
+            lastClickAt: null as Date | null,
+          };
+          cur.broadcasts = r._count._all;
+          engagementBySub.set(r.subscriberId, cur);
+        }
+        // Клики берём из tg_redirect_links: clickCount уже агрегирован,
+        // last_click_at — самый свежий клик по любой ссылке подписчика.
+        const links = await db.tgRedirectLink.findMany({
+          where: { botId, subscriberId: { in: subIds }, clickCount: { gt: 0 } },
+          select: { subscriberId: true, clickCount: true, lastClickAt: true },
+        });
+        for (const l of links) {
+          if (!l.subscriberId) continue;
+          const cur = engagementBySub.get(l.subscriberId) ?? {
+            broadcasts: 0,
+            clicks: 0,
+            lastClickAt: null as Date | null,
+          };
+          cur.clicks += l.clickCount;
+          if (l.lastClickAt && (!cur.lastClickAt || l.lastClickAt > cur.lastClickAt)) {
+            cur.lastClickAt = l.lastClickAt;
+          }
+          engagementBySub.set(l.subscriberId, cur);
+        }
+      }
+
       // ── Подключённые каналы и активные membership'ы подписчика. ────
       // Считаем только status NOT IN (left, kicked) — то есть «сейчас
       // числится в канале».
@@ -287,6 +339,7 @@ export async function GET(
         ...BASE_COLUMNS,
         ...customHeaders,
         ...CHANNEL_COLUMNS,
+        ...ENGAGEMENT_COLUMNS,
         ...CJM_COLUMNS,
       ];
       const rows: string[] = ["﻿" + allHeaders.map(csvEscape).join(";")];
@@ -355,10 +408,17 @@ export async function GET(
           (ch?.inviteNames ?? []).join(","),
         ];
 
+        const eng = engagementBySub.get(s.id);
+        const engagementRow = [
+          String(eng?.broadcasts ?? 0),
+          String(eng?.clicks ?? 0),
+          eng?.lastClickAt ? eng.lastClickAt.toISOString() : "",
+        ];
+
         const cjmRow = [journey, lastFlow, lastNode];
 
         rows.push(
-          [...baseRow, ...customRow, ...channelsRow, ...cjmRow]
+          [...baseRow, ...customRow, ...channelsRow, ...engagementRow, ...cjmRow]
             .map(csvEscape)
             .join(";")
         );
@@ -404,6 +464,8 @@ function formatJourneyStep(
     if (typeof p.triggerType === "string") detail = String(p.triggerType);
   } else if (e.type === "broadcast.delivered") {
     if (typeof p.broadcastName === "string") detail = `«${p.broadcastName}»`;
+  } else if (e.type === "redirect.clicked") {
+    if (typeof p.target === "string") detail = p.target;
   }
   return `${time} ${label}${detail ? " " + detail : ""}`;
 }
