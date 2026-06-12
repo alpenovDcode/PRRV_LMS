@@ -79,12 +79,16 @@ function buildTrackedUrl(slug: string, subscriberId?: string): string {
 // Rewrite URL-buttons in a payload so each one points to /r/<slug>.
 // Buttons without `url` or with `trackClicks === false` pass through.
 // Returns a NEW payload — caller should send this, not the original.
+//
+// flowId/nodeId опциональны: для рассылок и для ручных ответов оператора
+// мы тоже хотим трекать клики, но они не привязаны к flow. Атрибуция в этом
+// случае идёт через subscriberId + targetUrl + время клика.
 export async function rewriteUrlButtons(args: {
   payload: FlowMessagePayload;
   botId: string;
   subscriberId: string;
-  flowId: string;
-  nodeId: string;
+  flowId?: string;
+  nodeId?: string;
 }): Promise<FlowMessagePayload> {
   if (!args.payload.buttonRows || args.payload.buttonRows.length === 0) {
     return args.payload;

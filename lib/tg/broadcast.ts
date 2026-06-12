@@ -15,6 +15,7 @@
 import { db } from "../db";
 import { messagePayloadSchema, type FlowMessagePayload } from "./flow-schema";
 import { sendBotMessage } from "./sender";
+import { rewriteUrlButtons } from "./redirect-tracking";
 import { buildEvalContext, snapBot, snapSubscriber } from "./vars";
 import { trackEvent } from "./events";
 import type { TgBot, TgBroadcast, TgSubscriber, Prisma } from "@prisma/client";
@@ -286,12 +287,21 @@ async function sendOne(
     return;
   }
 
+  // Оборачиваем URL-кнопки в /r/<slug>?s=<subscriberId>, чтобы клики
+  // считались с привязкой к подписчику (тот же механизм, что в flow-engine).
+  // Без trackClicks=false кнопки переписываются по умолчанию.
+  const trackedPayload = await rewriteUrlButtons({
+    payload,
+    botId: bot.id,
+    subscriberId: rec.subscriber.id,
+  }).catch(() => payload); // best-effort: если редирект-трекинг лёг, шлём как есть
+
   const res = await sendBotMessage({
     botId: bot.id,
     encryptedToken: bot.tokenEncrypted,
     subscriberId: rec.subscriber.id,
     chatId: rec.subscriber.chatId,
-    payload,
+    payload: trackedPayload,
     renderCtx: buildEvalContext({
       subscriber: snapSubscriber(rec.subscriber),
       bot: snapBot(bot),
