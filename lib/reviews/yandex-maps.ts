@@ -1,5 +1,6 @@
 import type { ScrapedReview } from "./otzovik";
 import { parseReviewDate } from "./date-utils";
+import { proxyFetch } from "./proxy-fetch";
 
 const ORG_ID = "52378530429";
 const ORG_SLUG = "akademiya_proryv";
@@ -25,15 +26,8 @@ export async function scrapeYandexMaps(
     const url = buildUrl(page);
     let html: string;
     try {
-      const res = await fetch(url, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-          Accept: "text/html,application/xhtml+xml",
-          "Accept-Language": "ru-RU,ru;q=0.9",
-          "Cache-Control": "no-cache",
-        },
-        signal: AbortSignal.timeout(20_000),
-      });
+      // js: true — Яндекс Карты подгружают отзывы через JS, нужно ждать рендера.
+      const res = await proxyFetch(url, { js: true, country: "RU", timeoutMs: 90_000 });
       if (!res.ok) break;
       html = await res.text();
     } catch {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/api-middleware";
 import { UserRole } from "@prisma/client";
 import { ApiResponse } from "@/types";
+import { proxyFetch, isProxyConfigured } from "@/lib/reviews/proxy-fetch";
 
 /**
  * Диагностический эндпоинт для отладки скрапинга отзывов.
@@ -40,15 +41,7 @@ export async function GET(request: NextRequest) {
 
 async function debugOtzovik() {
   const targetUrl = "https://otzovik.com/reviews/akademiya_proriv-elizaveta_vasileva/";
-  const res = await fetch(targetUrl, {
-    headers: {
-      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-      Accept: "text/html,application/xhtml+xml",
-      "Accept-Language": "ru-RU,ru;q=0.9",
-    },
-    signal: AbortSignal.timeout(15_000),
-  });
-
+  const res = await proxyFetch(targetUrl, { country: "RU", timeoutMs: 30_000 });
   const html = await res.text();
   const blocks = html.split(/(?=<[^>]+itemtype="http:\/\/schema\.org\/Review")/);
 
@@ -80,6 +73,7 @@ async function debugOtzovik() {
     success: true,
     data: {
       source: "otzovik",
+      proxyConfigured: isProxyConfigured(),
       status: res.status,
       htmlLength: html.length,
       blockCount: blocks.length,
@@ -92,7 +86,6 @@ async function debugYandex() {
   const ORG_ID = "52378530429";
   const ORG_SLUG = "akademiya_proryv";
   const variants = [
-    { name: "default", url: `https://yandex.kz/maps/org/${ORG_SLUG}/${ORG_ID}/reviews/` },
     { name: "by_time", url: `https://yandex.kz/maps/org/${ORG_SLUG}/${ORG_ID}/reviews/?ranking=by_time` },
     { name: "yandex.ru", url: `https://yandex.ru/maps/org/${ORG_SLUG}/${ORG_ID}/reviews/?ranking=by_time` },
   ];
@@ -100,15 +93,7 @@ async function debugYandex() {
   const results = await Promise.all(
     variants.map(async (v) => {
       try {
-        const res = await fetch(v.url, {
-          headers: {
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-            Accept: "text/html,application/xhtml+xml",
-            "Accept-Language": "ru-RU,ru;q=0.9",
-            "Cache-Control": "no-cache",
-          },
-          signal: AbortSignal.timeout(20_000),
-        });
+        const res = await proxyFetch(v.url, { js: true, country: "RU", timeoutMs: 90_000 });
         const html = await res.text();
 
         const chunks = html.split(/"reviewId":/);
@@ -160,6 +145,6 @@ async function debugYandex() {
 
   return NextResponse.json<ApiResponse>({
     success: true,
-    data: { source: "yandex_maps", results },
+    data: { source: "yandex_maps", proxyConfigured: isProxyConfigured(), results },
   });
 }

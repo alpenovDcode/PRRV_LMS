@@ -1,4 +1,5 @@
 import { parseReviewDate } from "./date-utils";
+import { proxyFetch } from "./proxy-fetch";
 
 export interface ScrapedReview {
   externalId: string;
@@ -29,14 +30,7 @@ export async function scrapeOtzovik(
     const url = page === 1 ? BASE_URL : `${BASE_URL}?page=${page}`;
     let html: string;
     try {
-      const res = await fetch(url, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-          Accept: "text/html,application/xhtml+xml",
-          "Accept-Language": "ru-RU,ru;q=0.9",
-        },
-        signal: AbortSignal.timeout(15_000),
-      });
+      const res = await proxyFetch(url, { country: "RU", timeoutMs: 30_000 });
       if (!res.ok) break;
       html = await res.text();
     } catch {
@@ -108,13 +102,7 @@ async function fetchOfficialResponses(ids: string[]): Promise<Map<string, string
     await Promise.all(
       batch.map(async (id) => {
         try {
-          const res = await fetch(REVIEW_URL(id), {
-            headers: {
-              "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-              "Accept-Language": "ru-RU,ru;q=0.9",
-            },
-            signal: AbortSignal.timeout(12_000),
-          });
+          const res = await proxyFetch(REVIEW_URL(id), { country: "RU", timeoutMs: 20_000 });
           if (!res.ok) return;
           const html = await res.text();
           const response = extractOfficialComment(html);
