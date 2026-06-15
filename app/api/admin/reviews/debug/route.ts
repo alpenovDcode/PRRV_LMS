@@ -93,19 +93,25 @@ async function debugYandex() {
   const results = await Promise.all(
     variants.map(async (v) => {
       try {
-        const res = await proxyFetch(v.url, { js: true, country: "RU", timeoutMs: 90_000 });
+        const res = await proxyFetch(v.url, {
+          js: true,
+          ajaxWait: true,
+          pageWait: 3000,
+          country: "RU",
+          timeoutMs: 120_000,
+        });
         const html = await res.text();
 
         const chunks = html.split(/"reviewId":/);
-        const sampleReviews: Array<{
-          externalId: string | null;
+        const allReviews: Array<{
+          externalId: string;
           updatedTime: string | null;
           author: string | null;
-          rating: number | null;
+          rating: number;
         }> = [];
         const seen = new Set<string>();
 
-        for (let i = 1; i < chunks.length && sampleReviews.length < 8; i++) {
+        for (let i = 1; i < chunks.length; i++) {
           const chunk = chunks[i];
           const idMatch = chunk.match(/^"([^"]+)"/);
           const externalId = idMatch?.[1];
@@ -120,7 +126,7 @@ async function debugYandex() {
           const authorMatch = chunk.match(/"author":\{"name":"([^"]+)"/);
           const dateMatch = chunk.match(/"updatedTime":"([^"]+)"/);
 
-          sampleReviews.push({
+          allReviews.push({
             externalId,
             updatedTime: dateMatch?.[1] ?? null,
             author: authorMatch?.[1] ?? null,
@@ -128,14 +134,17 @@ async function debugYandex() {
           });
         }
 
+        // Сортируем по дате DESC чтобы сразу было видно есть ли свежие отзывы.
+        allReviews.sort((a, b) => (b.updatedTime ?? "").localeCompare(a.updatedTime ?? ""));
+
         return {
           variant: v.name,
           url: v.url,
           status: res.status,
           htmlLength: html.length,
           chunkCount: chunks.length,
-          uniqueReviewsParsed: sampleReviews.length,
-          sampleReviews,
+          uniqueReviewsParsed: allReviews.length,
+          top10ByDate: allReviews.slice(0, 10),
         };
       } catch (e) {
         return { variant: v.name, url: v.url, error: String(e) };

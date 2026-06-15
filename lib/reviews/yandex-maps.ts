@@ -26,8 +26,15 @@ export async function scrapeYandexMaps(
     const url = buildUrl(page);
     let html: string;
     try {
-      // js: true — Яндекс Карты подгружают отзывы через JS, нужно ждать рендера.
-      const res = await proxyFetch(url, { js: true, country: "RU", timeoutMs: 90_000 });
+      // js: true + ajaxWait — Яндекс Карты грузят отзывы AJAX-ом после рендера,
+      // нужно дождаться этих запросов прежде чем снимать HTML.
+      const res = await proxyFetch(url, {
+        js: true,
+        ajaxWait: true,
+        pageWait: 3000,
+        country: "RU",
+        timeoutMs: 120_000,
+      });
       if (!res.ok) break;
       html = await res.text();
     } catch {

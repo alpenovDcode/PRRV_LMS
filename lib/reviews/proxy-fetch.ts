@@ -22,6 +22,10 @@ interface ProxyFetchOptions {
   timeoutMs?: number;
   /** Код страны прокси (ru, kz, us...). */
   country?: string;
+  /** Ждать AJAX-запросы перед снятием HTML (для SPA). */
+  ajaxWait?: boolean;
+  /** Доп. задержка после рендера в мс. */
+  pageWait?: number;
 }
 
 const CRAWLBASE_ENDPOINT = "https://api.crawlbase.com/";
@@ -30,7 +34,7 @@ export async function proxyFetch(
   targetUrl: string,
   options: ProxyFetchOptions = {}
 ): Promise<Response> {
-  const { js = false, timeoutMs = js ? 60_000 : 30_000, country } = options;
+  const { js = false, timeoutMs = js ? 60_000 : 30_000, country, ajaxWait, pageWait } = options;
 
   const token = js
     ? process.env.CRAWLBASE_JS_TOKEN
@@ -51,6 +55,8 @@ export async function proxyFetch(
 
   const params = new URLSearchParams({ token, url: targetUrl });
   if (country) params.set("country", country);
+  if (js && ajaxWait) params.set("ajax_wait", "true");
+  if (js && pageWait) params.set("page_wait", String(pageWait));
 
   return fetch(`${CRAWLBASE_ENDPOINT}?${params.toString()}`, {
     signal: AbortSignal.timeout(timeoutMs),
