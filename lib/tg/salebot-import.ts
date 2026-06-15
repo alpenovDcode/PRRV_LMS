@@ -452,18 +452,42 @@ function buildExitForConnections(
     !(c.compare_variable ?? "").trim()
   );
 
-  // Только безусловные → один bridge на первую, остальные документируем.
+  // Только безусловные. Один выход → прямая связь. Несколько → split-нода
+  // с равными весами на каждую ветку: визуально граф связан и валидатор
+  // считает все ветки достижимыми. Семантически Salebot выполнял ветки
+  // параллельно, у нас split выберет одну случайную — пользователю
+  // придётся переделать вручную, но как минимум он увидит все ветки.
   if (conditional.length === 0) {
-    if (unconditional.length > 1) {
-      report.unmapped.push({
-        salebotId: unconditional[0].message_a_id,
-        reason: `Fan-out из ${unconditional.length} веток без условий — импортирована только первая (в LMS нет параллельных веток)`,
-      });
+    if (unconditional.length === 1) {
+      const c = unconditional[0];
+      const targetId = idMap.get(c.message_b_id);
+      if (!targetId) return undefined;
+      return wrapWithBridge(c, targetId, bridges, report);
     }
-    const c = unconditional[0];
-    const targetId = idMap.get(c.message_b_id);
-    if (!targetId) return undefined;
-    return wrapWithBridge(c, targetId, bridges, report);
+    report.unmapped.push({
+      salebotId: unconditional[0].message_a_id,
+      reason: `Fan-out из ${unconditional.length} веток (Salebot выполнял параллельно) импортирован как A/B split — выбор одной случайной. Переделайте вручную если нужна параллельность.`,
+    });
+    const branches: Array<{ label: string; weight: number; next?: string }> = [];
+    for (let i = 0; i < unconditional.length; i++) {
+      const c = unconditional[i];
+      const targetId = idMap.get(c.message_b_id);
+      if (!targetId) continue;
+      const next = wrapWithBridge(c, targetId, bridges, report);
+      branches.push({ label: `Ветка ${i + 1}`, weight: 1, next });
+    }
+    if (branches.length < 2) {
+      // Едва ли возможно после фильтров, но fallback — прямая связь.
+      return branches[0]?.next;
+    }
+    const splitId = randomUUID();
+    bridges.push({
+      id: splitId,
+      type: "split",
+      label: `Fan-out (${branches.length})`,
+      branches: branches as Array<{ label: string; weight: number; next: string }>,
+    });
+    return splitId;
   }
 
   // Есть условные → condition.

@@ -72,7 +72,7 @@ export function validateFlow(
   //    completed; OK, но автор может не знать что путь молча обрывается
   //    на середине).
   // ---------------------------------------------------------------------
-  const reachable = computeReachable(graph);
+  const reachable = computeReachable(graph, triggers);
 
   // ---------------------------------------------------------------------
   // 4) По каждой ноде — узко-семантические проверки.
@@ -281,16 +281,49 @@ function hasButtonExit(node: FlowNode): boolean {
   );
 }
 
-// BFS от startNode. Не путать с reachable от триггерной псевдо-ноды
-// в редакторе — здесь логический граф, без UI-узла триггера.
-function computeReachable(graph: FlowGraph): Set<string> {
+// BFS от startNode + от каждого триггера со своим startAt + от всех нод
+// без входящих рёбер (корней). Триггеры (link_clicked, external_event,
+// tag_added) — равноправные точки входа: подграф под ними может быть
+// «недостижим» из главного startNodeId, но всё равно живой.
+// Корни без incoming — это либо точки входа, которые автор подключит
+// goto_flow’ом / Manual Run’ом, либо импортированные подграфы (Salebot
+// reactive-блоки), для которых триггер LMS подобрать не удалось. Их
+// нужно считать достижимыми, чтобы не плодить ложные предупреждения.
+function computeReachable(graph: FlowGraph, triggers: FlowTrigger[]): Set<string> {
   const visited = new Set<string>();
-  if (!graph.startNodeId) return visited;
   const byId = new Map<string, FlowNode>();
   for (const n of graph.nodes) byId.set(n.id, n);
 
-  const queue: string[] = [graph.startNodeId];
-  visited.add(graph.startNodeId);
+  // Сначала посчитаем incoming для каждой ноды.
+  const incoming = new Map<string, number>();
+  for (const n of graph.nodes) incoming.set(n.id, 0);
+  for (const n of graph.nodes) {
+    for (const ref of outgoingRefs(n)) {
+      if (ref && incoming.has(ref)) {
+        incoming.set(ref, (incoming.get(ref) ?? 0) + 1);
+      }
+    }
+  }
+
+  const seeds: string[] = [];
+  if (graph.startNodeId && byId.has(graph.startNodeId)) {
+    seeds.push(graph.startNodeId);
+  }
+  for (const t of triggers) {
+    const sa = (t as { advanced?: { startAt?: string } }).advanced?.startAt;
+    if (sa && byId.has(sa)) seeds.push(sa);
+  }
+  for (const [id, cnt] of incoming) {
+    if (cnt === 0) seeds.push(id);
+  }
+
+  const queue: string[] = [];
+  for (const s of seeds) {
+    if (!visited.has(s)) {
+      visited.add(s);
+      queue.push(s);
+    }
+  }
   while (queue.length > 0) {
     const id = queue.shift()!;
     const n = byId.get(id);
