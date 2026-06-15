@@ -36,7 +36,9 @@ export const inlineActionsSchema = z.object({
   removeTags: z.array(z.string().min(1).max(64)).max(20).optional(),
   addToLists: z.array(z.string().min(1)).max(20).optional(),
   removeFromLists: z.array(z.string().min(1)).max(20).optional(),
-  setVariables: z.array(setVariableActionSchema).max(20).optional(),
+  // Лимит 50 — нормальный потолок для Salebot-импорта (entry-нода
+  // воронки часто инициализирует 20-30 флагов состояния разом).
+  setVariables: z.array(setVariableActionSchema).max(50).optional(),
 });
 export type InlineActions = z.infer<typeof inlineActionsSchema>;
 

@@ -458,14 +458,26 @@ function mapMessageToNode(
   }
 
   if (kind === "reactive") {
-    // Реактивные ноды обрабатываются отдельным flow — здесь они не должны
-    // попадать в обычный граф. Если вдруг попали (например цикл) — note.
+    // Реактивная нода в Salebot обычно ставит флаг (например
+    // autointensive0426_web_d1_was = 1) — это нужно сохранить как
+    // actions-ноду, иначе после триггера ничего не происходит.
+    // Если variables пусто — оставляем note (нечего делать).
+    const setVars = parseSalebotVariables(sb.variables);
+    if (setVars.length > 0) {
+      return {
+        id: ourId,
+        type: "actions",
+        label,
+        next: baseNext,
+        actions: { setVariables: setVars },
+      };
+    }
     return {
       id: ourId,
       type: "note",
       label,
       next: baseNext,
-      text: `Реактивная нода — обрабатывается отдельным flow`,
+      text: `Реактивная нода без variables: ${sb.description ?? ""}`,
     };
   }
 
@@ -474,6 +486,11 @@ function mapMessageToNode(
   // содержимое самого payload идентично.
   report.mapped.message++;
   const payload = mapPayload(sb);
+  // Salebot-ноды могут попутно ставить переменные — кладём их в onSend.
+  const setVars = parseSalebotVariables(sb.variables);
+  if (setVars.length > 0) {
+    payload.onSend = { setVariables: setVars };
+  }
   return {
     id: ourId,
     type: "message",
@@ -657,6 +674,40 @@ function parseSavedVariablesDSL(
     out.push({ jsonPath: left, target: right });
   }
   return out.length > 0 ? out : undefined;
+}
+
+/**
+ * Парсит Salebot-DSL поля `variables` (одна или несколько строк
+ * вида `key = value`, разделители \n или ;, /* комментарии */ /* пропускаем).
+ * Возвращает массив для inlineActions.setVariables.
+ *
+ * Имена ключей без префикса считаем client-scope (как делает Salebot).
+ * Шаблоны #{var} в значении конвертируем в наши {{var}}.
+ */
+function parseSalebotVariables(
+  raw: string | null | undefined
+): Array<{ key: string; value: string }> {
+  if (!raw) return [];
+  const out: Array<{ key: string; value: string }> = [];
+  for (const chunk of raw.split(/[\n;]+/)) {
+    let s = chunk.trim();
+    if (!s) continue;
+    // вырезаем /* ... */ комментарии (могут быть один-в-строке).
+    s = s.replace(/\/\*[\s\S]*?\*\//g, "").trim();
+    if (!s) continue;
+    const eq = s.indexOf("=");
+    if (eq <= 0) continue;
+    const key = s.slice(0, eq).trim();
+    const value = s.slice(eq + 1).trim();
+    if (!key) continue;
+    // Префикс scope не задан — Salebot пишет в client-scope; наша engine
+    // тоже пишет туда по умолчанию (см. setVarScoped).
+    out.push({
+      key: key.length > 80 ? key.slice(0, 80) : key,
+      value: convertSalebotTemplates(value) ?? value,
+    });
+  }
+  return out;
 }
 
 /**
