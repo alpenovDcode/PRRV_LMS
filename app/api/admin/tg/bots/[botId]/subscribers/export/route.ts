@@ -11,9 +11,17 @@
  *   • ВСЕ кастомные поля бота (TgCustomField) — по колонке на каждое,
  *     заголовок = label поля.
  *   • Активность: subscribed_at, last_seen_at, messages_in, messages_out.
- *   • CJM (путь клиента): journey — компактная хронология вех (запуск
- *     сценария, теги, триггеры, рассылки) одной колонкой; last_flow и
- *     last_node — где подписчик сейчас в воронке.
+ *   • Каналы: channels_joined, channels_first_join_at, channels_invite_names.
+ *   • Маркетинг (всё что во вкладке «Маркетинг» досье):
+ *       - конверсия по воронкам: flows_started/completed/cancelled/failed
+ *         + conversion_rate (%);
+ *       - кнопки: button_clicks (нажатий по inline-кнопкам);
+ *       - ссылки: link_clicks_detail (детально по slug: "slug=N", через ;);
+ *       - A/B: ab_variants (выбранные варианты split-ноды);
+ *       - рассылки: broadcasts_detail (Имя:status:дата через ;);
+ *       - история тегов/списков: tag_history (+тег ДД.ММ; -список ДД.ММ);
+ *       - first_touch_name / last_touch_name — название tracking link.
+ *   • CJM-сводка: journey (компактная строка вех), last_flow, last_node.
  *
  * Колонки до custom-полей фиксированы — на них могут быть завязаны
  * IMPORTDATA / автоэкспорт. Кастомные поля идут после фиксированных.
@@ -70,43 +78,70 @@ const ENGAGEMENT_COLUMNS = [
   "last_link_click_at",      // время последнего клика
 ] as const;
 
+// Маркетинговая часть досье — точно те же сущности, что во вкладке
+// «Маркетинг» карточки лида (lead-marketing.tsx). Колонки идут перед
+// CJM-сводкой, чтобы фиксированные позиции до этого блока не съезжали.
+const MARKETING_COLUMNS = [
+  // Конверсия по воронкам (по TgFlowRun.status).
+  "flows_started",
+  "flows_completed",
+  "flows_cancelled",
+  "flows_failed",
+  "conversion_rate",         // процент: completed / started * 100
+  // Взаимодействие.
+  "button_clicks",           // нажатий по inline-кнопкам (callbackData != null)
+  // Клики по ссылкам в разрезе slug: "MnHFzygH74=2; prepodavai_varya=1".
+  "link_clicks_detail",
+  // A/B-эксперименты: список выбранных вариантов через "; "
+  // (например "headline-v1; cta-blue").
+  "ab_variants",
+  // Имя tracking-link для first / last touch (UTM-кампания «по-человечески»).
+  "first_touch_name",
+  "last_touch_name",
+  // Полученные рассылки — "Имя:status:дата" через "; ".
+  "broadcasts_detail",
+  // История тегов и списков: "+тег ДД.ММ; -тег ДД.ММ; +список ДД.ММ".
+  "tag_history",
+] as const;
+
 // CJM-колонки в конце.
 const CJM_COLUMNS = ["journey", "last_flow", "last_node"] as const;
 
-// Типы событий, попадающие в journey (вехи пути; шум message.* исключаем).
+// Типы событий, попадающие в journey (вехи пути; шум message.*/node_executed
+// исключаем — это десятки тысяч строк на активного лида).
+// ВАЖНО: имена должны совпадать с теми, что trackEvent пишет в БД
+// (см. lib/tg/events.ts → TgEventType). Раньше тут были придуманные
+// имена вроде "tag.added" / "flow.started" / "redirect.clicked" — БД их
+// не знает, поэтому journey у всех был пустым по тегам и кликам.
 const JOURNEY_EVENT_TYPES = new Set<string>([
   "subscriber.created",
-  "subscriber.lms_linked",
-  "trigger.matched",
-  "flow.started",
+  "subscriber.tag_added",
+  "subscriber.tag_removed",
+  "subscriber.list_joined",
+  "subscriber.list_left",
+  "flow.entered",
   "flow.completed",
   "flow.failed",
   "flow.cancelled",
-  "tag.added",
-  "tag.removed",
-  "list.joined",
-  "list.left",
+  "flow.ab_split",
   "broadcast.delivered",
-  "redirect.clicked",
-  "scheduled_flow.completed",
+  "link.clicked",
 ]);
 
 // Человекочитаемые лейблы типов для journey.
 const EVENT_LABEL: Record<string, string> = {
   "subscriber.created": "пришёл",
-  "subscriber.lms_linked": "привязан LMS",
-  "trigger.matched": "триггер",
-  "flow.started": "старт сценария",
+  "subscriber.tag_added": "тег +",
+  "subscriber.tag_removed": "тег −",
+  "subscriber.list_joined": "в список",
+  "subscriber.list_left": "из списка",
+  "flow.entered": "старт сценария",
   "flow.completed": "сценарий завершён",
   "flow.failed": "сценарий упал",
   "flow.cancelled": "сценарий отменён",
-  "tag.added": "тег +",
-  "tag.removed": "тег −",
-  "list.joined": "в список",
-  "list.left": "из списка",
+  "flow.ab_split": "A/B вариант",
   "broadcast.delivered": "рассылка",
-  "redirect.clicked": "клик по ссылке",
-  "scheduled_flow.completed": "плановый сценарий",
+  "link.clicked": "клик по ссылке",
 };
 
 export async function GET(
@@ -331,6 +366,151 @@ export async function GET(
         }
       }
 
+      // ── Конверсия по воронкам: status-агрегаты на подписчика. ──────
+      // Источник тот же, что в /dossier: TgFlowRun, ограничение по botId
+      // через relation (на нём нет прямого botId-столбца).
+      const conversionBySub = new Map<
+        string,
+        { started: number; completed: number; cancelled: number; failed: number }
+      >();
+      if (subIds.length > 0) {
+        const runs = await db.tgFlowRun.groupBy({
+          by: ["subscriberId", "status"],
+          where: { subscriberId: { in: subIds }, flow: { botId } },
+          _count: { _all: true },
+        });
+        for (const r of runs) {
+          const cur = conversionBySub.get(r.subscriberId) ?? {
+            started: 0,
+            completed: 0,
+            cancelled: 0,
+            failed: 0,
+          };
+          cur.started += r._count._all;
+          if (r.status === "completed") cur.completed += r._count._all;
+          else if (r.status === "cancelled") cur.cancelled += r._count._all;
+          else if (r.status === "failed") cur.failed += r._count._all;
+          conversionBySub.set(r.subscriberId, cur);
+        }
+      }
+
+      // ── Нажатия по inline-кнопкам: callbackData у входящих сообщений. ─
+      const buttonClicksBySub = new Map<string, number>();
+      if (subIds.length > 0) {
+        const grouped = await db.tgMessage.groupBy({
+          by: ["subscriberId"],
+          where: {
+            botId,
+            subscriberId: { in: subIds },
+            direction: "in",
+            callbackData: { not: null },
+          },
+          _count: { _all: true },
+        });
+        for (const g of grouped) {
+          buttonClicksBySub.set(g.subscriberId, g._count._all);
+        }
+      }
+
+      // ── Клики по ссылкам в разрезе slug. Одна нить с агрегатами
+      //    TgRedirectLink (slug+clickCount уже хранится). Это даёт
+      //    "MnHFzygH74=2; prepodavai_varya=1" без выкачивания каждого
+      //    отдельного клика из TgEvent.
+      const linkDetailBySub = new Map<string, Array<{ slug: string; count: number }>>();
+      if (subIds.length > 0) {
+        const detailLinks = await db.tgRedirectLink.findMany({
+          where: { botId, subscriberId: { in: subIds }, clickCount: { gt: 0 } },
+          orderBy: { clickCount: "desc" },
+          select: { subscriberId: true, slug: true, clickCount: true },
+        });
+        for (const l of detailLinks) {
+          if (!l.subscriberId) continue;
+          const arr = linkDetailBySub.get(l.subscriberId) ?? [];
+          arr.push({ slug: l.slug, count: l.clickCount });
+          linkDetailBySub.set(l.subscriberId, arr);
+        }
+      }
+
+      // ── A/B-варианты: flow.ab_split.properties.variant в порядке выпадения. ─
+      const abVariantsBySub = new Map<string, string[]>();
+      if (subIds.length > 0) {
+        const ab = await db.tgEvent.findMany({
+          where: {
+            botId,
+            subscriberId: { in: subIds },
+            type: "flow.ab_split",
+          },
+          orderBy: { occurredAt: "asc" },
+          select: { subscriberId: true, properties: true },
+          take: 50_000,
+        });
+        for (const e of ab) {
+          if (!e.subscriberId) continue;
+          const v = (e.properties as { variant?: unknown } | null)?.variant;
+          if (typeof v !== "string" || !v) continue;
+          const arr = abVariantsBySub.get(e.subscriberId) ?? [];
+          arr.push(v);
+          abVariantsBySub.set(e.subscriberId, arr);
+        }
+      }
+
+      // ── Полные рассылки (включая failed/skipped) — формат "Имя:status:дата".
+      const broadcastsDetailBySub = new Map<
+        string,
+        Array<{ name: string; status: string; sentAt: Date | null }>
+      >();
+      if (subIds.length > 0) {
+        const recs = await db.tgBroadcastRecipient.findMany({
+          where: { subscriberId: { in: subIds }, broadcast: { botId } },
+          orderBy: [{ sentAt: "desc" }, { id: "desc" }],
+          take: 100_000,
+          select: {
+            subscriberId: true,
+            status: true,
+            sentAt: true,
+            broadcast: { select: { name: true } },
+          },
+        });
+        for (const r of recs) {
+          const arr = broadcastsDetailBySub.get(r.subscriberId) ?? [];
+          arr.push({
+            name: r.broadcast?.name ?? "(без имени)",
+            status: r.status,
+            sentAt: r.sentAt,
+          });
+          broadcastsDetailBySub.set(r.subscriberId, arr);
+        }
+      }
+
+      // ── История тегов и списков: уже выкачана в journeyBySub (теперь
+      //    с правильными именами событий), просто фильтруем нужные типы.
+      // Сделано здесь же чтобы не дублировать запрос.
+      const TAG_LIST_TYPES = new Set([
+        "subscriber.tag_added",
+        "subscriber.tag_removed",
+        "subscriber.list_joined",
+        "subscriber.list_left",
+      ]);
+
+      // ── Имена tracking-link для UTM-атрибуции (first_touch_name /
+      //    last_touch_name). Резолвим за один запрос по всем уникальным
+      //    slug, которые встречаются у выгружаемых подписчиков.
+      const allTouchSlugs = new Set<string>();
+      for (const s of subscribers) {
+        if (s.firstTouchSlug) allTouchSlugs.add(s.firstTouchSlug);
+        if (s.lastTouchSlug) allTouchSlugs.add(s.lastTouchSlug);
+      }
+      const touchNameBySlug = new Map<string, string>();
+      if (allTouchSlugs.size > 0) {
+        const tl = await db.tgTrackingLink.findMany({
+          where: { botId, slug: { in: Array.from(allTouchSlugs) } },
+          select: { slug: true, name: true },
+        });
+        for (const l of tl) {
+          if (l.name) touchNameBySlug.set(l.slug, l.name);
+        }
+      }
+
       // ── Заголовки: фиксированные + кастомные поля + CJM. ───────────
       const customHeaders = customFieldDefs.map(
         (f) => f.label || f.key
@@ -340,6 +520,7 @@ export async function GET(
         ...customHeaders,
         ...CHANNEL_COLUMNS,
         ...ENGAGEMENT_COLUMNS,
+        ...MARKETING_COLUMNS,
         ...CJM_COLUMNS,
       ];
       const rows: string[] = ["﻿" + allHeaders.map(csvEscape).join(";")];
@@ -415,10 +596,94 @@ export async function GET(
           eng?.lastClickAt ? eng.lastClickAt.toISOString() : "",
         ];
 
+        // — Маркетинговый блок —
+        const conv = conversionBySub.get(s.id);
+        const flowsStarted = conv?.started ?? 0;
+        const flowsCompleted = conv?.completed ?? 0;
+        const flowsCancelled = conv?.cancelled ?? 0;
+        const flowsFailed = conv?.failed ?? 0;
+        const conversionRate =
+          flowsStarted > 0
+            ? Math.round((flowsCompleted / flowsStarted) * 1000) / 10
+            : 0;
+
+        const linkDetail = (linkDetailBySub.get(s.id) ?? [])
+          .map((l) => `${l.slug}=${l.count}`)
+          .join("; ");
+
+        const abVariants = (abVariantsBySub.get(s.id) ?? []).join("; ");
+
+        const broadcastsDetail = (broadcastsDetailBySub.get(s.id) ?? [])
+          .map((b) => {
+            const date = b.sentAt
+              ? b.sentAt.toLocaleDateString("ru-RU", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "2-digit",
+                })
+              : "—";
+            return `${b.name}:${b.status}:${date}`;
+          })
+          .join("; ");
+
+        const tagHistory = journeyArr
+          .filter((e) => TAG_LIST_TYPES.has(e.type))
+          .map((e) => {
+            const date = e.at.toLocaleDateString("ru-RU", {
+              day: "2-digit",
+              month: "2-digit",
+            });
+            const sign =
+              e.type === "subscriber.tag_added" ||
+              e.type === "subscriber.list_joined"
+                ? "+"
+                : "−";
+            const kind = e.type.includes("list") ? "список " : "";
+            const label =
+              typeof e.props.tag === "string"
+                ? e.props.tag
+                : typeof e.props.listName === "string"
+                  ? e.props.listName
+                  : typeof e.props.listId === "string"
+                    ? e.props.listId
+                    : "—";
+            return `${sign}${kind}${label} ${date}`;
+          })
+          .join("; ");
+
+        const firstTouchName = s.firstTouchSlug
+          ? (touchNameBySlug.get(s.firstTouchSlug) ?? "")
+          : "";
+        const lastTouchName = s.lastTouchSlug
+          ? (touchNameBySlug.get(s.lastTouchSlug) ?? "")
+          : "";
+
+        const marketingRow = [
+          String(flowsStarted),
+          String(flowsCompleted),
+          String(flowsCancelled),
+          String(flowsFailed),
+          flowsStarted > 0 ? `${conversionRate}%` : "",
+          String(buttonClicksBySub.get(s.id) ?? 0),
+          linkDetail,
+          abVariants,
+          firstTouchName,
+          lastTouchName,
+          broadcastsDetail,
+          tagHistory,
+        ];
+
         const cjmRow = [journey, lastFlow, lastNode];
 
         rows.push(
-          [...baseRow, ...customRow, ...channelsRow, ...engagementRow, ...cjmRow]
+          [
+            ...baseRow,
+            ...customRow,
+            ...channelsRow,
+            ...engagementRow,
+            ...marketingRow,
+            ...cjmRow,
+          ]
             .map(csvEscape)
             .join(";")
         );
@@ -455,17 +720,32 @@ function formatJourneyStep(
   const label = EVENT_LABEL[e.type] ?? e.type;
   let detail = "";
   const p = e.props;
-  if (e.type === "flow.started" || e.type === "flow.completed" || e.type === "flow.failed") {
+  if (
+    e.type === "flow.entered" ||
+    e.type === "flow.completed" ||
+    e.type === "flow.failed" ||
+    e.type === "flow.cancelled"
+  ) {
     const fid = typeof p.flowId === "string" ? p.flowId : null;
     if (fid) detail = `«${flowName.get(fid) ?? fid}»`;
-  } else if (e.type === "tag.added" || e.type === "tag.removed") {
+  } else if (
+    e.type === "subscriber.tag_added" ||
+    e.type === "subscriber.tag_removed"
+  ) {
     if (typeof p.tag === "string") detail = p.tag;
-  } else if (e.type === "trigger.matched") {
-    if (typeof p.triggerType === "string") detail = String(p.triggerType);
+  } else if (
+    e.type === "subscriber.list_joined" ||
+    e.type === "subscriber.list_left"
+  ) {
+    if (typeof p.listName === "string") detail = p.listName;
+    else if (typeof p.listId === "string") detail = p.listId;
   } else if (e.type === "broadcast.delivered") {
     if (typeof p.broadcastName === "string") detail = `«${p.broadcastName}»`;
-  } else if (e.type === "redirect.clicked") {
-    if (typeof p.target === "string") detail = p.target;
+  } else if (e.type === "link.clicked") {
+    if (typeof p.slug === "string") detail = p.slug;
+    else if (typeof p.target === "string") detail = p.target;
+  } else if (e.type === "flow.ab_split") {
+    if (typeof p.variant === "string") detail = p.variant;
   }
   return `${time} ${label}${detail ? " " + detail : ""}`;
 }
