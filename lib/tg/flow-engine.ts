@@ -893,6 +893,12 @@ export async function startFlowRun(args: {
   flowId: string;
   subscriberId: string;
   triggerInfo?: Record<string, unknown>;
+  /**
+   * Опциональный node id, с которого начинаем run. Перезаписывает
+   * graph.startNodeId. Используется реактивными триггерами в моноflow
+   * (один граф, много точек входа: /start vs link_clicked vs external_event).
+   */
+  startAt?: string;
 }): Promise<TgFlowRun | null> {
   const flow = await db.tgFlow.findUnique({ where: { id: args.flowId } });
   if (!flow || !flow.isActive) return null;
@@ -904,6 +910,9 @@ export async function startFlowRun(args: {
       flowId: flow.id,
       subscriberId: subscriber.id,
       status: "queued",
+      // currentNodeId предзаполняем, если startAt задан — тогда первый
+      // tick подхватит его как точку старта (см. tickRun: nextId = run.currentNodeId).
+      currentNodeId: args.startAt ?? null,
       context: (args.triggerInfo ?? {}) as object,
       // Inherit subscriber's current position so any wait/sleep this run
       // schedules can be auto-cancelled if the subscriber moves on.

@@ -148,15 +148,10 @@ export function importSalebot(raw: SalebotExport): ImportResult {
     triggers: 0,
   };
 
-  // Каждой Salebot-id присваиваем стабильный uuid (наш формат id).
-  // Используем seedable scheme: важно чтобы тот же JSON давал тот же
-  // граф при повторном импорте, но для MVP нам хватит rand-uuid.
   const idMap = new Map<number, string>();
   for (const m of raw.messages ?? []) idMap.set(m.id, randomUUID());
 
-  // ── Решаем кто будет entry-point главного flow ───────────────────────
-  // Salebot не помечает явно — entry = ноды с condition вроде "/start"
-  // или у которых нет входящих connection. Берём первую такую.
+  // ── Точка входа главного flow (для /start) ──────────────────────────
   const incomingCount = new Map<number, number>();
   for (const c of raw.connections ?? []) {
     incomingCount.set(c.message_b_id, (incomingCount.get(c.message_b_id) ?? 0) + 1);
@@ -173,8 +168,29 @@ export function importSalebot(raw: SalebotExport): ImportResult {
     throw new Error("Salebot JSON: ни одной ноды для импорта");
   }
 
-  // ── Реактивные ноды — каждая в свой отдельный flow ──────────────────
-  const reactiveFlows: ImportResult["extraFlows"] = [];
+  // ── Собираем ВСЕ ноды в один общий граф ─────────────────────────────
+  // Каждая salebot-message превращается в нашу ноду; связи остаются
+  // нативно через `next`. Реактивные ноды остаются в этом же графе,
+  // но получают actions-семантику (см. mapMessageToNode).
+  const allNodes: FlowNode[] = [];
+  for (const sb of raw.messages ?? []) {
+    const ourId = idMap.get(sb.id)!;
+    const outgoing = outgoingByMsg.get(sb.id) ?? [];
+    const baseNext = resolveNext(outgoing, idMap, [], sb.id);
+    const node = mapMessageToNode(sb, ourId, baseNext, report);
+    if (node) allNodes.push(node);
+  }
+
+  // ── Триггеры главного flow ──────────────────────────────────────────
+  // Один TgFlow получает:
+  //   • триггер /start с startAt = entry-нодой
+  //   • по триггеру для каждой реактивной ноды (с её startAt)
+  // Это даёт «N точек входа в один граф» — как в Salebot.
+  const allTriggers: FlowTrigger[] = [];
+  for (const t of parseEntryTriggers(entryMsg)) {
+    // /start всегда стартует с entry-ноды
+    allTriggers.push(withStartAt(t, idMap.get(entryMsg.id)!));
+  }
   for (const m of raw.messages ?? []) {
     if (classifyMessageType(m) !== "reactive") continue;
     const trigger = parseReactiveTrigger(m);
@@ -185,31 +201,32 @@ export function importSalebot(raw: SalebotExport): ImportResult {
       });
       continue;
     }
-    const subResult = buildSubGraph(m, messagesById, outgoingByMsg, idMap, report);
-    reactiveFlows.push({
-      name: m.description?.slice(0, 80) || `Триггер #${m.id}`,
-      graph: subResult,
-      triggers: [trigger],
-      description: m.condition ?? undefined,
-    });
+    allTriggers.push(withStartAt(trigger, idMap.get(m.id)!));
     report.mapped.reactiveFlow++;
-    report.triggers++;
   }
+  report.triggers = allTriggers.length;
 
-  // ── Главный flow ────────────────────────────────────────────────────
-  const mainGraph = buildMainGraph(entryMsg, messagesById, outgoingByMsg, idMap, report);
-  const mainTriggers = parseEntryTriggers(entryMsg);
-  report.triggers += mainTriggers.length;
-
+  const graph: FlowGraph = {
+    version: 1,
+    startNodeId: idMap.get(entryMsg.id)!,
+    nodes: allNodes,
+  };
   const flowName = entryMsg.description?.slice(0, 80) || "Импорт из Salebot";
 
   return {
-    graph: mainGraph,
-    triggers: mainTriggers,
+    graph,
+    triggers: allTriggers,
     flowName,
-    extraFlows: reactiveFlows,
+    // Больше не создаём отдельные flows — всё в одном.
+    extraFlows: [],
     report,
   };
+}
+
+/** Возвращает копию триггера с проставленным advanced.startAt. */
+function withStartAt(t: FlowTrigger, startAt: string): FlowTrigger {
+  const adv = ("advanced" in t ? t.advanced : undefined) ?? {};
+  return { ...t, advanced: { ...adv, startAt } } as FlowTrigger;
 }
 
 // ─── Классификация message_type ────────────────────────────────────────
@@ -311,79 +328,6 @@ function parseReactiveTrigger(m: SalebotMessage): FlowTrigger | null {
 }
 
 // ─── Построение графа ──────────────────────────────────────────────────
-
-function buildMainGraph(
-  entry: SalebotMessage,
-  messagesById: Map<number, SalebotMessage>,
-  outgoingByMsg: Map<number, SalebotConnection[]>,
-  idMap: Map<number, string>,
-  report: ImportReport
-): FlowGraph {
-  return buildSubGraph(entry, messagesById, outgoingByMsg, idMap, report);
-}
-
-function buildSubGraph(
-  entry: SalebotMessage,
-  messagesById: Map<number, SalebotMessage>,
-  outgoingByMsg: Map<number, SalebotConnection[]>,
-  idMap: Map<number, string>,
-  report: ImportReport
-): FlowGraph {
-  const nodes: FlowNode[] = [];
-  const visited = new Set<number>();
-  const queue: number[] = [entry.id];
-
-  while (queue.length > 0) {
-    const sbId = queue.shift()!;
-    if (visited.has(sbId)) continue;
-    visited.add(sbId);
-
-    const sbMsg = messagesById.get(sbId);
-    if (!sbMsg) continue;
-
-    const ourId = idMap.get(sbId)!;
-    const outgoing = outgoingByMsg.get(sbId) ?? [];
-
-    // Определяем next: если есть условные ветви — condition-нода,
-    // если несколько без условия — берём первую (Salebot эмулирует
-    // приоритет через condition; настоящая логика приоритетов
-    // потребует расширения, что не нужно для MVP).
-    const next = resolveNext(outgoing, idMap, queue, sbMsg.id);
-
-    const node = mapMessageToNode(sbMsg, ourId, next, report);
-    if (node) {
-      nodes.push(node);
-      // Если нода вернула несколько (например, condition + delay + message),
-      // visited уже обработано в mapMessageToNode через побочный push.
-    }
-
-    for (const c of outgoing) {
-      if (!visited.has(c.message_b_id)) queue.push(c.message_b_id);
-    }
-  }
-
-  if (nodes.length === 0) {
-    // Деградация: возвращаем пустой message-stub, чтобы FlowGraph был валиден.
-    nodes.push({
-      id: randomUUID(),
-      type: "note",
-      text: "Импорт не дал ни одной ноды",
-    });
-  }
-
-  return {
-    version: 1,
-    startNodeId: idMap.get(entry.id) ?? nodes[0].id,
-    nodes,
-  };
-}
-
-interface NextResolution {
-  /** Прямой next (если ветвлений нет). */
-  directNext?: string;
-  /** Если есть условные — id condition-ноды или дальше идущая логика. */
-  conditionalNext?: string;
-}
 
 function resolveNext(
   outgoing: SalebotConnection[],
