@@ -96,6 +96,7 @@ async function debugYandex() {
         const res = await proxyFetch(v.url, {
           js: true,
           ajaxWait: true,
+          scroll: true,
           pageWait: 3000,
           country: "RU",
           timeoutMs: 120_000,

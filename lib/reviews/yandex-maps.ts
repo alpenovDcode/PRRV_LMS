@@ -26,14 +26,16 @@ export async function scrapeYandexMaps(
     const url = buildUrl(page);
     let html: string;
     try {
-      // js: true + ajaxWait — Яндекс Карты грузят отзывы AJAX-ом после рендера,
-      // нужно дождаться этих запросов прежде чем снимать HTML.
+      // js: true + ajaxWait + scroll — Яндекс Карты грузят отзывы AJAX-ом
+      // и используют lazy-load при скролле. Скроллим вниз чтобы триггернуть
+      // подгрузку свежих отзывов.
       const res = await proxyFetch(url, {
         js: true,
         ajaxWait: true,
+        scroll: true,
         pageWait: 2000,
         country: "RU",
-        timeoutMs: 90_000,
+        timeoutMs: 120_000,
       });
       if (!res.ok) break;
       html = await res.text();

@@ -26,6 +26,8 @@ interface ProxyFetchOptions {
   ajaxWait?: boolean;
   /** Доп. задержка после рендера в мс. */
   pageWait?: number;
+  /** Скроллить страницу до конца перед снятием HTML (для lazy-load). */
+  scroll?: boolean;
 }
 
 const CRAWLBASE_ENDPOINT = "https://api.crawlbase.com/";
@@ -34,7 +36,7 @@ export async function proxyFetch(
   targetUrl: string,
   options: ProxyFetchOptions = {}
 ): Promise<Response> {
-  const { js = false, timeoutMs = js ? 60_000 : 30_000, country, ajaxWait, pageWait } = options;
+  const { js = false, timeoutMs = js ? 60_000 : 30_000, country, ajaxWait, pageWait, scroll } = options;
 
   const token = js
     ? process.env.CRAWLBASE_JS_TOKEN
@@ -57,6 +59,10 @@ export async function proxyFetch(
   if (country) params.set("country", country);
   if (js && ajaxWait) params.set("ajax_wait", "true");
   if (js && pageWait) params.set("page_wait", String(pageWait));
+  if (js && scroll) {
+    params.set("scroll", "true");
+    params.set("scroll_interval", "5"); // 5 секунд скроллить
+  }
 
   return fetch(`${CRAWLBASE_ENDPOINT}?${params.toString()}`, {
     signal: AbortSignal.timeout(timeoutMs),
