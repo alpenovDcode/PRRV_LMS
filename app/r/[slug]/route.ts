@@ -60,5 +60,31 @@ export async function GET(
     },
   }).catch(() => undefined);
 
+  // Реактивный trigger «link_clicked» — стартует flows у которых
+  // type=link_clicked И (slug == link.slug ИЛИ urlContains в targetUrl).
+  // Подписчик должен быть резолвлен, иначе триггер не имеет смысла.
+  if (subscriberId) {
+    import("@/lib/tg/lists")
+      .then((m) =>
+        m.fireReactiveTriggers({
+          botId: link.botId,
+          subscriberId,
+          triggerKind: "link_clicked",
+          matcher: (t) => {
+            if (t.type !== "link_clicked") return false;
+            if (t.slug && t.slug === link.slug) return true;
+            if (
+              t.urlContains &&
+              link.targetUrl.toLowerCase().includes(t.urlContains.toLowerCase())
+            )
+              return true;
+            return false;
+          },
+          triggerInfo: { slug: link.slug, target: link.targetUrl },
+        })
+      )
+      .catch(() => undefined);
+  }
+
   return NextResponse.redirect(link.targetUrl, { status: 302 });
 }

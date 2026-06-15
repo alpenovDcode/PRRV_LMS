@@ -8,7 +8,15 @@ import { apiClient } from "@/lib/api-client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Pencil, Trash2, Download, Upload, AlertTriangle } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Download,
+  Upload,
+  AlertTriangle,
+  FileJson,
+} from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,6 +46,20 @@ export default function FlowsListPage() {
   const [openImport, setOpenImport] = useState(false);
   const [importJson, setImportJson] = useState("");
   const [importName, setImportName] = useState("");
+  // Salebot-импорт (отдельный канал — формат отличается от наших шаблонов).
+  const [openSalebot, setOpenSalebot] = useState(false);
+  const [salebotJson, setSalebotJson] = useState("");
+  const [salebotReport, setSalebotReport] = useState<{
+    createdFlow: { id: string; name: string };
+    createdExtraFlows: Array<{ id: string; name: string }>;
+    report: {
+      totalNodes: number;
+      totalConnections: number;
+      mapped: Record<string, number>;
+      unmapped: Array<{ salebotId: number; reason: string }>;
+      triggers: number;
+    };
+  } | null>(null);
   const [importResult, setImportResult] = useState<{
     name?: string;
     nodeCount?: number;
@@ -145,6 +167,45 @@ export default function FlowsListPage() {
     },
   });
 
+  // Импорт Salebot JSON — отдельная конечная точка, формат сильно
+  // отличается от нашего экспорта. Возвращает report с мэппингом.
+  const salebotMut = useMutation({
+    mutationFn: async () => {
+      const parsed = JSON.parse(salebotJson);
+      const r = await apiClient.post(
+        `/admin/tg/bots/${botId}/flows/import-salebot`,
+        parsed
+      );
+      return r.data?.data;
+    },
+    onSuccess: (d) => {
+      setSalebotReport(d);
+      toast.success(
+        `Импортирован основной flow + ${d.createdExtraFlows.length} реактивных. Сценарии созданы неактивными.`
+      );
+      queryClient.invalidateQueries({ queryKey: ["tg-flows-list", botId] });
+    },
+    onError: (
+      e: Error & { response?: { data?: { error?: { message?: string } } } }
+    ) => {
+      toast.error(e?.response?.data?.error?.message ?? e.message);
+    },
+  });
+
+  const handleSalebotFile = (file: File) => {
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Файл больше 10 МБ — проверьте экспорт из Salebot");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const txt = typeof reader.result === "string" ? reader.result : "";
+      setSalebotJson(txt);
+      setSalebotReport(null);
+    };
+    reader.readAsText(file);
+  };
+
   const handleFileImport = (file: File) => {
     if (file.size > 5 * 1024 * 1024) {
       toast.error("Файл больше 5 МБ — что-то не так с экспортом");
@@ -172,6 +233,16 @@ export default function FlowsListPage() {
           }}
         >
           <Upload className="mr-2 h-4 w-4" /> Импорт
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => {
+            setOpenSalebot(true);
+            setSalebotJson("");
+            setSalebotReport(null);
+          }}
+        >
+          <FileJson className="mr-2 h-4 w-4" /> Импорт Salebot
         </Button>
         <Button onClick={() => setOpenNew(true)}>
           <Plus className="mr-2 h-4 w-4" /> Новый сценарий
@@ -341,6 +412,107 @@ export default function FlowsListPage() {
                 onClick={() => importMut.mutate(false)}
               >
                 {importMut.isPending ? "Импорт…" : "Импортировать"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={openSalebot} onOpenChange={setOpenSalebot}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Импорт воронки из Salebot</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Загрузите JSON-выгрузку воронки из Salebot (Файл → Экспорт). Мы
+              создадим один главный сценарий + по одному на каждый
+              реактивный триггер (link_clicked, external_event, unsubscribed).
+              Сценарии создаются <strong>неактивными</strong> — проверьте
+              маппинг в редакторе и активируйте вручную.
+            </p>
+            <div className="flex items-center gap-2">
+              <input
+                type="file"
+                accept=".json,application/json"
+                id="salebot-file"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleSalebotFile(f);
+                }}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => document.getElementById("salebot-file")?.click()}
+              >
+                <Upload className="mr-1 h-3 w-3" /> Выбрать файл
+              </Button>
+              {salebotJson && (
+                <span className="text-xs text-muted-foreground">
+                  Загружено {Math.round(salebotJson.length / 1024)} KB
+                </span>
+              )}
+            </div>
+            <Textarea
+              rows={6}
+              value={salebotJson}
+              onChange={(e) => setSalebotJson(e.target.value)}
+              placeholder='Либо вставьте JSON сюда: {"messages":[…], "connections":[…]}'
+              className="font-mono text-xs"
+            />
+            {salebotReport && (
+              <div className="rounded-md border border-emerald-300 bg-emerald-50 p-3 text-xs space-y-2">
+                <div className="font-medium text-emerald-900">
+                  Главный сценарий: «{salebotReport.createdFlow.name}»
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-emerald-800">
+                  <div>
+                    Сообщений:{" "}
+                    <b>{salebotReport.report.mapped.message ?? 0}</b>
+                  </div>
+                  <div>
+                    HTTP-нод: <b>{salebotReport.report.mapped.http ?? 0}</b>
+                  </div>
+                  <div>
+                    Заметок: <b>{salebotReport.report.mapped.note ?? 0}</b>
+                  </div>
+                  <div>
+                    Реактивных flows:{" "}
+                    <b>{salebotReport.createdExtraFlows.length}</b>
+                  </div>
+                </div>
+                {salebotReport.report.unmapped.length > 0 && (
+                  <div className="mt-2 text-amber-800">
+                    Не замаплено: {salebotReport.report.unmapped.length} —
+                    проверьте редактор.
+                  </div>
+                )}
+                {salebotReport.createdExtraFlows.length > 0 && (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-emerald-900 font-medium">
+                      Реактивные сценарии (
+                      {salebotReport.createdExtraFlows.length})
+                    </summary>
+                    <ul className="mt-1 ml-4 list-disc">
+                      {salebotReport.createdExtraFlows.map((f) => (
+                        <li key={f.id}>{f.name}</li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+              </div>
+            )}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setOpenSalebot(false)}>
+                Закрыть
+              </Button>
+              <Button
+                onClick={() => salebotMut.mutate()}
+                disabled={!salebotJson.trim() || salebotMut.isPending}
+              >
+                {salebotMut.isPending ? "Импорт…" : "Импортировать"}
               </Button>
             </div>
           </div>

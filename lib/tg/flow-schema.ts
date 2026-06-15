@@ -181,12 +181,36 @@ export const messageNodeSchema = baseNode.extend({
 // SaleBot supports five duration units. We keep an internal seconds
 // field as the source of truth so the engine doesn't care about unit
 // arithmetic; `displayUnit` is purely a UI hint for editor rendering.
+// «Отложить до конкретного времени» — Salebot-эквивалент send_time/send_date
+// на связи. Engine паркует run до следующего вхождения указанного времени,
+// потом продолжает.
+export const delayUntilNodeSchema = baseNode.extend({
+  type: z.literal("delay_until"),
+  // "HH:MM" в локальной TZ бота. Обязателен.
+  time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  // IANA TZ; по умолчанию берётся bot.timezone. "Europe/Moscow" и т.п.
+  timezone: z.string().max(64).optional(),
+  // 0 = ближайшее это-же-сегодня (если ещё не прошло) или завтра,
+  // 1 = завтра гарантированно, 7 = через неделю в это время.
+  // По умолчанию 0 — поведение «следующего возможного раза».
+  daysOffset: z.number().int().min(0).max(365).optional(),
+});
+
 export const delayNodeSchema = baseNode.extend({
   type: z.literal("delay"),
   // Duration in seconds. Capped to 90 days to keep tg_flow_runs from
   // holding state forever (extended from 30d in Iter 1 to support
   // monthly cohorts in onboarding funnels).
   seconds: z.number().int().positive().max(60 * 60 * 24 * 90),
+  // Если задан — берём random в диапазоне [seconds, secondsMax]. Покрывает
+  // Salebot-фичу random(a,b) для имитации «человеческого» темпа набора.
+  // Когда не задан — задержка фиксированная.
+  secondsMax: z
+    .number()
+    .int()
+    .positive()
+    .max(60 * 60 * 24 * 90)
+    .optional(),
   displayUnit: z.enum(["seconds", "minutes", "hours", "days", "weeks", "months"]).optional(),
 });
 
@@ -273,14 +297,32 @@ export const setVariableNodeSchema = baseNode.extend({
   asExpression: z.boolean().optional(),
 });
 
+// Маппинг одного поля из JSON-ответа в нашу переменную. JSON-путь —
+// dot-нотация: "data.utm_source" или "items.0.id". Target — наш scope:
+// client.x / project.x / deal.x / field.x.
+export const httpSaveMappingSchema = z.object({
+  jsonPath: z.string().min(1).max(200),
+  target: z.string().min(1).max(120),
+});
+export type HttpSaveMapping = z.infer<typeof httpSaveMappingSchema>;
+
 export const httpRequestNodeSchema = baseNode.extend({
   type: z.literal("http_request"),
   method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]),
-  url: z.string().url(),
+  // URL поддерживает {{expr}} шаблоны — рендерим на стороне engine
+  // перед отправкой. Это снимает ограничение «только static URL».
+  url: z.string().min(1),
   headers: z.record(z.string(), z.string()).optional(),
+  // Body — также шаблонизируем через renderTemplate перед отправкой.
+  // Это позволяет писать {"user_id":"{{client_id}}"} и тут же
+  // подставлять id подписчика без отдельной ноды set_variable.
   body: z.string().optional(),
-  // Save the JSON response into deal-scope context under this key.
+  // ЛЕГАСИ: сохраняет весь body ответа в deal.x. Если задан saveAs И
+  // saveMappings — saveMappings выигрывает.
   saveAs: z.string().optional(),
+  // Маппинг полей ответа в переменные. Реализует Salebot-DSL
+  // `data|utm_source->client.utm_source` через нормальную структуру.
+  saveMappings: z.array(httpSaveMappingSchema).optional(),
   // 'next' is used on success; 'onError' on transport/HTTP failure.
   onError: z.string().optional(),
 });
@@ -346,6 +388,7 @@ export const actionsNodeSchema = baseNode.extend({
 export const flowNodeSchema = z.discriminatedUnion("type", [
   messageNodeSchema,
   delayNodeSchema,
+  delayUntilNodeSchema,
   waitReplyNodeSchema,
   conditionNodeSchema,
   tagOpNodeSchema,
@@ -430,6 +473,27 @@ export const triggerSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("list_left"),
     listId: z.string().min(1),
+    advanced: advancedTriggerSchema.optional(),
+  }),
+  // Клик по trackingLink или redirectLink. slug — id наша конкретной
+  // ссылки; либо urlContains — substring целевого URL (для случаев когда
+  // ссылка не наша, а сторонняя, но обёрнута в /r/<slug>).
+  z.object({
+    type: z.literal("link_clicked"),
+    slug: z.string().min(1).max(64).optional(),
+    urlContains: z.string().min(1).max(200).optional(),
+    advanced: advancedTriggerSchema.optional(),
+  }),
+  // Внешнее событие через POST /api/tg/external-event. eventName —
+  // произвольный ключ от внешней системы (GetCourse, Bizon, ваш CRM).
+  z.object({
+    type: z.literal("external_event"),
+    eventName: z.string().min(1).max(120),
+    advanced: advancedTriggerSchema.optional(),
+  }),
+  // Подписчик заблокировал бота (my_chat_member → kicked).
+  z.object({
+    type: z.literal("unsubscribed"),
     advanced: advancedTriggerSchema.optional(),
   }),
 ]);
