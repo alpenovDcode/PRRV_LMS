@@ -36,7 +36,9 @@ export const inlineActionsSchema = z.object({
   removeTags: z.array(z.string().min(1).max(64)).max(20).optional(),
   addToLists: z.array(z.string().min(1)).max(20).optional(),
   removeFromLists: z.array(z.string().min(1)).max(20).optional(),
-  setVariables: z.array(setVariableActionSchema).max(20).optional(),
+  // Лимит 50 — нормальный потолок для Salebot-импорта (entry-нода
+  // воронки часто инициализирует 20-30 флагов состояния разом).
+  setVariables: z.array(setVariableActionSchema).max(50).optional(),
 });
 export type InlineActions = z.infer<typeof inlineActionsSchema>;
 
@@ -59,7 +61,10 @@ export const buttonSchema = z.object({
   text: z.string().min(1).max(64),
   // Mutually exclusive: url OR callback. We keep both optional and rely
   // on the engine to pick the first non-empty.
-  url: z.string().url().optional(),
+  // URL пропускает либо полноценный https:// (валидируется на отправке),
+  // либо шаблон с {{var}} — engine рендерит его перед sendMessage'ом.
+  // Из-за этого не используем z.string().url() — оно бы зарубило шаблоны.
+  url: z.string().min(1).max(2048).optional(),
   callback: z.string().max(64).optional(),
   // Optional: which node to jump to when this button is clicked.
   goto: z.string().optional(),
