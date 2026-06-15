@@ -83,12 +83,22 @@ export function graphToReactFlow(
     data: { triggers: [...triggers], startNodeId: graph.startNodeId },
   });
 
-  // Edge from trigger to the start node.
-  if (graph.startNodeId) {
+  // Edge from trigger to the start node + per-trigger startAt edges.
+  // Каждый триггер может задавать advanced.startAt — это вход в граф
+  // для конкретного типа события (например, link_clicked попадает в
+  // отдельную реактивную ноду). Без этих edges auto-layout считает
+  // подграфы «недостижимыми» и складывает в одну колонку.
+  const triggerStarts = new Set<string>();
+  if (graph.startNodeId) triggerStarts.add(graph.startNodeId);
+  for (const t of triggers) {
+    const sa = (t as { advanced?: { startAt?: string } }).advanced?.startAt;
+    if (sa) triggerStarts.add(sa);
+  }
+  for (const target of triggerStarts) {
     edges.push({
-      id: `e-${TRIGGER_NODE_ID}-${graph.startNodeId}`,
+      id: `e-${TRIGGER_NODE_ID}-${target}`,
       source: TRIGGER_NODE_ID,
-      target: graph.startNodeId,
+      target,
     });
   }
 

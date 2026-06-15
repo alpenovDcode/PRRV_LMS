@@ -412,6 +412,14 @@ export const flowGraphSchema = z.object({
   version: z.literal(1),
   startNodeId: z.string().min(1),
   nodes: z.array(flowNodeSchema).min(1),
+  // Опциональная карта «id ноды → координата на canvas». Импортёры
+  // могут сохранить оригинальную расстановку из исходного редактора
+  // (например, x/y из Salebot canvas), чтобы граф открывался в том же
+  // виде, что и был — а не схлопывался в auto-layout колонку.
+  // Ключ "__trigger" — позиция виртуального триггер-узла.
+  positions: z
+    .record(z.string(), z.object({ x: z.number(), y: z.number() }))
+    .optional(),
 });
 export type FlowGraph = z.infer<typeof flowGraphSchema>;
 
