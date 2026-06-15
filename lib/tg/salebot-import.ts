@@ -518,24 +518,119 @@ function mapAttachmentKind(
   return null;
 }
 
+/**
+ * Salebot хранит кнопки одним из трёх способов:
+ *
+ *  1) JSON-массив объектов:
+ *     [{ "line":0, "index_in_line":0, "text":"Регистрация", "type":"inline",
+ *        "url":"https://…", "callback_link":false }]
+ *     line = индекс ряда, index_in_line = позиция внутри ряда.
+ *     type: "inline" | "phone" | "location" | "url" | "callback"
+ *
+ *  2) Старый текстовый формат, по одной строке:
+ *     "Метка|https://target.com"   — URL-кнопка
+ *     "Метка;next_node_id"          — callback с переходом
+ *     "Метка"                        — простая callback
+ *
+ *  3) Salebot-шаблоны #{var} внутри text/url — конвертируем в {{var}}.
+ *
+ * Лимит Telegram (наша схема): text/callback ≤ 64 символа — обрезаем.
+ */
 function parseSalebotButtons(raw: string | null | undefined): FlowButton[][] {
   if (!raw) return [];
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+
+  // Вариант (1) — JSON-массив объектов.
+  if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      const items = Array.isArray(parsed) ? parsed : [parsed];
+      // Группируем по line, сортируем по index_in_line.
+      const byLine = new Map<number, FlowButton[]>();
+      for (const it of items) {
+        if (!it || typeof it !== "object") continue;
+        const lineIdx =
+          typeof it.line === "number" ? it.line : 0;
+        const idxInLine =
+          typeof it.index_in_line === "number" ? it.index_in_line : 0;
+        const btn = salebotItemToButton(it);
+        if (!btn) continue;
+        const row = byLine.get(lineIdx) ?? [];
+        // Кладём с учётом index_in_line; сортируем в конце.
+        (row as unknown as Array<FlowButton & { _i?: number }>).push(
+          Object.assign(btn, { _i: idxInLine })
+        );
+        byLine.set(lineIdx, row);
+      }
+      const sortedLines = Array.from(byLine.keys()).sort((a, b) => a - b);
+      const rows: FlowButton[][] = [];
+      for (const li of sortedLines) {
+        const row = byLine.get(li)!;
+        row.sort(
+          (a, b) =>
+            ((a as FlowButton & { _i?: number })._i ?? 0) -
+            ((b as FlowButton & { _i?: number })._i ?? 0)
+        );
+        // Убираем технический _i.
+        rows.push(
+          row.map(({ _i, ...rest }: FlowButton & { _i?: number }) => rest)
+        );
+      }
+      if (rows.length > 0) return rows;
+    } catch {
+      // не JSON — падаем во вариант (2)
+    }
+  }
+
+  // Вариант (2) — каждая строка = одна кнопка.
   const rows: FlowButton[][] = [];
-  // Salebot format: каждая строка `label|url` или `label;next_node`.
-  for (const line of raw.split("\n")) {
+  for (const line of trimmed.split("\n")) {
     const s = line.trim();
     if (!s) continue;
-    // URL-кнопка
     const pipe = s.split("|").map((x) => x.trim());
     if (pipe.length === 2 && /^https?:\/\//.test(pipe[1])) {
-      rows.push([{ text: pipe[0], url: pipe[1] }]);
+      rows.push([cropButton({ text: pipe[0], url: pipe[1] })]);
       continue;
     }
-    // Callback-кнопка (label;optional payload). У нас поле называется `callback`.
     const semi = s.split(";").map((x) => x.trim());
-    rows.push([{ text: semi[0], callback: semi[0].slice(0, 64) }]);
+    rows.push([cropButton({ text: semi[0], callback: semi[0] })]);
   }
   return rows;
+}
+
+function salebotItemToButton(it: Record<string, unknown>): FlowButton | null {
+  const text = typeof it.text === "string" ? it.text : "";
+  if (!text) return null;
+  const type = typeof it.type === "string" ? it.type : "inline";
+  const url = typeof it.url === "string" ? it.url : undefined;
+
+  // type=phone — кнопка-запрос телефона. В TG это reply-keyboard с
+  // request_contact=true; у нас есть флаг requestContact.
+  if (type === "phone") {
+    return cropButton({ text, requestContact: true });
+  }
+  if (type === "location") {
+    return cropButton({ text, requestLocation: true });
+  }
+  // URL-кнопка: type=inline с url, либо type=url.
+  if (url) {
+    return cropButton({
+      text,
+      url: convertSalebotTemplates(url) ?? url,
+    });
+  }
+  // По умолчанию — callback-кнопка с тем же текстом в data.
+  return cropButton({ text, callback: text });
+}
+
+function cropButton(b: FlowButton): FlowButton {
+  // Telegram + наша схема: text/callback ≤ 64. Salebot допускает длиннее.
+  const out: FlowButton = { ...b };
+  if (out.text && out.text.length > 64) out.text = out.text.slice(0, 64);
+  if (out.callback && out.callback.length > 64)
+    out.callback = out.callback.slice(0, 64);
+  return out;
 }
 
 /**

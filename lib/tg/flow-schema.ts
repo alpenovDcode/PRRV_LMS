@@ -59,7 +59,10 @@ export const buttonSchema = z.object({
   text: z.string().min(1).max(64),
   // Mutually exclusive: url OR callback. We keep both optional and rely
   // on the engine to pick the first non-empty.
-  url: z.string().url().optional(),
+  // URL пропускает либо полноценный https:// (валидируется на отправке),
+  // либо шаблон с {{var}} — engine рендерит его перед sendMessage'ом.
+  // Из-за этого не используем z.string().url() — оно бы зарубило шаблоны.
+  url: z.string().min(1).max(2048).optional(),
   callback: z.string().max(64).optional(),
   // Optional: which node to jump to when this button is clicked.
   goto: z.string().optional(),
