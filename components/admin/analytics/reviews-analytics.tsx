@@ -142,9 +142,20 @@ export function ReviewsAnalytics({ range = "all" }: { range?: string }) {
   });
 
   const syncMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/admin/reviews/sync", { method: "POST" });
-      const json = await res.json();
+    mutationFn: async (source?: "otzovik" | "yandex_maps") => {
+      const qs = source ? `?source=${source}` : "";
+      const res = await fetch(`/api/admin/reviews/sync${qs}`, { method: "POST" });
+      const text = await res.text();
+      let json: { success: boolean; error?: { message: string }; data?: unknown };
+      try {
+        json = JSON.parse(text);
+      } catch {
+        throw new Error(
+          res.status === 504
+            ? "Таймаут (504). Попробуй синкать источники по одному кнопками ниже."
+            : `Сервер вернул не-JSON (${res.status})`
+        );
+      }
       if (!json.success) throw new Error(json.error?.message ?? "Ошибка синхронизации");
       return json.data;
     },
@@ -206,12 +217,28 @@ export function ReviewsAnalytics({ range = "all" }: { range?: string }) {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => syncMutation.mutate()}
+          onClick={() => syncMutation.mutate(undefined)}
           disabled={syncMutation.isPending}
           className="gap-2"
         >
           <RefreshCw className={`h-4 w-4 ${syncMutation.isPending ? "animate-spin" : ""}`} />
-          {syncMutation.isPending ? "Синхронизация..." : "Обновить отзывы"}
+          {syncMutation.isPending ? "Синхронизация..." : "Обновить всё"}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => syncMutation.mutate("otzovik")}
+          disabled={syncMutation.isPending}
+        >
+          Только Otzovik
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => syncMutation.mutate("yandex_maps")}
+          disabled={syncMutation.isPending}
+        >
+          Только Яндекс
         </Button>
 
         {data.lastFetchedAt && (

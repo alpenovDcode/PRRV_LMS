@@ -6,13 +6,23 @@ import { UserRole } from "@prisma/client";
 import { scrapeOtzovik } from "@/lib/reviews/otzovik";
 import { scrapeYandexMaps } from "@/lib/reviews/yandex-maps";
 
+// Скрапинг через Crawlbase (особенно Яндекс с JS-рендером) занимает ~30-90 сек.
+// nginx-таймаут для этого роута поднят до 300с в nginx/conf.d/default.conf.
+export const maxDuration = 300;
+
 export async function POST(request: NextRequest) {
   return withAuth(
     request,
     async () => {
       try {
         const body = await request.json().catch(() => ({}));
-        const sources: string[] = body.sources ?? ["otzovik", "yandex_maps"];
+        const url = new URL(request.url);
+        // Можно указать ?source=otzovik|yandex_maps чтобы синкать по одному
+        // источнику за раз и не упираться в таймаут.
+        const sourceParam = url.searchParams.get("source");
+        const sources: string[] = sourceParam
+          ? [sourceParam]
+          : body.sources ?? ["otzovik", "yandex_maps"];
 
         const results: Record<string, { added: number; updated: number; errors: string[] }> = {};
 
@@ -86,7 +96,10 @@ export async function POST(request: NextRequest) {
               existing.filter((r) => r.externalId != null).map((r) => r.externalId!)
             );
 
-            const scraped = await scrapeYandexMaps(10, existingIds);
+            // 1 страница — на ней помещаются все ~71 отзыв, а каждая страница
+            // через JS-рендер занимает ~30-60 сек, поэтому многостраничный
+            // обход не влезет в таймаут Vercel.
+            const scraped = await scrapeYandexMaps(1, existingIds);
             for (const r of scraped) {
               try {
                 const isNew = !existingIds.has(r.externalId);

@@ -31,9 +31,9 @@ export async function scrapeYandexMaps(
       const res = await proxyFetch(url, {
         js: true,
         ajaxWait: true,
-        pageWait: 3000,
+        pageWait: 2000,
         country: "RU",
-        timeoutMs: 120_000,
+        timeoutMs: 90_000,
       });
       if (!res.ok) break;
       html = await res.text();
