@@ -172,9 +172,19 @@ function FlowEditorInner({
   currentFlowId,
   onChange,
 }: FlowEditorProps) {
-  // Initial load: convert + auto-layout.
+  // Initial load: если у графа сохранены позиции (например, после
+  // импорта из Salebot с canvas-координатами), используем их —
+  // иначе auto-layout. Это нужно чтобы импортированная воронка
+  // открывалась в той же расстановке, что была в исходном редакторе.
   const initial = useMemo(
-    () => graphToReactFlow(graph, triggers, { autoLayout: true }),
+    () => {
+      const positions = (graph as { positions?: Record<string, { x: number; y: number }> })
+        .positions;
+      if (positions && Object.keys(positions).length > 0) {
+        return graphToReactFlow(graph, triggers, { positions });
+      }
+      return graphToReactFlow(graph, triggers, { autoLayout: true });
+    },
     // We only want this to compute on the first render of the editor for a
     // given graph identity; subsequent mutations come from React Flow state.
     // eslint-disable-next-line react-hooks/exhaustive-deps

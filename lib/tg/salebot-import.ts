@@ -213,10 +213,83 @@ export function importSalebot(raw: SalebotExport): ImportResult {
   }
   report.triggers = allTriggers.length;
 
+  // Сохраняем координаты Salebot canvas в graph.positions, чтобы
+  // редактор открыл воронку в той же расстановке (а не схлопнул в
+  // вертикальную колонку через auto-layout). Нормализуем минимум в 0
+  // и оставляем относительные расстояния как в Salebot.
+  const positions: Record<string, { x: number; y: number }> = {};
+  let minX = Infinity;
+  let minY = Infinity;
+  for (const m of raw.messages ?? []) {
+    if (typeof m.x === "number") minX = Math.min(minX, m.x);
+    if (typeof m.y === "number") minY = Math.min(minY, m.y);
+  }
+  if (!Number.isFinite(minX)) minX = 0;
+  if (!Number.isFinite(minY)) minY = 0;
+  for (const m of raw.messages ?? []) {
+    const id = idMap.get(m.id);
+    if (!id) continue;
+    positions[id] = {
+      x: (typeof m.x === "number" ? m.x : 0) - minX,
+      y: (typeof m.y === "number" ? m.y : 0) - minY,
+    };
+  }
+  // Bridge-узлы (delay / delay_until / condition) кладём рядом с source-
+  // нодой по вертикали — между source и target. Для простоты — посередине
+  // вертикально, чуть смещаем по x.
+  for (const sb of raw.messages ?? []) {
+    const outgoing = outgoingByMsg.get(sb.id) ?? [];
+    if (outgoing.length === 0) continue;
+    const target = messagesById.get(outgoing[0].message_b_id);
+    if (!target) continue;
+    const sourceUuid = idMap.get(sb.id);
+    if (!sourceUuid) continue;
+    const sourcePos = positions[sourceUuid];
+    const targetPos =
+      idMap.get(target.id) && positions[idMap.get(target.id)!];
+    if (!sourcePos || !targetPos) continue;
+    const midX = Math.round((sourcePos.x + targetPos.x) / 2);
+    const midY = Math.round((sourcePos.y + targetPos.y) / 2);
+    // Найдём в bridges те, что появились между этим source и любым из его outgoing.
+    // Дешёвая эвристика: совмещаем bridges, ссылающиеся на любого из target'ов
+    // ноды source, и расставляем их с равномерным смещением по x.
+    const sourceTargets = new Set(
+      outgoing.map((c) => idMap.get(c.message_b_id)).filter(Boolean) as string[]
+    );
+    const relatedBridges = bridges.filter(
+      (b) =>
+        (b as { next?: string }).next &&
+        sourceTargets.has((b as { next?: string }).next!)
+    );
+    relatedBridges.forEach((b, i) => {
+      if (positions[b.id]) return; // уже расставлен
+      positions[b.id] = {
+        x: midX + (i - (relatedBridges.length - 1) / 2) * 60,
+        y: midY,
+      };
+    });
+  }
+  // Виртуальный trigger-узел — над entry-нодой.
+  const entryPos = positions[idMap.get(entryMsg.id)!];
+  if (entryPos) {
+    positions["__trigger"] = { x: entryPos.x, y: Math.max(0, entryPos.y - 200) };
+  }
+  // Фоллбэк-расстановка для оставшихся нод без позиции (например,
+  // condition-bridges чьи источники не имеют разрешённых outgoing).
+  // Кладём их колонкой справа от основного канваса.
+  const maxX = Math.max(0, ...Object.values(positions).map((p) => p.x));
+  let fallbackY = 0;
+  for (const n of allNodes) {
+    if (positions[n.id]) continue;
+    positions[n.id] = { x: maxX + 400, y: fallbackY };
+    fallbackY += 160;
+  }
+
   const graph: FlowGraph = {
     version: 1,
     startNodeId: idMap.get(entryMsg.id)!,
     nodes: allNodes,
+    positions,
   };
   const flowName = entryMsg.description?.slice(0, 80) || "Импорт из Salebot";
 
