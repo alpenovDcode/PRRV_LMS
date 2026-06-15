@@ -432,6 +432,12 @@ const advancedTriggerSchema = z.object({
   // Strings to exclude — even if they would otherwise match the keyword
   // or regex, the trigger is suppressed. Helps prevent over-broad matchers.
   exclusions: z.array(z.string().min(1)).optional(),
+  // Перезаписывает graph.startNodeId для этого триггера. Используется,
+  // когда в одном flow живут несколько точек входа: /start ведёт в
+  // начало воронки, link_clicked — в реактивную ноду «Посетил Д1»,
+  // external_event — в «Заполнил АП» и т.д. Если не задан, run
+  // стартует с graph.startNodeId как обычно.
+  startAt: z.string().min(1).optional(),
 }).partial();
 
 export const triggerSchema = z.discriminatedUnion("type", [
@@ -516,6 +522,7 @@ export function triggerAdvanced(t: FlowTrigger) {
     onlyOnce: a.onlyOnce ?? false,
     onlyOnCallback: a.onlyOnCallback ?? false,
     exclusions: a.exclusions ?? [],
+    startAt: a.startAt,
   };
 }
 

@@ -168,7 +168,13 @@ export async function fireTagTriggers(args: {
   }
   const flows = await db.tgFlow.findMany({ where: { botId: args.botId, isActive: true } });
   const firedOnce = new Set<string>(sub.firedOnceTriggers ?? []);
-  const matched: Array<{ flowId: string; triggerIndex: number; priority: number; onlyOnce: boolean }> = [];
+  const matched: Array<{
+    flowId: string;
+    triggerIndex: number;
+    priority: number;
+    onlyOnce: boolean;
+    startAt?: string;
+  }> = [];
   for (const flow of flows) {
     const parsed = triggersSchema.safeParse(flow.triggers);
     if (!parsed.success) continue;
@@ -178,7 +184,13 @@ export async function fireTagTriggers(args: {
       const adv = triggerAdvanced(trigger);
       const onceKey = `${flow.id}:${idx}`;
       if (adv.onlyOnce && firedOnce.has(onceKey)) return;
-      matched.push({ flowId: flow.id, triggerIndex: idx, priority: adv.priority, onlyOnce: adv.onlyOnce });
+      matched.push({
+        flowId: flow.id,
+        triggerIndex: idx,
+        priority: adv.priority,
+        onlyOnce: adv.onlyOnce,
+        startAt: adv.startAt,
+      });
     });
   }
   matched.sort((a, b) => b.priority - a.priority);
@@ -188,6 +200,7 @@ export async function fireTagTriggers(args: {
       flowId: m.flowId,
       subscriberId: args.subscriberId,
       triggerInfo: { triggerType: args.kind, tag: args.tag },
+      startAt: m.startAt,
     });
     if (m.onlyOnce) newOnceKeys.push(`${m.flowId}:${m.triggerIndex}`);
   }
@@ -222,7 +235,13 @@ export async function fireReactiveTriggers(args: {
 
   const flows = await db.tgFlow.findMany({ where: { botId: args.botId, isActive: true } });
   const firedOnce = new Set<string>(sub.firedOnceTriggers ?? []);
-  const matched: Array<{ flowId: string; triggerIndex: number; priority: number; onlyOnce: boolean }> = [];
+  const matched: Array<{
+    flowId: string;
+    triggerIndex: number;
+    priority: number;
+    onlyOnce: boolean;
+    startAt?: string;
+  }> = [];
   for (const flow of flows) {
     const parsed = triggersSchema.safeParse(flow.triggers);
     if (!parsed.success) continue;
@@ -232,7 +251,13 @@ export async function fireReactiveTriggers(args: {
       const adv = triggerAdvanced(trigger);
       const onceKey = `${flow.id}:${idx}`;
       if (adv.onlyOnce && firedOnce.has(onceKey)) return;
-      matched.push({ flowId: flow.id, triggerIndex: idx, priority: adv.priority, onlyOnce: adv.onlyOnce });
+      matched.push({
+        flowId: flow.id,
+        triggerIndex: idx,
+        priority: adv.priority,
+        onlyOnce: adv.onlyOnce,
+        startAt: adv.startAt,
+      });
     });
   }
   matched.sort((a, b) => b.priority - a.priority);
@@ -242,6 +267,7 @@ export async function fireReactiveTriggers(args: {
       flowId: m.flowId,
       subscriberId: args.subscriberId,
       triggerInfo: { triggerType: args.triggerKind, ...args.triggerInfo },
+      startAt: m.startAt,
     });
     if (m.onlyOnce) newOnceKeys.push(`${m.flowId}:${m.triggerIndex}`);
   }
