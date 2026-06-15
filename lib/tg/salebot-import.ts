@@ -169,17 +169,24 @@ export function importSalebot(raw: SalebotExport): ImportResult {
   }
 
   // ── Собираем ВСЕ ноды в один общий граф ─────────────────────────────
-  // Каждая salebot-message превращается в нашу ноду; связи остаются
-  // нативно через `next`. Реактивные ноды остаются в этом же графе,
-  // но получают actions-семантику (см. mapMessageToNode).
+  // Каждая salebot-message превращается в нашу ноду; связи разворачиваются
+  // в bridge-узлы для timeout/send_time/send_date/compare_variable.
+  // Это даёт 100% связность графа (никаких «недостижимых нод»).
   const allNodes: FlowNode[] = [];
+  const bridges: FlowNode[] = [];
   for (const sb of raw.messages ?? []) {
     const ourId = idMap.get(sb.id)!;
     const outgoing = outgoingByMsg.get(sb.id) ?? [];
-    const baseNext = resolveNext(outgoing, idMap, [], sb.id);
-    const node = mapMessageToNode(sb, ourId, baseNext, report);
+    const effectiveNext = buildExitForConnections(
+      outgoing,
+      idMap,
+      bridges,
+      report
+    );
+    const node = mapMessageToNode(sb, ourId, effectiveNext, report);
     if (node) allNodes.push(node);
   }
+  allNodes.push(...bridges);
 
   // ── Триггеры главного flow ──────────────────────────────────────────
   // Один TgFlow получает:
@@ -329,32 +336,209 @@ function parseReactiveTrigger(m: SalebotMessage): FlowTrigger | null {
 
 // ─── Построение графа ──────────────────────────────────────────────────
 
-function resolveNext(
+/**
+ * Из массива salebot-connection строит: либо прямую ссылку (если у ноды
+ * единственный безусловный выход), либо цепочку синтетических узлов и
+ * возвращает id первого в цепочке.
+ *
+ * Синтетика:
+ *   • timeout=N или random(a,b)  → delay
+ *   • timeout=N с send_time/date → delay_until
+ *   • compare_variable           → condition с rules
+ *   • несколько выходов          → condition с rules (last = always-default)
+ *
+ * Сгенерированные узлы попадают в `bridges` — вызывающий потом мержит
+ * их с основным массивом allNodes.
+ */
+function buildExitForConnections(
   outgoing: SalebotConnection[],
   idMap: Map<number, string>,
-  _queue: number[],
-  _fromId: number
+  bridges: FlowNode[],
+  report: ImportReport
 ): string | undefined {
-  // Простейший случай: один выход без условий — указываем прямой next.
   if (outgoing.length === 0) return undefined;
-  const first = outgoing[0];
-  if (
-    outgoing.length === 1 &&
-    !first.compare_variable &&
-    !first.condition &&
-    !first.timeout &&
-    !first.send_time &&
-    !first.send_date
-  ) {
-    return idMap.get(first.message_b_id);
+
+  // Один выход — без condition, прямая (или одна bridge).
+  if (outgoing.length === 1) {
+    const c = outgoing[0];
+    const targetId = idMap.get(c.message_b_id);
+    if (!targetId) return undefined;
+    return wrapWithBridge(c, targetId, bridges, report);
   }
-  // Со сложными связями (timeout/send_time/compare) текущая нода будет
-  // указывать на ID синтетической вспомогательной ноды (delay / delay_until /
-  // condition), которые порождает emitTransitionNodes (Фаза 3+). MVP-реализация
-  // оставляет «голый next» к первому соседу — пользователь поправит руками
-  // в редакторе. Это компромисс: реализовать полный разворот связей со
-  // всеми ветками не входит в Фазу 0.
-  return idMap.get(outgoing[0].message_b_id);
+
+  // Несколько выходов — разделяем на условные (compare_variable) и
+  // безусловные. Условные становятся rule'ами condition-ноды;
+  // первая безусловная — defaultNext. Если у Salebot был fan-out
+  // (несколько безусловных к разным таргетам) — берём первый
+  // (в LMS нет параллельной семантики), остальные логируем как
+  // unmapped, чтобы админ увидел в отчёте.
+  const conditional = outgoing.filter((c) =>
+    (c.compare_variable ?? "").trim()
+  );
+  const unconditional = outgoing.filter((c) =>
+    !(c.compare_variable ?? "").trim()
+  );
+
+  // Только безусловные → один bridge на первую, остальные документируем.
+  if (conditional.length === 0) {
+    if (unconditional.length > 1) {
+      report.unmapped.push({
+        salebotId: unconditional[0].message_a_id,
+        reason: `Fan-out из ${unconditional.length} веток без условий — импортирована только первая (в LMS нет параллельных веток)`,
+      });
+    }
+    const c = unconditional[0];
+    const targetId = idMap.get(c.message_b_id);
+    if (!targetId) return undefined;
+    return wrapWithBridge(c, targetId, bridges, report);
+  }
+
+  // Есть условные → condition.
+  const rules: Array<{
+    kind: "tag" | "variable" | "expr" | "always";
+    params: Record<string, unknown>;
+    next: string;
+  }> = [];
+  for (const c of conditional) {
+    const targetId = idMap.get(c.message_b_id);
+    if (!targetId) continue;
+    const stepNext = wrapWithBridge(c, targetId, bridges, report);
+    rules.push({
+      kind: "expr",
+      params: { expr: salebotConditionToExpr(c.compare_variable!.trim()) },
+      next: stepNext,
+    });
+  }
+  let defaultNext: string | undefined;
+  if (unconditional.length > 0) {
+    const c = unconditional[0];
+    const targetId = idMap.get(c.message_b_id);
+    if (targetId) defaultNext = wrapWithBridge(c, targetId, bridges, report);
+    if (unconditional.length > 1) {
+      report.unmapped.push({
+        salebotId: c.message_a_id,
+        reason: `Fan-out из ${unconditional.length} безусловных веток рядом с condition — импортирована только первая как default`,
+      });
+    }
+  }
+  if (rules.length === 0) {
+    return defaultNext;
+  }
+  const condId = randomUUID();
+  bridges.push({
+    id: condId,
+    type: "condition",
+    label: "Switch (Salebot)",
+    rules,
+    defaultNext,
+  });
+  report.mapped.condition++;
+  return condId;
+}
+
+/**
+ * Оборачивает одну connection (с её timeout/send_time/send_date) в
+ * цепочку bridge-узлов и возвращает id первого узла цепочки. Если ничего
+ * оборачивать не надо — возвращает targetId как есть.
+ */
+function wrapWithBridge(
+  c: SalebotConnection,
+  targetId: string,
+  bridges: FlowNode[],
+  report: ImportReport
+): string {
+  const sendTime = (c.send_time ?? "").trim();
+  const sendDate = (c.send_date ?? "").trim();
+  const timeoutRaw = (c.timeout ?? "").trim();
+
+  // send_time — приоритетней timeout: «отправить в 11:00 МСК».
+  if (sendTime) {
+    const { time, daysOffset } = parseSendTimeAndDate(sendTime, sendDate);
+    const id = randomUUID();
+    bridges.push({
+      id,
+      type: "delay_until",
+      label: `→ ${sendTime}${sendDate ? ` ${sendDate}` : ""}`,
+      next: targetId,
+      time,
+      daysOffset,
+    });
+    report.mapped.delay++;
+    return id;
+  }
+
+  // timeout — обычная задержка. Поддерживаем "N" и "random(a,b)".
+  if (timeoutRaw && timeoutRaw !== "0") {
+    const { seconds, secondsMax } = parseSalebotTimeout(timeoutRaw);
+    if (seconds > 0) {
+      const id = randomUUID();
+      bridges.push({
+        id,
+        type: "delay",
+        label:
+          secondsMax && secondsMax > seconds
+            ? `delay random ${seconds}..${secondsMax}s`
+            : `delay ${seconds}s`,
+        next: targetId,
+        seconds,
+        secondsMax: secondsMax && secondsMax > seconds ? secondsMax : undefined,
+      });
+      report.mapped.delay++;
+      return id;
+    }
+  }
+
+  return targetId;
+}
+
+/**
+ * Парсит "N" или "random(a,b)" в seconds/secondsMax. Если не распарсилось —
+ * возвращает {seconds: 0}.
+ */
+function parseSalebotTimeout(raw: string): { seconds: number; secondsMax?: number } {
+  const rand = raw.match(/^random\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)$/i);
+  if (rand) {
+    const a = parseInt(rand[1], 10);
+    const b = parseInt(rand[2], 10);
+    return { seconds: Math.min(a, b), secondsMax: Math.max(a, b) };
+  }
+  const n = parseInt(raw, 10);
+  if (Number.isFinite(n) && n > 0) return { seconds: n };
+  return { seconds: 0 };
+}
+
+/**
+ * Salebot send_time приходит как "11:00 МСК" или "20:00", send_date —
+ * либо абсолютная дата "2026-05-21", либо относительное смещение в
+ * sales-формате. Здесь делаем простой парсинг: время = HH:MM,
+ * daysOffset = 0 (ближайшее будущее).
+ */
+function parseSendTimeAndDate(
+  sendTime: string,
+  _sendDate: string
+): { time: string; daysOffset: number } {
+  const m = sendTime.match(/(\d{1,2}):(\d{2})/);
+  if (m) {
+    const h = Math.min(23, Math.max(0, parseInt(m[1], 10)));
+    const min = Math.min(59, Math.max(0, parseInt(m[2], 10)));
+    const time = `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+    return { time, daysOffset: 0 };
+  }
+  return { time: "11:00", daysOffset: 0 };
+}
+
+/**
+ * Salebot compare_variable пишется почти как JS, мы можем прокинуть как
+ * есть в наш expression engine. Делаем минимальные подмены:
+ *   "x != 1"           → "x != 1"
+ *   "tg_track == 1"    → "tg_track == 1"
+ *   "client_type == 20 and tg_track == 1" → "client_type == 20 && tg_track == 1"
+ */
+function salebotConditionToExpr(raw: string): string {
+  return raw
+    .replace(/\band\b/gi, "&&")
+    .replace(/\bor\b/gi, "||")
+    .trim();
 }
 
 function mapMessageToNode(
