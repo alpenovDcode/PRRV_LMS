@@ -116,6 +116,101 @@ function buildCtx(bundle: RunBundle, inboundText?: string | null): EvalContext {
   });
 }
 
+// -- helpers --------------------------------------------------------
+
+/**
+ * Достаёт значение из объекта/массива по dot-нотации. Поддерживает
+ * числовые сегменты для массивов: "items.0.id". Возвращает undefined,
+ * если по пути ничего нет.
+ */
+/**
+ * Считает Date следующего «HH:MM в TZ + daysOffset». Использует
+ * Intl-форматер для конвертации текущего «сейчас» в локальное время
+ * указанной TZ. Если ближайшее это-же-сегодня уже прошло — переносит
+ * на завтра автоматически.
+ */
+function computeDelayUntil(
+  hhmm: string,
+  timezone: string,
+  daysOffset: number
+): Date {
+  const [hStr, mStr] = hhmm.split(":");
+  const h = Number(hStr);
+  const m = Number(mStr);
+
+  const now = new Date();
+  // Получаем «который сейчас час» в локали TZ — Intl формирует Y/M/D h/m/s.
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+  const parts = Object.fromEntries(
+    fmt.formatToParts(now).map((p) => [p.type, p.value])
+  );
+  const y = Number(parts.year);
+  const mo = Number(parts.month);
+  const d = Number(parts.day);
+  const nowH = Number(parts.hour);
+  const nowM = Number(parts.minute);
+
+  // Базовая дата = сегодня в TZ; смещаем daysOffset; если daysOffset=0 и
+  // время уже прошло — добавляем сутки.
+  let targetDay = d + daysOffset;
+  if (daysOffset === 0) {
+    if (h < nowH || (h === nowH && m <= nowM)) {
+      targetDay += 1;
+    }
+  }
+  // Собираем UTC-timestamp обратной конвертацией через Date.UTC
+  // не получится (TZ нужна). Делаем через probe: ищем оффсет TZ для
+  // target-даты и вычитаем его из локального UTC.
+  const localUtc = Date.UTC(y, mo - 1, targetDay, h, m, 0, 0);
+  // Узнаём оффсет TZ относительно UTC для этой target-даты.
+  const sample = new Date(localUtc);
+  const tzParts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    })
+      .formatToParts(sample)
+      .map((p) => [p.type, p.value])
+  );
+  const asTz = Date.UTC(
+    Number(tzParts.year),
+    Number(tzParts.month) - 1,
+    Number(tzParts.day),
+    Number(tzParts.hour),
+    Number(tzParts.minute),
+    Number(tzParts.second)
+  );
+  const offsetMs = asTz - sample.getTime();
+  return new Date(localUtc - offsetMs);
+}
+
+function getByJsonPath(obj: unknown, path: string): unknown {
+  if (obj == null) return undefined;
+  const segments = path.split(".").filter(Boolean);
+  let cur: unknown = obj;
+  for (const seg of segments) {
+    if (cur == null || typeof cur !== "object") return undefined;
+    const key = /^\d+$/.test(seg) ? Number(seg) : seg;
+    cur = (cur as Record<string | number, unknown>)[key];
+  }
+  return cur;
+}
+
 // -- variable persistence with scope routing ------------------------
 
 async function setVarScoped(
@@ -450,8 +545,32 @@ async function executeNode(
       });
       return { done: false, nextNodeId: node.next };
     }
+    case "delay_until": {
+      // Считаем «следующее вхождение HH:MM» в указанной TZ. TZ берётся
+      // в порядке: nodes.timezone → bot.timezone → "Europe/Moscow".
+      const tz = node.timezone ?? bot.timezone ?? "Europe/Moscow";
+      const resumeAt = computeDelayUntil(node.time, tz, node.daysOffset ?? 0);
+      await db.tgFlowRun.update({
+        where: { id: run.id },
+        data: {
+          status: "sleeping",
+          resumeAt,
+          currentNodeId: node.id,
+          positionGroupId: positionKey(subscriber.currentPositionFlowId, subscriber.currentPositionNodeId),
+        },
+      });
+      return { done: true };
+    }
     case "delay": {
-      const resumeAt = new Date(Date.now() + node.seconds * 1000);
+      // Random-delay режим: если задан secondsMax > seconds, выбираем
+      // случайное число секунд в [seconds, secondsMax]. Покрывает
+      // Salebot-функцию random(a,b) — имитация набора текста.
+      let seconds = node.seconds;
+      if (node.secondsMax && node.secondsMax > node.seconds) {
+        seconds =
+          node.seconds + Math.floor(Math.random() * (node.secondsMax - node.seconds + 1));
+      }
+      const resumeAt = new Date(Date.now() + seconds * 1000);
       await db.tgFlowRun.update({
         where: { id: run.id },
         data: {
@@ -545,14 +664,24 @@ async function executeNode(
         });
         clearTimeout(timer);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        if (node.saveAs) {
-          let parsed: unknown;
-          const text = await res.text();
-          try {
-            parsed = JSON.parse(text);
-          } catch {
-            parsed = text;
+        // Парсим JSON-ответ один раз — нужно и для saveAs, и для saveMappings.
+        let parsed: unknown;
+        const text = await res.text();
+        try {
+          parsed = JSON.parse(text);
+        } catch {
+          parsed = text;
+        }
+        // saveMappings — точечная запись отдельных полей в нужный scope
+        // (client.*, project.*, deal.*, field.*). Покрывает Salebot-DSL.
+        if (node.saveMappings && node.saveMappings.length > 0) {
+          for (const m of node.saveMappings) {
+            const value = getByJsonPath(parsed, m.jsonPath);
+            await setVarScoped(bundle, m.target, value);
           }
+        }
+        // saveAs (legacy) — кладёт ВЕСЬ ответ под одним ключом в deal-scope.
+        if (node.saveAs) {
           const newCtx = {
             ...((run.context as Record<string, unknown>) ?? {}),
             [node.saveAs]: parsed,

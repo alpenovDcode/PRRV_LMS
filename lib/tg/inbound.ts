@@ -692,6 +692,19 @@ export async function handleUpdate(bot: TgBot, update: TgUpdate): Promise<void> 
         botId: bot.id,
         subscriberId: subscriber.id,
       }).catch(() => {});
+      // Реактивный trigger «unsubscribed» — позволяет повесить flow,
+      // который, например, записывает «потерял лида» в Bitrix или шлёт
+      // email-ремайндер.
+      import("./lists")
+        .then((mod) =>
+          mod.fireReactiveTriggers({
+            botId: bot.id,
+            subscriberId: subscriber.id,
+            triggerKind: "unsubscribed",
+            matcher: (t) => t.type === "unsubscribed",
+          })
+        )
+        .catch(() => undefined);
     }
     return;
   }

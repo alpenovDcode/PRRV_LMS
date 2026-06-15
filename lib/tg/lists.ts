@@ -11,7 +11,7 @@
 // is the trigger-aware wrapper to use from new code.
 
 import { db } from "../db";
-import { triggersSchema, triggerAdvanced } from "./flow-schema";
+import { triggersSchema, triggerAdvanced, type FlowTrigger } from "./flow-schema";
 import { startFlowRun } from "./flow-engine";
 import { trackEvent } from "./events";
 
@@ -188,6 +188,60 @@ export async function fireTagTriggers(args: {
       flowId: m.flowId,
       subscriberId: args.subscriberId,
       triggerInfo: { triggerType: args.kind, tag: args.tag },
+    });
+    if (m.onlyOnce) newOnceKeys.push(`${m.flowId}:${m.triggerIndex}`);
+  }
+  if (newOnceKeys.length > 0) {
+    await db.tgSubscriber.update({
+      where: { id: args.subscriberId },
+      data: { firedOnceTriggers: { push: newOnceKeys } },
+    });
+  }
+}
+
+/**
+ * Запускает flows, у которых есть подходящий реактивный триггер. Объединяет
+ * логику для link_clicked / external_event / unsubscribed — это всё
+ * «триггеры без обмена сообщениями», и матчер для них одинаков по форме.
+ *
+ * matcher вызывается для каждого триггера флоу: вернуть true = совпало.
+ */
+export async function fireReactiveTriggers(args: {
+  botId: string;
+  subscriberId: string;
+  triggerKind: "link_clicked" | "external_event" | "unsubscribed";
+  matcher: (trigger: FlowTrigger) => boolean;
+  triggerInfo?: Record<string, unknown>;
+}): Promise<void> {
+  const sub = await db.tgSubscriber.findUnique({ where: { id: args.subscriberId } });
+  if (!sub) return;
+  // unsubscribed-флоу пускаем даже для isBlocked-подписчиков, чтобы можно
+  // было повесить «прощальное» сообщение / запись в Bitrix. Остальные —
+  // только для активных.
+  if (args.triggerKind !== "unsubscribed" && sub.isBlocked) return;
+
+  const flows = await db.tgFlow.findMany({ where: { botId: args.botId, isActive: true } });
+  const firedOnce = new Set<string>(sub.firedOnceTriggers ?? []);
+  const matched: Array<{ flowId: string; triggerIndex: number; priority: number; onlyOnce: boolean }> = [];
+  for (const flow of flows) {
+    const parsed = triggersSchema.safeParse(flow.triggers);
+    if (!parsed.success) continue;
+    parsed.data.forEach((trigger, idx) => {
+      if (trigger.type !== args.triggerKind) return;
+      if (!args.matcher(trigger)) return;
+      const adv = triggerAdvanced(trigger);
+      const onceKey = `${flow.id}:${idx}`;
+      if (adv.onlyOnce && firedOnce.has(onceKey)) return;
+      matched.push({ flowId: flow.id, triggerIndex: idx, priority: adv.priority, onlyOnce: adv.onlyOnce });
+    });
+  }
+  matched.sort((a, b) => b.priority - a.priority);
+  const newOnceKeys: string[] = [];
+  for (const m of matched.slice(0, 3)) {
+    await startFlowRun({
+      flowId: m.flowId,
+      subscriberId: args.subscriberId,
+      triggerInfo: { triggerType: args.triggerKind, ...args.triggerInfo },
     });
     if (m.onlyOnce) newOnceKeys.push(`${m.flowId}:${m.triggerIndex}`);
   }

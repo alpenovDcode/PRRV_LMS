@@ -309,6 +309,7 @@ function outgoingRefs(n: FlowNode): Array<string | undefined> {
   switch (n.type) {
     case "message":
     case "delay":
+    case "delay_until":
     case "add_tag":
     case "remove_tag":
     case "add_to_list":
