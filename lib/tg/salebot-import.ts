@@ -314,6 +314,14 @@ function withStartAt(t: FlowTrigger, startAt: string): FlowTrigger {
 type NodeKind = "message" | "nudge" | "reactive" | "http" | "note";
 
 function classifyMessageType(m: SalebotMessage): NodeKind {
+  // Salebot полиморфен: на любом message_type может быть action_url —
+  // это HTTP-выгрузка (типично — Google Sheets, GetCourse, любой webhook).
+  // Если url задан, мы должны импортировать ноду как http_request,
+  // независимо от типа. Иначе получаются пустые "(empty) message"-ноды,
+  // как у пользователя на скриншоте с 18 нодами «Выгрузка».
+  if (m.action_url && m.action_url.trim().length > 0) {
+    return "http";
+  }
   switch (m.message_type) {
     case 0:
       return "message";
@@ -670,14 +678,24 @@ function mapMessageToNode(
         text: `TODO: HTTP-нода Salebot без action_url — ${label}`,
       };
     }
+    // Salebot request_type: 1=GET, 2=POST (по факту в экспортах). Если
+    // есть post_params — это всегда POST/PUT/PATCH с телом, дефолтим
+    // в POST. Если url задан, post_params пуст и request_type=1 — GET.
+    const hasBody = !!(sb.post_params && sb.post_params.trim().length > 0);
+    const method = sb.request_type === 1 && !hasBody ? "GET" : "POST";
+    const httpLabel =
+      label ||
+      (sb.action_url.includes("gsheets") ? "Выгрузка → Google Sheets" : "HTTP-вызов");
+    const body = hasBody ? convertSalebotTemplates(sb.post_params) : undefined;
     return {
       id: ourId,
       type: "http_request",
-      label,
+      label: httpLabel,
       next: baseNext,
-      method: sb.request_type === 2 ? "POST" : "GET",
-      url: sb.action_url,
-      body: convertSalebotTemplates(sb.post_params),
+      method,
+      url: convertSalebotTemplates(sb.action_url) ?? sb.action_url,
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body,
       saveMappings: parseSavedVariablesDSL(sb.saved_variables),
     };
   }
