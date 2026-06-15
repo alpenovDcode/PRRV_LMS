@@ -53,6 +53,20 @@ export async function GET(request: NextRequest) {
           },
         });
 
+        // Общий счёт по источникам без фильтра по дате — чтобы в UI было
+        // видно, сколько всего отзывов в БД vs сколько попало в текущий период.
+        const totalsBySource = await db.externalReview.groupBy({
+          by: ["source"],
+          _count: { _all: true },
+          _max: { publishedAt: true },
+        });
+        const dbTotals = totalsBySource.map((g) => ({
+          source: g.source,
+          count: g._count._all,
+          latestPublishedAt: g._max.publishedAt,
+        }));
+        const dbTotal = dbTotals.reduce((acc, g) => acc + g.count, 0);
+
         const bySource = new Map<string, { count: number; ratingSum: number; ratingN: number; responded: number }>();
         const monthMap = new Map<string, { otzovik: number; yandex_maps: number }>();
         const ratingDist = Array.from({ length: 5 }, (_, i) => ({ rating: i + 1, count: 0 }));
@@ -110,6 +124,8 @@ export async function GET(request: NextRequest) {
           success: true,
           data: {
             total: reviews.length,
+            dbTotal,
+            dbTotals,
             avgRating,
             respondedTotal,
             responseRate: reviews.length > 0 ? Math.round((respondedTotal / reviews.length) * 100) : 0,

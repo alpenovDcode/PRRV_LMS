@@ -1,3 +1,5 @@
+import { parseReviewDate } from "./date-utils";
+
 export interface ScrapedReview {
   externalId: string;
   author: string;
@@ -62,7 +64,7 @@ export async function scrapeOtzovik(
       if (!text) continue;
 
       const dateMatch = block.match(/itemprop="datePublished"\s+content="([^"]+)"/);
-      const publishedAt = dateMatch ? new Date(dateMatch[1]) : new Date();
+      const publishedAt = parseReviewDate(dateMatch?.[1]);
 
       const commentCountMatch = block.match(/itemprop="commentCount">(\d+)</);
       const commentCount = parseInt(commentCountMatch?.[1] ?? "0", 10);

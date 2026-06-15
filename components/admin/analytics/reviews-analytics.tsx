@@ -58,6 +58,8 @@ interface SentimentData {
 
 interface ReviewsData {
   total: number;
+  dbTotal: number;
+  dbTotals: { source: string; count: number; latestPublishedAt: string | null }[];
   avgRating: number | null;
   respondedTotal: number;
   responseRate: number;
@@ -225,14 +227,30 @@ export function ReviewsAnalytics({ range = "all" }: { range?: string }) {
         )}
       </div>
 
+      {/* Информация о фильтрации */}
+      {range !== "all" && data.dbTotal > data.total && (
+        <div className="rounded-md border border-blue-200 bg-blue-50/40 px-4 py-2.5 text-sm text-blue-900 dark:bg-blue-950/20 dark:border-blue-900 dark:text-blue-200">
+          Фильтр «{range === "7d" ? "Последние 7 дней" : range === "30d" ? "Последние 30 дней" : "Последние 3 месяца"}»
+          показывает <b>{data.total}</b> из <b>{data.dbTotal}</b> отзывов в базе.
+          Чтобы увидеть все отзывы, выберите «За все время».
+        </div>
+      )}
+
       {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Всего отзывов</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              {range === "all" ? "Всего отзывов" : "Отзывов за период"}
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data.total}</div>
+            <div className="text-2xl font-bold">
+              {data.total}
+              {range !== "all" && (
+                <span className="ml-1 text-sm font-normal text-muted-foreground">/ {data.dbTotal}</span>
+              )}
+            </div>
             <div className="mt-1 flex flex-wrap gap-1.5">
               {data.perSource.map((s) => (
                 <Badge key={s.source} variant="secondary" className="text-xs">
