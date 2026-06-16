@@ -255,6 +255,50 @@ services:
         max-size: "1m"
         max-file: "3"
 
+  # Раз в сутки тянет свежие отзывы с Otzovik и Яндекс Карт через Crawlbase.
+  # Источники синкаются по очереди, чтобы каждый укладывался в лимит таймаута.
+  # Между источниками — пауза, чтобы не упереться в rate-limit прокси.
+  reviews-cron:
+    image: curlimages/curl:8.10.1
+    container_name: proryv_reviews_cron
+    restart: always
+    depends_on:
+      nginx:
+        condition: service_started
+    environment:
+      REVIEWS_CRON_SECRET: ${REVIEWS_CRON_SECRET}
+    entrypoint:
+      - sh
+      - -c
+      - |
+        echo "[reviews-cron] starting, sync every 24h";
+        # Стартовая пауза 60с — чтобы успел подняться app и nginx.
+        sleep 60;
+        while true; do
+          echo "[reviews-cron] $$(date) syncing otzovik...";
+          curl -fsS -X POST --max-time 280 \
+            -H "Authorization: Bearer $$REVIEWS_CRON_SECRET" \
+            "http://nginx/api/reviews-cron/sync?source=otzovik" \
+            || echo "[reviews-cron] otzovik failed";
+          echo;
+          sleep 30;
+          echo "[reviews-cron] $$(date) syncing yandex_maps...";
+          curl -fsS -X POST --max-time 280 \
+            -H "Authorization: Bearer $$REVIEWS_CRON_SECRET" \
+            "http://nginx/api/reviews-cron/sync?source=yandex_maps" \
+            || echo "[reviews-cron] yandex_maps failed";
+          echo;
+          # 24 часа до следующего раунда
+          sleep 86400;
+        done
+    networks:
+      - proryv_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "1m"
+        max-file: "3"
+
   nginx:
     image: nginx:alpine
     container_name: proryv_nginx
