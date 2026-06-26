@@ -57,6 +57,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AccessManager } from "./_components/access-manager";
 import { GetcourseTab } from "./_components/getcourse-tab";
 import { GetcourseOrdersTab } from "./_components/getcourse-orders-tab";
+import { EmailTab } from "./_components/email-tab";
 
 type UserRole = "student" | "admin" | "curator";
 
@@ -516,6 +517,7 @@ export default function AdminUserDetailPage() {
           <TabsTrigger value="access">Доступы</TabsTrigger>
           <TabsTrigger value="certificates">Сертификаты</TabsTrigger>
           <TabsTrigger value="orders">Заказы</TabsTrigger>
+          <TabsTrigger value="email">Email</TabsTrigger>
           <TabsTrigger value="data">Данные</TabsTrigger>
         </TabsList>
 
@@ -991,6 +993,10 @@ export default function AdminUserDetailPage() {
 
         <TabsContent value="orders" className="space-y-4">
           <GetcourseOrdersTab userId={userId} />
+        </TabsContent>
+
+        <TabsContent value="email" className="space-y-4">
+          <EmailTab userId={userId} />
         </TabsContent>
 
         <TabsContent value="data" className="space-y-4">

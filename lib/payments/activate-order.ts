@@ -118,6 +118,16 @@ export async function activateOrder(orderId: string): Promise<void> {
     source: "webhook",
   }).catch(() => {});
 
+  // ── 5.1. Маркетинговые автоматизации — onboarding после покупки и т.п.
+  //         Fire-and-forget: ошибки не должны валить активацию.
+  void import("@/lib/email/automations/trigger-router")
+    .then(({ fireTrigger }) =>
+      fireTrigger("course_purchased", userId, {
+        triggerData: { offerId: order.offerId, courseIds, amount: order.amount },
+      })
+    )
+    .catch((e) => console.warn("[activate-order] fireTrigger failed:", e));
+
   // ── 6. Welcome / access email клиенту ─────────────────────────────────
   // Для гостевого юзера (только что созданного через /identify) шлём
   // welcome-письмо с magic-link логина (LoginToken на 30 дней, чтобы

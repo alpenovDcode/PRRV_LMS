@@ -71,7 +71,13 @@ export async function middleware(request: NextRequest) {
     path.startsWith("/api/video-proxy") ||
     path.startsWith("/api/landings/check-status") ||
     path.startsWith("/api/homework/ai-result") || // внешний callback от AI-чекера ДЗ, auth внутри роута
-    path.startsWith("/api/questions/ai-reply");   // внешний callback от AI-чекера вопросов, auth внутри роута
+    path.startsWith("/api/questions/ai-reply") ||  // внешний callback от AI-чекера вопросов, auth внутри роута
+    path.startsWith("/api/email/track/") ||       // open-pixel + click-redirect для маркетинговых писем (public)
+    path.startsWith("/api/email/unsubscribe/") || // one-click unsubscribe (token внутри URL)
+    path.startsWith("/api/email/webhook/") ||     // webhook от провайдера (Unisender и т.п.), HMAC внутри роута
+    path.startsWith("/api/email-cron/") ||        // sidecar email-cron, Bearer EMAIL_CRON_SECRET внутри роута
+    path.startsWith("/email/unsubscribe/") ||     // публичная страница отписки получателя
+    path.startsWith("/email/view/");              // публичная страница "посмотреть письмо в браузере"
 
   // 1. ПУБЛИЧНЫЕ РОУТЫ И ВИДЕО-ПРОКСИ (РАННИЙ ВЫХОД)
   if (isPublicRoute) {

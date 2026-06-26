@@ -16,26 +16,41 @@ enum UserTariff {
 }
 
 model User {
-  id                      String                  @id @default(uuid())
-  email                   String                  @unique
-  passwordHash            String                  @map("password_hash")
-  fullName                String?                 @map("full_name")
-  avatarUrl               String?                 @map("avatar_url")
-  role                    UserRole                @default(student)
-  tariff                  UserTariff?             @map("tariff")
-  sessionId               String?                 @map("session_id")
-  isBlocked               Boolean                 @default(false) @map("is_blocked")
-  frozenUntil             DateTime?               @map("frozen_until")
-  emailVerified           Boolean                 @default(false) @map("email_verified")
-  createdAt               DateTime                @default(now()) @map("created_at")
-  updatedAt               DateTime                @updatedAt @map("updated_at")
-  passwordResetExpires    DateTime?               @map("password_reset_expires")
-  passwordResetToken      String?                 @map("password_reset_token")
-  about                   String?
-  phone                   String?
-  telegram                String?
-  track                   String?
-  lastActiveAt            DateTime?               @map("last_active_at")
+  id                   String      @id @default(uuid())
+  email                String      @unique
+  passwordHash         String      @map("password_hash")
+  fullName             String?     @map("full_name")
+  avatarUrl            String?     @map("avatar_url")
+  role                 UserRole    @default(student)
+  tariff               UserTariff? @map("tariff")
+  sessionId            String?     @map("session_id")
+  isBlocked            Boolean     @default(false) @map("is_blocked")
+  frozenUntil          DateTime?   @map("frozen_until")
+  emailVerified        Boolean     @default(false) @map("email_verified")
+  createdAt            DateTime    @default(now()) @map("created_at")
+  updatedAt            DateTime    @updatedAt @map("updated_at")
+  passwordResetExpires DateTime?   @map("password_reset_expires")
+  passwordResetToken   String?     @map("password_reset_token")
+  about                String?
+  phone                String?
+  telegram             String?
+  track                String?
+  lastActiveAt         DateTime?   @map("last_active_at")
+
+  // --- Marketing email (Спринт 0) ---
+  // Внешний id контакта в провайдере (Unisender contact). nullable, пока не синхронизирован.
+  externalContactId String?   @unique @map("external_contact_id")
+  contactSyncedAt   DateTime? @map("contact_synced_at")
+  // Прошёл валидацию провайдера (Unisender email validator).
+  emailValidated    Boolean   @default(false) @map("email_validated")
+  // Глобальный отказ от маркетинговых писем. Транзакционка не зависит от этого флага.
+  marketingOptOut   Boolean   @default(false) @map("marketing_opt_out")
+  unsubscribedAt    DateTime? @map("unsubscribed_at")
+  // Одноразовый (переиспользуемый) токен для one-click unsubscribe из писем.
+  unsubscribeToken  String?   @unique @map("unsubscribe_token")
+  // Теги для сегментации маркетинговых рассылок: ["tariff:VR","track:music","stage:onboarding"].
+  emailTags         Json?     @map("email_tags")
+
   auditLogs               AuditLog[]
   courses                 Course[]                @relation("CourseAuthor")
   enrollments             Enrollment[]
@@ -54,7 +69,7 @@ model User {
   userSessions            UserSession[]
   errorLogs               ErrorLog[]
   loginTokens             LoginToken[]
-  keywords                String[]                @default([])  // Накопленные ключевые слова из форм
+  keywords                String[]                @default([]) // Накопленные ключевые слова из форм
   certificates            Certificate[]
   orders                  Order[]
   messagingBots           MessagingBot[]
@@ -69,20 +84,25 @@ model User {
   getcourseData           GetcourseData?
   getcourseOrders         GetcourseOrder[]
 
+  // --- Marketing email relations (Спринт 0) ---
+  emailEvents         EmailEvent[]
+  emailAutomationRuns EmailAutomationRun[]
+  emailDeliveryJobs   EmailDeliveryJob[]
+
   @@index([email])
   @@map("users")
 }
 
 model LoginToken {
-  id        String   @id @default(uuid())
-  token     String   @unique
-  userId    String   @map("user_id")
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  expiresAt DateTime @map("expires_at")
-  used      Boolean  @default(false)
+  id        String    @id @default(uuid())
+  token     String    @unique
+  userId    String    @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime  @map("expires_at")
+  used      Boolean   @default(false)
   usedAt    DateTime? @map("used_at")
-  createdAt DateTime @default(now()) @map("created_at")
-  
+  createdAt DateTime  @default(now()) @map("created_at")
+
   @@index([token])
   @@index([userId])
   @@index([expiresAt])
@@ -90,23 +110,23 @@ model LoginToken {
 }
 
 model Course {
-  id          String       @id @default(uuid())
-  title       String
-  slug        String       @unique
-  description String?
-  coverImage  String?      @map("cover_image")
-  isPublished Boolean      @default(false) @map("is_published")
-  authorId    String       @map("author_id")
-  createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime     @updatedAt @map("updated_at")
-  autoIssueCertificate Boolean @default(false) @map("auto_issue_certificate")
-  certificateTemplateId String? @map("certificate_template_id")
-  author      User         @relation("CourseAuthor", fields: [authorId], references: [id])
-  enrollments Enrollment[]
-  groups      Group[]
-  modules     Module[]
-  certificateTemplates CertificateTemplate[]
-  certificates Certificate[]
+  id                    String                @id @default(uuid())
+  title                 String
+  slug                  String                @unique
+  description           String?
+  coverImage            String?               @map("cover_image")
+  isPublished           Boolean               @default(false) @map("is_published")
+  authorId              String                @map("author_id")
+  createdAt             DateTime              @default(now()) @map("created_at")
+  updatedAt             DateTime              @updatedAt @map("updated_at")
+  autoIssueCertificate  Boolean               @default(false) @map("auto_issue_certificate")
+  certificateTemplateId String?               @map("certificate_template_id")
+  author                User                  @relation("CourseAuthor", fields: [authorId], references: [id])
+  enrollments           Enrollment[]
+  groups                Group[]
+  modules               Module[]
+  certificateTemplates  CertificateTemplate[]
+  certificates          Certificate[]
 
   @@index([slug])
   @@index([authorId])
@@ -114,26 +134,26 @@ model Course {
 }
 
 model Module {
-  id             String       @id @default(uuid())
-  courseId       String       @map("course_id")
-  parentId       String?      @map("parent_id")
-  title          String
-  orderIndex     Int          @map("order_index")
-  allowedTariffs UserTariff[] @map("allowed_tariffs")
-  allowedTracks  String[]     @map("allowed_tracks")
-  allowedGroups  String[]     @map("allowed_groups")
-  openAt         DateTime?    @map("open_at")
-  openAfterAmount Int?        @map("open_after_amount")
-  openAfterUnit  String?      @map("open_after_unit") // 'days', 'weeks'
-  openAfterEvent String?      @map("open_after_event") // 'track_definition'
-  trackSettings  Json?        @map("track_settings")
-  groupSettings  Json?        @map("group_settings")
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
-  lessons        Lesson[]
-  course         Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  parent         Module?      @relation("ModuleHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
-  children       Module[]     @relation("ModuleHierarchy")
+  id              String       @id @default(uuid())
+  courseId        String       @map("course_id")
+  parentId        String?      @map("parent_id")
+  title           String
+  orderIndex      Int          @map("order_index")
+  allowedTariffs  UserTariff[] @map("allowed_tariffs")
+  allowedTracks   String[]     @map("allowed_tracks")
+  allowedGroups   String[]     @map("allowed_groups")
+  openAt          DateTime?    @map("open_at")
+  openAfterAmount Int?         @map("open_after_amount")
+  openAfterUnit   String?      @map("open_after_unit") // 'days', 'weeks'
+  openAfterEvent  String?      @map("open_after_event") // 'track_definition'
+  trackSettings   Json?        @map("track_settings")
+  groupSettings   Json?        @map("group_settings")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  lessons         Lesson[]
+  course          Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  parent          Module?      @relation("ModuleHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children        Module[]     @relation("ModuleHierarchy")
 
   @@index([courseId])
   @@index([parentId])
@@ -160,9 +180,9 @@ model Lesson {
   quizPassingScore   Int?                 @map("quiz_passing_score")
   quizRequiresReview Boolean              @default(false) @map("quiz_requires_review")
   quizTimeLimit      Int?                 @map("quiz_time_limit")
-  aiPrompt           String?              @db.Text @map("ai_prompt")
-  aiContext          String?              @db.Text @map("ai_context")
-  autoResponse       String?              @db.Text @map("auto_response")
+  aiPrompt           String?              @map("ai_prompt") @db.Text
+  aiContext          String?              @map("ai_context") @db.Text
+  autoResponse       String?              @map("auto_response") @db.Text
   hasImageAnalysis   Boolean              @default(false) @map("has_image_analysis")
   homework           HomeworkSubmission[]
   comments           LessonComment[]
@@ -243,19 +263,19 @@ model LessonProgress {
 }
 
 model HomeworkSubmission {
-  id             String            @id @default(uuid())
-  userId         String            @map("user_id")
-  lessonId       String?           @map("lesson_id")
-  landingBlockId String?           @map("landing_block_id")
-  content        String?
-  files          Json?
-  curatorFiles   Json?             @map("curator_files")
-  status         HomeworkStatus    @default(pending)
-  curatorComment String?            @map("curator_comment")
-  curatorAudioUrl String?           @map("curator_audio_url")
-  curatorId      String?            @map("curator_id")
-  reviewedAt     DateTime?         @map("reviewed_at")
-  
+  id              String         @id @default(uuid())
+  userId          String         @map("user_id")
+  lessonId        String?        @map("lesson_id")
+  landingBlockId  String?        @map("landing_block_id")
+  content         String?
+  files           Json?
+  curatorFiles    Json?          @map("curator_files")
+  status          HomeworkStatus @default(pending)
+  curatorComment  String?        @map("curator_comment")
+  curatorAudioUrl String?        @map("curator_audio_url")
+  curatorId       String?        @map("curator_id")
+  reviewedAt      DateTime?      @map("reviewed_at")
+
   // Auto-Review fields
   autoResponseScheduledAt DateTime? @map("auto_response_scheduled_at")
   responseTemplateIndex   Int?      @map("response_template_index")
@@ -265,19 +285,19 @@ model HomeworkSubmission {
   //  startedAt set, analyzedAt null, error null  → в процессе (polling)
   //  analyzedAt set                              → готово
   //  error set                                   → провалилось, можно перезапустить
-  aiSuggestedVerdict   String?   @map("ai_suggested_verdict")
-  aiSuggestedComment   String?   @map("ai_suggested_comment") @db.Text
-  aiAnalyzedAt         DateTime? @map("ai_analyzed_at")
-  aiAnalysisStartedAt  DateTime? @map("ai_analysis_started_at")
-  aiAnalysisError      String?   @map("ai_analysis_error") @db.Text
-  
-  createdAt      DateTime          @default(now()) @map("created_at")
-  updatedAt      DateTime          @updatedAt @map("updated_at")
-  history        HomeworkHistory[]
-  curator        User?             @relation("HomeworkReviewer", fields: [curatorId], references: [id])
-  lesson         Lesson?           @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  landingBlock   LandingBlock?     @relation(fields: [landingBlockId], references: [id], onDelete: Cascade)
-  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  aiSuggestedVerdict  String?   @map("ai_suggested_verdict")
+  aiSuggestedComment  String?   @map("ai_suggested_comment") @db.Text
+  aiAnalyzedAt        DateTime? @map("ai_analyzed_at")
+  aiAnalysisStartedAt DateTime? @map("ai_analysis_started_at")
+  aiAnalysisError     String?   @map("ai_analysis_error") @db.Text
+
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+  history      HomeworkHistory[]
+  curator      User?             @relation("HomeworkReviewer", fields: [curatorId], references: [id])
+  lesson       Lesson?           @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  landingBlock LandingBlock?     @relation(fields: [landingBlockId], references: [id], onDelete: Cascade)
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([lessonId])
@@ -287,17 +307,17 @@ model HomeworkSubmission {
 }
 
 model HomeworkHistory {
-  id             String             @id @default(uuid())
-  submissionId   String             @map("submission_id")
-  content        String?
-  files          Json?
-  status         HomeworkStatus
-  curatorComment String?            @map("curator_comment")
-  curatorAudioUrl String?           @map("curator_audio_url")
-  curatorId      String?            @map("curator_id")
-  createdAt      DateTime           @default(now()) @map("created_at")
-  curator        User?              @relation("HomeworkHistoryReviewer", fields: [curatorId], references: [id])
-  submission     HomeworkSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  id              String             @id @default(uuid())
+  submissionId    String             @map("submission_id")
+  content         String?
+  files           Json?
+  status          HomeworkStatus
+  curatorComment  String?            @map("curator_comment")
+  curatorAudioUrl String?            @map("curator_audio_url")
+  curatorId       String?            @map("curator_id")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  curator         User?              @relation("HomeworkHistoryReviewer", fields: [curatorId], references: [id])
+  submission      HomeworkSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
 
   @@index([submissionId])
   @@index([createdAt])
@@ -584,7 +604,7 @@ model LandingPage {
   slug        String         @unique
   isPublished Boolean        @default(false) @map("is_published")
   views       Int            @default(0)
-  settings    Json?          // Stores Bitrix integration and other page-specific settings
+  settings    Json? // Stores Bitrix integration and other page-specific settings
   blocks      LandingBlock[]
   createdAt   DateTime       @default(now()) @map("created_at")
   updatedAt   DateTime       @updatedAt @map("updated_at")
@@ -595,10 +615,10 @@ model LandingPage {
 model LandingBlock {
   id                String               @id @default(uuid())
   pageId            String               @map("page_id")
-  type              String               // 'text', 'form', 'video'
+  type              String // 'text', 'form', 'video'
   content           Json
-  design            Json?                // Background, text color, padding, etc.
-  settings          Json?                // UTM tags, openAt
+  design            Json? // Background, text color, padding, etc.
+  settings          Json? // UTM tags, openAt
   responseTemplates String[]             @default([]) @map("response_templates")
   orderIndex        Int                  @map("order_index")
   createdAt         DateTime             @default(now()) @map("created_at")
@@ -614,35 +634,35 @@ model LandingBlock {
 }
 
 model CertificateTemplate {
-  id              String   @id @default(uuid())
-  courseId        String?  @map("course_id")
-  name            String
-  imageUrl        String   @map("image_url")
-  fieldConfig     Json     @map("field_config")
-  isActive        Boolean  @default(true) @map("is_active")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
-  
-  course          Course?  @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  certificates    Certificate[]
-  
+  id          String   @id @default(uuid())
+  courseId    String?  @map("course_id")
+  name        String
+  imageUrl    String   @map("image_url")
+  fieldConfig Json     @map("field_config")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  course       Course?       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  certificates Certificate[]
+
   @@index([courseId])
   @@map("certificate_templates")
 }
 
 model Certificate {
-  id                  String   @id @default(uuid())
-  userId              String   @map("user_id")
-  courseId            String   @map("course_id")
-  templateId          String   @map("template_id")
-  certificateNumber   String   @unique @map("certificate_number")
-  pdfUrl              String   @map("pdf_url")
-  issuedAt            DateTime @default(now()) @map("issued_at")
-  
-  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  course              Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  template            CertificateTemplate @relation(fields: [templateId], references: [id])
-  
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  courseId          String   @map("course_id")
+  templateId        String   @map("template_id")
+  certificateNumber String   @unique @map("certificate_number")
+  pdfUrl            String   @map("pdf_url")
+  issuedAt          DateTime @default(now()) @map("issued_at")
+
+  user     User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course   Course              @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  template CertificateTemplate @relation(fields: [templateId], references: [id])
+
   @@index([userId])
   @@index([courseId])
   @@index([certificateNumber])
@@ -652,11 +672,11 @@ model Certificate {
 // ─── Payments ────────────────────────────────────────────────────────────────
 
 enum OrderStatus {
-  pending             // создан, ждёт оплаты
+  pending // создан, ждёт оплаты
   waiting_for_capture // холд (pre-auth), ожидает подтверждения
-  paid                // оплачен
-  cancelled           // отменён (пользователем или просрочен)
-  refunded            // возврат
+  paid // оплачен
+  cancelled // отменён (пользователем или просрочен)
+  refunded // возврат
 }
 
 /// Торговое предложение — то, что продаётся (курс, тариф, пакет).
@@ -665,7 +685,7 @@ model Offer {
   title       String
   description String?     @db.Text
   price       Decimal     @db.Decimal(10, 2)
-  oldPrice    Decimal?    @db.Decimal(10, 2) @map("old_price")
+  oldPrice    Decimal?    @map("old_price") @db.Decimal(10, 2)
   currency    String      @default("RUB")
   isActive    Boolean     @default(true) @map("is_active")
   /// Сколько дней доступ к курсам (null = бессрочно)
@@ -705,61 +725,61 @@ model Offer {
 
 /// Заказ — запись о платеже пользователя за оффер.
 model Order {
-  id                 String      @id @default(uuid())
+  id                   String      @id @default(uuid())
   /// nullable: гостевые заказы (созданные менеджером по «гостевой ссылке
   /// оплаты») сначала не привязаны к юзеру — userId проставляется в момент,
   /// когда клиент заполняет ФИО+email на странице оплаты.
-  userId             String?     @map("user_id")
-  offerId            String      @map("offer_id")
+  userId               String?     @map("user_id")
+  offerId              String      @map("offer_id")
   /// Что клиент ввёл на guest-форме перед оплатой. Сохраняем для аудита
   /// даже после того, как заказ привязан к существующему юзеру.
-  guestFullName      String?     @map("guest_full_name")
-  guestEmail         String?     @map("guest_email")
-  guestPhone         String?     @map("guest_phone")
+  guestFullName        String?     @map("guest_full_name")
+  guestEmail           String?     @map("guest_email")
+  guestPhone           String?     @map("guest_phone")
   /// true, если LMS-юзер был создан заново из guest-данных. После оплаты
   /// activate-order по этому флагу шлёт welcome-email с временным паролем.
-  userCreatedFromGuest Boolean   @default(false) @map("user_created_from_guest")
-  amount             Decimal     @db.Decimal(10, 2)
-  currency           String      @default("RUB")
-  status             OrderStatus @default(pending)
+  userCreatedFromGuest Boolean     @default(false) @map("user_created_from_guest")
+  amount               Decimal     @db.Decimal(10, 2)
+  currency             String      @default("RUB")
+  status               OrderStatus @default(pending)
   /// ID платежа в ЮКассе
-  ykPaymentId        String?     @unique @map("yk_payment_id")
+  ykPaymentId          String?     @unique @map("yk_payment_id")
   /// URL для редиректа на оплату (одноразовый, 1 час жизни)
-  ykConfirmationUrl  String?     @db.Text @map("yk_confirmation_url")
+  ykConfirmationUrl    String?     @map("yk_confirmation_url") @db.Text
   /// Метод оплаты, выбранный пользователем (bank_card, sbp, installments, …)
-  paymentMethod      String?     @map("payment_method")
+  paymentMethod        String?     @map("payment_method")
   /// Сырой объект платежа из ЮКассы (последний известный). ВНИМАНИЕ:
   /// перезаписывается webhook'ом провайдера при смене статуса —
   /// НЕ хранить здесь данные клиента (анкета/utm), они затрутся.
-  ykSnapshot         Json?       @map("yk_snapshot")
+  ykSnapshot           Json?       @map("yk_snapshot")
   /// Ответы на кастомные поля формы оффера (см. Offer.formConfig).
   /// Отдельная колонка, чтобы webhook провайдера их не затирал.
   /// { "<label>": "<value>" }.
-  formAnswers        Json?       @map("form_answers")
+  formAnswers          Json?       @map("form_answers")
   /// UTM-метки перехода (с публичной страницы оффера). Отдельно от
   /// ykSnapshot по той же причине.
-  utm                Json?
-  paidAt             DateTime?   @map("paid_at")
+  utm                  Json?
+  paidAt               DateTime?   @map("paid_at")
   /// Токен для публичной ссылки оплаты. Заказы созданные админом для
   /// клиента имеют этот токен — клиент открывает /pay/[orderId]?token=...
   /// и оплачивает без логина в LMS.
-  paymentLinkToken   String?     @unique @map("payment_link_token")
+  paymentLinkToken     String?     @unique @map("payment_link_token")
   /// Кто создал заказ (админ при ручном создании). null = клиент сам.
-  createdByAdminId   String?     @map("created_by_admin_id")
+  createdByAdminId     String?     @map("created_by_admin_id")
   /// Когда был сделан возврат (полный или частичный)
-  refundedAt         DateTime?   @map("refunded_at")
+  refundedAt           DateTime?   @map("refunded_at")
   /// Причина возврата (от админа), для аудита
-  refundReason       String?     @db.Text @map("refund_reason")
+  refundReason         String?     @map("refund_reason") @db.Text
   /// Сумма возврата. Если null или равна amount — полный. Иначе частичный.
-  refundedAmount     Decimal?    @db.Decimal(10, 2) @map("refunded_amount")
+  refundedAmount       Decimal?    @map("refunded_amount") @db.Decimal(10, 2)
   /// Снапшот состава оффера на момент создания заказа.
   /// Используется при активации, чтобы изменения оффера не меняли уже оплаченное.
-  snapshotCourseIds  String[]    @default([]) @map("snapshot_course_ids")
-  snapshotTariff     UserTariff? @map("snapshot_tariff")
-  snapshotAccessDays Int?        @map("snapshot_access_days")
-  snapshotOfferTitle String?     @map("snapshot_offer_title")
-  createdAt          DateTime    @default(now()) @map("created_at")
-  updatedAt          DateTime    @updatedAt @map("updated_at")
+  snapshotCourseIds    String[]    @default([]) @map("snapshot_course_ids")
+  snapshotTariff       UserTariff? @map("snapshot_tariff")
+  snapshotAccessDays   Int?        @map("snapshot_access_days")
+  snapshotOfferTitle   String?     @map("snapshot_offer_title")
+  createdAt            DateTime    @default(now()) @map("created_at")
+  updatedAt            DateTime    @updatedAt @map("updated_at")
 
   user  User? @relation(fields: [userId], references: [id], onDelete: Cascade)
   offer Offer @relation(fields: [offerId], references: [id], onDelete: Restrict)
@@ -773,54 +793,54 @@ model Order {
 /// Хранится одна строка с фиксированным id = "default". Если БД-настроек
 /// нет — провайдер берёт значения из env (CP_RECEIPT_*).
 model PaymentSettings {
-  id                String   @id @default("default")
+  id                   String   @id @default("default")
   /// Включить передачу чека 54-ФЗ в виджет CloudPayments
-  receiptEnabled    Boolean  @default(true) @map("receipt_enabled")
+  receiptEnabled       Boolean  @default(true) @map("receipt_enabled")
   /// Система налогообложения:
   /// 0=ОСН, 1=УСН доходы, 2=УСН доходы-расходы, 3=ЕНВД, 4=ЕСН, 5=Патент
-  taxationSystem    Int      @default(1) @map("taxation_system")
+  taxationSystem       Int      @default(1) @map("taxation_system")
   /// НДС: 0=без НДС, 10=10%, 20=20%
-  vat               Int      @default(0)
+  vat                  Int      @default(0)
   /// Признак способа расчёта: 1=предоплата 100%, 2=предоплата, 3=аванс,
   /// 4=полный расчёт, 5=частичный расчёт и кредит, …
-  method            Int      @default(4)
+  method               Int      @default(4)
   /// Признак предмета расчёта: 1=товар, 2=подакцизный, 3=работа, 4=услуга, …
-  object            Int      @default(4)
+  object               Int      @default(4)
   /// Comma-separated методы оплаты которые скрыть в виджете
   /// (Card,ForeignCard,Sbp,Dolyame,TcsInstallment,TinkoffPay,SberPay,MirPay)
-  restrictedMethods String[] @default([]) @map("restricted_methods")
+  restrictedMethods    String[] @default([]) @map("restricted_methods")
   /// Single или Dual схема (одностадийная / с холдом)
-  paymentSchema     String   @default("Single") @map("payment_schema")
+  paymentSchema        String   @default("Single") @map("payment_schema")
   /// Включён ли провайдер CloudPayments. Когда false, виджет
   /// CloudPayments не показывается совсем — клиент видит только
   /// активных альтернативных провайдеров (ОТП, Freshcredit).
-  cloudpaymentsEnabled Boolean @default(true) @map("cloudpayments_enabled")
+  cloudpaymentsEnabled Boolean  @default(true) @map("cloudpayments_enabled")
   /// Включён ли ОТП Банк как способ оплаты. По умолчанию true:
   /// если env-секреты не заданы, провайдер всё равно недоступен;
   /// флаг даёт админу выключить даже настроенного провайдера
   /// (например, временно отозвать рассрочку).
-  otpEnabled        Boolean  @default(true) @map("otp_enabled")
+  otpEnabled           Boolean  @default(true) @map("otp_enabled")
   /// Включён ли Freshcredit как способ оплаты. См. otpEnabled.
-  freshcreditEnabled Boolean @default(true) @map("freshcredit_enabled")
-  updatedAt         DateTime @updatedAt @map("updated_at")
-  updatedById       String?  @map("updated_by_id")
+  freshcreditEnabled   Boolean  @default(true) @map("freshcredit_enabled")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+  updatedById          String?  @map("updated_by_id")
 
   @@map("payment_settings")
 }
 
 model Broadcast {
-  id          String   @id @default(uuid())
-  authorId    String   @map("author_id")
-  title       String
-  message     String   @db.Text
-  channels    String[] // ['lms', 'email']
-  targets     Json     // { roles, groupIds, tariffs, tracks }
-  recipients  Int      @default(0)
-  sentCount   Int      @default(0) @map("sent_count")
-  failedCount Int      @default(0) @map("failed_count")
-  status      String   @default("pending") // pending, sending, completed, failed
-  sentAt      DateTime @default(now()) @map("sent_at")
-  author      User                 @relation("BroadcastAuthor", fields: [authorId], references: [id])
+  id            String               @id @default(uuid())
+  authorId      String               @map("author_id")
+  title         String
+  message       String               @db.Text
+  channels      String[] // ['lms', 'email']
+  targets       Json // { roles, groupIds, tariffs, tracks }
+  recipients    Int                  @default(0)
+  sentCount     Int                  @default(0) @map("sent_count")
+  failedCount   Int                  @default(0) @map("failed_count")
+  status        String               @default("pending") // pending, sending, completed, failed
+  sentAt        DateTime             @default(now()) @map("sent_at")
+  author        User                 @relation("BroadcastAuthor", fields: [authorId], references: [id])
   recipientLogs BroadcastRecipient[]
 
   @@index([authorId])
@@ -829,16 +849,31 @@ model Broadcast {
 }
 
 model BroadcastRecipient {
-  id          String    @id @default(uuid())
-  broadcastId String    @map("broadcast_id")
-  userId      String    @map("user_id")
-  email       String?
-  lmsStatus   String?   @map("lms_status")   // sent | failed | skipped
-  emailStatus String?   @map("email_status") // sent | failed | skipped
+  id           String   @id @default(uuid())
+  broadcastId  String   @map("broadcast_id")
+  userId       String   @map("user_id")
+  email        String?
+  lmsStatus    String?  @map("lms_status") // sent | failed | skipped
+  emailStatus  String?  @map("email_status") // sent | failed | skipped
   errorMessage String?  @map("error_message")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  broadcast   Broadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
-  user        User      @relation("BroadcastRecipientUser", fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // --- Marketing email tracking (Спринт 0) ---
+  // Заполняются при получении webhook от провайдера или через open-pixel/click-redirect.
+  deliveredAt       DateTime? @map("delivered_at")
+  openedAt          DateTime? @map("opened_at")
+  openCount         Int       @default(0) @map("open_count")
+  clickedAt         DateTime? @map("clicked_at")
+  clickCount        Int       @default(0) @map("click_count")
+  bouncedAt         DateTime? @map("bounced_at")
+  bounceType        String?   @map("bounce_type") // soft | hard
+  bounceReason      String?   @map("bounce_reason")
+  unsubscribedAt    DateTime? @map("unsubscribed_at")
+  spamReportedAt    DateTime? @map("spam_reported_at")
+  providerMessageId String?   @map("provider_message_id")
+
+  broadcast Broadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  user      User      @relation("BroadcastRecipientUser", fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([broadcastId])
   @@index([userId])
@@ -855,23 +890,23 @@ enum QuestionStatus {
 }
 
 model Question {
-  id              String            @id @default(uuid())
-  studentId       String            @map("student_id")
-  curatorId       String?           @map("curator_id")
-  subject         String
-  lessonId        String?           @map("lesson_id")
-  status          QuestionStatus    @default(open)
-  rating          Int?
-  ratingComment   String?           @map("rating_comment") @db.Text
-  firstResponseAt   DateTime?         @map("first_response_at")
-  closedAt          DateTime?         @map("closed_at")
-  lastMentorCallAt  DateTime?         @map("last_mentor_call_at")
-  jarvisRepliedAt   DateTime?         @map("jarvis_replied_at")
-  createdAt         DateTime          @default(now()) @map("created_at")
-  updatedAt         DateTime          @updatedAt @map("updated_at")
-  student         User              @relation("QuestionStudent", fields: [studentId], references: [id], onDelete: Cascade)
-  curator         User?             @relation("QuestionCurator", fields: [curatorId], references: [id])
-  messages        QuestionMessage[]
+  id               String            @id @default(uuid())
+  studentId        String            @map("student_id")
+  curatorId        String?           @map("curator_id")
+  subject          String
+  lessonId         String?           @map("lesson_id")
+  status           QuestionStatus    @default(open)
+  rating           Int?
+  ratingComment    String?           @map("rating_comment") @db.Text
+  firstResponseAt  DateTime?         @map("first_response_at")
+  closedAt         DateTime?         @map("closed_at")
+  lastMentorCallAt DateTime?         @map("last_mentor_call_at")
+  jarvisRepliedAt  DateTime?         @map("jarvis_replied_at")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+  student          User              @relation("QuestionStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  curator          User?             @relation("QuestionCurator", fields: [curatorId], references: [id])
+  messages         QuestionMessage[]
 
   @@index([studentId])
   @@index([curatorId])
@@ -899,15 +934,15 @@ model QuestionMessage {
 }
 
 model EmailTemplate {
-  id          String   @id @default(uuid())
-  event       String
-  name        String
-  subject     String
-  body        String   @db.Text
-  variables   Json
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id        String   @id @default(uuid())
+  event     String
+  name      String
+  subject   String
+  body      String   @db.Text
+  variables Json
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("email_templates")
 }
@@ -920,20 +955,20 @@ model EmailTemplate {
 // =================================================================
 
 model TgBot {
-  id              String   @id @default(uuid())
+  id                 String   @id @default(uuid())
   // Encrypted Telegram bot token. NEVER store the raw token.
   // Encryption: AES-256-GCM, see lib/tg/crypto.ts
-  tokenEncrypted  String   @map("token_encrypted") @db.Text
+  tokenEncrypted     String   @map("token_encrypted") @db.Text
   // First 8 chars of the token (before ':'), kept for display only.
-  tokenPrefix     String   @map("token_prefix")
+  tokenPrefix        String   @map("token_prefix")
   // Bot identity from getMe.
-  botUserId       String   @unique @map("bot_user_id")
-  username        String
-  title           String
+  botUserId          String   @unique @map("bot_user_id")
+  username           String
+  title              String
   // Random secret token used to verify Telegram webhook calls
   // (X-Telegram-Bot-Api-Secret-Token header).
-  webhookSecret   String   @map("webhook_secret")
-  webhookUrl      String?  @map("webhook_url")
+  webhookSecret      String   @map("webhook_secret")
+  webhookUrl         String?  @map("webhook_url")
   /// Режим подключения к Telegram:
   ///   "webhook"   — LMS сама вызывает setWebhook у Telegram (стандарт).
   ///   "forwarded" — апдейты приходят НЕ от Telegram напрямую, а через
@@ -942,41 +977,41 @@ model TgBot {
   ///                 каждого update). LMS не вызывает setWebhook и не шлёт
   ///                 исходящих в этого бота — только наблюдает и копит
   ///                 подписчиков/теги/UTM для Bitrix24-синка и аналитики.
-  connectionMode  String   @default("webhook") @map("connection_mode")
-  isActive        Boolean  @default(true) @map("is_active")
+  connectionMode     String   @default("webhook") @map("connection_mode")
+  isActive           Boolean  @default(true) @map("is_active")
   // Default flow triggered by /start without payload (optional).
-  defaultStartFlowId String? @map("default_start_flow_id")
+  defaultStartFlowId String?  @map("default_start_flow_id")
   // Bot-wide variables ("project.x") and constants. Editable in admin.
   // Both are {key: value} JSON objects. Used by the expression engine
   // when a template references `{{project.x}}` or `{{const.x}}`.
-  projectVariables Json    @default("{}") @map("project_variables")
-  constants       Json     @default("{}")
+  projectVariables   Json     @default("{}") @map("project_variables")
+  constants          Json     @default("{}")
   // IANA tz; used by date helpers (current_date, weekday, etc.).
   // null = UTC. Default Moscow.
-  timezone        String?  @default("Europe/Moscow")
+  timezone           String?  @default("Europe/Moscow")
   // Telegram chat_ids of admins whose inbound media is auto-captured
   // into the media library. Empty list = no auto-capture. Set this on
   // bot creation in the admin UI.
-  adminChatIds    String[] @default([]) @map("admin_chat_ids")
+  adminChatIds       String[] @default([]) @map("admin_chat_ids")
   // Aggregate stats kept in sync by tg core for fast dashboards.
-  subscriberCount Int      @default(0) @map("subscriber_count")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  subscriberCount    Int      @default(0) @map("subscriber_count")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
 
-  subscribers     TgSubscriber[]
-  messages        TgMessage[]
-  flows           TgFlow[]
-  broadcasts      TgBroadcast[]
-  trackingLinks   TgTrackingLink[]
-  events          TgEvent[]
-  mediaFiles      TgMediaFile[]
-  lists           TgList[]
-  customFields    TgCustomField[]
-  redirectLinks   TgRedirectLink[]
-  scheduledFlows  TgScheduledFlow[]
-  bitrixConfig    TgBitrixConfig?
+  subscribers        TgSubscriber[]
+  messages           TgMessage[]
+  flows              TgFlow[]
+  broadcasts         TgBroadcast[]
+  trackingLinks      TgTrackingLink[]
+  events             TgEvent[]
+  mediaFiles         TgMediaFile[]
+  lists              TgList[]
+  customFields       TgCustomField[]
+  redirectLinks      TgRedirectLink[]
+  scheduledFlows     TgScheduledFlow[]
+  bitrixConfig       TgBitrixConfig?
   googleSheetsConfig TgGoogleSheetsConfig?
-  channels        TgChannel[]
+  channels           TgChannel[]
   channelInviteLinks TgChannelInviteLink[]
   channelMemberships TgChannelMembership[]
 
@@ -1011,7 +1046,7 @@ model TgBitrixConfig {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
-  bot             TgBot    @relation(fields: [botId], references: [id], onDelete: Cascade)
+  bot TgBot @relation(fields: [botId], references: [id], onDelete: Cascade)
 
   @@map("tg_bitrix_configs")
 }
@@ -1020,15 +1055,15 @@ model TgBitrixConfig {
 /// Web App (вебхук). Мы шлём POST с готовой строкой, скрипт делает
 /// upsert по ключу (chat_id). Один конфиг на бота, как у Bitrix.
 model TgGoogleSheetsConfig {
-  id          String   @id @default(uuid())
-  botId       String   @unique @map("bot_id")
+  id           String    @id @default(uuid())
+  botId        String    @unique @map("bot_id")
   /// false = экспорт выключен, все вызовы — no-op.
-  enabled     Boolean  @default(false)
+  enabled      Boolean   @default(false)
   /// URL Apps Script Web App (деплой «Кто угодно»). Сюда шлём POST.
-  webhookUrl  String?  @db.Text @map("webhook_url")
+  webhookUrl   String?   @map("webhook_url") @db.Text
   /// Опциональный секрет — шлём в теле, скрипт сверяет (защита от
   /// случайных POST на публичный URL). Пусто = без проверки.
-  secret      String?  @db.Text
+  secret       String?   @db.Text
   /// Колонки таблицы в порядке слева-направо. JSON:
   ///   [{ "field": "chatId", "header": "Chat ID" },
   ///    { "field": "firstName", "header": "Имя" },
@@ -1036,46 +1071,46 @@ model TgGoogleSheetsConfig {
   /// field: chatId | firstName | lastName | username | tags | source |
   ///        createdAt | lastSeenAt | field.<customKey>
   /// Пусто = дефолтный набор колонок (см. lib/tg/google-sheets.ts).
-  columns     Json     @default("[]")
+  columns      Json      @default("[]")
   /// Теги, при добавлении которых строка ПЕРЕ-выгружается с актуальными
   /// данными (email/utm к тому моменту уже заполнены воронкой).
   /// Пусто = выгружаем только при создании подписчика.
-  reexportTags String[] @default([]) @map("reexport_tags")
+  reexportTags String[]  @default([]) @map("reexport_tags")
   /// Последняя успешная/неуспешная отправка — для диагностики в UI.
-  lastOkAt    DateTime? @map("last_ok_at")
-  lastError   String?   @db.Text @map("last_error")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  lastOkAt     DateTime? @map("last_ok_at")
+  lastError    String?   @map("last_error") @db.Text
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
 
-  bot         TgBot    @relation(fields: [botId], references: [id], onDelete: Cascade)
+  bot TgBot @relation(fields: [botId], references: [id], onDelete: Cascade)
 
   @@map("tg_google_sheets_configs")
 }
 
 model TgSubscriber {
-  id              String   @id @default(uuid())
-  botId           String   @map("bot_id")
+  id             String    @id @default(uuid())
+  botId          String    @map("bot_id")
   // Telegram numeric IDs come as int64; we store as string for safety.
-  chatId          String   @map("chat_id")
-  tgUserId        String   @map("tg_user_id")
-  firstName       String?  @map("first_name")
-  lastName        String?  @map("last_name")
-  username        String?
-  languageCode    String?  @map("language_code")
+  chatId         String    @map("chat_id")
+  tgUserId       String    @map("tg_user_id")
+  firstName      String?   @map("first_name")
+  lastName       String?   @map("last_name")
+  username       String?
+  languageCode   String?   @map("language_code")
   // Set true if Telegram returns 403 (user blocked the bot).
-  isBlocked       Boolean  @default(false) @map("is_blocked")
+  isBlocked      Boolean   @default(false) @map("is_blocked")
   // Free-form tags. Single-tenant per-bot — keep it simple.
-  tags            String[] @default([])
+  tags           String[]  @default([])
   // Arbitrary key/value variables set by flow nodes or API.
-  variables       Json     @default("{}")
+  variables      Json      @default("{}")
   // First/last touch attribution.
-  firstTouchSlug  String?  @map("first_touch_slug")
-  firstTouchAt    DateTime? @map("first_touch_at")
-  lastTouchSlug   String?  @map("last_touch_slug")
-  lastTouchAt     DateTime? @map("last_touch_at")
-  lastSeenAt      DateTime? @map("last_seen_at")
-  subscribedAt    DateTime @default(now()) @map("subscribed_at")
-  unsubscribedAt  DateTime? @map("unsubscribed_at")
+  firstTouchSlug String?   @map("first_touch_slug")
+  firstTouchAt   DateTime? @map("first_touch_at")
+  lastTouchSlug  String?   @map("last_touch_slug")
+  lastTouchAt    DateTime? @map("last_touch_at")
+  lastSeenAt     DateTime? @map("last_seen_at")
+  subscribedAt   DateTime  @default(now()) @map("subscribed_at")
+  unsubscribedAt DateTime? @map("unsubscribed_at")
 
   // -- Position in funnel (SaleBot "позиция воронки") -------------------
   // The latest Step (positional message-node) the subscriber walked into.
@@ -1084,41 +1119,41 @@ model TgSubscriber {
   //   2. Auto-cancel side-effect/dozhim runs originating from a previous
   //      position when the subscriber moves to a new one.
   // null = subscriber has never reached a positional node.
-  currentPositionFlowId String? @map("current_position_flow_id")
-  currentPositionNodeId String? @map("current_position_node_id")
+  currentPositionFlowId String?   @map("current_position_flow_id")
+  currentPositionNodeId String?   @map("current_position_node_id")
   currentPositionAt     DateTime? @map("current_position_at")
 
   // List of "flowId:nodeId" pairs whose triggers fired with onlyOnce=true.
   // Prevents re-entry. Empty in practice for most subscribers.
-  firedOnceTriggers     String[] @default([]) @map("fired_once_triggers")
+  firedOnceTriggers String[] @default([]) @map("fired_once_triggers")
 
   // -- Operator live-chat takeover --------------------------------------
   // Когда оператор берёт диалог «в ручной режим», auto-trigger’ы флоу и
   // delivery в wait_reply отключаются: бот не перебивает живого человека.
   // takeoverAt — момент, когда взяли в работу. Авто-release через 24ч,
   // чтобы случайно не оставить чат заблокированным навсегда.
-  operatorTakeoverAt    DateTime? @map("operator_takeover_at")
-  operatorAssigneeId    String?   @map("operator_assignee_id")
+  operatorTakeoverAt DateTime? @map("operator_takeover_at")
+  operatorAssigneeId String?   @map("operator_assignee_id")
 
   // Typed custom fields ("доп. поля" in SaleBot terms). Stored as
   // {key: value} with schema defined at the bot level (TgCustomField,
   // added in Iter 2). For Iter 1 this is just a free-form JSON bag —
   // wait_reply nodes can save into it via `saveAs: "field.<key>"`.
-  customFields    Json     @default("{}") @map("custom_fields")
+  customFields Json @default("{}") @map("custom_fields")
 
   // Link to LMS User resolved by email/phone match.
   // Set automatically when a subscriber provides their email or phone
   // in a flow, or when a landing form is submitted with matching email.
-  lmsUserId       String?   @map("lms_user_id")
-  lmsUser         User?     @relation(fields: [lmsUserId], references: [id], onDelete: SetNull)
+  lmsUserId String? @map("lms_user_id")
+  lmsUser   User?   @relation(fields: [lmsUserId], references: [id], onDelete: SetNull)
 
-  bot             TgBot    @relation(fields: [botId], references: [id], onDelete: Cascade)
-  messages        TgMessage[]
-  flowRuns        TgFlowRun[]
-  events          TgEvent[]
+  bot                 TgBot                  @relation(fields: [botId], references: [id], onDelete: Cascade)
+  messages            TgMessage[]
+  flowRuns            TgFlowRun[]
+  events              TgEvent[]
   broadcastDeliveries TgBroadcastRecipient[]
-  lists           TgSubscriberList[]
-  channelMemberships TgChannelMembership[]
+  lists               TgSubscriberList[]
+  channelMemberships  TgChannelMembership[]
 
   @@unique([botId, chatId])
   @@index([botId, isBlocked])
@@ -1152,7 +1187,7 @@ model MessagingBot {
   /// Отображаемое имя (IG username, @MAX-handle, etc.)
   title             String
   /// Зашифрованный access token (long-lived для IG, бот-токен для MAX)
-  tokenEnc          String           @db.Text @map("token_enc")
+  tokenEnc          String           @map("token_enc") @db.Text
   /// Когда token истекает (для каналов с refresh — IG: 60 дней)
   tokenExpiresAt    DateTime?        @map("token_expires_at")
   /// Доп. атрибуты канала: account_type, scopes, и т.д.
@@ -1162,20 +1197,20 @@ model MessagingBot {
   ownerId           String           @map("owner_id")
   owner             User             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
-  subscribers       MessagingSubscriber[]
-  flows             MessagingFlow[]
-  messages          MessagingMessage[]
-  broadcasts        MessagingBroadcast[]
-  lists             MessagingList[]
-  customFields      MessagingCustomField[]
-  events            MessagingEvent[]
-  auditLogs         MessagingBotAuditLog[]
-  bitrixConfig      MessagingBitrixConfig?
-  trackingLinks     MessagingTrackingLink[]
-  scheduledFlows    MessagingScheduledFlow[]
+  subscribers    MessagingSubscriber[]
+  flows          MessagingFlow[]
+  messages       MessagingMessage[]
+  broadcasts     MessagingBroadcast[]
+  lists          MessagingList[]
+  customFields   MessagingCustomField[]
+  events         MessagingEvent[]
+  auditLogs      MessagingBotAuditLog[]
+  bitrixConfig   MessagingBitrixConfig?
+  trackingLinks  MessagingTrackingLink[]
+  scheduledFlows MessagingScheduledFlow[]
 
-  createdAt         DateTime         @default(now()) @map("created_at")
-  updatedAt         DateTime         @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@unique([channel, externalAccountId])
   @@index([ownerId])
@@ -1185,31 +1220,31 @@ model MessagingBot {
 /// Подписчик на стороне канала. externalUserId — IGSID для Instagram,
 /// chat_id для МАКС/Telegram.
 model MessagingSubscriber {
-  id             String       @id @default(uuid())
-  botId          String       @map("bot_id")
-  bot            MessagingBot @relation(fields: [botId], references: [id], onDelete: Cascade)
-  externalUserId String       @map("external_user_id")
-  firstName      String?      @map("first_name")
-  lastName       String?      @map("last_name")
-  username       String?
-  variables      Json         @default("{}")
-  tags           String[]     @default([])
+  id                 String                        @id @default(uuid())
+  botId              String                        @map("bot_id")
+  bot                MessagingBot                  @relation(fields: [botId], references: [id], onDelete: Cascade)
+  externalUserId     String                        @map("external_user_id")
+  firstName          String?                       @map("first_name")
+  lastName           String?                       @map("last_name")
+  username           String?
+  variables          Json                          @default("{}")
+  tags               String[]                      @default([])
   /// Время последнего входящего — для проверки 24h messaging window (IG)
-  lastInboundAt  DateTime?    @map("last_inbound_at")
-  subscribedAt   DateTime     @default(now()) @map("subscribed_at")
-  lastSeenAt     DateTime?    @map("last_seen_at")
+  lastInboundAt      DateTime?                     @map("last_inbound_at")
+  subscribedAt       DateTime                      @default(now()) @map("subscribed_at")
+  lastSeenAt         DateTime?                     @map("last_seen_at")
   /// Связь с пользователем LMS (если матчится по email/телефону позже)
-  lmsUserId      String?      @map("lms_user_id")
-  lmsUser        User?        @relation(fields: [lmsUserId], references: [id], onDelete: SetNull)
+  lmsUserId          String?                       @map("lms_user_id")
+  lmsUser            User?                         @relation(fields: [lmsUserId], references: [id], onDelete: SetNull)
   /// Когда оператор взял диалог под ручное управление.
   /// Пока set — auto-triggers и flow-engine для этого подписчика выключены.
-  operatorTakeoverAt   DateTime? @map("operator_takeover_at")
+  operatorTakeoverAt DateTime?                     @map("operator_takeover_at")
   /// Кто из админов ведёт диалог (для маршрутизации inbox)
-  operatorAssigneeId   String?   @map("operator_assignee_id")
-  flowRuns       MessagingFlowRun[]
-  messages       MessagingMessage[]
-  broadcastReceipts MessagingBroadcastRecipient[]
-  listMembers    MessagingListMember[]
+  operatorAssigneeId String?                       @map("operator_assignee_id")
+  flowRuns           MessagingFlowRun[]
+  messages           MessagingMessage[]
+  broadcastReceipts  MessagingBroadcastRecipient[]
+  listMembers        MessagingListMember[]
 
   @@unique([botId, externalUserId])
   @@index([botId])
@@ -1221,13 +1256,13 @@ model MessagingSubscriber {
 /// Временный CSRF-state для OAuth-сессий подключения каналов.
 /// TTL ~10 минут. Очищается фоновым cron.
 model MessagingOAuthState {
-  id          String           @id @default(uuid())
-  state       String           @unique
-  channel     MessagingChannel
+  id        String           @id @default(uuid())
+  state     String           @unique
+  channel   MessagingChannel
   /// Кто инициировал подключение
-  userId      String           @map("user_id")
-  createdAt   DateTime         @default(now()) @map("created_at")
-  expiresAt   DateTime         @map("expires_at")
+  userId    String           @map("user_id")
+  createdAt DateTime         @default(now()) @map("created_at")
+  expiresAt DateTime         @map("expires_at")
 
   @@index([expiresAt])
   @@map("messaging_oauth_states")
@@ -1262,11 +1297,11 @@ enum MessagingTriggerType {
 }
 
 enum MessagingFlowRunStatus {
-  running          // активный, исполняется узел
-  waiting_reply    // ждём ответа подписчика
-  completed        // дошёл до end-узла
-  cancelled        // прерван (новый flow запущен, пользователь заблокирован, etc.)
-  failed           // упал с ошибкой (см. lastError)
+  running // активный, исполняется узел
+  waiting_reply // ждём ответа подписчика
+  completed // дошёл до end-узла
+  cancelled // прерван (новый flow запущен, пользователь заблокирован, etc.)
+  failed // упал с ошибкой (см. lastError)
 }
 
 /// Воронка. graph — JSON со схемой узлов и переходов:
@@ -1281,19 +1316,19 @@ enum MessagingFlowRunStatus {
 ///     }
 ///   }
 model MessagingFlow {
-  id         String   @id @default(uuid())
-  botId      String   @map("bot_id")
-  bot        MessagingBot @relation(fields: [botId], references: [id], onDelete: Cascade)
-  name       String
-  description String? @db.Text
-  isActive   Boolean  @default(true) @map("is_active")
-  graph      Json
+  id          String             @id @default(uuid())
+  botId       String             @map("bot_id")
+  bot         MessagingBot       @relation(fields: [botId], references: [id], onDelete: Cascade)
+  name        String
+  description String?            @db.Text
+  isActive    Boolean            @default(true) @map("is_active")
+  graph       Json
   /// Счётчик запусков (для аналитики)
-  runCount   Int      @default(0) @map("run_count")
-  triggers   MessagingTrigger[]
-  runs       MessagingFlowRun[]
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  runCount    Int                @default(0) @map("run_count")
+  triggers    MessagingTrigger[]
+  runs        MessagingFlowRun[]
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
 
   @@index([botId])
   @@map("messaging_flows")
@@ -1346,7 +1381,7 @@ model MessagingFlowRun {
   currentNodeId String?                @map("current_node_id")
   /// Контекст: накопленные переменные внутри воронки + последний ввод подписчика
   context       Json                   @default("{}")
-  lastError     String?                @db.Text @map("last_error")
+  lastError     String?                @map("last_error") @db.Text
   /// Время до которого ждём ответ (для wait_reply timeout). Cron досрочно
   /// возобновит flow по веткам onTimeout.
   waitUntil     DateTime?              @map("wait_until")
@@ -1367,20 +1402,20 @@ model MessagingMessage {
   id                String              @id @default(uuid())
   botId             String              @map("bot_id")
   bot               MessagingBot        @relation(fields: [botId], references: [id], onDelete: Cascade)
-  subscriberId     String              @map("subscriber_id")
+  subscriberId      String              @map("subscriber_id")
   subscriber        MessagingSubscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
   /// "in" = от подписчика к боту, "out" = от бота к подписчику
-  direction        String
+  direction         String
   text              String?             @db.Text
   /// Payload callback-кнопки (для in-сообщений когда пользователь нажал кнопку)
-  callbackPayload  String?             @map("callback_payload")
+  callbackPayload   String?             @map("callback_payload")
   /// Сырые attachments как пришли/были отправлены — JSON
   attachments       Json?
   /// ID сообщения на стороне платформы (mid в MAX, message_id в TG)
-  externalMessageId String?            @map("external_message_id")
+  externalMessageId String?             @map("external_message_id")
   /// Источник для out: какая воронка / broadcast / takeover
-  source           String?             // "flow:<flowId>" | "broadcast:<id>" | "operator:<userId>" | "trigger"
-  createdAt        DateTime            @default(now()) @map("created_at")
+  source            String? // "flow:<flowId>" | "broadcast:<id>" | "operator:<userId>" | "trigger"
+  createdAt         DateTime            @default(now()) @map("created_at")
 
   @@index([botId, subscriberId, createdAt])
   @@index([subscriberId, createdAt])
@@ -1399,31 +1434,31 @@ enum MessagingBroadcastStatus {
 
 /// Массовая рассылка по сегменту подписчиков.
 model MessagingBroadcast {
-  id              String                   @id @default(uuid())
-  botId           String                   @map("bot_id")
-  bot             MessagingBot             @relation(fields: [botId], references: [id], onDelete: Cascade)
+  id              String                        @id @default(uuid())
+  botId           String                        @map("bot_id")
+  bot             MessagingBot                  @relation(fields: [botId], references: [id], onDelete: Cascade)
   name            String
   /// Тело сообщения (текст с шаблонами)
-  text            String                   @db.Text
+  text            String                        @db.Text
   /// Опциональные кнопки в стиле send_buttons graph-узла
   buttons         Json?
   /// Фильтр аудитории: { tags: [], excludeTags: [], lists: [], excludeLists: [] }
-  filter          Json                     @default("{}")
-  status          MessagingBroadcastStatus @default(draft)
+  filter          Json                          @default("{}")
+  status          MessagingBroadcastStatus      @default(draft)
   /// Когда отправить (для scheduled). null = немедленно
-  scheduledAt     DateTime?                @map("scheduled_at")
+  scheduledAt     DateTime?                     @map("scheduled_at")
   /// Когда фактически стартовала отправка
-  startedAt       DateTime?                @map("started_at")
-  completedAt     DateTime?                @map("completed_at")
+  startedAt       DateTime?                     @map("started_at")
+  completedAt     DateTime?                     @map("completed_at")
   /// Метрики
-  totalRecipients Int                      @default(0) @map("total_recipients")
-  sentCount       Int                      @default(0) @map("sent_count")
-  failedCount     Int                      @default(0) @map("failed_count")
-  lastError       String?                  @db.Text @map("last_error")
-  createdById     String                   @map("created_by_id")
+  totalRecipients Int                           @default(0) @map("total_recipients")
+  sentCount       Int                           @default(0) @map("sent_count")
+  failedCount     Int                           @default(0) @map("failed_count")
+  lastError       String?                       @map("last_error") @db.Text
+  createdById     String                        @map("created_by_id")
   recipients      MessagingBroadcastRecipient[]
-  createdAt       DateTime                 @default(now()) @map("created_at")
-  updatedAt       DateTime                 @updatedAt @map("updated_at")
+  createdAt       DateTime                      @default(now()) @map("created_at")
+  updatedAt       DateTime                      @updatedAt @map("updated_at")
 
   @@index([botId, status])
   @@index([status, scheduledAt])
@@ -1432,15 +1467,15 @@ model MessagingBroadcast {
 
 /// Запись о доставке одного broadcast одному подписчику.
 model MessagingBroadcastRecipient {
-  id            String              @id @default(uuid())
-  broadcastId   String              @map("broadcast_id")
-  broadcast     MessagingBroadcast  @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  id           String              @id @default(uuid())
+  broadcastId  String              @map("broadcast_id")
+  broadcast    MessagingBroadcast  @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
   subscriberId String              @map("subscriber_id")
-  subscriber    MessagingSubscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  subscriber   MessagingSubscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
   /// "pending" | "sent" | "failed" | "skipped"
-  status        String              @default("pending")
-  error         String?             @db.Text
-  sentAt        DateTime?           @map("sent_at")
+  status       String              @default("pending")
+  error        String?             @db.Text
+  sentAt       DateTime?           @map("sent_at")
 
   @@unique([broadcastId, subscriberId])
   @@index([broadcastId, status])
@@ -1456,32 +1491,32 @@ enum MessagingListType {
 
 /// Список подписчиков (сегмент). Используется для broadcasts и условий в flow.
 model MessagingList {
-  id          String            @id @default(uuid())
-  botId       String            @map("bot_id")
-  bot         MessagingBot      @relation(fields: [botId], references: [id], onDelete: Cascade)
+  id          String                @id @default(uuid())
+  botId       String                @map("bot_id")
+  bot         MessagingBot          @relation(fields: [botId], references: [id], onDelete: Cascade)
   name        String
-  description String?           @db.Text
-  type        MessagingListType @default(static)
+  description String?               @db.Text
+  type        MessagingListType     @default(static)
   /// Для dynamic: { tags: ["vip"], excludeTags: [], anyOrAll: "all" }
   rules       Json?
-  memberCount Int               @default(0) @map("member_count")
+  memberCount Int                   @default(0) @map("member_count")
   members     MessagingListMember[]
-  createdAt   DateTime          @default(now()) @map("created_at")
-  updatedAt   DateTime          @updatedAt @map("updated_at")
+  createdAt   DateTime              @default(now()) @map("created_at")
+  updatedAt   DateTime              @updatedAt @map("updated_at")
 
   @@index([botId])
   @@map("messaging_lists")
 }
 
 model MessagingListMember {
-  id            String              @id @default(uuid())
-  listId        String              @map("list_id")
-  list          MessagingList       @relation(fields: [listId], references: [id], onDelete: Cascade)
+  id           String              @id @default(uuid())
+  listId       String              @map("list_id")
+  list         MessagingList       @relation(fields: [listId], references: [id], onDelete: Cascade)
   subscriberId String              @map("subscriber_id")
-  subscriber    MessagingSubscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  subscriber   MessagingSubscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
   /// "manual" = добавлен вручную/действием, "auto" = по правилу dynamic-листа
-  source        String              @default("manual")
-  addedAt       DateTime            @default(now()) @map("added_at")
+  source       String              @default("manual")
+  addedAt      DateTime            @default(now()) @map("added_at")
 
   @@unique([listId, subscriberId])
   @@index([subscriberId])
@@ -1502,18 +1537,18 @@ enum MessagingCustomFieldType {
 /// Типизированное custom-поле подписчика. Значения хранятся в
 /// MessagingSubscriber.variables под именем key.
 model MessagingCustomField {
-  id          String                   @id @default(uuid())
-  botId       String                   @map("bot_id")
-  bot         MessagingBot             @relation(fields: [botId], references: [id], onDelete: Cascade)
+  id        String                   @id @default(uuid())
+  botId     String                   @map("bot_id")
+  bot       MessagingBot             @relation(fields: [botId], references: [id], onDelete: Cascade)
   /// Технический ключ — латиница/цифры/_, используется в variables и шаблонах
-  key         String
-  label       String
-  type        MessagingCustomFieldType @default(text)
+  key       String
+  label     String
+  type      MessagingCustomFieldType @default(text)
   /// Для select: список значений
-  options     String[]                 @default([])
-  required    Boolean                  @default(false)
-  sortOrder   Int                      @default(0) @map("sort_order")
-  createdAt   DateTime                 @default(now()) @map("created_at")
+  options   String[]                 @default([])
+  required  Boolean                  @default(false)
+  sortOrder Int                      @default(0) @map("sort_order")
+  createdAt DateTime                 @default(now()) @map("created_at")
 
   @@unique([botId, key])
   @@index([botId])
@@ -1523,13 +1558,13 @@ model MessagingCustomField {
 /// Событие в системе для аналитики. Тип кодируется строкой
 /// (SubscriberCreated, FlowStarted, FlowCompleted, BroadcastSent, и т.д.).
 model MessagingEvent {
-  id            String       @id @default(uuid())
-  botId         String       @map("bot_id")
-  bot           MessagingBot @relation(fields: [botId], references: [id], onDelete: Cascade)
+  id           String       @id @default(uuid())
+  botId        String       @map("bot_id")
+  bot          MessagingBot @relation(fields: [botId], references: [id], onDelete: Cascade)
   subscriberId String?      @map("subscriber_id")
-  type          String
+  type         String
   /// Произвольные данные события (flowId, broadcastId, и т.п.)
-  data          Json?
+  data         Json?
   createdAt    DateTime     @default(now()) @map("created_at")
 
   @@index([botId, type, createdAt])
@@ -1561,7 +1596,7 @@ model MessagingBitrixConfig {
   botId           String       @unique @map("bot_id")
   bot             MessagingBot @relation(fields: [botId], references: [id], onDelete: Cascade)
   enabled         Boolean      @default(false)
-  webhookUrl      String?      @db.Text @map("webhook_url")
+  webhookUrl      String?      @map("webhook_url") @db.Text
   funnelId        String       @default("0") @map("funnel_id")
   defaultStageId  String       @default("") @map("default_stage_id")
   contactMappings Json         @default("[]") @map("contact_mappings")
@@ -1577,20 +1612,20 @@ model MessagingBitrixConfig {
 /// записью клика. Если subscriberId известен (передан как ?s= в slug-URL),
 /// клик добавляется к атрибуции подписчика и эмитит event.
 model MessagingTrackingLink {
-  id          String       @id @default(uuid())
-  botId       String       @map("bot_id")
-  bot         MessagingBot @relation(fields: [botId], references: [id], onDelete: Cascade)
-  slug        String       @unique
+  id         String       @id @default(uuid())
+  botId      String       @map("bot_id")
+  bot        MessagingBot @relation(fields: [botId], references: [id], onDelete: Cascade)
+  slug       String       @unique
   /// Целевой URL для редиректа
-  targetUrl   String       @db.Text @map("target_url")
+  targetUrl  String       @map("target_url") @db.Text
   /// Опциональный тег, который ставится подписчику при клике
-  attachTag   String?      @map("attach_tag")
+  attachTag  String?      @map("attach_tag")
   /// Что-нибудь в context подписчика (например, lastClickedSlug)
-  meta        Json?
-  clickCount  Int          @default(0) @map("click_count")
-  createdAt   DateTime     @default(now()) @map("created_at")
+  meta       Json?
+  clickCount Int          @default(0) @map("click_count")
+  createdAt  DateTime     @default(now()) @map("created_at")
 
-  clicks      MessagingTrackingClick[]
+  clicks MessagingTrackingClick[]
 
   @@index([botId])
   @@map("messaging_tracking_links")
@@ -1604,7 +1639,7 @@ model MessagingTrackingClick {
   subscriberId String?               @map("subscriber_id")
   /// IP, ua и referer — best-effort, для дашборда.
   ip           String?
-  userAgent    String?               @db.Text @map("user_agent")
+  userAgent    String?               @map("user_agent") @db.Text
   referer      String?               @db.Text
   createdAt    DateTime              @default(now()) @map("created_at")
 
@@ -1630,25 +1665,25 @@ model MessagingTrackingClick {
 ///
 /// status: scheduled → running → completed | failed | cancelled
 model MessagingScheduledFlow {
-  id              String       @id @default(uuid())
-  botId           String       @map("bot_id")
-  bot             MessagingBot @relation(fields: [botId], references: [id], onDelete: Cascade)
-  flowId          String       @map("flow_id")
+  id            String       @id @default(uuid())
+  botId         String       @map("bot_id")
+  bot           MessagingBot @relation(fields: [botId], references: [id], onDelete: Cascade)
+  flowId        String       @map("flow_id")
   /// Денормализованный человекочитаемый заголовок (имя самого flow
   /// может потом поменяться, а в истории расписания хочется видеть
   /// то, что было задано).
-  name            String
-  filter          Json         @default("{}")
-  scheduledAt     DateTime     @map("scheduled_at")
-  status          String       @default("scheduled")
-  startedAt       DateTime?    @map("started_at")
-  finishedAt      DateTime?    @map("finished_at")
-  totalLaunched   Int          @default(0) @map("total_launched")
-  totalFailed     Int          @default(0) @map("total_failed")
-  lastError       String?      @db.Text @map("last_error")
-  createdById     String?      @map("created_by_id")
-  createdAt       DateTime     @default(now()) @map("created_at")
-  updatedAt       DateTime     @updatedAt @map("updated_at")
+  name          String
+  filter        Json         @default("{}")
+  scheduledAt   DateTime     @map("scheduled_at")
+  status        String       @default("scheduled")
+  startedAt     DateTime?    @map("started_at")
+  finishedAt    DateTime?    @map("finished_at")
+  totalLaunched Int          @default(0) @map("total_launched")
+  totalFailed   Int          @default(0) @map("total_failed")
+  lastError     String?      @map("last_error") @db.Text
+  createdById   String?      @map("created_by_id")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
 
   @@index([botId, status])
   @@index([status, scheduledAt])
@@ -1656,29 +1691,29 @@ model MessagingScheduledFlow {
 }
 
 model TgMessage {
-  id              String   @id @default(uuid())
-  botId           String   @map("bot_id")
-  subscriberId    String   @map("subscriber_id")
+  id           String   @id @default(uuid())
+  botId        String   @map("bot_id")
+  subscriberId String   @map("subscriber_id")
   // 'in' = received from user, 'out' = sent by bot.
-  direction       String
+  direction    String
   // Telegram message_id from result (out) or update (in).
-  tgMessageId     String?  @map("tg_message_id")
+  tgMessageId  String?  @map("tg_message_id")
   // Raw text or caption.
-  text            String?  @db.Text
+  text         String?  @db.Text
   // For media: 'photo' | 'video' | 'document' | 'voice' | etc.
-  mediaType       String?  @map("media_type")
-  mediaFileId     String?  @map("media_file_id")
+  mediaType    String?  @map("media_type")
+  mediaFileId  String?  @map("media_file_id")
   // Inline-button payload if message is a callback_query result.
-  callbackData    String?  @map("callback_data")
+  callbackData String?  @map("callback_data")
   // Source: flow run, broadcast, manual operator reply, inbound.
-  sourceType      String?  @map("source_type")
-  sourceId        String?  @map("source_id")
+  sourceType   String?  @map("source_type")
+  sourceId     String?  @map("source_id")
   // Raw Telegram payload (truncated) for diagnostics.
-  rawPayload      Json?    @map("raw_payload")
-  createdAt       DateTime @default(now()) @map("created_at")
+  rawPayload   Json?    @map("raw_payload")
+  createdAt    DateTime @default(now()) @map("created_at")
 
-  bot             TgBot         @relation(fields: [botId], references: [id], onDelete: Cascade)
-  subscriber      TgSubscriber  @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  bot        TgBot        @relation(fields: [botId], references: [id], onDelete: Cascade)
+  subscriber TgSubscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
 
   @@index([botId, createdAt])
   @@index([subscriberId, createdAt])
@@ -1686,57 +1721,57 @@ model TgMessage {
 }
 
 model TgFlow {
-  id              String   @id @default(uuid())
-  botId           String   @map("bot_id")
-  name            String
-  description     String?
+  id             String   @id @default(uuid())
+  botId          String   @map("bot_id")
+  name           String
+  description    String?
   // Graph definition. See lib/tg/flow-schema.ts for the contract.
   // Shape: { nodes: TgFlowNode[], startNodeId: string, version: number }
-  graph           Json
-  isActive        Boolean  @default(true) @map("is_active")
+  graph          Json
+  isActive       Boolean  @default(true) @map("is_active")
   // Trigger config — array of trigger descriptors evaluated on
   // every inbound update. See lib/tg/flow-schema.ts.
-  triggers        Json     @default("[]")
+  triggers       Json     @default("[]")
   // Aggregate stats updated by flow engine for fast dashboards.
-  totalEntered    Int      @default(0) @map("total_entered")
-  totalCompleted  Int      @default(0) @map("total_completed")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  totalEntered   Int      @default(0) @map("total_entered")
+  totalCompleted Int      @default(0) @map("total_completed")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
-  bot             TgBot    @relation(fields: [botId], references: [id], onDelete: Cascade)
-  runs            TgFlowRun[]
+  bot  TgBot       @relation(fields: [botId], references: [id], onDelete: Cascade)
+  runs TgFlowRun[]
 
   @@index([botId, isActive])
   @@map("tg_flows")
 }
 
 model TgFlowRun {
-  id              String   @id @default(uuid())
-  flowId          String   @map("flow_id")
-  subscriberId    String   @map("subscriber_id")
+  id              String    @id @default(uuid())
+  flowId          String    @map("flow_id")
+  subscriberId    String    @map("subscriber_id")
   // Current node pointer. null until first step is queued.
-  currentNodeId   String?  @map("current_node_id")
+  currentNodeId   String?   @map("current_node_id")
   // Engine state: queued | running | waiting_reply | sleeping | completed | failed | cancelled
-  status          String   @default("queued")
+  status          String    @default("queued")
   // For 'sleeping' and 'waiting_reply' — when to wake up / time out.
   resumeAt        DateTime? @map("resume_at")
   // For 'waiting_reply' — variable name to store the reply into.
-  waitingForVar   String?  @map("waiting_for_var")
+  waitingForVar   String?   @map("waiting_for_var")
   // Per-run scratch storage (used by ai_reply, http_request results, etc).
-  context         Json     @default("{}")
+  context         Json      @default("{}")
   // Diagnostic: last error if status=failed.
-  lastError       String?  @map("last_error") @db.Text
+  lastError       String?   @map("last_error") @db.Text
   // The positional node ID this run was scheduled FROM. When the
   // subscriber advances to a new positional node, any sleeping/waiting
   // run with positionGroupId == old position is auto-cancelled.
   // null = run is not tied to a position (top-level trigger, broadcast,
   // CRM event etc.) and is immune to position-change cancellation.
-  positionGroupId String?  @map("position_group_id")
-  startedAt       DateTime @default(now()) @map("started_at")
+  positionGroupId String?   @map("position_group_id")
+  startedAt       DateTime  @default(now()) @map("started_at")
   finishedAt      DateTime? @map("finished_at")
 
-  flow            TgFlow        @relation(fields: [flowId], references: [id], onDelete: Cascade)
-  subscriber      TgSubscriber  @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  flow       TgFlow       @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  subscriber TgSubscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
 
   @@index([status, resumeAt])
   @@index([subscriberId, status])
@@ -1746,27 +1781,27 @@ model TgFlowRun {
 }
 
 model TgBroadcast {
-  id              String   @id @default(uuid())
-  botId           String   @map("bot_id")
+  id              String    @id @default(uuid())
+  botId           String    @map("bot_id")
   name            String
   // Message payload (text/buttons/media). See lib/tg/flow-schema.ts.
   message         Json
   // Targeting: { allActive: bool, tagsAny: [], tagsAll: [], excludeTags: [], subscriberIds?: [] }
   filter          Json
-  status          String   @default("draft") // draft | scheduled | sending | completed | cancelled | failed
+  status          String    @default("draft") // draft | scheduled | sending | completed | cancelled | failed
   scheduledAt     DateTime? @map("scheduled_at")
   startedAt       DateTime? @map("started_at")
   finishedAt      DateTime? @map("finished_at")
-  totalRecipients Int      @default(0) @map("total_recipients")
-  sentCount       Int      @default(0) @map("sent_count")
-  failedCount     Int      @default(0) @map("failed_count")
-  blockedCount    Int      @default(0) @map("blocked_count")
-  createdById     String?  @map("created_by_id")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  totalRecipients Int       @default(0) @map("total_recipients")
+  sentCount       Int       @default(0) @map("sent_count")
+  failedCount     Int       @default(0) @map("failed_count")
+  blockedCount    Int       @default(0) @map("blocked_count")
+  createdById     String?   @map("created_by_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
-  bot             TgBot    @relation(fields: [botId], references: [id], onDelete: Cascade)
-  recipients      TgBroadcastRecipient[]
+  bot        TgBot                  @relation(fields: [botId], references: [id], onDelete: Cascade)
+  recipients TgBroadcastRecipient[]
 
   @@index([botId, status])
   @@index([status, scheduledAt])
@@ -1774,20 +1809,20 @@ model TgBroadcast {
 }
 
 model TgBroadcastRecipient {
-  id              String   @id @default(uuid())
-  broadcastId     String   @map("broadcast_id")
-  subscriberId    String   @map("subscriber_id")
+  id            String    @id @default(uuid())
+  broadcastId   String    @map("broadcast_id")
+  subscriberId  String    @map("subscriber_id")
   // pending | sent | failed | blocked | skipped
-  status          String   @default("pending")
-  tgMessageId     String?  @map("tg_message_id")
-  errorCode       Int?     @map("error_code")
-  errorMessage    String?  @map("error_message") @db.Text
-  attempts        Int      @default(0)
-  nextAttemptAt   DateTime? @map("next_attempt_at")
-  sentAt          DateTime? @map("sent_at")
+  status        String    @default("pending")
+  tgMessageId   String?   @map("tg_message_id")
+  errorCode     Int?      @map("error_code")
+  errorMessage  String?   @map("error_message") @db.Text
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime? @map("next_attempt_at")
+  sentAt        DateTime? @map("sent_at")
 
-  broadcast       TgBroadcast   @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
-  subscriber      TgSubscriber  @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  broadcast  TgBroadcast  @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  subscriber TgSubscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
 
   @@unique([broadcastId, subscriberId])
   @@index([broadcastId, status])
@@ -1807,25 +1842,25 @@ model TgBroadcastRecipient {
 //   cancelled — отменён вручную
 //   failed    — ошибка материализации
 model TgScheduledFlow {
-  id              String   @id @default(uuid())
-  botId           String   @map("bot_id")
-  flowId          String   @map("flow_id")
-  name            String
+  id            String    @id @default(uuid())
+  botId         String    @map("bot_id")
+  flowId        String    @map("flow_id")
+  name          String
   // То же содержимое, что у broadcast.filter (BroadcastFilter shape):
   // { allActive, tagsAny, tagsAll, excludeTags, subscriberIds }
-  filter          Json
-  scheduledAt     DateTime @map("scheduled_at")
-  status          String   @default("scheduled")
-  startedAt       DateTime? @map("started_at")
-  finishedAt      DateTime? @map("finished_at")
-  totalLaunched   Int      @default(0) @map("total_launched")
-  totalFailed     Int      @default(0) @map("total_failed")
-  lastError       String?  @map("last_error") @db.Text
-  createdById     String?  @map("created_by_id")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  filter        Json
+  scheduledAt   DateTime  @map("scheduled_at")
+  status        String    @default("scheduled")
+  startedAt     DateTime? @map("started_at")
+  finishedAt    DateTime? @map("finished_at")
+  totalLaunched Int       @default(0) @map("total_launched")
+  totalFailed   Int       @default(0) @map("total_failed")
+  lastError     String?   @map("last_error") @db.Text
+  createdById   String?   @map("created_by_id")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
 
-  bot             TgBot    @relation(fields: [botId], references: [id], onDelete: Cascade)
+  bot TgBot @relation(fields: [botId], references: [id], onDelete: Cascade)
 
   @@index([botId, status])
   @@index([status, scheduledAt])
@@ -1833,40 +1868,40 @@ model TgScheduledFlow {
 }
 
 model TgTrackingLink {
-  id              String   @id @default(uuid())
-  botId           String   @map("bot_id")
+  id             String    @id @default(uuid())
+  botId          String    @map("bot_id")
   // Short URL-safe payload (<=48 chars) used in t.me/<bot>?start=<slug>.
-  slug            String
-  name            String
+  slug           String
+  name           String
   // Optional flow to enter on /start; if null — default bot flow.
-  startFlowId     String?  @map("start_flow_id")
+  startFlowId    String?   @map("start_flow_id")
   // Tags applied to subscriber on first touch.
-  applyTags       String[] @default([]) @map("apply_tags")
+  applyTags      String[]  @default([]) @map("apply_tags")
   // Arbitrary UTM-style fields, no fixed schema.
-  utm             Json     @default("{}")
-  clickCount      Int      @default(0) @map("click_count")
-  subscribeCount  Int      @default(0) @map("subscribe_count")
-  createdAt       DateTime @default(now()) @map("created_at")
-  expiresAt       DateTime? @map("expires_at")
+  utm            Json      @default("{}")
+  clickCount     Int       @default(0) @map("click_count")
+  subscribeCount Int       @default(0) @map("subscribe_count")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  expiresAt      DateTime? @map("expires_at")
 
-  bot             TgBot    @relation(fields: [botId], references: [id], onDelete: Cascade)
+  bot TgBot @relation(fields: [botId], references: [id], onDelete: Cascade)
 
   @@unique([botId, slug])
   @@map("tg_tracking_links")
 }
 
 model TgEvent {
-  id              String   @id @default(uuid())
-  botId           String?  @map("bot_id")
-  subscriberId    String?  @map("subscriber_id")
+  id           String   @id @default(uuid())
+  botId        String?  @map("bot_id")
+  subscriberId String?  @map("subscriber_id")
   // Discriminator. See lib/tg/events.ts for the registry.
-  type            String
+  type         String
   // Free-form per-type payload.
-  properties      Json     @default("{}")
-  occurredAt      DateTime @default(now()) @map("occurred_at")
+  properties   Json     @default("{}")
+  occurredAt   DateTime @default(now()) @map("occurred_at")
 
-  bot             TgBot?        @relation(fields: [botId], references: [id], onDelete: Cascade)
-  subscriber      TgSubscriber? @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  bot        TgBot?        @relation(fields: [botId], references: [id], onDelete: Cascade)
+  subscriber TgSubscriber? @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
 
   @@index([botId, type, occurredAt])
   @@index([subscriberId, occurredAt])
@@ -1878,23 +1913,23 @@ model TgEvent {
 // Retention is the operator's call; cron in lib/tg/audit.ts can prune
 // rows older than 180 days.
 model TgAuditLog {
-  id              String   @id @default(uuid())
+  id          String   @id @default(uuid())
   // Who did it. null = system / cron.
-  actorUserId     String?  @map("actor_user_id")
-  actorEmail      String?  @map("actor_email")
+  actorUserId String?  @map("actor_user_id")
+  actorEmail  String?  @map("actor_email")
   // Scope of the change.
-  botId           String?  @map("bot_id")
+  botId       String?  @map("bot_id")
   // Discriminator: "tg.flow.update", "tg.broadcast.send",
   // "tg.bot.delete" etc. Keeps the schema flat — no per-action table.
-  action          String
+  action      String
   // Free-form payload: which IDs changed, what fields, IP, UA.
-  details         Json     @default("{}")
+  details     Json     @default("{}")
   // Result code: "ok" | "denied" | "failed". Helps distinguish a
   // permission denial from a successful mutation.
-  outcome         String   @default("ok")
-  ip              String?
-  userAgent       String?  @map("user_agent")
-  createdAt       DateTime @default(now()) @map("created_at")
+  outcome     String   @default("ok")
+  ip          String?
+  userAgent   String?  @map("user_agent")
+  createdAt   DateTime @default(now()) @map("created_at")
 
   @@index([botId, createdAt])
   @@index([actorUserId, createdAt])
@@ -1911,23 +1946,23 @@ model TgAuditLog {
 //     with its own analytics counters.
 // Mirror of SaleBot's "Списки" feature.
 model TgList {
-  id              String   @id @default(uuid())
-  botId           String   @map("bot_id")
-  name            String
+  id           String   @id @default(uuid())
+  botId        String   @map("bot_id")
+  name         String
   // Optional emoji or short prefix shown in the picker.
-  icon            String?
-  description     String?
+  icon         String?
+  description  String?
   // Auto-add subscribers matching these tag predicates? Empty = manual.
   // Format: { all?: string[], any?: string[], none?: string[] }
-  autoTagRules    Json     @default("{}") @map("auto_tag_rules")
+  autoTagRules Json     @default("{}") @map("auto_tag_rules")
   // Cached counts. Kept fresh by engine writes; can drift slightly
   // under heavy concurrency — fix by recomputing in cron if needed.
-  memberCount     Int      @default(0) @map("member_count")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  memberCount  Int      @default(0) @map("member_count")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
-  bot             TgBot    @relation(fields: [botId], references: [id], onDelete: Cascade)
-  members         TgSubscriberList[]
+  bot     TgBot              @relation(fields: [botId], references: [id], onDelete: Cascade)
+  members TgSubscriberList[]
 
   @@unique([botId, name])
   @@index([botId])
@@ -1938,13 +1973,13 @@ model TgList {
 // destroyed by addToList() / removeFromList() in lib/tg/lists.ts.
 // joinedAt fires the `list_joined` trigger; deletion fires `list_left`.
 model TgSubscriberList {
-  id              String   @id @default(uuid())
-  listId          String   @map("list_id")
-  subscriberId    String   @map("subscriber_id")
-  joinedAt        DateTime @default(now()) @map("joined_at")
+  id           String   @id @default(uuid())
+  listId       String   @map("list_id")
+  subscriberId String   @map("subscriber_id")
+  joinedAt     DateTime @default(now()) @map("joined_at")
 
-  list            TgList       @relation(fields: [listId], references: [id], onDelete: Cascade)
-  subscriber      TgSubscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  list       TgList       @relation(fields: [listId], references: [id], onDelete: Cascade)
+  subscriber TgSubscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
 
   @@unique([listId, subscriberId])
   @@index([subscriberId])
@@ -1988,7 +2023,7 @@ model TgCustomField {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
-  bot             TgBot    @relation(fields: [botId], references: [id], onDelete: Cascade)
+  bot TgBot @relation(fields: [botId], references: [id], onDelete: Cascade)
 
   @@unique([botId, key])
   @@index([botId, sortOrder])
@@ -2002,27 +2037,27 @@ model TgCustomField {
 // "did this subscriber click the link?" — a SaleBot staple for
 // video-delivery and reminder-with-link funnels.
 model TgRedirectLink {
-  id              String   @id @default(uuid())
-  botId           String   @map("bot_id")
+  id           String    @id @default(uuid())
+  botId        String    @map("bot_id")
   // URL-safe random slug (10 chars). Globally unique to avoid leaking
   // bot identity in the URL.
-  slug            String   @unique
+  slug         String    @unique
   // Where to send the user after logging the click.
-  targetUrl       String   @map("target_url") @db.Text
+  targetUrl    String    @map("target_url") @db.Text
   // Optional flow/node the link was generated from (for analytics).
-  sourceFlowId    String?  @map("source_flow_id")
-  sourceNodeId    String?  @map("source_node_id")
+  sourceFlowId String?   @map("source_flow_id")
+  sourceNodeId String?   @map("source_node_id")
   // Subscriber-specific links: when set, only this subscriber's
   // clicks are logged for this slug. Used by flows that want per-user
   // click attribution. Pass `?s=` query param at click time as a
   // back-up identifier in case the cookie / browser session is bad.
-  subscriberId    String?  @map("subscriber_id")
-  clickCount      Int      @default(0) @map("click_count")
-  lastClickAt     DateTime? @map("last_click_at")
-  createdAt       DateTime @default(now()) @map("created_at")
-  expiresAt       DateTime? @map("expires_at")
+  subscriberId String?   @map("subscriber_id")
+  clickCount   Int       @default(0) @map("click_count")
+  lastClickAt  DateTime? @map("last_click_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  expiresAt    DateTime? @map("expires_at")
 
-  bot             TgBot    @relation(fields: [botId], references: [id], onDelete: Cascade)
+  bot TgBot @relation(fields: [botId], references: [id], onDelete: Cascade)
 
   @@index([botId, createdAt])
   @@index([subscriberId])
@@ -2039,39 +2074,39 @@ model TgRedirectLink {
 // sendPhoto / sendVideo / sendVoice / sendVideoNote / sendDocument /
 // sendAudio / sendAnimation.
 model TgMediaFile {
-  id              String   @id @default(uuid())
-  botId           String   @map("bot_id")
+  id               String    @id @default(uuid())
+  botId            String    @map("bot_id")
   // Stable Telegram file_id (valid for the bot that captured it).
-  fileId          String   @map("file_id") @db.Text
+  fileId           String    @map("file_id") @db.Text
   // Optional file_unique_id — same across all bots, used for dedup.
-  fileUniqueId    String?  @map("file_unique_id")
+  fileUniqueId     String?   @map("file_unique_id")
   // Kind discriminator: photo | video | voice | video_note | document | audio | animation
-  kind            String
+  kind             String
   // Mime type when Telegram gives it (documents / audio / voice).
-  mimeType        String?  @map("mime_type")
+  mimeType         String?   @map("mime_type")
   // Bytes (Telegram's reported size; null for very small payloads).
-  fileSize        Int?     @map("file_size")
+  fileSize         Int?      @map("file_size")
   // For photos: pick the largest variant's dimensions.
-  width           Int?
-  height          Int?
-  duration        Int?
+  width            Int?
+  height           Int?
+  duration         Int?
   // Human label assigned in the admin UI. Defaults to original filename
   // for documents, or "voice 2026-05-13 14:32" for sender-recorded media.
-  title           String?
+  title            String?
   // Original filename when Telegram provides it (document/video/audio).
-  fileName        String?  @map("file_name")
+  fileName         String?   @map("file_name")
   // Cached preview thumb file_id, when available. Used for picker UI.
-  thumbFileId     String?  @map("thumb_file_id")
+  thumbFileId      String?   @map("thumb_file_id")
   // Where it came from. 'inbound' = admin sent it to the bot. 'upload' =
   // uploaded directly through the admin panel and then echoed back via
   // sendDocument-self to get a file_id (deferred to future iter).
-  source          String   @default("inbound")
+  source           String    @default("inbound")
   // Telegram chat_id of the admin who captured it — for audit.
-  capturedByChatId String? @map("captured_by_chat_id")
-  createdAt       DateTime @default(now()) @map("created_at")
-  lastUsedAt      DateTime? @map("last_used_at")
+  capturedByChatId String?   @map("captured_by_chat_id")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  lastUsedAt       DateTime? @map("last_used_at")
 
-  bot             TgBot    @relation(fields: [botId], references: [id], onDelete: Cascade)
+  bot TgBot @relation(fields: [botId], references: [id], onDelete: Cascade)
 
   @@index([botId, kind, createdAt])
   @@index([botId, fileUniqueId])
@@ -2084,29 +2119,29 @@ model TgMediaFile {
 // chat_member-апдейты и тут будет пусто.
 // =====================================================================
 model TgChannel {
-  id              String   @id @default(uuid())
-  botId           String   @map("bot_id")
+  id            String    @id @default(uuid())
+  botId         String    @map("bot_id")
   // Telegram chat_id канала. int64 → строкой ради безопасности.
-  chatId          String   @map("chat_id")
+  chatId        String    @map("chat_id")
   // Технический username канала (без @), если публичный. Null = приватный.
-  username        String?
+  username      String?
   // Человекочитаемое название (из getChat.title). Кэшируется тут, чтобы
   // не дёргать Telegram на каждую KPI-страницу.
-  title           String
+  title         String
   // 'channel' | 'supergroup' — Telegram даёт оба, считаем оба.
-  type            String   @default("channel")
+  type          String    @default("channel")
   // Снимок «до старта учёта»: getChatMemberCount на момент подключения.
   // Используется как baseline в KPI: «всего сейчас N, из них учтено M, до = N-M».
-  baselineCount   Int      @default(0) @map("baseline_count")
-  baselineAt      DateTime? @map("baseline_at")
+  baselineCount Int       @default(0) @map("baseline_count")
+  baselineAt    DateTime? @map("baseline_at")
   // false = канал отключён, мы перестаём писать membership-события.
-  isActive        Boolean  @default(true) @map("is_active")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  isActive      Boolean   @default(true) @map("is_active")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
 
-  bot             TgBot    @relation(fields: [botId], references: [id], onDelete: Cascade)
-  inviteLinks     TgChannelInviteLink[]
-  memberships     TgChannelMembership[]
+  bot         TgBot                 @relation(fields: [botId], references: [id], onDelete: Cascade)
+  inviteLinks TgChannelInviteLink[]
+  memberships TgChannelMembership[]
 
   @@unique([botId, chatId])
   @@index([botId, isActive])
@@ -2117,27 +2152,27 @@ model TgChannel {
 // Bot API createChatInviteLink; Telegram потом возвращает её в
 // chat_member.invite_link, по этому имени мы и атрибутируем join.
 model TgChannelInviteLink {
-  id              String   @id @default(uuid())
-  botId           String   @map("bot_id")
-  channelId       String   @map("channel_id")
+  id          String    @id @default(uuid())
+  botId       String    @map("bot_id")
+  channelId   String    @map("channel_id")
   // Имя ссылки = наш slug (≤32 символов по правилам Telegram). По нему
   // join маппится на конкретный источник.
-  name            String
+  name        String
   // Полный t.me/+… URL, который вернул Telegram.
-  inviteUrl       String   @map("invite_url") @db.Text
+  inviteUrl   String    @map("invite_url") @db.Text
   // Произвольные UTM-поля {source/medium/campaign/...}.
-  utm             Json     @default("{}")
+  utm         Json      @default("{}")
   // Скользящий счётчик подтверждённых join'ов через эту ссылку.
-  joinCount       Int      @default(0) @map("join_count")
+  joinCount   Int       @default(0) @map("join_count")
   // Опционально: «гостевой лимит» (chat invite member_limit).
-  memberLimit     Int?     @map("member_limit")
-  expiresAt       DateTime? @map("expires_at")
+  memberLimit Int?      @map("member_limit")
+  expiresAt   DateTime? @map("expires_at")
   // Был ли отзыв через revokeChatInviteLink — старые join'ы сохраняются.
-  revokedAt       DateTime? @map("revoked_at")
-  createdAt       DateTime @default(now()) @map("created_at")
+  revokedAt   DateTime? @map("revoked_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
 
-  bot             TgBot    @relation(fields: [botId], references: [id], onDelete: Cascade)
-  channel         TgChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  bot     TgBot     @relation(fields: [botId], references: [id], onDelete: Cascade)
+  channel TgChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
   @@unique([channelId, name])
   @@index([botId, createdAt])
@@ -2147,30 +2182,30 @@ model TgChannelInviteLink {
 // Состояние участника канала + история join/leave. Один user — одна
 // запись на канал; повторный join обновляет existing row.
 model TgChannelMembership {
-  id              String   @id @default(uuid())
-  botId           String   @map("bot_id")
-  channelId       String   @map("channel_id")
+  id             String    @id @default(uuid())
+  botId          String    @map("bot_id")
+  channelId      String    @map("channel_id")
   // Telegram user_id вступившего. Может НЕ совпадать ни с одним из
   // подписчиков бота (в канал можно вступить, ни разу не нажав /start).
-  tgUserId        String   @map("tg_user_id")
+  tgUserId       String    @map("tg_user_id")
   // Если этот user уже есть среди подписчиков бота — линкуем.
   // Резолвится best-effort при join и при создании подписчика.
-  subscriberId    String?  @map("subscriber_id")
+  subscriberId   String?   @map("subscriber_id")
   // 'member' | 'left' | 'kicked' | 'restricted' | 'creator' | 'administrator'.
   // Для KPI считаем «подписался = переход в member» и «вышел = выход из member».
-  status          String
+  status         String
   // Имя invite-link, которое Telegram прислал в chat_member.invite_link.name
   // (если есть). По нему ищется TgChannelInviteLink → атрибуция канала.
-  inviteLinkName  String?  @map("invite_link_name")
+  inviteLinkName String?   @map("invite_link_name")
   // URL invite-link (для случаев, когда имя не задано).
-  inviteLinkUrl   String?  @map("invite_link_url") @db.Text
-  joinedAt        DateTime? @map("joined_at")
-  leftAt          DateTime? @map("left_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  inviteLinkUrl  String?   @map("invite_link_url") @db.Text
+  joinedAt       DateTime? @map("joined_at")
+  leftAt         DateTime? @map("left_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  bot             TgBot      @relation(fields: [botId], references: [id], onDelete: Cascade)
-  channel         TgChannel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  subscriber      TgSubscriber? @relation(fields: [subscriberId], references: [id], onDelete: SetNull)
+  bot        TgBot         @relation(fields: [botId], references: [id], onDelete: Cascade)
+  channel    TgChannel     @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  subscriber TgSubscriber? @relation(fields: [subscriberId], references: [id], onDelete: SetNull)
 
   @@unique([channelId, tgUserId])
   @@index([botId, channelId, status])
@@ -2186,73 +2221,73 @@ model TgChannelMembership {
 // после завершения попадает в админ-панель /admin/briefs.
 // =====================================================================
 model Brief {
-  id                 String   @id @default(uuid())
-  userId             String   @unique @map("user_id")
+  id     String @id @default(uuid())
+  userId String @unique @map("user_id")
 
   // 'in_progress' | 'completed'
-  status             String   @default("in_progress")
+  status String @default("in_progress")
 
   // Для возобновления заполнения с того места, где остановились.
   // Соответствует ключу блока: 1..6, или 7 = финальный экран.
-  currentStep        Int      @default(1) @map("current_step")
+  currentStep Int @default(1) @map("current_step")
 
   // БЛОК 1: Основная информация
-  fio                String?
-  subject            String?
-  targetAudience     String?  @map("target_audience") @db.Text
-  painsGoals         String?  @map("pains_goals") @db.Text
+  fio            String?
+  subject        String?
+  targetAudience String? @map("target_audience") @db.Text
+  painsGoals     String? @map("pains_goals") @db.Text
 
   // БЛОК 4: Инфографика
-  utp                String?  @db.Text
-  educationText      String?  @map("education_text") @db.Text
-  experience         String?  @db.Text
-  achievements       String?  @db.Text
-  methods            String?  @db.Text
-  formats            String?  @db.Text
+  utp           String? @db.Text
+  educationText String? @map("education_text") @db.Text
+  experience    String? @db.Text
+  achievements  String? @db.Text
+  methods       String? @db.Text
+  formats       String? @db.Text
 
   // БЛОК 5: Как проходит обучение
-  adIntro            String?  @map("ad_intro") @db.Text
-  adProcess          String?  @map("ad_process") @db.Text
-  adResult           String?  @map("ad_result") @db.Text
+  adIntro   String? @map("ad_intro") @db.Text
+  adProcess String? @map("ad_process") @db.Text
+  adResult  String? @map("ad_result") @db.Text
 
   // БЛОК 6: Визуальные предпочтения
-  existingStyle      String?  @map("existing_style") @db.Text
-  preferredStyle     String?  @map("preferred_style") @db.Text
-  characterImage     String?  @map("character_image") @db.Text
-  cardImpression     String?  @map("card_impression") @db.Text
-  colorPreferences   String?  @map("color_preferences") @db.Text
+  existingStyle    String? @map("existing_style") @db.Text
+  preferredStyle   String? @map("preferred_style") @db.Text
+  characterImage   String? @map("character_image") @db.Text
+  cardImpression   String? @map("card_impression") @db.Text
+  colorPreferences String? @map("color_preferences") @db.Text
 
-  createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @updatedAt @map("updated_at")
-  completedAt        DateTime? @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  completedAt DateTime? @map("completed_at")
 
-  user               User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  cases              BriefCase[]
-  files              BriefFile[]
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cases BriefCase[]
+  files BriefFile[]
 
   @@index([status, completedAt])
   @@map("briefs")
 }
 
 model BriefCase {
-  id          String   @id @default(uuid())
-  briefId     String   @map("brief_id")
-  orderIndex  Int      @default(0) @map("order_index")
+  id         String @id @default(uuid())
+  briefId    String @map("brief_id")
+  orderIndex Int    @default(0) @map("order_index")
 
-  name        String?
-  age         String?
-  goal        String?  @db.Text
-  beforeText  String?  @map("before_text") @db.Text
-  duration    String?
-  problems    String?  @db.Text
-  afterText   String?  @map("after_text") @db.Text
-  reviewText  String?  @map("review_text") @db.Text
+  name       String?
+  age        String?
+  goal       String? @db.Text
+  beforeText String? @map("before_text") @db.Text
+  duration   String?
+  problems   String? @db.Text
+  afterText  String? @map("after_text") @db.Text
+  reviewText String? @map("review_text") @db.Text
 
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  brief       Brief        @relation(fields: [briefId], references: [id], onDelete: Cascade)
-  files       BriefFile[]
+  brief Brief       @relation(fields: [briefId], references: [id], onDelete: Cascade)
+  files BriefFile[]
 
   @@index([briefId, orderIndex])
   @@map("brief_cases")
@@ -2292,26 +2327,25 @@ model HomeworkAIQueue {
 }
 
 model BriefFile {
-  id          String   @id @default(uuid())
-  briefId     String   @map("brief_id")
-  caseId      String?  @map("case_id")
+  id      String  @id @default(uuid())
+  briefId String  @map("brief_id")
+  caseId  String? @map("case_id")
 
-  fileType    String   @map("file_type")
-  fileUrl     String   @map("file_url") @db.Text
-  fileName    String?  @map("file_name")
-  mimeType    String?  @map("mime_type")
-  fileSize    Int?     @map("file_size")
+  fileType String  @map("file_type")
+  fileUrl  String  @map("file_url") @db.Text
+  fileName String? @map("file_name")
+  mimeType String? @map("mime_type")
+  fileSize Int?    @map("file_size")
 
-  createdAt   DateTime @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at")
 
-  brief       Brief      @relation(fields: [briefId], references: [id], onDelete: Cascade)
-  case        BriefCase? @relation(fields: [caseId], references: [id], onDelete: SetNull)
+  brief Brief      @relation(fields: [briefId], references: [id], onDelete: Cascade)
+  case  BriefCase? @relation(fields: [caseId], references: [id], onDelete: SetNull)
 
   @@index([briefId, fileType])
   @@index([caseId])
   @@map("brief_files")
 }
-
 
 model GetcourseOrder {
   id            String    @id @default(uuid())
@@ -2352,19 +2386,230 @@ model GetcourseData {
 }
 
 model ExternalReview {
-  id          String   @id @default(uuid())
-  source      String   // "otzovik" | "yandex_maps"
-  externalId  String?  @map("external_id")
-  author      String
-  rating      Float
-  text        String   @db.Text
-  url         String?
-  publishedAt DateTime @map("published_at")
-  businessResponse String?  @db.Text @map("business_response")
+  id               String   @id @default(uuid())
+  source           String // "otzovik" | "yandex_maps"
+  externalId       String?  @map("external_id")
+  author           String
+  rating           Float
+  text             String   @db.Text
+  url              String?
+  publishedAt      DateTime @map("published_at")
+  businessResponse String?  @map("business_response") @db.Text
   fetchedAt        DateTime @default(now()) @map("fetched_at")
 
   @@unique([source, externalId])
   @@index([source])
   @@index([publishedAt])
   @@map("external_reviews")
+}
+
+// =================================================================
+// Marketing Email System (Спринт 0)
+//
+// Маркетинговый email-модуль построен поверх существующего
+// lib/email-service.ts (транзакционка остаётся через SMTP_* env).
+// Доставка идёт через подключаемый провайдер (см. lib/email/providers/),
+// очередь — через cron-sidecar pattern (/api/email-cron/tick раз в 10с),
+// статус каждой задачи персистентен в EmailDeliveryJob.
+//
+// Все таблицы под префиксом email_* и не пересекаются с моделями
+// EmailTemplate (event-based транзакционка) и Broadcast (текущая LMS-рассылка).
+// =================================================================
+
+model EmailCampaign {
+  id                 String    @id @default(uuid())
+  name               String
+  subject            String
+  preheader          String?
+  fromName           String    @map("from_name")
+  fromEmail          String    @map("from_email")
+  templateId         String?   @map("template_id")
+  segmentId          String?   @map("segment_id")
+  // draft | scheduled | sending | sent | paused | failed | cancelled
+  status             String    @default("draft")
+  scheduledAt        DateTime? @map("scheduled_at")
+  startedAt          DateTime? @map("started_at")
+  finishedAt         DateTime? @map("finished_at")
+  // True когда unsubscribeToken проставлен всем получателям сегмента.
+  // Cron-tick проверяет и заполняет асинхронно — синхронный /send падал по
+  // таймауту nginx на 70K-базе.
+  tokensReady        Boolean   @default(false) @map("tokens_ready")
+  // True когда EmailDeliveryJob созданы для всех получателей. Защищает
+  // processFinishedCampaigns от преждевременного перевода в "sent" пока
+  // enqueueCampaign ещё работает (тогда pending=0 не значит "всё ушло").
+  enqueueComplete    Boolean   @default(false) @map("enqueue_complete")
+  // { variants: [{subject, percentage}], winnerMetric, winnerAt }
+  abTest             Json?     @map("ab_test")
+  // { recipients, sent, delivered, opened, clicked, unsubscribed, bounced, spam }
+  stats              Json      @default("{}")
+  providerCampaignId String?   @map("provider_campaign_id")
+  createdBy          String    @map("created_by")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  template     EmailVisualTemplate? @relation(fields: [templateId], references: [id])
+  segment      EmailSegment?        @relation(fields: [segmentId], references: [id])
+  deliveryJobs EmailDeliveryJob[]
+  events       EmailEvent[]
+
+  @@index([status, scheduledAt])
+  @@map("email_campaigns")
+}
+
+model EmailVisualTemplate {
+  id           String   @id @default(uuid())
+  name         String
+  // marketing | warmup
+  category     String   @default("marketing")
+  subject      String
+  preheader    String?
+  // TipTap JSON структура для редактора.
+  blocks       Json
+  // Скомпилированный email-safe HTML с inline стилями (table-based layout).
+  compiledHtml String   @map("compiled_html") @db.Text
+  thumbnailUrl String?  @map("thumbnail_url")
+  isArchived   Boolean  @default(false) @map("is_archived")
+  createdBy    String   @map("created_by")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  campaigns EmailCampaign[]
+
+  @@map("email_visual_templates")
+}
+
+model EmailSegment {
+  id             String    @id @default(uuid())
+  name           String
+  description    String?
+  // { role, tariff, track, group, enrolledIn, lessonProgressMin, lastActiveDays, tags, hasKeyword }
+  filters        Json
+  contactCount   Int       @default(0) @map("contact_count")
+  providerListId String?   @map("provider_list_id")
+  syncedAt       DateTime? @map("synced_at")
+  createdBy      String    @map("created_by")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  campaigns      EmailCampaign[]
+  contactImports EmailContactImport[]
+
+  @@map("email_segments")
+}
+
+// Очередь отправки. Обрабатывается /api/email-cron/tick.
+// Воркер берёт WHERE status IN ('pending','retrying') AND next_attempt_at <= NOW() LIMIT 100.
+model EmailDeliveryJob {
+  id                String    @id @default(uuid())
+  campaignId        String    @map("campaign_id")
+  userId            String?   @map("user_id")
+  email             String
+  // Переменные для подстановки в шаблон: {firstName, courseUrl, ...}
+  variables         Json      @default("{}")
+  // pending | retrying | sent | failed | cancelled
+  status            String    @default("pending")
+  attemptCount      Int       @default(0) @map("attempt_count")
+  // Когда воркер заберёт запись в следующий раз (для exponential backoff).
+  nextAttemptAt     DateTime  @default(now()) @map("next_attempt_at")
+  lastError         String?   @map("last_error")
+  sentAt            DateTime? @map("sent_at")
+  providerMessageId String?   @map("provider_message_id")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  campaign EmailCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user     User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([campaignId, userId], name: "email_delivery_jobs_campaign_user_unique")
+  @@index([status, nextAttemptAt])
+  @@index([campaignId, status])
+  @@map("email_delivery_jobs")
+}
+
+model EmailAutomation {
+  id          String   @id @default(uuid())
+  name        String
+  // user_registered | course_purchased | inactive_30d | course_completed | birthday
+  trigger     String
+  triggerData Json?    @map("trigger_data")
+  // [{ delayHours, templateId, conditions }]
+  steps       Json
+  isActive    Boolean  @default(false) @map("is_active")
+  stats       Json     @default("{}")
+  createdBy   String   @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  runs EmailAutomationRun[]
+
+  @@map("email_automations")
+}
+
+model EmailAutomationRun {
+  id           String    @id @default(uuid())
+  automationId String    @map("automation_id")
+  userId       String    @map("user_id")
+  currentStep  Int       @default(0) @map("current_step")
+  // Сколько раз пытались доставить currentStep. Сбрасывается при продвижении.
+  // Используется retry-policy (30s/5m/30m/2h) при transient SMTP-ошибках.
+  attemptCount Int       @default(0) @map("attempt_count")
+  // Текст последней ошибки отправки шага. Помогает диагностике в карточке run'а.
+  lastError    String?   @map("last_error")
+  // Когда воркер должен продвинуть на следующий шаг.
+  nextStepAt   DateTime  @default(now()) @map("next_step_at")
+  // running | completed | cancelled | failed
+  status       String    @default("running")
+  startedAt    DateTime  @default(now()) @map("started_at")
+  completedAt  DateTime? @map("completed_at")
+
+  automation EmailAutomation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, automationId])
+  @@index([status, nextStepAt])
+  @@map("email_automation_runs")
+}
+
+// Все email-события (open, click, bounce, unsubscribe и т.д.).
+// Приходят из tracking-пикселя, click-redirect и webhook провайдера.
+model EmailEvent {
+  id              String   @id @default(uuid())
+  userId          String?  @map("user_id")
+  email           String
+  campaignId      String?  @map("campaign_id")
+  recipientId     String?  @map("recipient_id") // BroadcastRecipient.id или EmailDeliveryJob.id
+  // sent | delivered | opened | clicked | bounced | spam | unsubscribed
+  type            String
+  url             String? // для click-события
+  userAgent       String?  @map("user_agent")
+  // sha256(ip + salt). Не пишем raw IP по privacy.
+  ipHash          String?  @map("ip_hash")
+  // Для дедупликации webhook'ов от провайдера.
+  providerEventId String?  @unique @map("provider_event_id")
+  metadata        Json?
+  occurredAt      DateTime @default(now()) @map("occurred_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  user     User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  campaign EmailCampaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
+  @@index([campaignId, type, occurredAt])
+  @@map("email_events")
+}
+
+model EmailContactImport {
+  id           String   @id @default(uuid())
+  fileName     String   @map("file_name")
+  rowsTotal    Int      @map("rows_total")
+  rowsImported Int      @map("rows_imported")
+  rowsSkipped  Int      @map("rows_skipped")
+  errors       Json     @default("[]")
+  segmentId    String?  @map("segment_id")
+  createdBy    String   @map("created_by")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  segment EmailSegment? @relation(fields: [segmentId], references: [id], onDelete: SetNull)
+
+  @@map("email_contact_imports")
 }

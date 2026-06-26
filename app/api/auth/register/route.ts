@@ -109,6 +109,12 @@ export async function POST(request: NextRequest) {
       userAgent: getUserAgent(request) || undefined,
     });
 
+    // Запускаем маркетинговые автоматизации (welcome-серия и т.п.).
+    // Fire-and-forget — ошибки автоматизации не должны валить регистрацию.
+    void import("@/lib/email/automations/trigger-router")
+      .then(({ fireTrigger }) => fireTrigger("user_registered", user.id))
+      .catch((e) => console.warn("[register] fireTrigger failed:", e));
+
     const payload = {
       userId: user.id,
       email: user.email,

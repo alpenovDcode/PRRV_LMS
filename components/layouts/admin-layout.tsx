@@ -26,6 +26,7 @@ import {
   Send,
   Award,
   Mail,
+  Megaphone,
   Plus,
   Bot,
   ClipboardList,
@@ -56,6 +57,7 @@ const adminNavigation = [
   { name: "Тренинги", href: "/admin/trainings", icon: GraduationCap },
   { name: "Сертификаты", href: "/admin/certificates", icon: Award },
   { name: "Email шаблоны", href: "/admin/email-templates", icon: Mail },
+  { name: "Маркетинг", href: "/admin/marketing", icon: Megaphone },
   { name: "Лендинги", href: "/admin/landings", icon: LayoutDashboard }, // Using LayoutDashboard temporarily or until a better icon is imported
   { name: "Офферы", href: "/admin/offers", icon: Package },
   { name: "Заказы", href: "/admin/orders", icon: ShoppingCart },

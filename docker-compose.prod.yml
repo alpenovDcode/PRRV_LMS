@@ -83,6 +83,20 @@ x-app-defaults: &app-defaults
     # Bearer token consumed by /api/tg-cron/tick. The tg-cron sidecar
     # below uses it to drive delay + wait_reply timeouts every 20s.
     TG_CRON_SECRET: ${TG_CRON_SECRET}
+    # Bearer token consumed by /api/email-cron/tick. The email-cron sidecar
+    # below uses it to drive marketing campaigns (process EmailDeliveryJob
+    # batches, start scheduled, finish completed). 10s cadence.
+    EMAIL_CRON_SECRET: ${EMAIL_CRON_SECRET}
+    # Marketing email provider: yandex (current SMTP) or unisender (when ready).
+    EMAIL_MARKETING_PROVIDER: ${EMAIL_MARKETING_PROVIDER:-yandex}
+    EMAIL_MARKETING_FROM_NAME: ${EMAIL_MARKETING_FROM_NAME:-Прорыв}
+    EMAIL_MARKETING_FROM_EMAIL: ${EMAIL_MARKETING_FROM_EMAIL:-}
+    EMAIL_TRACKING_BASE_URL: ${EMAIL_TRACKING_BASE_URL:-${NEXT_PUBLIC_APP_URL}}
+    # Unisender API credentials (Евгений впишет после подключения).
+    UNISENDER_API_KEY: ${UNISENDER_API_KEY:-}
+    UNISENDER_API_URL: ${UNISENDER_API_URL:-https://api.unisender.com/ru/api}
+    UNISENDER_WEBHOOK_SECRET: ${UNISENDER_WEBHOOK_SECRET:-}
+    UNISENDER_DEFAULT_LIST_ID: ${UNISENDER_DEFAULT_LIST_ID:-}
     # Public base URL for /r/<slug> redirect-tracking URLs.
     AI_CHECK_DELAY_MS: ${AI_CHECK_DELAY_MS}
     PUBLIC_APP_URL: ${PUBLIC_APP_URL:-${NEXT_PUBLIC_APP_URL}}
@@ -246,6 +260,43 @@ services:
             || echo "[tg-cron] tick failed";
           echo;
           sleep 20;
+        done
+    networks:
+      - proryv_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "1m"
+        max-file: "3"
+
+  # /api/email-cron/tick каждые 10с — драйвит marketing-кампании:
+  #   - переводит scheduled → sending, наполняет EmailDeliveryJob
+  #   - шлёт батч pending/retrying писем через провайдера (Yandex / Unisender)
+  #   - завершает кампании когда нет оставшихся jobs
+  # Cadence 10с (vs 20с у tg-cron) — для маркетинга latency между батчами важнее.
+  email-cron:
+    image: curlimages/curl:8.10.1
+    container_name: proryv_email_cron
+    restart: always
+    depends_on:
+      nginx:
+        condition: service_started
+    environment:
+      EMAIL_CRON_SECRET: ${EMAIL_CRON_SECRET}
+    entrypoint:
+      - sh
+      - -c
+      - |
+        echo "[email-cron] starting, tick every 10s";
+        while true; do
+          curl --max-time 90 -fsS -X POST \
+            -H "Authorization: Bearer $$EMAIL_CRON_SECRET" \
+            http://nginx/api/email-cron/tick \
+            -o /tmp/tick.log 2>/dev/null \
+            && cat /tmp/tick.log \
+            || echo "[email-cron] tick failed";
+          echo;
+          sleep 10;
         done
     networks:
       - proryv_network
