@@ -63,6 +63,7 @@ const MENTORS = [
   "Анастасия @Anastasia_YourEnglishTutor",
   "Дарья @da_chem",
   "Дмитрий @dlit25",
+  "Анастасия @RomanAnasta",
   "Нет наставника",
 ];
 
