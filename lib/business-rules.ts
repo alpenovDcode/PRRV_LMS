@@ -79,6 +79,15 @@ export async function canUserSubmitHomework(
   reason?: string;
   existingSubmissionId?: string;
 }> {
+  const lesson = await db.lesson.findUnique({
+    where: { id: lessonId },
+    select: { noHomework: true },
+  });
+
+  if (lesson?.noHomework) {
+    return { canSubmit: false, reason: "no_homework" };
+  }
+
   // Проверяем наличие активной отправки
   const existingSubmission = await db.homeworkSubmission.findFirst({
     where: {

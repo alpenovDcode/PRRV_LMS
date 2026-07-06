@@ -52,6 +52,7 @@ interface Lesson {
   videoDuration: number | null;
   thumbnailUrl: string | null;
   isStopLesson: boolean;
+  noHomework?: boolean;
   isAvailable: boolean;
   availableDate?: string;
   progress?: {
@@ -145,6 +146,13 @@ export default function LessonPlayerPage() {
       return response.data.data;
     },
   });
+
+  // Если у урока нет ДЗ, а активна была вкладка "homework" — сдвигаем на "details"
+  useEffect(() => {
+    if (lesson?.noHomework && activeTab === "homework") {
+      setActiveTab("details");
+    }
+  }, [lesson?.noHomework, activeTab]);
 
   const { data: courseNav } = useQuery<CourseNav>({
     queryKey: ["course-nav", slug, lessonId],
@@ -495,15 +503,22 @@ export default function LessonPlayerPage() {
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-3 border-b border-gray-200 bg-transparent">
+              <TabsList
+                className={cn(
+                  "grid w-full border-b border-gray-200 bg-transparent",
+                  lesson.noHomework ? "grid-cols-2" : "grid-cols-3"
+                )}
+              >
                 <TabsTrigger value="details" className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600">
                   <FileText className="mr-2 h-4 w-4" />
                   Описание урока
                 </TabsTrigger>
-                <TabsTrigger value="homework" className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600">
-                  <MessageSquare className="mr-2 h-4 w-4" />
-                  Задание
-                </TabsTrigger>
+                {!lesson.noHomework && (
+                  <TabsTrigger value="homework" className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600">
+                    <MessageSquare className="mr-2 h-4 w-4" />
+                    Задание
+                  </TabsTrigger>
+                )}
                 <TabsTrigger value="discussion" className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600">
                   <MessageSquare className="mr-2 h-4 w-4" />
                   Обсуждение
@@ -602,6 +617,7 @@ export default function LessonPlayerPage() {
                 </Card>
               </TabsContent>
 
+              {!lesson.noHomework && (
               <TabsContent value="homework" className="mt-6">
                 <Card className="border-gray-200">
                   <CardContent className="p-6">
@@ -811,6 +827,7 @@ export default function LessonPlayerPage() {
                   </CardContent>
                 </Card>
               </TabsContent>
+              )}
 
               <TabsContent value="discussion" className="mt-6">
                 <LessonDiscussion lessonId={lessonId} />

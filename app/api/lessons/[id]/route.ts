@@ -99,6 +99,7 @@ export async function GET(
             thumbnailUrl: lesson.thumbnailUrl,
             isFree: lesson.isFree,
             isStopLesson: lesson.isStopLesson,
+            noHomework: lesson.noHomework,
             isAvailable: availability.isAvailable,
             availableDate: availability.availableDate,
             progress: progress

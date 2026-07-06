@@ -47,6 +47,7 @@ interface LessonDetail {
   thumbnailUrl: string | null;
   isFree: boolean;
   isStopLesson: boolean;
+  noHomework: boolean;
   dripRule: any;
   settings: any;
   aiPrompt: string | null;
@@ -84,6 +85,7 @@ export default function LessonEditorPage() {
   
   const [isFree, setIsFree] = useState(false);
   const [isStopLesson, setIsStopLesson] = useState(false);
+  const [noHomework, setNoHomework] = useState(false);
   const [dripRule, setDripRule] = useState<any>(null);
   const [settings, setSettings] = useState<any>(null);
   const [homeworkDeadline, setHomeworkDeadline] = useState("");
@@ -155,6 +157,7 @@ export default function LessonEditorPage() {
       setThumbnailUrl(lesson.thumbnailUrl || "");
       setIsFree(lesson.isFree);
       setIsStopLesson(lesson.isStopLesson);
+      setNoHomework(lesson.noHomework ?? false);
       setDripRule(lesson.dripRule);
     setSettings(lesson.settings || {});
       setAiPrompt(lesson.aiPrompt || "");
@@ -259,6 +262,7 @@ export default function LessonEditorPage() {
       thumbnailUrl: thumbnailUrl || null,
       isFree,
       isStopLesson,
+      noHomework,
       dripRule,
       settings: {
         ...settings,
@@ -545,6 +549,17 @@ export default function LessonEditorPage() {
                 />
                 <Label htmlFor="isStopLesson" className="text-gray-700 cursor-pointer">
                   Стоп-урок (следующий урок откроется только после принятия ДЗ)
+                </Label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="noHomework"
+                  checked={noHomework}
+                  onCheckedChange={(checked) => setNoHomework(Boolean(checked))}
+                />
+                <Label htmlFor="noHomework" className="text-gray-700 cursor-pointer">
+                  Нет ДЗ (студенты не смогут прикрепить домашнее задание к этому уроку)
                 </Label>
               </div>
             </CardContent>

@@ -118,16 +118,22 @@ export async function POST(
       const canSubmit = await canUserSubmitHomework(req.user!.userId, id);
 
       if (!canSubmit.canSubmit) {
+        const code =
+          canSubmit.reason === "no_homework"
+            ? "NO_HOMEWORK"
+            : canSubmit.reason === "already_approved"
+              ? "ALREADY_APPROVED"
+              : "ALREADY_SUBMITTED";
+        const message =
+          canSubmit.reason === "no_homework"
+            ? "В этом уроке нет домашнего задания"
+            : canSubmit.reason === "already_approved"
+              ? "Ваше задание уже принято"
+              : "Вы уже отправили домашнее задание по этому уроку";
         return NextResponse.json<ApiResponse>(
           {
             success: false,
-            error: {
-              code: canSubmit.reason === "already_approved" ? "ALREADY_APPROVED" : "ALREADY_SUBMITTED",
-              message:
-                canSubmit.reason === "already_approved"
-                  ? "Ваше задание уже принято"
-                  : "Вы уже отправили домашнее задание по этому уроку",
-            },
+            error: { code, message },
           },
           { status: 400 }
         );

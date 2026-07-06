@@ -171,6 +171,7 @@ model Lesson {
   thumbnailUrl       String?              @map("thumbnail_url")
   isFree             Boolean              @default(false) @map("is_free")
   isStopLesson       Boolean              @default(false) @map("is_stop_lesson")
+  noHomework         Boolean              @default(false) @map("no_homework")
   dripRule           Json?                @map("drip_rule")
   settings           Json?
   orderIndex         Int                  @map("order_index")

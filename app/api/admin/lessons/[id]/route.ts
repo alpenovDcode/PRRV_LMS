@@ -15,6 +15,7 @@ const lessonUpdateSchema = z.object({
   thumbnailUrl: z.string().nullable().optional(),
   isFree: z.boolean().optional(),
   isStopLesson: z.boolean().optional(),
+  noHomework: z.boolean().optional(),
   dripRule: z.any().nullable().optional(),
   settings: z.any().nullable().optional(),
   // Quiz settings
@@ -114,6 +115,7 @@ export async function PATCH(
         if (data.thumbnailUrl !== undefined) updateData.thumbnailUrl = data.thumbnailUrl;
         if (data.isFree !== undefined) updateData.isFree = data.isFree;
         if (data.isStopLesson !== undefined) updateData.isStopLesson = data.isStopLesson;
+        if (data.noHomework !== undefined) updateData.noHomework = data.noHomework;
         if (data.dripRule !== undefined) updateData.dripRule = data.dripRule;
         if (data.settings !== undefined) updateData.settings = data.settings;
         // Quiz settings
