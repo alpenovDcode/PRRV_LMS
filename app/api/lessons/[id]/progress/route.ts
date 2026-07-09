@@ -85,6 +85,35 @@ export async function POST(
       // Если оценки нет, то можем записать новую (если она пришла)
       const ratingToSave = existingProgress?.rating ? undefined : rating;
 
+      // Защита от orphan-прогрессов: для типов уроков с обязательной
+      // формой/квизом статус completed должен приходить из POST /homework
+      // (там создаётся сабмишен и уже этим же путём проставляется
+      // lesson_progress.status='completed'). Прямой апдейт /progress с
+      // completed без сабмишена создавал сироту — куратор не видел ответов
+      // (см. историю: кнопка «Просмотрел» на странице урока для сертификации).
+      // Для admin/curator оставляем возможность вручную закрыть урок.
+      const FORM_SUBMISSION_TYPES = new Set([
+        "certification_form",
+        "intermediate_survey",
+        "quiz",
+        "track_definition",
+      ]);
+      let effectiveStatus = status;
+      if (
+        effectiveStatus === "completed" &&
+        !isAdminOrCurator &&
+        FORM_SUBMISSION_TYPES.has(lesson.type) &&
+        !lesson.noHomework
+      ) {
+        const hasSubmission = await db.homeworkSubmission.findFirst({
+          where: { userId: req.user!.userId, lessonId: id },
+          select: { id: true },
+        });
+        if (!hasSubmission) {
+          effectiveStatus = "in_progress";
+        }
+      }
+
       // Обновляем или создаем прогресс
       const progress = await db.lessonProgress.upsert({
         where: {
@@ -95,24 +124,24 @@ export async function POST(
         },
         update: {
           watchedTime,
-          status: status || "in_progress",
+          status: effectiveStatus || "in_progress",
           // Если ratingToSave === undefined, Prisma просто не будет обновлять это поле
           rating: ratingToSave,
-          completedAt: status === "completed" ? (existingProgress?.completedAt || new Date()) : undefined,
+          completedAt: effectiveStatus === "completed" ? (existingProgress?.completedAt || new Date()) : undefined,
           lastUpdated: new Date(),
         },
         create: {
           userId: req.user!.userId,
           lessonId: id,
           watchedTime,
-          status: status || "in_progress",
+          status: effectiveStatus || "in_progress",
           rating: rating, // При создании можно ставить оценку
-          completedAt: status === "completed" ? new Date() : undefined,
+          completedAt: effectiveStatus === "completed" ? new Date() : undefined,
         },
       });
 
       // Если урок завершен ТОЛЬКО ЧТО, записываем в аудит
-      if (status === "completed" && !wasCompleted) {
+      if (effectiveStatus === "completed" && !wasCompleted) {
         await logAction(req.user!.userId, "LESSON_COMPLETED", "lesson", id, {
           rating: ratingToSave,
           lessonTitle: lesson.title,

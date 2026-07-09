@@ -863,7 +863,10 @@ export default function LessonPlayerPage() {
                 <CircleCheck className="h-4 w-4" />
                 Урок завершен
               </div>
-            ) : (
+            ) : (["certification_form", "intermediate_survey", "quiz", "track_definition"] as string[]).includes(lesson.type) && !lesson.noHomework ? null : (
+              // Для уроков с обязательной формой/квизом completion должен
+              // приходить из сабмишена (POST /homework), иначе получаем
+              // orphan lesson_progress без ответов — куратор их не видит.
               <Button
                 variant="outline"
                 className="border-blue-200 text-blue-700 hover:bg-blue-50 hover:text-blue-800"
