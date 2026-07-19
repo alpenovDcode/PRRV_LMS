@@ -35,13 +35,13 @@ describe("File Upload Security Tests", () => {
     });
 
     it("should reject files exceeding size limits", () => {
-      expect(validateFileSize(15 * 1024 * 1024, "images")).toBe(false); // 15MB > 10MB limit
+      expect(validateFileSize(25 * 1024 * 1024, "images")).toBe(false); // 25MB > 20MB limit
       expect(validateFileSize(30 * 1024 * 1024, "documents")).toBe(false); // 30MB > 25MB limit
     });
 
     it("should handle edge cases at exact limits", () => {
-      expect(validateFileSize(10 * 1024 * 1024, "images")).toBe(true); // Exactly 10MB
-      expect(validateFileSize(10 * 1024 * 1024 + 1, "images")).toBe(false); // 1 byte over
+      expect(validateFileSize(20 * 1024 * 1024, "images")).toBe(true); // Exactly 20MB
+      expect(validateFileSize(20 * 1024 * 1024 + 1, "images")).toBe(false); // 1 byte over
     });
   });
 
@@ -169,8 +169,8 @@ describe("File Upload Security Tests", () => {
     });
 
     it("should reject oversized files", async () => {
-      // Create 15MB file (exceeds 10MB image limit)
-      const largeBytes = new Uint8Array(15 * 1024 * 1024);
+      // Create 25MB file (exceeds 20MB image limit)
+      const largeBytes = new Uint8Array(25 * 1024 * 1024);
       const blob = new Blob([largeBytes]);
       const file = new File([blob], "large.jpg", { type: "image/jpeg" });
       

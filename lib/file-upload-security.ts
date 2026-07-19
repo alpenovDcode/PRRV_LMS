@@ -52,7 +52,7 @@ export const ALLOWED_MIME_TYPES = {
 
 // File size limits (in bytes)
 export const FILE_SIZE_LIMITS = {
-  images: 10 * 1024 * 1024, // 10MB
+  images: 20 * 1024 * 1024, // 20MB
   documents: 25 * 1024 * 1024, // 25MB
   videos: 500 * 1024 * 1024, // 500MB
   archives: 50 * 1024 * 1024, // 50MB
