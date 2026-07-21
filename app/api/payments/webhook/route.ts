@@ -132,6 +132,56 @@ export async function POST(req: NextRequest) {
       .catch(() => {});
   }
 
+  // ── Receipt-webhook: фискализация чека в ОФД ──────────────────────────
+  // Не платёжное событие. Приходит после того, как ОФД зарегистрировал чек,
+  // и содержит fnUrl (ссылка на чек с QR-кодом), номер фискального
+  // документа, дату. Копим в snapshot.receipts[] — их может быть несколько
+  // (отдельный чек на возврат, повторная фискализация после ошибки).
+  const rawEventInit =
+    result.raw && typeof (result.raw as any)._eventType === "string"
+      ? (result.raw as any)._eventType
+      : null;
+  if (rawEventInit === "Receipt") {
+    const raw = (result.raw as Record<string, any>) ?? {};
+    const cur = await db.order
+      .findUnique({
+        where: { id: order.id },
+        select: { ykSnapshot: true } as any,
+      })
+      .then((r) => ((r as any)?.ykSnapshot as Record<string, unknown> | null) ?? {});
+    const prevReceipts = Array.isArray((cur as any).receipts)
+      ? ((cur as any).receipts as unknown[])
+      : [];
+    const receipt = {
+      fnUrl: raw.fnUrl ?? null,
+      documentNumber: raw.DocumentNumber ?? null,
+      sessionNumber: raw.SessionNumber ?? null,
+      number: raw.Number ?? null,
+      shiftNumber: raw.ShiftNumber ?? null,
+      receiptDateTime: raw.receiptDateTime ?? null,
+      amount: raw.Amount ?? null,
+      type: raw.Type ?? null, // "Income" | "Refund" | …
+      relatedTransactionId: result.providerPaymentId,
+      receivedAt: new Date().toISOString(),
+    };
+    await db.order.update({
+      where: { id: order.id },
+      data: {
+        ykSnapshot: {
+          ...cur,
+          receipts: [...prevReceipts, receipt].slice(-20),
+          lastReceiptAt: receipt.receivedAt,
+        } as any,
+      },
+    });
+    console.log(
+      `[webhook] order=${order.id} Receipt зарегистрирован (fnUrl=${
+        receipt.fnUrl ?? "—"
+      }, type=${receipt.type ?? "—"})`
+    );
+    return ackOk(result.ackResponse);
+  }
+
   // ── Переходы статусов ──────────────────────────────────────────────────
   //   refunded — терминальный, не уходит никуда.
   //   paid     — можно перейти ТОЛЬКО в refunded (через webhook Refund от CP
