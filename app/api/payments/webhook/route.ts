@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
   const provider = getProvider();
   let result;
   try {
-    result = await provider.parseWebhook(rawText, headers);
+    result = await provider.parseWebhook(rawText, headers, req.url);
   } catch (err) {
     console.error("[webhook] Signature/parse rejection:", err);
     return new NextResponse(null, { status: 401 });
@@ -168,6 +168,46 @@ export async function POST(req: NextRequest) {
       `providerStatus=${rawStatus ?? "?"} → normalizedStatus=${result.status}`
   );
 
+  // ── Собираем обновлённый snapshot с timeline событий ──────────────────
+  // Раньше snapshot перезаписывался целиком → админ терял историю (например
+  // Check → Pay видно только последнее). Теперь копим до 50 событий и
+  // сохраняем в поле events для карточки заказа.
+  const currentSnapshot = await db.order
+    .findUnique({
+      where: { id: order.id },
+      select: { ykSnapshot: true } as any,
+    })
+    .then((r) => ((r as any)?.ykSnapshot as Record<string, unknown> | null) ?? {});
+  const prevEvents = Array.isArray((currentSnapshot as any).events)
+    ? ((currentSnapshot as any).events as unknown[])
+    : [];
+  const nowIso = new Date().toISOString();
+  const newEvent = {
+    eventType: rawEvent,
+    providerStatus: rawStatus,
+    normalizedStatus: result.status,
+    transactionId: result.providerPaymentId,
+    paymentMethod: result.paymentMethod ?? null,
+    amount:
+      result.raw && typeof (result.raw as any)._amount === "string"
+        ? (result.raw as any)._amount
+        : null,
+    ip:
+      result.raw && typeof (result.raw as any).IpAddress === "string"
+        ? (result.raw as any).IpAddress
+        : null,
+    at: nowIso,
+  };
+  const updatedSnapshot: Record<string, unknown> = {
+    ...currentSnapshot,
+    ...(result.raw as Record<string, unknown>),
+    events: [...prevEvents, newEvent].slice(-50),
+    lastEventType: rawEvent,
+    lastReceivedAt: nowIso,
+    lastPaymentMethod: result.paymentMethod ?? null,
+    ...preserved,
+  };
+
   if (result.status === "paid") {
     try {
       await activateOrder(order.id);
@@ -175,8 +215,7 @@ export async function POST(req: NextRequest) {
         where: { id: order.id },
         data: {
           paymentMethod: result.paymentMethod ?? undefined,
-          ykSnapshot: result.raw as any,
-          ...preserved,
+          ykSnapshot: updatedSnapshot as any,
         },
       });
     } catch (err) {
@@ -195,8 +234,7 @@ export async function POST(req: NextRequest) {
       const data: any = {
         status: "refunded",
         paymentMethod: result.paymentMethod ?? undefined,
-        ykSnapshot: result.raw as any,
-        ...preserved,
+        ykSnapshot: updatedSnapshot as any,
       };
       if (!(cur as any)?.refundedAt) {
         data.refundedAt = new Date();
@@ -214,8 +252,7 @@ export async function POST(req: NextRequest) {
         data: {
           status: newStatus,
           paymentMethod: result.paymentMethod ?? undefined,
-          ykSnapshot: result.raw as any,
-          ...preserved,
+          ykSnapshot: updatedSnapshot as any,
         },
       });
     } catch (err) {

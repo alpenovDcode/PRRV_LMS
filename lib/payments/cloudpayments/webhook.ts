@@ -54,14 +54,20 @@ function parseFormBody(rawBody: string): Record<string, string> {
 /**
  * CP позволяет настроить разные URL для разных типов событий, либо один
  * URL для всех. Мы поддерживаем оба варианта:
- *   • Если в query ?event=Pay → используем его.
- *   • Иначе угадываем по полям payload'а.
+ *   • Если в query ?event=Pay → используем его (ЕДИНСТВЕННЫЙ надёжный сигнал).
+ *   • Если query нет — консервативная эвристика по полям, БЕЗ активации
+ *     заказа по одному только Status=Completed (см. историю ниже).
+ *
+ * История бага: раньше был fallback `Status === "Completed" → Pay`. Но CP
+ * присылает `Status=Completed` внутри Check-payload'а (это состояние
+ * авторизации карты на момент проверки, а не финальное списание).
+ * В результате Check ошибочно определялся как Pay и заказ активировался
+ * без реальных денег. Инцидент 20.07.2026: заказ d4d94f6c-...
  */
 export function detectEventType(
   url: string,
   payload: Record<string, string>
 ): CpEventType | null {
-  // Query-параметр
   try {
     const eventQ = new URL(url).searchParams.get("event");
     if (eventQ) {
@@ -74,13 +80,19 @@ export function detectEventType(
     }
   } catch {}
 
-  // Эвристика по полям
-  if (payload.Status === "Authorized" && payload.PaymentAmount) return "Pay";
-  if (payload.Status === "Completed") return "Pay";
-  if (payload.Status === "Declined" || payload.Reason) return "Fail";
+  // Fallback без query: доверяем только явным маркерам, которые НЕ могут
+  // прийти в Check.
   if (payload.OperationType === "Refund" || payload.PaymentTransactionId) return "Refund";
   if (payload.OperationType === "Confirm") return "Confirm";
+  if (payload.Status === "Declined" || payload.Reason) return "Fail";
 
+  // Если query event отсутствует и мы не уверены — ЛОГИРУЕМ и возвращаем null.
+  // Handler ответит { ok: true } и просто ничего не сделает. Лучше пропустить
+  // событие и разобраться руками, чем ложно активировать заказ.
+  console.warn(
+    "[cp-webhook] событие пришло без ?event= в URL и без явных Pay-маркеров — " +
+      "пропускаем; настройте в кабинете CloudPayments отдельные URL для Check/Pay/Fail/Refund"
+  );
   return null;
 }
 
@@ -132,7 +144,7 @@ function mapStatus(
 export async function parseCpWebhook(
   rawBody: string,
   headers: Record<string, string>,
-  requestUrl: string
+  requestUrl: string | undefined
 ): Promise<PaymentStatusResult | null> {
   // 1. HMAC verify
   const signature =
@@ -149,8 +161,9 @@ export async function parseCpWebhook(
     return null;
   }
 
-  // 3. Detect event type
-  const eventType = detectEventType(requestUrl, payload);
+  // 3. Detect event type. Если URL не пришёл — используем localhost, эвристика
+  //    по payload'у работает как fallback (см. detectEventType).
+  const eventType = detectEventType(requestUrl ?? "https://localhost/", payload);
   if (!eventType) {
     return null;
   }

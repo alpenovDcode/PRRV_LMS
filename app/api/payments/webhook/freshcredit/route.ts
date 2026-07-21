@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
   });
   let result;
   try {
-    result = await provider.parseWebhook(rawText, headers);
+    result = await provider.parseWebhook(rawText, headers, req.url);
   } catch (err) {
     console.error(`${pfx} parseWebhook бросил:`, err);
     return NextResponse.json({ ok: true });

@@ -1149,6 +1149,16 @@ function OrderDetailsModal({
     ykSnapshot && typeof (ykSnapshot as any).lastState === "string"
       ? (ykSnapshot as any).lastState
       : null;
+  const lastEventType =
+    ykSnapshot && typeof (ykSnapshot as any).lastEventType === "string"
+      ? (ykSnapshot as any).lastEventType
+      : null;
+  const events =
+    ykSnapshot && Array.isArray((ykSnapshot as any).events)
+      ? ((ykSnapshot as any).events as Array<Record<string, unknown>>)
+      : [];
+  const installment = describeInstallment(order.paymentMethod, ykSnapshot, order.amount);
+  const receipt = describeReceipt(ykSnapshot);
   // Ответы на кастомные поля оффера. Сначала из отдельной колонки
   // (order.formAnswers — не затирается webhook'ом), для старых заказов
   // fallback на ykSnapshot.formAnswers.
@@ -1209,7 +1219,7 @@ function OrderDetailsModal({
                 maximumFractionDigits: 0,
               }).format(Number(order.amount))}
             />
-            <KV label="Метод" value={order.paymentMethod ?? "—"} mono />
+            <KV label="Метод" value={formatPaymentMethod(order.paymentMethod)} />
             <KV
               label="Создан"
               value={new Date(order.createdAt).toLocaleString("ru-RU")}
@@ -1303,8 +1313,129 @@ function OrderDetailsModal({
             </div>
           )}
 
+          {/* Рассрочка / Кредит — только для BNPL-заказов (OTP / FreshCredit) */}
+          {installment && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-semibold text-amber-800 uppercase tracking-wide">
+                  {installment.productLabel} · {installment.providerLabel}
+                </div>
+                {installment.approvalBadge && (
+                  <span
+                    className={`text-[11px] font-medium px-2 py-0.5 rounded-full border ${installment.approvalBadge.color}`}
+                  >
+                    {installment.approvalBadge.text}
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
+                <KV label="Сумма договора" value={installment.contractSum} />
+                <KV label="Оплачено" value={installment.paidSum} />
+                <KV label="Остаток" value={installment.remainingSum} />
+                {installment.contractNumber && (
+                  <KV label="№ договора" value={installment.contractNumber} mono />
+                )}
+                {installment.stateDescription && (
+                  <KV label="Статус договора" value={installment.stateDescription} />
+                )}
+                {installment.firstPayment && (
+                  <KV label="Первый взнос" value={installment.firstPayment} />
+                )}
+              </div>
+              {installment.rejectReason && (
+                <div className="text-xs text-red-700 pt-2 border-t border-amber-200">
+                  <b>Причина отказа:</b> {installment.rejectReason}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Чек (54-ФЗ) — из данных, которые мы передали в виджет CP.
+              CP формирует чек в ОФД, отправляет клиенту на почту. */}
+          {receipt && (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-semibold text-emerald-800 uppercase tracking-wide">
+                  Чек · 54-ФЗ
+                </div>
+                <div className="text-[11px] text-emerald-700">
+                  {receipt.taxationSystemLabel}
+                </div>
+              </div>
+
+              <div className="border border-emerald-200 bg-white rounded overflow-hidden">
+                <table className="w-full text-xs">
+                  <thead className="bg-emerald-50/50 text-emerald-800">
+                    <tr>
+                      <th className="text-left px-2 py-1.5 font-medium">Позиция</th>
+                      <th className="text-right px-2 py-1.5 font-medium w-14">Кол-во</th>
+                      <th className="text-right px-2 py-1.5 font-medium w-20">Цена</th>
+                      <th className="text-right px-2 py-1.5 font-medium w-20">Сумма</th>
+                      <th className="text-right px-2 py-1.5 font-medium w-10">НДС</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-emerald-100">
+                    {receipt.items.map((it, i) => (
+                      <tr key={i}>
+                        <td className="px-2 py-1.5 text-gray-900">{it.label}</td>
+                        <td className="px-2 py-1.5 text-right text-gray-700">{it.quantity}</td>
+                        <td className="px-2 py-1.5 text-right text-gray-700 whitespace-nowrap">
+                          {it.priceFmt}
+                        </td>
+                        <td className="px-2 py-1.5 text-right font-medium text-gray-900 whitespace-nowrap">
+                          {it.amountFmt}
+                        </td>
+                        <td className="px-2 py-1.5 text-right text-gray-500">
+                          {it.vatLabel}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-emerald-50/50 font-semibold">
+                    <tr>
+                      <td colSpan={3} className="px-2 py-1.5 text-right text-gray-700">
+                        Итого:
+                      </td>
+                      <td className="px-2 py-1.5 text-right text-gray-900 whitespace-nowrap">
+                        {receipt.totalFmt}
+                      </td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-gray-600 pt-1">
+                {receipt.email && (
+                  <div>
+                    <span className="text-gray-400">Email клиента:</span>{" "}
+                    <span className="font-medium text-gray-800">{receipt.email}</span>
+                  </div>
+                )}
+                {receipt.phone && (
+                  <div>
+                    <span className="text-gray-400">Телефон:</span>{" "}
+                    <span className="font-medium text-gray-800">{receipt.phone}</span>
+                  </div>
+                )}
+                {receipt.paymentTypeLabel && (
+                  <div>
+                    <span className="text-gray-400">Тип расчёта:</span>{" "}
+                    <span className="font-medium text-gray-800">
+                      {receipt.paymentTypeLabel}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="text-[11px] text-emerald-700 pt-1">
+                Чек отправлен в ОФД и продублирован на email клиента (если указан).
+              </div>
+            </div>
+          )}
+
           {/* Платёжная диагностика */}
-          {(order.ykPaymentId || ykSnapshot || cpStatus || lastState) && (
+          {(order.ykPaymentId || ykSnapshot || cpStatus || lastState || lastEventType) && (
             <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 space-y-2">
               <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                 Платёж у провайдера
@@ -1315,7 +1446,60 @@ function OrderDetailsModal({
                 {lastState && (
                   <KV label="Последний state" value={lastState} mono />
                 )}
+                {lastEventType && (
+                  <KV label="Последнее событие" value={lastEventType} mono />
+                )}
               </div>
+
+              {events.length > 0 && (
+                <div className="pt-2 border-t border-gray-200">
+                  <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                    События провайдера ({events.length})
+                  </div>
+                  <div className="max-h-56 overflow-y-auto divide-y divide-gray-200 bg-white border border-gray-200 rounded">
+                    {[...events].reverse().map((ev, i) => {
+                      const type = String((ev as any).eventType ?? "?");
+                      const providerStatus = (ev as any).providerStatus ?? null;
+                      const normalized = String((ev as any).normalizedStatus ?? "");
+                      const at = (ev as any).at ? new Date((ev as any).at as string) : null;
+                      const method = (ev as any).paymentMethod ?? null;
+                      const isActivation = normalized === "paid";
+                      return (
+                        <div
+                          key={i}
+                          className={`text-xs px-2 py-1.5 flex items-start gap-2 ${
+                            isActivation ? "bg-green-50" : ""
+                          }`}
+                        >
+                          <span
+                            className={`shrink-0 mt-0.5 inline-block px-1.5 py-0.5 rounded font-mono text-[10px] ${eventBadgeColor(
+                              type
+                            )}`}
+                          >
+                            {type}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-gray-800">
+                              <span className="font-medium">{normalized}</span>
+                              {providerStatus && (
+                                <span className="text-gray-400"> · {String(providerStatus)}</span>
+                              )}
+                              {method && (
+                                <span className="text-gray-400"> · {String(method)}</span>
+                              )}
+                            </div>
+                            {at && (
+                              <div className="text-[10px] text-gray-500">
+                                {at.toLocaleString("ru-RU")}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {ykSnapshot && (
                 <div className="pt-2 border-t border-gray-200">
@@ -1423,4 +1607,349 @@ function KV({
       </div>
     </div>
   );
+}
+
+// ─── Payment method / installment helpers ─────────────────────────────────
+// Метод хранится как компактный machine-код («TinkoffPay», «otp:installment»,
+// «freshcredit:credit», «card:visa» и т.п. — см. deriveMethod в провайдерах).
+// Для карточки заказа даём человеко-читаемое название.
+function formatPaymentMethod(m: string | null | undefined): string {
+  if (!m) return "—";
+  const map: Record<string, string> = {
+    "otp:credit": "Кредит · ОТП Банк",
+    "otp:credit_discount": "Кредит со скидкой · ОТП Банк",
+    "otp:installment": "Рассрочка · ОТП Банк",
+    "freshcredit:credit": "Кредит · FreshCredit",
+    "freshcredit:installment": "Рассрочка · FreshCredit",
+    freshcredit: "FreshCredit",
+    tinkoffpay: "TinkoffPay",
+    sbp: "СБП",
+    dolyame: "Долями (рассрочка · Т-Банк)",
+    tcsinstallment: "Рассрочка · Т-Банк (через CloudPayments)",
+    tinkoffinstallment: "Рассрочка · Т-Банк (через CloudPayments)",
+    tinkoffbroker: "Т-брокер · рассрочка",
+    tcscredit: "Кредит · Т-Банк (через CloudPayments)",
+    mock_card: "Тестовая карта",
+  };
+  const low = m.toLowerCase();
+  if (map[low]) return map[low];
+  if (low.startsWith("card:")) return `Карта ${low.slice(5).toUpperCase()}`;
+  return m;
+}
+
+// Определяет CP-based рассрочку по значению PaymentMethod. У Т-Банка через
+// CP это TcsInstallment / TinkoffInstallment / TinkoffBroker, для Долями —
+// Dolyame. Для этих методов деньги мерчанту приходят сразу одним Pay-webhook.
+function isCpInstallmentMethod(m: string): boolean {
+  const low = m.toLowerCase();
+  return (
+    low === "tcsinstallment" ||
+    low === "tinkoffinstallment" ||
+    low === "tinkoffbroker" ||
+    low === "tcscredit" ||
+    low === "dolyame"
+  );
+}
+
+// Возвращает данные для секции «Рассрочка / Кредит», если это BNPL-заказ.
+// Работает для OTP (state, agreementNumber, creditAmount, firstPayment) и
+// FreshCredit (paymentSum, contractNumber, creditType, refundSum).
+// Для обычных CP-заказов (карта / SBP / TinkoffPay) — null.
+function describeInstallment(
+  paymentMethod: string | null | undefined,
+  snapshot: Record<string, unknown> | null | undefined,
+  orderAmount: string
+): {
+  productLabel: string;
+  providerLabel: string;
+  contractSum: string;
+  paidSum: string;
+  remainingSum: string;
+  contractNumber?: string;
+  stateDescription?: string;
+  firstPayment?: string;
+  rejectReason?: string;
+  approvalBadge?: { text: string; color: string };
+} | null {
+  if (!paymentMethod) return null;
+  const method = paymentMethod.toLowerCase();
+  const isOtp = method.startsWith("otp:");
+  const isFc = method.startsWith("freshcredit");
+  const isCpInst = isCpInstallmentMethod(method);
+  if (!isOtp && !isFc && !isCpInst) return null;
+
+  const snap = (snapshot ?? {}) as Record<string, any>;
+  const fmt = (v: unknown) =>
+    v == null || v === ""
+      ? "—"
+      : new Intl.NumberFormat("ru-RU", {
+          style: "currency",
+          currency: "RUB",
+          maximumFractionDigits: 0,
+        }).format(Number(v));
+
+  if (isCpInst) {
+    // Рассрочка через CloudPayments (Т-брокер / Долями). Деньги мерчанту
+    // приходят одним Pay-webhook — с точки зрения LMS заказ полностью оплачен.
+    // Клиент дальше выплачивает партнёру по договору, LMS в этом не участвует.
+    const providerLabel =
+      method === "dolyame"
+        ? "Долями (Т-Банк)"
+        : method === "tinkoffbroker"
+          ? "Т-брокер"
+          : "Т-Банк · CloudPayments";
+    const productLabel =
+      method === "tcscredit" ? "Кредит" : "Рассрочка";
+    return {
+      productLabel,
+      providerLabel,
+      contractSum: fmt(orderAmount),
+      paidSum: fmt(orderAmount),
+      remainingSum: fmt(0),
+      contractNumber:
+        typeof snap.TransactionId === "string" || typeof snap.TransactionId === "number"
+          ? String(snap.TransactionId)
+          : undefined,
+      stateDescription:
+        "Деньги мерчанту зачислены сразу · клиент выплачивает партнёру по договору",
+      approvalBadge: {
+        text: "Оплачено · договор у партнёра",
+        color: "border-green-300 bg-green-50 text-green-700",
+      },
+    };
+  }
+
+  if (isOtp) {
+    // OTP: creditAmount — сумма кредита, firstPayment — первый взнос клиента.
+    // «Оплачено» до state=AGREEMENT_PAID = firstPayment (то, что внёс клиент
+    // прямо при оформлении); после активации мерчанту приходит вся сумма.
+    const state = String(snap.lastState ?? "");
+    const contractAmount = snap.creditAmount ?? snap.goodsCreditAmount ?? orderAmount;
+    const firstPayment = Number(snap.firstPayment ?? 0);
+    const isPaid = state === "AGREEMENT_PAID";
+    const paid = isPaid ? Number(contractAmount) : firstPayment;
+    const remaining = Math.max(0, Number(contractAmount) - paid);
+
+    const productType = Number(snap.productType);
+    const productLabel =
+      productType === 3
+        ? "Рассрочка"
+        : productType === 2
+          ? "Кредит со скидкой"
+          : productType === 1
+            ? "Кредит"
+            : "Рассрочка/кредит";
+
+    return {
+      productLabel,
+      providerLabel: "ОТП Банк",
+      contractSum: fmt(contractAmount),
+      paidSum: fmt(paid),
+      remainingSum: fmt(remaining),
+      contractNumber:
+        typeof snap.agreementNumber === "string" ? snap.agreementNumber : undefined,
+      stateDescription:
+        typeof snap.lastStateDescription === "string" && snap.lastStateDescription
+          ? snap.lastStateDescription
+          : otpStateLabel(state),
+      firstPayment: firstPayment ? fmt(firstPayment) : undefined,
+      rejectReason:
+        typeof snap.rejectReason === "string" && snap.rejectReason
+          ? snap.rejectReason
+          : undefined,
+      approvalBadge: otpApprovalBadge(state),
+    };
+  }
+
+  // FreshCredit
+  const state = String(snap.lastState ?? "");
+  const contractSum = snap.paymentSum ?? orderAmount;
+  const refundSum = Number(snap.refundSum ?? 0);
+  const isIssued = state === "issued";
+  const paid = isIssued ? Number(contractSum) - refundSum : 0;
+  const remaining = Math.max(0, Number(contractSum) - paid);
+
+  const creditType = Number(snap.creditType);
+  const productLabel =
+    creditType === 2 ? "Рассрочка" : creditType === 1 ? "Кредит" : "Рассрочка/кредит";
+
+  return {
+    productLabel,
+    providerLabel: "FreshCredit",
+    contractSum: fmt(contractSum),
+    paidSum: fmt(paid),
+    remainingSum: fmt(remaining),
+    contractNumber:
+      typeof snap.contractNumber === "string" ? snap.contractNumber : undefined,
+    stateDescription:
+      typeof snap.lastStatusDescription === "string" && snap.lastStatusDescription
+        ? snap.lastStatusDescription
+        : fcStateLabel(state),
+    approvalBadge: fcApprovalBadge(state),
+  };
+}
+
+function otpStateLabel(state: string): string {
+  const map: Record<string, string> = {
+    OPTY_PREPARED: "Заявка подготовлена",
+    OPTY_CREATED: "Заявка создана",
+    DECISION_PRE_APPROVAL: "Предварительное одобрение",
+    DECISION_APPROVAL: "Одобрено банком",
+    DECISION_INFORMATION: "Требуется информация",
+    ESIA_CONFIRMED: "ЕСИА подтверждён",
+    AGREEMENT_CREATED_PAPER: "Договор создан (бумажный)",
+    AGREEMENT_CREATED_ELECTRONIC: "Договор создан (электронный)",
+    AGREEMENT_SIGNED: "Договор подписан",
+    AGREEMENT_AUTHORIZED: "Договор авторизован",
+    AGREEMENT_PAID: "Оплачено · доступ выдан",
+    AGREEMENT_SIGN_FAILED: "Ошибка подписания",
+    REJECTED: "Отклонено банком",
+    CANCEL_AUTHORIZATION: "Отмена авторизации",
+    NOT_PAYABLE: "Оплата невозможна",
+  };
+  return map[state] ?? state ?? "—";
+}
+
+function otpApprovalBadge(state: string): { text: string; color: string } | undefined {
+  if (state === "AGREEMENT_PAID")
+    return { text: "Оплачено", color: "border-green-300 bg-green-50 text-green-700" };
+  if (["REJECTED", "AGREEMENT_SIGN_FAILED", "NOT_PAYABLE"].includes(state))
+    return { text: "Отказ", color: "border-red-300 bg-red-50 text-red-700" };
+  if (state === "DECISION_APPROVAL")
+    return { text: "Одобрено", color: "border-blue-300 bg-blue-50 text-blue-700" };
+  if (state === "AGREEMENT_SIGNED" || state === "AGREEMENT_AUTHORIZED")
+    return { text: "Договор подписан", color: "border-indigo-300 bg-indigo-50 text-indigo-700" };
+  if (state) return { text: "В процессе", color: "border-gray-300 bg-gray-50 text-gray-700" };
+  return undefined;
+}
+
+function fcStateLabel(state: string): string {
+  const map: Record<string, string> = {
+    pending: "Заявка отправлена",
+    approved: "Одобрено",
+    cooling: "Период охлаждения",
+    issued: "Выдан · доступ открыт",
+    cancel: "Отменено",
+    rejected: "Отклонено",
+    refund: "Возврат",
+  };
+  return map[state] ?? state ?? "—";
+}
+
+function fcApprovalBadge(state: string): { text: string; color: string } | undefined {
+  if (state === "issued")
+    return { text: "Оплачено", color: "border-green-300 bg-green-50 text-green-700" };
+  if (state === "cancel" || state === "rejected")
+    return { text: "Отказ", color: "border-red-300 bg-red-50 text-red-700" };
+  if (state === "approved")
+    return { text: "Одобрено", color: "border-blue-300 bg-blue-50 text-blue-700" };
+  if (state === "cooling")
+    return { text: "Охлаждение", color: "border-amber-300 bg-amber-50 text-amber-700" };
+  if (state)
+    return { text: "В процессе", color: "border-gray-300 bg-gray-50 text-gray-700" };
+  return undefined;
+}
+
+// Извлекаем чек 54-ФЗ из snapshot. CP возвращает то, что мы передали
+// в виджет, внутри поля Data (строка JSON) → CloudPayments.CustomerReceipt.
+// Формат: { Items: [{label, price, quantity, amount, vat, method, object}],
+//           taxationSystem, email, phone, isBso, amounts }
+function describeReceipt(
+  snapshot: Record<string, unknown> | null | undefined
+): {
+  items: Array<{
+    label: string;
+    quantity: number;
+    priceFmt: string;
+    amountFmt: string;
+    vatLabel: string;
+  }>;
+  totalFmt: string;
+  email?: string;
+  phone?: string;
+  taxationSystemLabel: string;
+  paymentTypeLabel?: string;
+} | null {
+  if (!snapshot) return null;
+  const dataRaw = (snapshot as any).Data;
+  if (dataRaw == null) return null;
+
+  // Data приходит от CP как строка (form-urlencoded). Иногда уже как объект.
+  let data: any = dataRaw;
+  if (typeof dataRaw === "string") {
+    try {
+      data = JSON.parse(dataRaw);
+    } catch {
+      return null;
+    }
+  }
+  const cr = data?.CloudPayments?.CustomerReceipt;
+  if (!cr || !Array.isArray(cr.Items) || cr.Items.length === 0) return null;
+
+  const fmt = (v: unknown) =>
+    v == null || v === ""
+      ? "—"
+      : new Intl.NumberFormat("ru-RU", {
+          style: "currency",
+          currency: "RUB",
+          maximumFractionDigits: 2,
+        }).format(Number(v));
+
+  const items = cr.Items.map((it: any) => ({
+    label: String(it.label ?? "—"),
+    quantity: Number(it.quantity ?? 1),
+    priceFmt: fmt(it.price),
+    amountFmt: fmt(it.amount ?? Number(it.price) * Number(it.quantity ?? 1)),
+    vatLabel: it.vat == null ? "—" : `${it.vat}%`,
+  }));
+
+  const total = cr.Items.reduce(
+    (s: number, it: any) => s + Number(it.amount ?? Number(it.price) * Number(it.quantity ?? 1)),
+    0
+  );
+
+  // Наиболее частые method: 4 (полный расчёт), 1 (предоплата 100%).
+  const methodFirst = cr.Items[0]?.method;
+  const paymentTypeLabel =
+    methodFirst === 1
+      ? "Предоплата 100%"
+      : methodFirst === 4
+        ? "Полный расчёт"
+        : methodFirst
+          ? `method=${methodFirst}`
+          : undefined;
+
+  return {
+    items,
+    totalFmt: fmt(total),
+    email: typeof cr.email === "string" ? cr.email : undefined,
+    phone: typeof cr.phone === "string" ? cr.phone : undefined,
+    taxationSystemLabel: taxationSystemLabel(cr.taxationSystem),
+    paymentTypeLabel,
+  };
+}
+
+function taxationSystemLabel(sys: unknown): string {
+  const n = Number(sys);
+  const map: Record<number, string> = {
+    0: "ОСН",
+    1: "УСН доходы",
+    2: "УСН доходы − расходы",
+    3: "ЕНВД",
+    4: "ЕСХН",
+    5: "Патент",
+  };
+  return map[n] ?? `Система налогообложения ${sys ?? "?"}`;
+}
+
+function eventBadgeColor(eventType: string): string {
+  const map: Record<string, string> = {
+    Check: "bg-gray-100 text-gray-700",
+    Pay: "bg-green-100 text-green-700",
+    Fail: "bg-red-100 text-red-700",
+    Refund: "bg-orange-100 text-orange-700",
+    Confirm: "bg-blue-100 text-blue-700",
+    Recurrent: "bg-purple-100 text-purple-700",
+  };
+  return map[eventType] ?? "bg-gray-100 text-gray-500";
 }
