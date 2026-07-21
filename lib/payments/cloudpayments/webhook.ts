@@ -23,7 +23,7 @@ import {
 } from "../types";
 
 /** Тип события CP — определяем по query или по полям. */
-export type CpEventType = "Check" | "Pay" | "Fail" | "Confirm" | "Refund" | "Recurrent";
+export type CpEventType = "Check" | "Pay" | "Fail" | "Confirm" | "Refund" | "Recurrent" | "Receipt";
 
 // ─── Подпись ───────────────────────────────────────────────────────────────
 
@@ -73,7 +73,7 @@ export function detectEventType(
     if (eventQ) {
       const normalized = (eventQ.charAt(0).toUpperCase() + eventQ.slice(1).toLowerCase()) as CpEventType;
       if (
-        ["Check", "Pay", "Fail", "Confirm", "Refund", "Recurrent"].includes(normalized)
+        ["Check", "Pay", "Fail", "Confirm", "Refund", "Recurrent", "Receipt"].includes(normalized)
       ) {
         return normalized;
       }
@@ -82,6 +82,9 @@ export function detectEventType(
 
   // Fallback без query: доверяем только явным маркерам, которые НЕ могут
   // прийти в Check.
+  // Receipt-webhook уникален полем fnUrl (ссылка на чек в ОФД) — его нет ни
+  // в Check, ни в Pay. Идентифицируем по этому маркеру.
+  if (payload.fnUrl || payload.DocumentNumber) return "Receipt";
   if (payload.OperationType === "Refund" || payload.PaymentTransactionId) return "Refund";
   if (payload.OperationType === "Confirm") return "Confirm";
   if (payload.Status === "Declined" || payload.Reason) return "Fail";
@@ -124,6 +127,10 @@ function mapStatus(
       return "cancelled";
     case "Refund":
       return "refunded";
+    case "Receipt":
+      // Уведомление о фискализации в ОФД. НЕ платёжное — статус заказа
+      // не меняет; webhook handler запишет fnUrl в snapshot.receipts[].
+      return "pending";
     case "Check":
     case "Recurrent":
     default:
@@ -156,7 +163,14 @@ export async function parseCpWebhook(
 
   // 2. Parse body
   const payload = parseFormBody(rawBody);
-  if (!payload.TransactionId && !payload.PaymentTransactionId) {
+  // Receipt-webhook приходит в другом формате: TransactionId может отсутствовать,
+  // зато есть fnUrl или DocumentNumber. Не отсекаем такие payload'ы.
+  if (
+    !payload.TransactionId &&
+    !payload.PaymentTransactionId &&
+    !payload.fnUrl &&
+    !payload.DocumentNumber
+  ) {
     // Не наш формат
     return null;
   }
@@ -169,7 +183,9 @@ export async function parseCpWebhook(
   }
 
   // 4. Map to PaymentStatusResult
-  const transactionId = payload.TransactionId || payload.PaymentTransactionId;
+  // Для Receipt в поле Id приходит TransactionId связанного платежа.
+  const transactionId =
+    payload.TransactionId || payload.PaymentTransactionId || payload.Id;
   const amount = payload.Amount ?? payload.PaymentAmount;
 
   const result: PaymentStatusResult = {

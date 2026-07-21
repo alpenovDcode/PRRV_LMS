@@ -1159,6 +1159,7 @@ function OrderDetailsModal({
       : [];
   const installment = describeInstallment(order.paymentMethod, ykSnapshot, order.amount);
   const receipt = describeReceipt(ykSnapshot);
+  const ofdReceipts = describeOfdReceipts(ykSnapshot);
   // Ответы на кастомные поля оффера. Сначала из отдельной колонки
   // (order.formAnswers — не затирается webhook'ом), для старых заказов
   // fallback на ykSnapshot.formAnswers.
@@ -1431,6 +1432,53 @@ function OrderDetailsModal({
               <div className="text-[11px] text-emerald-700 pt-1">
                 Чек отправлен в ОФД и продублирован на email клиента (если указан).
               </div>
+
+              {ofdReceipts.length > 0 && (
+                <div className="pt-2 border-t border-emerald-200 space-y-1.5">
+                  <div className="text-[11px] font-semibold text-emerald-800 uppercase tracking-wide">
+                    Фактические чеки ОФД ({ofdReceipts.length})
+                  </div>
+                  {ofdReceipts.map((r, i) => (
+                    <div
+                      key={i}
+                      className="flex items-start justify-between gap-2 text-xs bg-white border border-emerald-200 rounded px-2 py-1.5"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="text-gray-800">
+                          <span
+                            className={`inline-block px-1.5 py-0.5 rounded font-mono text-[10px] mr-1 ${
+                              r.type === "Refund"
+                                ? "bg-orange-100 text-orange-700"
+                                : "bg-emerald-100 text-emerald-700"
+                            }`}
+                          >
+                            {r.typeLabel}
+                          </span>
+                          {r.documentNumber && (
+                            <span className="text-gray-600">
+                              № фд <span className="font-mono">{r.documentNumber}</span>
+                            </span>
+                          )}
+                          {r.amount != null && (
+                            <span className="text-gray-500"> · {r.amountFmt}</span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-gray-500">{r.dateLabel}</div>
+                      </div>
+                      {r.fnUrl && (
+                        <a
+                          href={r.fnUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="shrink-0 text-[11px] text-blue-600 hover:underline inline-flex items-center gap-0.5"
+                        >
+                          Открыть чек <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -1927,6 +1975,58 @@ function describeReceipt(
     taxationSystemLabel: taxationSystemLabel(cr.taxationSystem),
     paymentTypeLabel,
   };
+}
+
+// Фактические чеки, полученные через Receipt-webhook от CP (после
+// регистрации в ОФД). Накапливаются в snapshot.receipts[] — их может быть
+// несколько (доход + возврат, или повторная фискализация).
+function describeOfdReceipts(
+  snapshot: Record<string, unknown> | null | undefined
+): Array<{
+  fnUrl: string | null;
+  documentNumber: string | null;
+  amount: number | null;
+  amountFmt: string;
+  type: string | null;
+  typeLabel: string;
+  dateLabel: string;
+}> {
+  if (!snapshot) return [];
+  const arr = (snapshot as any).receipts;
+  if (!Array.isArray(arr)) return [];
+
+  const fmt = (v: unknown) =>
+    v == null
+      ? "—"
+      : new Intl.NumberFormat("ru-RU", {
+          style: "currency",
+          currency: "RUB",
+          maximumFractionDigits: 2,
+        }).format(Number(v));
+
+  return arr.map((r: any) => {
+    const type = typeof r?.type === "string" ? r.type : null;
+    const dt = r?.receiptDateTime
+      ? new Date(String(r.receiptDateTime))
+      : r?.receivedAt
+        ? new Date(String(r.receivedAt))
+        : null;
+    return {
+      fnUrl: typeof r?.fnUrl === "string" ? r.fnUrl : null,
+      documentNumber:
+        r?.documentNumber != null ? String(r.documentNumber) : null,
+      amount: r?.amount != null ? Number(r.amount) : null,
+      amountFmt: r?.amount != null ? fmt(r.amount) : "—",
+      type,
+      typeLabel:
+        type === "Refund"
+          ? "Возврат"
+          : type === "Income"
+            ? "Приход"
+            : type ?? "Чек",
+      dateLabel: dt ? dt.toLocaleString("ru-RU") : "—",
+    };
+  });
 }
 
 function taxationSystemLabel(sys: unknown): string {
