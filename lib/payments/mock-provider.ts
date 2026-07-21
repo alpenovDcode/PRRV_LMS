@@ -56,7 +56,8 @@ export class MockPaymentProvider implements PaymentProvider {
 
   async parseWebhook(
     rawBody: string,
-    headers: Record<string, string>
+    headers: Record<string, string>,
+    _requestUrl?: string
   ): Promise<PaymentStatusResult | null> {
     let body: any;
     try {

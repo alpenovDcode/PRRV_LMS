@@ -167,9 +167,12 @@ export interface PaymentProvider {
    *
    * Реализации НЕ должны выполнять тяжёлую работу до верификации подписи.
    *
-   * @param rawBody  Сырое тело запроса как строка (для HMAC). Может быть
-   *                 JSON или form-urlencoded в зависимости от провайдера.
-   * @param headers  Заголовки запроса (для извлечения подписи).
+   * @param rawBody     Сырое тело запроса как строка (для HMAC). Может быть
+   *                    JSON или form-urlencoded в зависимости от провайдера.
+   * @param headers     Заголовки запроса (для извлечения подписи).
+   * @param requestUrl  Полный URL входящего запроса. Нужен для CloudPayments —
+   *                    там тип события передаётся в query `?event=Check|Pay|…`.
+   *                    Остальные провайдеры аргумент могут игнорировать.
    */
-  parseWebhook(rawBody: string, headers: Record<string, string>): Promise<PaymentStatusResult | null>;
+  parseWebhook(rawBody: string, headers: Record<string, string>, requestUrl?: string): Promise<PaymentStatusResult | null>;
 }

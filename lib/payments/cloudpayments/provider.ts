@@ -222,12 +222,14 @@ export class CloudPaymentsProvider implements PaymentProvider {
 
   async parseWebhook(
     rawBody: string,
-    headers: Record<string, string>
+    headers: Record<string, string>,
+    requestUrl?: string
   ): Promise<PaymentStatusResult | null> {
-    // requestUrl используется только для определения типа события (?event=Pay).
-    // Реальный URL придёт в /api/payments/webhook — но для type-detect ниже
-    // достаточно пустой строки + payload-эвристики.
-    return parseCpWebhook(rawBody, headers, "https://localhost/?event=");
+    // requestUrl критичен: CP различает Check/Pay/Fail/Refund через query
+    // (?event=Check). Без него мы теряем тип события и попадаем в fallback
+    // эвристику, где Check может быть ошибочно определён как Pay
+    // (инцидент 20.07.2026 с заказом d4d94f6c-…).
+    return parseCpWebhook(rawBody, headers, requestUrl);
   }
 }
 

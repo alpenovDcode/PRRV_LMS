@@ -175,7 +175,8 @@ export class OtpPaymentProvider implements PaymentProvider {
    */
   async parseWebhook(
     rawBody: string,
-    _headers: Record<string, string>
+    _headers: Record<string, string>,
+    _requestUrl?: string
   ): Promise<PaymentStatusResult | null> {
     let data: any;
     try {
