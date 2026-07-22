@@ -65,12 +65,20 @@ export async function PATCH(request: NextRequest) {
       const parsed = briefUpdateSchema.safeParse(body);
 
       if (!parsed.success) {
+        // Не отдаём наружу сырое дефолтное сообщение Zod (англоязычное,
+        // напр. "String must contain at most 5000 characters") — строим
+        // понятный русский текст. Частый случай — превышение лимита длины.
+        const issue = parsed.error.errors[0];
+        let message = "Некорректные данные";
+        if (issue?.code === "too_big" && issue.type === "string") {
+          message = `Слишком длинный текст в одном из полей — максимум ${issue.maximum} символов. Немного сократите ответ и попробуйте снова.`;
+        }
         return NextResponse.json<ApiResponse>(
           {
             success: false,
             error: {
               code: "BAD_REQUEST",
-              message: parsed.error.errors[0]?.message || "Некорректные данные",
+              message,
             },
           },
           { status: 400 }

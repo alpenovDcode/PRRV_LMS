@@ -43,12 +43,13 @@ export const briefUpdateSchema = z.object({
   adIntro: z.string().max(5000).optional().nullable(),
   adProcess: z.string().max(5000).optional().nullable(),
   adResult: z.string().max(5000).optional().nullable(),
-  // Блок 6
-  existingStyle: z.string().max(2000).optional().nullable(),
-  preferredStyle: z.string().max(2000).optional().nullable(),
-  characterImage: z.string().max(2000).optional().nullable(),
-  cardImpression: z.string().max(2000).optional().nullable(),
-  colorPreferences: z.string().max(2000).optional().nullable(),
+  // Блок 6. Лимит 5000 — как в блоках 1/4/5; колонки в БД @db.Text
+  // (без ограничения). Раньше было 2000 и обрывало переход 6→7.
+  existingStyle: z.string().max(5000).optional().nullable(),
+  preferredStyle: z.string().max(5000).optional().nullable(),
+  characterImage: z.string().max(5000).optional().nullable(),
+  cardImpression: z.string().max(5000).optional().nullable(),
+  colorPreferences: z.string().max(5000).optional().nullable(),
   // Прогресс — какой блок сейчас открыт (1..7, 7 = финальный экран).
   currentStep: z.number().int().min(1).max(7).optional(),
 });
@@ -58,11 +59,11 @@ export type BriefUpdateInput = z.infer<typeof briefUpdateSchema>;
 export const briefCaseUpdateSchema = z.object({
   name: z.string().max(255).optional().nullable(),
   age: z.string().max(255).optional().nullable(),
-  goal: z.string().max(2000).optional().nullable(),
-  beforeText: z.string().max(2000).optional().nullable(),
+  goal: z.string().max(5000).optional().nullable(),
+  beforeText: z.string().max(5000).optional().nullable(),
   duration: z.string().max(255).optional().nullable(),
-  problems: z.string().max(2000).optional().nullable(),
-  afterText: z.string().max(2000).optional().nullable(),
+  problems: z.string().max(5000).optional().nullable(),
+  afterText: z.string().max(5000).optional().nullable(),
   reviewText: z.string().max(5000).optional().nullable(),
 });
 

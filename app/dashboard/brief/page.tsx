@@ -582,6 +582,7 @@ function CaseEditor({
         <Field label="Цель занятий">
           <Textarea
             rows={2}
+            maxLength={5000}
             value={goal}
             onChange={(e) => setGoal(e.target.value)}
             onBlur={() => saveField({ goal })}
@@ -590,6 +591,7 @@ function CaseEditor({
         <Field label="Что было до занятий (в цифрах и эмоциях)">
           <Textarea
             rows={2}
+            maxLength={5000}
             value={beforeText}
             onChange={(e) => setBeforeText(e.target.value)}
             onBlur={() => saveField({ beforeText })}
@@ -605,6 +607,7 @@ function CaseEditor({
         <Field label="Проблемы или сложности, с которыми пришёл ученик">
           <Textarea
             rows={2}
+            maxLength={5000}
             value={problems}
             onChange={(e) => setProblems(e.target.value)}
             onBlur={() => saveField({ problems })}
@@ -613,6 +616,7 @@ function CaseEditor({
         <Field label="Что стало после (результат в цифрах и эмоции)">
           <Textarea
             rows={2}
+            maxLength={5000}
             value={afterText}
             onChange={(e) => setAfterText(e.target.value)}
             onBlur={() => saveField({ afterText })}
@@ -621,6 +625,7 @@ function CaseEditor({
         <Field label="Доп. информация / отзыв (текст)">
           <Textarea
             rows={3}
+            maxLength={5000}
             value={reviewText}
             onChange={(e) => setReviewText(e.target.value)}
             onBlur={() => saveField({ reviewText })}
@@ -845,7 +850,7 @@ function Block6({
           label="1. Есть ли у вас существующий стиль?"
           hint="Оформление Instagram, аватарка, логотип, фирменные цвета. Нужно ли его сохранить? (да / частично / нет)"
         >
-          <Textarea rows={3} value={existing} onChange={(e) => setExisting(e.target.value)} />
+          <Textarea rows={3} maxLength={5000} value={existing} onChange={(e) => setExisting(e.target.value)} />
         </Field>
         <Field
           label="2. Примеры дизайна, который вам нравится"
@@ -862,25 +867,25 @@ function Block6({
           label="3. Какой визуальный стиль вам ближе"
           hint="Например: строгий и академический; мягкий и дружелюбный; яркий молодёжный; минималистичный экспертный; уютный «домашний преподаватель»; деловой профессиональный"
         >
-          <Textarea rows={3} value={preferred} onChange={(e) => setPreferred(e.target.value)} />
+          <Textarea rows={3} maxLength={5000} value={preferred} onChange={(e) => setPreferred(e.target.value)} />
         </Field>
         <Field
           label="4. Если представить вас как образ / персонажа, каким он был бы?"
           hint="Например: «Спокойный наставник, который объяснит без давления»; «Энергичный молодой учитель на одной волне с подростками»; «Строгий эксперт, который доводит до результата»"
         >
-          <Textarea rows={3} value={character} onChange={(e) => setCharacter(e.target.value)} />
+          <Textarea rows={3} maxLength={5000} value={character} onChange={(e) => setCharacter(e.target.value)} />
         </Field>
         <Field
           label="5. Какое впечатление должна производить ваша карточка?"
           hint="Например: внушать доверие; выглядеть современно и экспертно; показывать поддержку; быть «живой», человечной; быть строгой и серьёзной"
         >
-          <Textarea rows={3} value={impression} onChange={(e) => setImpression(e.target.value)} />
+          <Textarea rows={3} maxLength={5000} value={impression} onChange={(e) => setImpression(e.target.value)} />
         </Field>
         <Field
           label="6. Цвета или элементы, которые точно НЕ стоит использовать"
           hint="Например: «не хочу пастельные цвета», «не хочу тёмный фон», «не хочу подростковую подачу»"
         >
-          <Textarea rows={3} value={colors} onChange={(e) => setColors(e.target.value)} />
+          <Textarea rows={3} maxLength={5000} value={colors} onChange={(e) => setColors(e.target.value)} />
         </Field>
         <Footer
           onBack={onBack}
