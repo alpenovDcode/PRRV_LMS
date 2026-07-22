@@ -18,7 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { TrendingUp, MessageSquare, Award, TableIcon } from "lucide-react";
+import { TrendingUp, MessageSquare, Award, TableIcon, Download } from "lucide-react";
 import { useState } from "react";
 import { SurveyResponsesTable } from "./survey-responses-table";
 
@@ -31,13 +31,40 @@ interface GroupNPS {
   detractors: number;
   neutrals: number;
   total: number;
+  startDate?: string | null;
+  endDate?: string | null;
 }
 
 interface SurveyResult extends GroupNPS {
   avgScores?: Record<string, number>;
+  surveyOpenDate?: string | null;
+}
+
+interface CertCase {
+  userId: string;
+  fullName: string | null;
+  email: string;
+  pointA: number;
+  pointB: number;
+  ratio: number;
+}
+
+interface CertRespondent {
+  userId: string;
+  fullName: string | null;
+  email: string;
+  pointA: number | null;
+  pointB: number | null;
+  ratio: number | null;
+  isCase: boolean;
+  npsScore: number | null;
+  submittedAt: string;
 }
 
 interface CertGroupResult extends GroupNPS {
+  caseCount?: number;
+  cases?: CertCase[];
+  respondents?: CertRespondent[];
   satisfaction: {
     mentor: number | null;
     curator: number | null;
@@ -224,7 +251,41 @@ function LessonHeader({ title, courseTitle, totalResponses, parsedResponses, onD
   );
 }
 
-function NPSTable({ groups }: { groups: GroupNPS[] }) {
+function formatDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleDateString("ru-RU", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "2-digit",
+    });
+  } catch {
+    return "—";
+  }
+}
+
+function DateRange({ start, end }: { start?: string | null; end?: string | null }) {
+  if (!start && !end) return <span className="text-muted-foreground text-xs">—</span>;
+  return (
+    <span className="text-xs whitespace-nowrap">
+      {formatDate(start)} <span className="text-muted-foreground">→</span> {formatDate(end)}
+    </span>
+  );
+}
+
+function NPSTable({
+  groups,
+  showDates = false,
+  showCases = false,
+  showSurveyOpen = false,
+  onRowClick,
+}: {
+  groups: (GroupNPS & { caseCount?: number; surveyOpenDate?: string | null })[];
+  showDates?: boolean;
+  showCases?: boolean;
+  showSurveyOpen?: boolean;
+  onRowClick?: (groupId: string) => void;
+}) {
   const withResponses = groups.filter((g) => g.responseCount > 0);
   const withoutResponses = groups.filter((g) => g.responseCount === 0);
 
@@ -232,27 +293,57 @@ function NPSTable({ groups }: { groups: GroupNPS[] }) {
     return <p className="text-sm text-muted-foreground py-4">Нет данных</p>;
   }
 
+  const extraCols = (showDates ? 1 : 0) + (showSurveyOpen ? 1 : 0) + (showCases ? 1 : 0);
+
   return (
     <div>
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead>Поток</TableHead>
+            {showDates && <TableHead className="text-center">Старт → окончание</TableHead>}
+            {showSurveyOpen && <TableHead className="text-center">Опрос открыт</TableHead>}
             <TableHead className="text-center">Ответов</TableHead>
             <TableHead className="text-center">За (9-10)</TableHead>
             <TableHead className="text-center">Нейтр (7-8)</TableHead>
             <TableHead className="text-center">Против (0-6)</TableHead>
+            {showCases && <TableHead className="text-center">Кейсов</TableHead>}
             <TableHead className="text-center">NPS</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {withResponses.map((g) => (
-            <TableRow key={g.groupId}>
+            <TableRow
+              key={g.groupId}
+              className={onRowClick ? "cursor-pointer hover:bg-muted/50" : ""}
+              onClick={onRowClick ? () => onRowClick(g.groupId) : undefined}
+            >
               <TableCell className="font-medium">{g.groupName}</TableCell>
+              {showDates && (
+                <TableCell className="text-center">
+                  <DateRange start={g.startDate} end={g.endDate} />
+                </TableCell>
+              )}
+              {showSurveyOpen && (
+                <TableCell className="text-center text-xs whitespace-nowrap">
+                  {formatDate(g.surveyOpenDate)}
+                </TableCell>
+              )}
               <TableCell className="text-center">{g.responseCount}</TableCell>
               <TableCell className="text-center text-green-600 font-medium">{g.promoters}</TableCell>
               <TableCell className="text-center text-yellow-600 font-medium">{g.neutrals}</TableCell>
               <TableCell className="text-center text-red-600 font-medium">{g.detractors}</TableCell>
+              {showCases && (
+                <TableCell className="text-center">
+                  <span
+                    className={`font-semibold ${
+                      (g.caseCount ?? 0) > 0 ? "text-blue-600" : "text-muted-foreground"
+                    }`}
+                  >
+                    {g.caseCount ?? 0}
+                  </span>
+                </TableCell>
+              )}
               <TableCell className="text-center">
                 <Badge variant={npsBadgeVariant(g.nps)} className={npsColor(g.nps)}>
                   {g.nps !== null ? `${g.nps > 0 ? "+" : ""}${g.nps}%` : "—"}
@@ -262,7 +353,7 @@ function NPSTable({ groups }: { groups: GroupNPS[] }) {
           ))}
           {withoutResponses.length > 0 && (
             <TableRow>
-              <TableCell colSpan={6} className="text-xs text-muted-foreground py-2 border-t border-dashed">
+              <TableCell colSpan={6 + extraCols} className="text-xs text-muted-foreground py-2 border-t border-dashed">
                 Не ответили ({withoutResponses.length}):{" "}
                 {withoutResponses.map((g) => g.groupName).join(" · ")}
               </TableCell>
@@ -280,6 +371,9 @@ function IntermediateSurveyCard({ lesson }: { lesson: SurveyLesson }) {
   const questionList = Array.from(allQuestions);
   const groupsWithData = lesson.groups.filter((g) => g.responseCount > 0);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [detailsGroupId, setDetailsGroupId] = useState<string | null>(null);
+  const detailsGroup =
+    detailsGroupId != null ? lesson.groups.find((g) => g.groupId === detailsGroupId) ?? null : null;
 
   return (
     <>
@@ -293,7 +387,12 @@ function IntermediateSurveyCard({ lesson }: { lesson: SurveyLesson }) {
         />
       </CardHeader>
       <CardContent className="space-y-4">
-        <NPSTable groups={lesson.groups} />
+        <NPSTable
+          groups={lesson.groups}
+          showDates
+          showSurveyOpen
+          onRowClick={(id) => setDetailsGroupId(id)}
+        />
         {lesson.history && lesson.history.length >= 2 && <NpsHistory history={lesson.history} />}
 
         {questionList.length > 0 && groupsWithData.length > 0 && (
@@ -337,8 +436,172 @@ function IntermediateSurveyCard({ lesson }: { lesson: SurveyLesson }) {
         <SurveyResponsesTable lessonId={lesson.lessonId} />
       </SheetContent>
     </Sheet>
+
+    <Sheet open={detailsGroupId !== null} onOpenChange={(o) => !o && setDetailsGroupId(null)}>
+      <SheetContent className="w-full sm:max-w-3xl overflow-y-auto">
+        {detailsGroup && (
+          <>
+            <SheetHeader className="mb-4">
+              <SheetTitle>{detailsGroup.groupName}</SheetTitle>
+              <p className="text-xs text-muted-foreground">
+                {lesson.lessonTitle}
+                {lesson.courseTitle ? ` · ${lesson.courseTitle}` : ""}
+              </p>
+            </SheetHeader>
+
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <div className="rounded border p-3">
+                <div className="text-xs text-muted-foreground">Старт группы</div>
+                <div className="text-sm font-medium">{formatDate(detailsGroup.startDate)}</div>
+              </div>
+              <div className="rounded border p-3">
+                <div className="text-xs text-muted-foreground">Окончание</div>
+                <div className="text-sm font-medium">{formatDate(detailsGroup.endDate)}</div>
+              </div>
+              <div className="rounded border p-3">
+                <div className="text-xs text-muted-foreground">Опрос открыт</div>
+                <div className="text-sm font-medium">
+                  {formatDate(detailsGroup.surveyOpenDate)}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-5 gap-3 mb-4">
+              <div className="rounded border p-3">
+                <div className="text-xs text-muted-foreground">Ответов</div>
+                <div className="text-lg font-bold">{detailsGroup.responseCount}</div>
+              </div>
+              <div className="rounded border p-3">
+                <div className="text-xs text-muted-foreground">За (9-10)</div>
+                <div className="text-lg font-bold text-green-600">
+                  {detailsGroup.promoters}
+                </div>
+              </div>
+              <div className="rounded border p-3">
+                <div className="text-xs text-muted-foreground">Нейтр (7-8)</div>
+                <div className="text-lg font-bold text-yellow-600">
+                  {detailsGroup.neutrals}
+                </div>
+              </div>
+              <div className="rounded border p-3">
+                <div className="text-xs text-muted-foreground">Против (0-6)</div>
+                <div className="text-lg font-bold text-red-600">
+                  {detailsGroup.detractors}
+                </div>
+              </div>
+              <div className="rounded border p-3">
+                <div className="text-xs text-muted-foreground">NPS</div>
+                <div className={`text-lg font-bold ${npsColor(detailsGroup.nps)}`}>
+                  {detailsGroup.nps !== null
+                    ? `${detailsGroup.nps > 0 ? "+" : ""}${detailsGroup.nps}%`
+                    : "—"}
+                </div>
+              </div>
+            </div>
+
+            {detailsGroup.avgScores && Object.keys(detailsGroup.avgScores).length > 0 && (
+              <div className="mt-4">
+                <p className="text-sm font-medium mb-2 text-muted-foreground">
+                  Средние оценки по вопросам
+                </p>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Вопрос</TableHead>
+                      <TableHead className="text-center w-24">Средняя</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {Object.entries(detailsGroup.avgScores).map(([q, v]) => (
+                      <TableRow key={q}>
+                        <TableCell className="text-sm max-w-[500px] break-words">
+                          {q}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <ScoreCell value={v} />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </>
+        )}
+      </SheetContent>
+    </Sheet>
     </>
   );
+}
+
+function formatRub(n: number): string {
+  return new Intl.NumberFormat("ru-RU", {
+    style: "currency",
+    currency: "RUB",
+    maximumFractionDigits: 0,
+  }).format(n);
+}
+
+// Экранирование поля для CSV: оборачиваем в кавычки и удваиваем внутренние кавычки.
+function csvCell(v: unknown): string {
+  if (v === null || v === undefined) return "";
+  const s = String(v);
+  if (/[",\n;]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+// Скачивает CSV: строит blob, ставит BOM для Excel-совместимости и триггерит клик.
+function downloadCsv(rows: (string | number | null | undefined)[][], filename: string) {
+  const csv = rows.map((r) => r.map(csvCell).join(",")).join("\n");
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function exportCasesCsv(groupName: string, lessonTitle: string, cases: CertCase[]) {
+  const rows: (string | number | null)[][] = [
+    ["ФИО", "Email", "Точка А (руб.)", "Точка Б (руб.)", "Коэффициент роста"],
+    ...cases.map((c) => [c.fullName ?? "", c.email, c.pointA, c.pointB, c.ratio]),
+  ];
+  const safe = `${lessonTitle}_${groupName}_кейсы`.replace(/[/\\?%*:|"<>]/g, "_");
+  downloadCsv(rows, `${safe}.csv`);
+}
+
+function exportRespondentsCsv(
+  groupName: string,
+  lessonTitle: string,
+  respondents: CertRespondent[]
+) {
+  const rows: (string | number | null)[][] = [
+    [
+      "ФИО",
+      "Email",
+      "Дата отправки",
+      "Точка А (руб.)",
+      "Точка Б (руб.)",
+      "Коэффициент роста",
+      "Кейс",
+      "NPS-оценка",
+    ],
+    ...respondents.map((r) => [
+      r.fullName ?? "",
+      r.email,
+      new Date(r.submittedAt).toLocaleString("ru-RU"),
+      r.pointA,
+      r.pointB,
+      r.ratio,
+      r.isCase ? "Да" : "",
+      r.npsScore,
+    ]),
+  ];
+  const safe = `${lessonTitle}_${groupName}_все_ответы`.replace(/[/\\?%*:|"<>]/g, "_");
+  downloadCsv(rows, `${safe}.csv`);
 }
 
 function CertificationCard({ lesson }: { lesson: CertLesson }) {
@@ -353,6 +616,9 @@ function CertificationCard({ lesson }: { lesson: CertLesson }) {
 
   const groupsWithData = lesson.groups.filter((g) => g.responseCount > 0);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [detailsGroupId, setDetailsGroupId] = useState<string | null>(null);
+  const detailsGroup =
+    detailsGroupId != null ? lesson.groups.find((g) => g.groupId === detailsGroupId) ?? null : null;
 
   return (
     <>
@@ -368,7 +634,12 @@ function CertificationCard({ lesson }: { lesson: CertLesson }) {
       <CardContent className="space-y-4">
         <div>
           <p className="text-sm font-medium mb-2 text-muted-foreground">NPS сертификации:</p>
-          <NPSTable groups={lesson.groups} />
+          <NPSTable
+            groups={lesson.groups}
+            showDates
+            showCases
+            onRowClick={(id) => setDetailsGroupId(id)}
+          />
           {lesson.history && lesson.history.length >= 2 && <NpsHistory history={lesson.history} />}
         </div>
 
@@ -411,6 +682,214 @@ function CertificationCard({ lesson }: { lesson: CertLesson }) {
           <SheetTitle>{lesson.lessonTitle}</SheetTitle>
         </SheetHeader>
         <SurveyResponsesTable lessonId={lesson.lessonId} />
+      </SheetContent>
+    </Sheet>
+
+    <Sheet open={detailsGroupId !== null} onOpenChange={(o) => !o && setDetailsGroupId(null)}>
+      <SheetContent className="w-full sm:max-w-3xl overflow-y-auto">
+        {detailsGroup && (
+          <>
+            <SheetHeader className="mb-4">
+              <SheetTitle>{detailsGroup.groupName}</SheetTitle>
+              <p className="text-xs text-muted-foreground">
+                {lesson.lessonTitle}
+                {lesson.courseTitle ? ` · ${lesson.courseTitle}` : ""}
+              </p>
+            </SheetHeader>
+
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="rounded border p-3">
+                <div className="text-xs text-muted-foreground">Старт группы</div>
+                <div className="text-sm font-medium">{formatDate(detailsGroup.startDate)}</div>
+              </div>
+              <div className="rounded border p-3">
+                <div className="text-xs text-muted-foreground">Окончание</div>
+                <div className="text-sm font-medium">{formatDate(detailsGroup.endDate)}</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-5 gap-3 mb-4">
+              <div className="rounded border p-3">
+                <div className="text-xs text-muted-foreground">Ответов</div>
+                <div className="text-lg font-bold">{detailsGroup.responseCount}</div>
+              </div>
+              <div className="rounded border p-3">
+                <div className="text-xs text-muted-foreground">За (9-10)</div>
+                <div className="text-lg font-bold text-green-600">
+                  {detailsGroup.promoters}
+                </div>
+              </div>
+              <div className="rounded border p-3">
+                <div className="text-xs text-muted-foreground">Против (0-6)</div>
+                <div className="text-lg font-bold text-red-600">
+                  {detailsGroup.detractors}
+                </div>
+              </div>
+              <div className="rounded border p-3">
+                <div className="text-xs text-muted-foreground">NPS</div>
+                <div className={`text-lg font-bold ${npsColor(detailsGroup.nps)}`}>
+                  {detailsGroup.nps !== null
+                    ? `${detailsGroup.nps > 0 ? "+" : ""}${detailsGroup.nps}%`
+                    : "—"}
+                </div>
+              </div>
+              <div className="rounded border p-3 bg-blue-50 border-blue-200">
+                <div className="text-xs text-blue-700">Кейсов</div>
+                <div className="text-lg font-bold text-blue-700">
+                  {detailsGroup.caseCount ?? 0}
+                </div>
+              </div>
+            </div>
+
+            {detailsGroup.cases && detailsGroup.cases.length > 0 ? (
+              <div className="mt-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Кейсы (Точка Б / Точка А ≥ 1.5)
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 gap-1.5 text-xs"
+                    onClick={() =>
+                      exportCasesCsv(
+                        detailsGroup.groupName,
+                        lesson.lessonTitle,
+                        detailsGroup.cases!
+                      )
+                    }
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    Скачать CSV
+                  </Button>
+                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Студент</TableHead>
+                      <TableHead className="text-right">Точка А</TableHead>
+                      <TableHead className="text-right">Точка Б</TableHead>
+                      <TableHead className="text-center w-24">Рост</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {detailsGroup.cases.map((c) => (
+                      <TableRow key={c.userId}>
+                        <TableCell>
+                          <div className="font-medium text-sm">
+                            {c.fullName || c.email}
+                          </div>
+                          {c.fullName && (
+                            <div className="text-xs text-muted-foreground">{c.email}</div>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right text-sm">
+                          {formatRub(c.pointA)}
+                        </TableCell>
+                        <TableCell className="text-right text-sm font-medium">
+                          {formatRub(c.pointB)}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="default" className="bg-blue-600">
+                            ×{c.ratio.toFixed(2)}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground py-4">
+                В этой группе пока нет кейсов (студентов с ростом дохода ≥ 1.5×).
+              </p>
+            )}
+
+            {detailsGroup.respondents && detailsGroup.respondents.length > 0 && (
+              <div className="mt-6 pt-4 border-t">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Все ответившие ({detailsGroup.respondents.length})
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 gap-1.5 text-xs"
+                    onClick={() =>
+                      exportRespondentsCsv(
+                        detailsGroup.groupName,
+                        lesson.lessonTitle,
+                        detailsGroup.respondents!
+                      )
+                    }
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    Скачать CSV
+                  </Button>
+                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Студент</TableHead>
+                      <TableHead className="text-center w-24">Дата</TableHead>
+                      <TableHead className="text-right">Точка А</TableHead>
+                      <TableHead className="text-right">Точка Б</TableHead>
+                      <TableHead className="text-center w-20">Рост</TableHead>
+                      <TableHead className="text-center w-16">NPS</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {detailsGroup.respondents.map((r) => {
+                      const rowCls = r.isCase ? "bg-blue-50/50" : "";
+                      return (
+                        <TableRow key={r.userId} className={rowCls}>
+                          <TableCell>
+                            <div className="font-medium text-sm">
+                              {r.fullName || r.email}
+                            </div>
+                            {r.fullName && (
+                              <div className="text-xs text-muted-foreground">
+                                {r.email}
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center text-xs whitespace-nowrap">
+                            {formatDate(r.submittedAt)}
+                          </TableCell>
+                          <TableCell className="text-right text-sm">
+                            {r.pointA !== null ? formatRub(r.pointA) : "—"}
+                          </TableCell>
+                          <TableCell className="text-right text-sm">
+                            {r.pointB !== null ? formatRub(r.pointB) : "—"}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {r.ratio !== null ? (
+                              <Badge
+                                variant={r.isCase ? "default" : "outline"}
+                                className={r.isCase ? "bg-blue-600" : "text-muted-foreground"}
+                              >
+                                ×{r.ratio.toFixed(2)}
+                              </Badge>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {r.npsScore !== null ? (
+                              <ScoreCell value={r.npsScore} />
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </>
+        )}
       </SheetContent>
     </Sheet>
     </>

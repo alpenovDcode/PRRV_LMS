@@ -108,7 +108,7 @@ function findScore(answers: Record<string, string>, ...keywords: string[]): numb
   return null;
 }
 
-type CourseGroup = { id: string; name: string };
+type CourseGroup = { id: string; name: string; startDate: Date | null };
 
 function collectCourseGroups(course: {
   groups: CourseGroup[];
@@ -122,6 +122,72 @@ function collectCourseGroups(course: {
     }
   }
   return Array.from(seen.values());
+}
+
+// Дата окончания группы = startDate + 3 месяца (product-правило, без миграции).
+function computeEndDate(startDate: Date | null): Date | null {
+  if (!startDate) return null;
+  const d = new Date(startDate);
+  d.setMonth(d.getMonth() + 3);
+  return d;
+}
+
+// Дата открытия опроса для группы: считаем по dripRule урока и startDate группы.
+// Поддерживаемые типы: "immediately", "after_start" (+days), "on_date". Для
+// "after_previous_completed" рассчитать нельзя (зависит от студента) — null.
+function computeSurveyOpenDate(
+  dripRule: unknown,
+  groupStartDate: Date | null
+): Date | null {
+  if (!groupStartDate) return null;
+  const rule = (dripRule ?? null) as
+    | { type?: string; days?: number; date?: string; delayHours?: number }
+    | null;
+  if (!rule || !rule.type || rule.type === "immediately") return groupStartDate;
+  if (rule.type === "on_date" && rule.date) {
+    const d = new Date(rule.date);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  if (rule.type === "after_start" && typeof rule.days === "number") {
+    const d = new Date(groupStartDate);
+    d.setDate(d.getDate() + rule.days);
+    return d;
+  }
+  // after_previous_completed зависит от студента — не считаем группой.
+  return null;
+}
+
+// Парсим доход из ответа (число как строка) — устойчиво к пробелам, «₽», «руб.».
+function parseIncome(raw: string | undefined | null): number | null {
+  if (!raw) return null;
+  const cleaned = String(raw).replace(/[^\d.,]/g, "").replace(",", ".");
+  const n = parseFloat(cleaned);
+  return isNaN(n) || n <= 0 ? null : n;
+}
+
+// Извлекаем точки А и Б из _answers сертификации. Ключи в _answers — это
+// текст вопроса (см. certification-form-viewer.tsx handleViewResults).
+// Определяем по подстрокам «в точке А» / «Точка Б» — они уникальны.
+function extractPoints(
+  answers: Record<string, string>
+): { pointA: number | null; pointB: number | null } {
+  let pointA: number | null = null;
+  let pointB: number | null = null;
+  for (const [q, v] of Object.entries(answers)) {
+    const low = q.toLowerCase();
+    if (pointA === null && (low.includes("в точке а") || low.includes("точке а?"))) {
+      pointA = parseIncome(v);
+    } else if (pointB === null && (low.includes("точка б") || low.includes("точке б"))) {
+      pointB = parseIncome(v);
+    }
+  }
+  return { pointA, pointB };
+}
+
+// Студент — кейс, если доход вырос в 1.5 раза и больше.
+function isCase(pointA: number | null, pointB: number | null): boolean {
+  if (pointA === null || pointB === null || pointA <= 0) return false;
+  return pointB / pointA >= 1.5;
 }
 
 export async function GET(request: NextRequest) {
@@ -145,8 +211,15 @@ export async function GET(request: NextRequest) {
             createdAt: true,
             user: {
               select: {
+                id: true,
+                email: true,
+                fullName: true,
                 groupMembers: {
-                  select: { group: { select: { id: true, name: true } } },
+                  select: {
+                    group: {
+                      select: { id: true, name: true, startDate: true },
+                    },
+                  },
                 },
               },
             },
@@ -157,6 +230,7 @@ export async function GET(request: NextRequest) {
         const lessonSelect = {
           id: true,
           title: true,
+          dripRule: true,
           homework: homeworkSelect,
           module: {
             select: {
@@ -165,7 +239,7 @@ export async function GET(request: NextRequest) {
                   id: true,
                   title: true,
                   groups: {
-                    select: { id: true, name: true },
+                    select: { id: true, name: true, startDate: true },
                     orderBy: { name: "asc" as const },
                   },
                   enrollments: {
@@ -174,7 +248,11 @@ export async function GET(request: NextRequest) {
                       user: {
                         select: {
                           groupMembers: {
-                            select: { group: { select: { id: true, name: true } } },
+                            select: {
+                              group: {
+                                select: { id: true, name: true, startDate: true },
+                              },
+                            },
                           },
                         },
                       },
@@ -298,12 +376,19 @@ export async function GET(request: NextRequest) {
               for (const [q, { sum, count }] of Object.entries(data.scaleSums)) {
                 avgScores[q] = Math.round((sum / count) * 10) / 10;
               }
+              const groupObj = courseGroups.find((g) => g.id === groupId) ?? null;
+              const startDate = groupObj?.startDate ?? null;
+              const endDate = computeEndDate(startDate);
+              const surveyOpenDate = computeSurveyOpenDate(lesson.dripRule, startDate);
               return {
                 groupId,
                 groupName: data.groupName,
                 responseCount: lesson.homework.filter((s) =>
                   s.user.groupMembers[0]?.group.id === groupId
                 ).length,
+                startDate: startDate ? startDate.toISOString() : null,
+                endDate: endDate ? endDate.toISOString() : null,
+                surveyOpenDate: surveyOpenDate ? surveyOpenDate.toISOString() : null,
                 ...npsResult,
                 avgScores,
               };
@@ -338,6 +423,26 @@ export async function GET(request: NextRequest) {
             psychScores: [] as number[],
             botScores: [] as number[],
             resultsScores: [] as number[],
+            caseCount: 0,
+            cases: [] as Array<{
+              userId: string;
+              fullName: string | null;
+              email: string;
+              pointA: number;
+              pointB: number;
+              ratio: number;
+            }>,
+            respondents: [] as Array<{
+              userId: string;
+              fullName: string | null;
+              email: string;
+              pointA: number | null;
+              pointB: number | null;
+              ratio: number | null;
+              isCase: boolean;
+              npsScore: number | null;
+              submittedAt: string;
+            }>,
           });
 
           const groupMap = new Map<string, { groupName: string } & ReturnType<typeof emptyEntry>>();
@@ -349,11 +454,41 @@ export async function GET(request: NextRequest) {
             const answers = parseAnswers(sub.content);
             if (!answers) continue;
             const groups = sub.user.groupMembers.map((gm) => gm.group);
-            const group = groups[0] ?? { id: "no-group", name: "Без группы" };
+            const group = groups[0] ?? { id: "no-group", name: "Без группы", startDate: null };
             if (!groupMap.has(group.id)) {
               groupMap.set(group.id, { groupName: group.name, ...emptyEntry() });
             }
             const entry = groupMap.get(group.id)!;
+            // Точка А vs Точка Б → кейс, если Б/А ≥ 1.5.
+            const { pointA, pointB } = extractPoints(answers);
+            const isCaseFlag = isCase(pointA, pointB);
+            const npsScoreForUser = findScore(answers, "порекомендуете", "порекомендовать");
+            const ratio =
+              pointA && pointB ? Math.round((pointB / pointA) * 100) / 100 : null;
+
+            entry.respondents.push({
+              userId: sub.user.id,
+              fullName: sub.user.fullName ?? null,
+              email: sub.user.email,
+              pointA,
+              pointB,
+              ratio,
+              isCase: isCaseFlag,
+              npsScore: npsScoreForUser,
+              submittedAt: new Date(sub.createdAt).toISOString(),
+            });
+
+            if (isCaseFlag && pointA && pointB) {
+              entry.caseCount += 1;
+              entry.cases.push({
+                userId: sub.user.id,
+                fullName: sub.user.fullName ?? null,
+                email: sub.user.email,
+                pointA,
+                pointB,
+                ratio: ratio!,
+              });
+            }
             for (const [qText, value] of Object.entries(answers)) {
               const num = parseFloat(value);
               if (isNaN(num)) continue;
@@ -379,22 +514,36 @@ export async function GET(request: NextRequest) {
           const avg = (arr: number[]) =>
             arr.length > 0 ? Math.round((arr.reduce((a, b) => a + b, 0) / arr.length) * 10) / 10 : null;
 
-          const groupResults = Array.from(groupMap.entries()).map(([groupId, data]) => ({
-            groupId,
-            groupName: data.groupName,
-            responseCount: lesson.homework.filter((s) =>
-              s.user.groupMembers[0]?.group.id === groupId
-            ).length,
-            ...calcNPS(data.npsScores),
-            satisfaction: {
-              mentor: avg(data.mentorScores),
-              curator: avg(data.curatorScores),
-              clubEvents: avg(data.clubScores),
-              psychologist: avg(data.psychScores),
-              bot: avg(data.botScores),
-              results: avg(data.resultsScores),
-            },
-          }));
+          const groupResults = Array.from(groupMap.entries()).map(([groupId, data]) => {
+            const groupObj = courseGroups.find((g) => g.id === groupId) ?? null;
+            const startDate = groupObj?.startDate ?? null;
+            const endDate = computeEndDate(startDate);
+            return {
+              groupId,
+              groupName: data.groupName,
+              responseCount: lesson.homework.filter((s) =>
+                s.user.groupMembers[0]?.group.id === groupId
+              ).length,
+              startDate: startDate ? startDate.toISOString() : null,
+              endDate: endDate ? endDate.toISOString() : null,
+              caseCount: data.caseCount,
+              // Сортируем по убыванию коэффициента роста — самые впечатляющие кейсы сверху.
+              cases: [...data.cases].sort((a, b) => b.ratio - a.ratio),
+              // Все, кто прошёл сертификацию в этой группе. Сортируем по дате.
+              respondents: [...data.respondents].sort(
+                (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
+              ),
+              ...calcNPS(data.npsScores),
+              satisfaction: {
+                mentor: avg(data.mentorScores),
+                curator: avg(data.curatorScores),
+                clubEvents: avg(data.clubScores),
+                psychologist: avg(data.psychScores),
+                bot: avg(data.botScores),
+                results: avg(data.resultsScores),
+              },
+            };
+          });
 
           groupResults.sort((a, b) => b.responseCount - a.responseCount);
 
