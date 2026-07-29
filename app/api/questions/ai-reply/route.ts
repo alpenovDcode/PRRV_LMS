@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { saveQuestionAIReply } from "@/lib/ai/question-checker";
+import { isQuestionAIReplyEnabled, saveQuestionAIReply } from "@/lib/ai/question-checker";
 
 export async function POST(request: NextRequest) {
   const apiKey = request.headers.get("X-API-Key") || "";
   if (apiKey !== (process.env.AI_CHECKER_KEY || "")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!isQuestionAIReplyEnabled()) {
+    return NextResponse.json({ ok: true, skipped: true });
   }
 
   const body = await request.json();

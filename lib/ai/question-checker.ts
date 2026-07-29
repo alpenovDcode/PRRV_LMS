@@ -3,7 +3,13 @@ import { db } from "@/lib/db";
 const DELAY_MS = parseInt(process.env.JARVIS_DELAY_MS || "300000", 10); // 5 мин по умолчанию
 const SENDER_NAME = "Джарвикс";
 
+export function isQuestionAIReplyEnabled(): boolean {
+  return process.env.JARVIS_QUESTIONS_ENABLED === "true";
+}
+
 export async function scheduleQuestionAIReply(questionId: string): Promise<void> {
+  if (!isQuestionAIReplyEnabled()) return;
+
   if (DELAY_MS > 0) {
     await new Promise((resolve) => setTimeout(resolve, DELAY_MS));
   }
@@ -13,6 +19,8 @@ export async function scheduleQuestionAIReply(questionId: string): Promise<void>
 export async function generateQuestionAIReply(
   questionId: string
 ): Promise<"replied" | "skipped" | "error"> {
+  if (!isQuestionAIReplyEnabled()) return "skipped";
+
   try {
     const question = await db.question.findUnique({
       where: { id: questionId },

@@ -76,6 +76,8 @@ x-app-defaults: &app-defaults
     MENTORS_TG_CHAT_ID: ${MENTORS_TG_CHAT_ID:-}
     # Delay before AI replies in mentor-question thread (ms). Prod: 300000 (5 min)
     JARVIS_DELAY_MS: ${JARVIS_DELAY_MS:-300000}
+    # Temporary kill switch for automatic replies in mentor-question threads.
+    JARVIS_QUESTIONS_ENABLED: ${JARVIS_QUESTIONS_ENABLED:-false}
     # ---- Bot platform (own SaleBot-alternative) ----
     # AES-256-GCM key for encrypting bot tokens in DB. Generate once
     # with `openssl rand -hex 32`; rotation needs token migration.
