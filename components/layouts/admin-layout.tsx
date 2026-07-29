@@ -23,7 +23,6 @@ import {
   GraduationCap,
   MessageSquare,
   MessageCircle,
-  Send,
   Award,
   Mail,
   Megaphone,
@@ -47,7 +46,8 @@ const adminNavigation = [
   { name: "Статистика вопросов", href: "/admin/questions/stats", icon: BarChart },
   { name: "Обсуждения", href: "/admin/comments", icon: MessageSquare },
   { name: "Уведомления", href: "/admin/notifications", icon: Bell },
-  { name: "Рассылки", href: "/admin/broadcasts", icon: Send },
+  // Раздел /admin/broadcasts временно скрыт из навигации.
+  // Страница и API остаются доступны по прямой ссылке.
   // Telegram и МАКС живут в одном списке /admin/bots. Instagram
   // временно скрыт из UI (данные в БД сохраняются — см. /admin/bots/page.tsx).
   { name: "Боты", href: "/admin/bots", icon: Bot },
@@ -253,5 +253,4 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
-
 
