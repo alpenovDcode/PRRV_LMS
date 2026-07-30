@@ -4,14 +4,11 @@ import { db } from "@/lib/db";
 import { ApiResponse } from "@/types";
 import { UserRole } from "@prisma/client";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return withAuth(
     request,
     async () => {
-        const { id } = await params;
+      const { id } = await params;
       try {
         const { searchParams } = new URL(request.url);
         const courseId = searchParams.get("courseId");
@@ -38,9 +35,27 @@ export async function GET(
           select: {
             id: true,
             title: true,
+            type: true,
             orderIndex: true,
+            module: {
+              select: {
+                id: true,
+                title: true,
+                orderIndex: true,
+              },
+            },
+            homework: {
+              where: { userId: id },
+              orderBy: { createdAt: "desc" },
+              take: 1,
+              select: {
+                id: true,
+                status: true,
+                createdAt: true,
+              },
+            },
           },
-          orderBy: { orderIndex: "asc" },
+          orderBy: [{ module: { orderIndex: "asc" } }, { orderIndex: "asc" }],
         });
 
         const progresses = await db.lessonProgress.findMany({
@@ -51,13 +66,25 @@ export async function GET(
         });
 
         const progressMap = new Map(
-          progresses.map((p) => [p.lessonId, { status: p.status, watchedTime: p.watchedTime }])
+          progresses.map((p) => [
+            p.lessonId,
+            {
+              status: p.status,
+              watchedTime: p.watchedTime,
+              completedAt: p.completedAt,
+            },
+          ])
         );
 
         const result = lessons.map((lesson) => ({
           id: lesson.id,
           title: lesson.title,
+          type: lesson.type,
+          module: lesson.module,
           status: progressMap.get(lesson.id)?.status ?? "not_started",
+          watchedTime: progressMap.get(lesson.id)?.watchedTime ?? 0,
+          completedAt: progressMap.get(lesson.id)?.completedAt ?? null,
+          latestSubmission: lesson.homework[0] ?? null,
         }));
 
         return NextResponse.json<ApiResponse>({ success: true, data: result }, { status: 200 });
@@ -78,5 +105,3 @@ export async function GET(
     { roles: [UserRole.admin, UserRole.curator] }
   );
 }
-
-

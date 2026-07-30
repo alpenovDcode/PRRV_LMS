@@ -58,6 +58,7 @@ import { AccessManager } from "./_components/access-manager";
 import { GetcourseTab } from "./_components/getcourse-tab";
 import { GetcourseOrdersTab } from "./_components/getcourse-orders-tab";
 import { EmailTab } from "./_components/email-tab";
+import { LessonProgressManager } from "./_components/lesson-progress-manager";
 
 type UserRole = "student" | "admin" | "curator";
 
@@ -514,6 +515,7 @@ export default function AdminUserDetailPage() {
       <Tabs defaultValue="profile" className="w-full">
         <TabsList className="mb-6">
           <TabsTrigger value="profile">Профиль</TabsTrigger>
+          <TabsTrigger value="progress">Прогресс</TabsTrigger>
           <TabsTrigger value="access">Доступы</TabsTrigger>
           <TabsTrigger value="certificates">Сертификаты</TabsTrigger>
           <TabsTrigger value="orders">Заказы</TabsTrigger>
@@ -942,6 +944,10 @@ export default function AdminUserDetailPage() {
               )}
             </div>
            </div>
+        </TabsContent>
+
+        <TabsContent value="progress" className="space-y-6">
+          <LessonProgressManager userId={userId} enrollments={user.enrollments} />
         </TabsContent>
 
         <TabsContent value="access" className="space-y-6">

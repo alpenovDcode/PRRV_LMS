@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/api-middleware";
 import { ApiResponse } from "@/types";
-import { UserRole, ProgressStatus } from "@prisma/client";
+import { UserRole, ProgressStatus, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { logAction } from "@/lib/audit";
 import { z } from "zod";
@@ -17,10 +17,7 @@ const updateProgressSchema = z.object({
  * PATCH /api/admin/users/[id]/progress/update
  * Обновить прогресс пользователя по уроку (только админ)
  */
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return withAuth(
     request,
     async (req) => {
@@ -67,7 +64,7 @@ export async function PATCH(
           );
         }
 
-        const updateData: any = {};
+        const updateData: Prisma.LessonProgressUncheckedUpdateInput = {};
         if (status !== undefined) updateData.status = status;
         if (watchedTime !== undefined) updateData.watchedTime = watchedTime;
         if (completedAt !== undefined) {
@@ -153,30 +150,85 @@ export async function DELETE(
         const { searchParams } = new URL(request.url);
         const lessonId = searchParams.get("lessonId");
 
-        if (!lessonId) {
+        if (!lessonId || !z.string().uuid().safeParse(lessonId).success) {
           return NextResponse.json<ApiResponse>(
             {
               success: false,
               error: {
                 code: "VALIDATION_ERROR",
-                message: "lessonId обязателен",
+                message: "Укажите корректный lessonId",
               },
             },
             { status: 400 }
           );
         }
 
-        await db.lessonProgress.deleteMany({
-          where: {
-            userId: id,
-            lessonId,
-          },
+        const [user, lesson] = await Promise.all([
+          db.user.findUnique({
+            where: { id },
+            select: { id: true },
+          }),
+          db.lesson.findUnique({
+            where: { id: lessonId },
+            select: { id: true, title: true, type: true },
+          }),
+        ]);
+
+        if (!user || !lesson) {
+          return NextResponse.json<ApiResponse>(
+            {
+              success: false,
+              error: {
+                code: "NOT_FOUND",
+                message: !user ? "Пользователь не найден" : "Урок не найден",
+              },
+            },
+            { status: 404 }
+          );
+        }
+
+        const resetResult = await db.$transaction(async (tx) => {
+          const deletedProgress = await tx.lessonProgress.deleteMany({
+            where: {
+              userId: id,
+              lessonId,
+            },
+          });
+
+          // Сертификация хранит ответы как HomeworkSubmission. Одного удаления
+          // LessonProgress недостаточно: pending/approved submission блокирует
+          // POST новой анкеты. Сохраняем старую попытку для аналитики, но
+          // переводим её в rejected — следующая отправка создаст новую запись.
+          let reopenedSubmissions = 0;
+          if (lesson.type === "certification_form") {
+            const reopened = await tx.homeworkSubmission.updateMany({
+              where: {
+                userId: id,
+                lessonId,
+                status: { in: ["pending", "approved"] },
+              },
+              data: {
+                status: "rejected",
+                reviewedAt: new Date(),
+                curatorId: req.user!.userId,
+              },
+            });
+            reopenedSubmissions = reopened.count;
+          }
+
+          return {
+            deletedProgress: deletedProgress.count,
+            reopenedSubmissions,
+          };
         });
 
         // Audit log
         await logAction(req.user!.userId, "RESET_USER_PROGRESS", "progress", undefined, {
           targetUserId: id,
           lessonId,
+          lessonTitle: lesson.title,
+          lessonType: lesson.type,
+          ...resetResult,
         });
 
         return NextResponse.json<ApiResponse>(
@@ -184,6 +236,8 @@ export async function DELETE(
             success: true,
             data: {
               message: "Прогресс сброшен",
+              lessonType: lesson.type,
+              ...resetResult,
             },
           },
           { status: 200 }
@@ -205,4 +259,3 @@ export async function DELETE(
     { roles: [UserRole.admin, UserRole.curator] }
   );
 }
-
