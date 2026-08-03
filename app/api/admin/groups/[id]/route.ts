@@ -5,18 +5,19 @@ import { ApiResponse } from "@/types";
 import { UserRole } from "@prisma/client";
 import { adminGroupCreateSchema } from "@/lib/validations";
 import { logAction } from "@/lib/audit";
+import { moveEnrollmentToGroupStart } from "@/lib/group-enrollment";
 import { z } from "zod";
 
-const updateGroupSchema = adminGroupCreateSchema.partial();
+const updateGroupSchema = adminGroupCreateSchema.partial().extend({
+  courseId: z.string().nullable().optional(),
+  startDate: z.string().datetime().nullable().optional(),
+});
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return withAuth(
     request,
     async () => {
-        const { id } = await params;
+      const { id } = await params;
       try {
         const group = await db.group.findUnique({
           where: { id },
@@ -72,10 +73,7 @@ export async function GET(
   );
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return withAuth(
     request,
     async (req) => {
@@ -102,12 +100,64 @@ export async function PATCH(
           );
         }
 
-        const group = await db.group.update({
-          where: { id },
-          data: {
-            name: parsed.name,
-            description: parsed.description,
-          },
+        const group = await db.$transaction(async (tx) => {
+          const updatedGroup = await tx.group.update({
+            where: { id },
+            data: {
+              name: parsed.name,
+              description: parsed.description,
+              ...(parsed.courseId !== undefined ? { courseId: parsed.courseId } : {}),
+              ...(parsed.startDate !== undefined
+                ? { startDate: parsed.startDate ? new Date(parsed.startDate) : null }
+                : {}),
+            },
+          });
+
+          // Keep current learning records and align each member's enrollment
+          // with the newly configured group schedule.
+          if (
+            updatedGroup.courseId &&
+            (parsed.courseId !== undefined || parsed.startDate !== undefined)
+          ) {
+            const members = await tx.groupMember.findMany({
+              where: { groupId: id },
+              select: { userId: true },
+            });
+
+            for (const member of members) {
+              const enrollment = await tx.enrollment.findUnique({
+                where: {
+                  userId_courseId: {
+                    userId: member.userId,
+                    courseId: updatedGroup.courseId,
+                  },
+                },
+              });
+
+              if (enrollment) {
+                const dates = moveEnrollmentToGroupStart(enrollment, updatedGroup.startDate);
+                await tx.enrollment.update({
+                  where: { id: enrollment.id },
+                  data: {
+                    status: "active",
+                    startDate: dates.startDate,
+                    expiresAt: dates.expiresAt,
+                  },
+                });
+              } else {
+                await tx.enrollment.create({
+                  data: {
+                    userId: member.userId,
+                    courseId: updatedGroup.courseId,
+                    status: "active",
+                    startDate: updatedGroup.startDate ?? new Date(),
+                  },
+                });
+              }
+            }
+          }
+
+          return updatedGroup;
         });
 
         // Audit log
@@ -182,7 +232,8 @@ export async function DELETE(
               success: false,
               error: {
                 code: "HAS_MEMBERS",
-                message: "Невозможно удалить группу с участниками. Сначала удалите всех участников.",
+                message:
+                  "Невозможно удалить группу с участниками. Сначала удалите всех участников.",
               },
             },
             { status: 400 }
@@ -216,4 +267,3 @@ export async function DELETE(
     { roles: [UserRole.admin, UserRole.curator] }
   );
 }
-
