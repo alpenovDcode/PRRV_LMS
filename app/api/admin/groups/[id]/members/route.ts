@@ -6,17 +6,13 @@ import { UserRole } from "@prisma/client";
 import { adminGroupMemberSchema } from "@/lib/validations";
 import { createNotification } from "@/lib/notifications";
 import { logAction } from "@/lib/audit";
+import { moveEnrollmentToGroupStart } from "@/lib/group-enrollment";
 
-
-
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return withAuth(
     request,
     async () => {
-        const { id } = await params;
+      const { id } = await params;
       try {
         const members = await db.groupMember.findMany({
           where: { groupId: id },
@@ -52,10 +48,7 @@ export async function GET(
   );
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return withAuth(
     request,
     async (req) => {
@@ -152,7 +145,20 @@ export async function POST(
               },
             });
 
-            if (!existingEnrollment) {
+            if (existingEnrollment) {
+              const dates = moveEnrollmentToGroupStart(
+                existingEnrollment,
+                groupWithCourse.startDate
+              );
+              await tx.enrollment.update({
+                where: { id: existingEnrollment.id },
+                data: {
+                  status: "active",
+                  startDate: dates.startDate,
+                  expiresAt: dates.expiresAt,
+                },
+              });
+            } else {
               await tx.enrollment.create({
                 data: {
                   userId,
@@ -176,11 +182,11 @@ export async function POST(
 
         // Send notification
         const { notifyCourseEnrolled } = await import("@/lib/notifications");
-        
+
         // Check if group has a course to provide better context
         const groupWithCourse = await db.group.findUnique({
           where: { id },
-          include: { course: { select: { title: true, slug: true } } }
+          include: { course: { select: { title: true, slug: true } } },
         });
 
         if (groupWithCourse?.course) {
@@ -316,7 +322,7 @@ export async function DELETE(
         });
 
         let message = `Вы были исключены из группы "${member.group.name}"`;
-        
+
         if (member.group.courseId && member.group.course) {
           message += ` и потеряли доступ к курсу "${member.group.course.title}"`;
         }
@@ -347,5 +353,3 @@ export async function DELETE(
     { roles: [UserRole.admin, UserRole.curator] }
   );
 }
-
-

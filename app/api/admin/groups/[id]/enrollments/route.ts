@@ -6,11 +6,9 @@ import { UserRole } from "@prisma/client";
 import { adminEnrollmentSchema } from "@/lib/validations";
 import { logAction } from "@/lib/audit";
 import { validateEnrollmentCreation } from "@/lib/business-rules";
+import { moveEnrollmentToGroupStart } from "@/lib/group-enrollment";
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return withAuth(
     request,
     async (req) => {
@@ -22,7 +20,7 @@ export async function POST(
         // Проверяем существование группы
         const group = await db.group.findUnique({
           where: { id },
-          select: { id: true, name: true },
+          select: { id: true, name: true, startDate: true },
         });
 
         if (!group) {
@@ -39,7 +37,9 @@ export async function POST(
         }
 
         // Валидация бизнес-правил
-        const startDateObj = startDate ? new Date(startDate) : new Date();
+        const requestedStartDate = startDate ? new Date(startDate) : null;
+        const effectiveGroupStartDate = requestedStartDate ?? group.startDate;
+        const startDateObj = effectiveGroupStartDate ?? new Date();
         const expiresAtObj = expiresAt ? new Date(expiresAt) : null;
 
         // Проверяем валидность для первого пользователя (для примера)
@@ -112,35 +112,40 @@ export async function POST(
               userId: { in: allMembers.map((m) => m.userId) },
               courseId,
             },
-            select: { userId: true },
           });
 
           const existingUserIds = new Set(existingEnrollments.map((e) => e.userId));
 
           // Создаем/обновляем зачисления
+          const existingByUserId = new Map(existingEnrollments.map((item) => [item.userId, item]));
           const enrollments = await Promise.all(
-            allMembers.map((member) =>
-              tx.enrollment.upsert({
-                where: {
-                  userId_courseId: {
+            allMembers.map((member) => {
+              const existing = existingByUserId.get(member.userId);
+              if (!existing) {
+                return tx.enrollment.create({
+                  data: {
                     userId: member.userId,
                     courseId,
+                    status: "active",
+                    startDate: startDateObj,
+                    // An omitted expiration means "do not invent one", not
+                    // "erase existing dates". New enrollments remain perpetual.
+                    expiresAt: expiresAt === undefined ? null : expiresAtObj,
                   },
-                },
-                update: {
+                });
+              }
+
+              const shiftedDates = moveEnrollmentToGroupStart(existing, effectiveGroupStartDate);
+              return tx.enrollment.update({
+                where: { id: existing.id },
+                data: {
                   status: "active",
-                  startDate: startDateObj,
-                  expiresAt: expiresAtObj,
+                  startDate: shiftedDates.startDate,
+                  // Only an explicitly supplied value may replace expiration.
+                  expiresAt: expiresAt === undefined ? shiftedDates.expiresAt : expiresAtObj,
                 },
-                create: {
-                  userId: member.userId,
-                  courseId,
-                  status: "active",
-                  startDate: startDateObj,
-                  expiresAt: expiresAtObj,
-                },
-              })
-            )
+              });
+            })
           );
 
           // Создаем уведомления только для новых зачислений
@@ -170,6 +175,8 @@ export async function POST(
           groupName: group.name,
           courseId,
           courseTitle: course.title,
+          appliedStartDate: effectiveGroupStartDate,
+          expirationWasExplicit: expiresAt !== undefined,
           affected: result.total,
           new: result.new,
         });
@@ -202,5 +209,3 @@ export async function POST(
     { roles: [UserRole.admin, UserRole.curator] }
   );
 }
-
-

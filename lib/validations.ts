@@ -4,7 +4,7 @@ export const loginSchema = z.object({
   email: z.string().email("Некорректный email"),
   password: z.string().min(6, "Пароль должен содержать минимум 6 символов"),
   rememberMe: z.boolean().optional(),
-  consent: z.boolean().refine(val => val === true, {
+  consent: z.boolean().refine((val) => val === true, {
     message: "Необходимо согласиться с политикой конфиденциальности",
   }),
 });
@@ -28,7 +28,14 @@ export const courseSchema = z.object({
 
 export const lessonSchema = z.object({
   title: z.string().min(1, "Название урока обязательно"),
-  type: z.enum(["video", "text", "quiz", "track_definition", "intermediate_survey", "certification_form"]),
+  type: z.enum([
+    "video",
+    "text",
+    "quiz",
+    "track_definition",
+    "intermediate_survey",
+    "certification_form",
+  ]),
   content: z.any().optional(),
   videoId: z.string().optional(),
   isFree: z.boolean().default(false),
@@ -57,6 +64,11 @@ export const adminGroupCreateSchema = z.object({
 
 export const adminGroupMemberSchema = z.object({
   userId: z.string().min(1, "userId обязателен"),
+});
+
+export const adminGroupTransferSchema = z.object({
+  userId: z.string().uuid(),
+  targetGroupId: z.string().uuid(),
 });
 
 export const adminEnrollmentSchema = z.object({
@@ -91,7 +103,16 @@ export const adminModuleUpdateSchema = z.object({
 export const adminLessonCreateSchema = z.object({
   moduleId: z.string().min(1, "moduleId обязателен"),
   title: z.string().min(1, "Название урока обязательно"),
-  type: z.enum(["video", "text", "quiz", "track_definition", "intermediate_survey", "certification_form"]).optional(),
+  type: z
+    .enum([
+      "video",
+      "text",
+      "quiz",
+      "track_definition",
+      "intermediate_survey",
+      "certification_form",
+    ])
+    .optional(),
 });
 
 export const curatorHomeworkReviewSchema = z.object({

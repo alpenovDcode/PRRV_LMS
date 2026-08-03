@@ -4,13 +4,7 @@ import * as React from "react";
 import { useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -31,13 +25,10 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Pencil, Check, ChevronsUpDown, Search } from "lucide-react";
+import { Pencil, Check, ChevronsUpDown, Search, ArrowRightLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { toast } from "sonner";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface GroupDetail {
   id: string;
@@ -102,15 +93,17 @@ export default function AdminGroupDetailPage() {
   const [selectedCourseId, setSelectedCourseId] = React.useState<string>("");
   const [selectedModuleCourseId, setSelectedModuleCourseId] = React.useState<string>("");
   const [selectedModuleId, setSelectedModuleId] = React.useState<string>("");
+  const [memberToTransfer, setMemberToTransfer] = React.useState<GroupMember | null>(null);
+  const [targetGroupId, setTargetGroupId] = React.useState<string>("");
 
-  const { data: group, isLoading } = useQuery<GroupDetail>({
-    queryKey: ["admin", "groups", groupId],
+  const { data: groups, isLoading } = useQuery<GroupDetail[]>({
+    queryKey: ["admin", "groups"],
     queryFn: async () => {
       const response = await apiClient.get("/admin/groups");
-      const groups: GroupDetail[] = response.data.data;
-      return groups.find((g) => g.id === groupId)!;
+      return response.data.data;
     },
   });
+  const group = groups?.find((item) => item.id === groupId);
 
   const { data: members } = useQuery<GroupMember[]>({
     queryKey: ["admin", "groups", groupId, "members"],
@@ -126,7 +119,7 @@ export default function AdminGroupDetailPage() {
       const params = new URLSearchParams();
       if (debouncedSearch) params.append("search", debouncedSearch);
       params.append("limit", "20"); // Fetch top 20 matches
-      
+
       const response = await apiClient.get(`/admin/users?${params.toString()}`);
       return response.data; // { data: [...], meta: ... }
     },
@@ -171,13 +164,33 @@ export default function AdminGroupDetailPage() {
     },
   });
 
+  const transferMemberMutation = useMutation({
+    mutationFn: async ({ userId, targetGroupId }: { userId: string; targetGroupId: string }) => {
+      await apiClient.post(`/admin/groups/${groupId}/members/transfer`, {
+        userId,
+        targetGroupId,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "groups"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "groups", groupId, "members"] });
+      if (targetGroupId) {
+        queryClient.invalidateQueries({
+          queryKey: ["admin", "groups", targetGroupId, "members"],
+        });
+      }
+      setMemberToTransfer(null);
+      setTargetGroupId("");
+      toast.success("Участник переведён, прогресс и доступы сохранены");
+    },
+    onError: () => toast.error("Не удалось перевести участника"),
+  });
+
   const bulkEnrollMutation = useMutation({
     mutationFn: async (payload: { courseId: string }) => {
       await apiClient.post(`/admin/groups/${groupId}/enrollments`, payload);
     },
-    onSuccess: () => {
-      // прогресс и зачисления видны в карточках пользователей
-    },
+    onSuccess: () => toast.success("Доступ выдан без сброса прогресса и существующих сроков"),
   });
 
   const moduleAccessMutation = useMutation({
@@ -185,17 +198,22 @@ export default function AdminGroupDetailPage() {
       await apiClient.post(`/admin/groups/${groupId}/modules`, { moduleId, action });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "groups", groupId] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "groups"] });
       setSelectedModuleId("");
     },
   });
 
   const updateGroupMutation = useMutation({
-    mutationFn: async (payload: { name: string; description?: string; courseId?: string | null; startDate?: string | null }) => {
+    mutationFn: async (payload: {
+      name: string;
+      description?: string;
+      courseId?: string | null;
+      startDate?: string | null;
+    }) => {
       await apiClient.patch(`/admin/groups/${groupId}`, payload);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "groups", groupId] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "groups"] });
       setIsEditOpen(false);
     },
   });
@@ -217,7 +235,7 @@ export default function AdminGroupDetailPage() {
   };
 
   return (
-    <div className="container mx-auto max-w-5xl px-4 py-8 space-y-6">
+    <div className="container mx-auto max-w-5xl space-y-6 px-4 py-8">
       {isLoading || !group ? (
         <>
           <Skeleton className="h-8 w-64" />
@@ -238,9 +256,7 @@ export default function AdminGroupDetailPage() {
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle>Редактирование группы</DialogTitle>
-                    <DialogDescription>
-                      Измените параметры группы.
-                    </DialogDescription>
+                    <DialogDescription>Измените параметры группы.</DialogDescription>
                   </DialogHeader>
                   <form
                     className="space-y-4"
@@ -252,12 +268,7 @@ export default function AdminGroupDetailPage() {
                   >
                     <div className="space-y-2">
                       <Label htmlFor="edit-name">Название</Label>
-                      <Input
-                        id="edit-name"
-                        name="name"
-                        defaultValue={group.name}
-                        required
-                      />
+                      <Input id="edit-name" name="name" defaultValue={group.name} required />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="edit-description">Описание</Label>
@@ -305,20 +316,20 @@ export default function AdminGroupDetailPage() {
                 </DialogContent>
               </Dialog>
             </div>
-            <div className="flex flex-col gap-1 mt-1">
-              {group.description && (
-                <p className="text-muted-foreground">{group.description}</p>
-              )}
+            <div className="mt-1 flex flex-col gap-1">
+              {group.description && <p className="text-muted-foreground">{group.description}</p>}
               {(group.course || group.startDate) && (
-                <div className="flex items-center gap-4 text-sm text-muted-foreground mt-2 p-3 bg-muted/50 rounded-md border">
+                <div className="mt-2 flex items-center gap-4 rounded-md border bg-muted/50 p-3 text-sm text-muted-foreground">
                   {group.course && (
                     <div>
-                      <span className="font-medium text-foreground">Курс:</span> {group.course.title}
+                      <span className="font-medium text-foreground">Курс:</span>{" "}
+                      {group.course.title}
                     </div>
                   )}
                   {group.startDate && (
                     <div>
-                      <span className="font-medium text-foreground">Старт:</span> {new Date(group.startDate).toLocaleDateString("ru-RU")}
+                      <span className="font-medium text-foreground">Старт:</span>{" "}
+                      {new Date(group.startDate).toLocaleDateString("ru-RU")}
                     </div>
                   )}
                 </div>
@@ -330,9 +341,7 @@ export default function AdminGroupDetailPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Добавить участника</CardTitle>
-                <CardDescription>
-                  Добавьте пользователя в эту группу.
-                </CardDescription>
+                <CardDescription>Добавьте пользователя в эту группу.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
@@ -346,8 +355,10 @@ export default function AdminGroupDetailPage() {
                         className="w-full justify-between"
                       >
                         {selectedUserId
-                          ? (userOptions.find((u: AdminUserOption) => u.id === selectedUserId) || 
-                             members?.find(m => m.userId === selectedUserId)?.user)?.email || "Пользователь выбран"
+                          ? (
+                              userOptions.find((u: AdminUserOption) => u.id === selectedUserId) ||
+                              members?.find((m) => m.userId === selectedUserId)?.user
+                            )?.email || "Пользователь выбран"
                           : "Выберите пользователя..."}
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                       </Button>
@@ -365,14 +376,17 @@ export default function AdminGroupDetailPage() {
                         </div>
                         <div className="max-h-[300px] overflow-y-auto p-1">
                           {isUsersLoading && (
-                             <div className="p-2 text-center text-sm text-muted-foreground">Загрузка...</div>
+                            <div className="p-2 text-center text-sm text-muted-foreground">
+                              Загрузка...
+                            </div>
                           )}
                           {!isUsersLoading && userOptions.length === 0 && (
                             <div className="py-6 text-center text-sm text-muted-foreground">
                               Пользователь не найден.
                             </div>
                           )}
-                          {!isUsersLoading && userOptions.map((user: AdminUserOption) => (
+                          {!isUsersLoading &&
+                            userOptions.map((user: AdminUserOption) => (
                               <div
                                 key={user.id}
                                 onClick={() => {
@@ -419,9 +433,7 @@ export default function AdminGroupDetailPage() {
               </CardHeader>
               <CardContent className="space-y-2">
                 {!members || members.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    В группе пока нет участников.
-                  </p>
+                  <p className="text-sm text-muted-foreground">В группе пока нет участников.</p>
                 ) : (
                   members.map((member) => (
                     <div
@@ -436,14 +448,27 @@ export default function AdminGroupDetailPage() {
                           {member.user.email} • {member.user.role}
                         </div>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive"
-                        onClick={() => removeMemberMutation.mutate(member.userId)}
-                      >
-                        Удалить
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setMemberToTransfer(member);
+                            setTargetGroupId("");
+                          }}
+                        >
+                          <ArrowRightLeft className="mr-2 h-4 w-4" />
+                          Перевести
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive"
+                          onClick={() => removeMemberMutation.mutate(member.userId)}
+                        >
+                          Удалить
+                        </Button>
+                      </div>
                     </div>
                   ))
                 )}
@@ -455,16 +480,14 @@ export default function AdminGroupDetailPage() {
             <CardHeader>
               <CardTitle>Массовое назначение курса</CardTitle>
               <CardDescription>
-                Выдайте доступ к курсу всем участникам этой группы.
+                Выдайте доступ всем участникам. Дата старта берётся из настроек группы, а
+                существующие сроки и прогресс не обнуляются.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4 max-w-xl">
+            <CardContent className="max-w-xl space-y-4">
               <div className="space-y-2">
                 <Label>Курс</Label>
-                <Select
-                  value={selectedCourseId}
-                  onValueChange={setSelectedCourseId}
-                >
+                <Select value={selectedCourseId} onValueChange={setSelectedCourseId}>
                   <SelectTrigger>
                     <SelectValue placeholder="Выберите курс" />
                   </SelectTrigger>
@@ -480,14 +503,78 @@ export default function AdminGroupDetailPage() {
               <Button
                 disabled={!selectedCourseId || bulkEnrollMutation.isPending}
                 onClick={() =>
-                  selectedCourseId &&
-                  bulkEnrollMutation.mutate({ courseId: selectedCourseId })
+                  selectedCourseId && bulkEnrollMutation.mutate({ courseId: selectedCourseId })
                 }
               >
                 Выдать курс всей группе
               </Button>
             </CardContent>
           </Card>
+
+          <Dialog
+            open={Boolean(memberToTransfer)}
+            onOpenChange={(open) => {
+              if (!open) {
+                setMemberToTransfer(null);
+                setTargetGroupId("");
+              }
+            }}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Перевести участника</DialogTitle>
+                <DialogDescription>
+                  Прогресс, домашние задания и существующие доступы к курсам сохранятся. Даты
+                  текущего курса будут перенесены на расписание новой группы.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="rounded-md border bg-muted/40 p-3 text-sm">
+                  <div className="font-medium">
+                    {memberToTransfer?.user.fullName || memberToTransfer?.user.email}
+                  </div>
+                  <div className="text-muted-foreground">Из группы: {group.name}</div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Новая группа</Label>
+                  <Select value={targetGroupId} onValueChange={setTargetGroupId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Выберите группу" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {groups
+                        ?.filter((item) => item.id !== groupId)
+                        .map((item) => (
+                          <SelectItem key={item.id} value={item.id}>
+                            {item.name}
+                            {item.startDate
+                              ? ` — старт ${new Date(item.startDate).toLocaleDateString("ru-RU")}`
+                              : ""}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setMemberToTransfer(null)}>
+                  Отмена
+                </Button>
+                <Button
+                  disabled={!targetGroupId || transferMemberMutation.isPending}
+                  onClick={() =>
+                    memberToTransfer &&
+                    transferMemberMutation.mutate({
+                      userId: memberToTransfer.userId,
+                      targetGroupId,
+                    })
+                  }
+                >
+                  {transferMemberMutation.isPending ? "Переводим…" : "Перевести"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           <Card>
             <CardHeader>
@@ -497,7 +584,7 @@ export default function AdminGroupDetailPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="space-y-4 max-w-xl">
+              <div className="max-w-xl space-y-4">
                 <div className="space-y-2">
                   <Label>Курс</Label>
                   <Select
@@ -539,7 +626,7 @@ export default function AdminGroupDetailPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                
+
                 <Button
                   disabled={!selectedModuleId || moduleAccessMutation.isPending}
                   onClick={() =>
@@ -552,8 +639,8 @@ export default function AdminGroupDetailPage() {
               </div>
 
               {group.allowedModules && group.allowedModules.length > 0 && (
-                <div className="space-y-3 mt-8 pt-6 border-t">
-                  <h4 className="font-medium text-sm">Модули, доступные группе:</h4>
+                <div className="mt-8 space-y-3 border-t pt-6">
+                  <h4 className="text-sm font-medium">Модули, доступные группе:</h4>
                   <div className="grid gap-2">
                     {group.allowedModules.map((mod) => (
                       <div
@@ -569,8 +656,10 @@ export default function AdminGroupDetailPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="text-destructive h-8 px-2"
-                          onClick={() => moduleAccessMutation.mutate({ moduleId: mod.id, action: "revoke" })}
+                          className="h-8 px-2 text-destructive"
+                          onClick={() =>
+                            moduleAccessMutation.mutate({ moduleId: mod.id, action: "revoke" })
+                          }
                         >
                           Забрать доступ
                         </Button>
