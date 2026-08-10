@@ -66,9 +66,19 @@ export const adminGroupMemberSchema = z.object({
   userId: z.string().min(1, "userId обязателен"),
 });
 
-export const adminGroupTransferSchema = z.object({
+export const progressMappingSchema = z.object({
+  sourceLessonId: z.string().uuid(),
+  targetLessonId: z.string().uuid(),
+});
+
+export const adminGroupTransferPreviewSchema = z.object({
   userId: z.string().uuid(),
   targetGroupId: z.string().uuid(),
+});
+
+export const adminGroupTransferSchema = adminGroupTransferPreviewSchema.extend({
+  revokeSourceEnrollment: z.boolean().optional(),
+  progressMappings: z.array(progressMappingSchema).max(1000).optional(),
 });
 
 export const adminEnrollmentSchema = z.object({
