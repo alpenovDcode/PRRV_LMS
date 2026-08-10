@@ -13,6 +13,12 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import {
+  CERTIFICATION_LIMITS,
+  shouldShowCharacterCount,
+  type NumericAnswerRule,
+  validateCertificationAnswer,
+} from "@/lib/certification-form-validation";
 
 type QuestionType =
   | "text"
@@ -29,12 +35,18 @@ interface Question {
   options?: string[];
   required?: boolean;
   placeholder?: string;
+  numericRule?: NumericAnswerRule;
+  helper?: string;
   // Только для тестовых вопросов (часть 2):
   correct?: number; // index option-а — для single_radio
   correctAnswer?: string[]; // массив правильных option-строк — для multi_checkbox
 }
 
 const SCALE_1_10 = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
+const SINGLE_NUMBER_HELPER =
+  "Укажите одно целое число. Можно использовать пробелы или запятые для разделения тысяч.";
+const RANGE_NUMBER_HELPER =
+  "Можно указать одно целое число или диапазон через тире, например 1000–1300.";
 
 const MENTORS = [
   "Тим @timnz",
@@ -71,15 +83,24 @@ const MENTORS = [
 const PART1_QUESTIONS: Question[] = [
   { id: "telegram_nick", text: "Напишите свой ник в Telegram", type: "text", required: true },
   { id: "city", text: "В каком городе вы проживаете?", type: "textarea", required: true },
-  { id: "age", text: "Сколько вам лет?", type: "number", required: true },
+  {
+    id: "age",
+    text: "Сколько вам лет?",
+    type: "number",
+    required: true,
+    numericRule: "single_integer",
+    helper: SINGLE_NUMBER_HELPER,
+  },
   { id: "subject", text: "Ваш предмет и специализация", type: "text", required: true },
 
   // Точка А
   {
     id: "income_point_a",
-    text: 'Ваш доход в точке А? С каким уровнем дохода в месяц вы пришли на программу "Прорыв"? Укажите цифрой, без запятых, пробелов и прочего (Пример: 20000)',
+    text: 'Ваш доход в точке А? С каким уровнем дохода в месяц вы пришли на программу "Прорыв"?',
     type: "number",
     required: true,
+    numericRule: "single_integer",
+    helper: `${SINGLE_NUMBER_HELPER} Например: 20000.`,
   },
   {
     id: "emotional_state_before",
@@ -87,12 +108,38 @@ const PART1_QUESTIONS: Question[] = [
     type: "textarea",
     required: true,
   },
-  { id: "hour_price_before", text: "Какова была средняя стоимость 1 часа вашего занятия?", type: "number", required: true },
-  { id: "students_before", text: "Сколько у вас было учеников?", type: "number", required: true },
-  { id: "hours_before", text: "Какое кол-во часов в неделю вы работали?", type: "number", required: true },
+  {
+    id: "hour_price_before",
+    text: "Какова была средняя стоимость 1 часа вашего занятия?",
+    type: "number",
+    required: true,
+    numericRule: "integer_or_range",
+    helper: RANGE_NUMBER_HELPER,
+  },
+  {
+    id: "students_before",
+    text: "Сколько у вас было учеников?",
+    type: "number",
+    required: true,
+    numericRule: "integer_or_range",
+    helper: RANGE_NUMBER_HELPER,
+  },
+  {
+    id: "hours_before",
+    text: "Какое кол-во часов в неделю вы работали?",
+    type: "number",
+    required: true,
+    numericRule: "integer_or_range",
+    helper: RANGE_NUMBER_HELPER,
+  },
 
   // Проблемы и решение
-  { id: "problems_to_solve", text: "Какие проблемы вы хотели решить с помощью Прорыва?", type: "textarea", required: true },
+  {
+    id: "problems_to_solve",
+    text: "Какие проблемы вы хотели решить с помощью Прорыва?",
+    type: "textarea",
+    required: true,
+  },
   {
     id: "problems_solved_self",
     text: "Как вы решали эту проблему до Прорыва самостоятельно? Если решали, какие были результаты?",
@@ -130,9 +177,11 @@ const PART1_QUESTIONS: Question[] = [
   // Точка Б
   {
     id: "income_point_b",
-    text: "Точка Б: Ваш доход за последний месяц в рублях? Укажите цифрой, без запятых, пробелов и прочего (Пример: 100000)",
+    text: "Точка Б: Ваш доход за последний месяц в рублях?",
     type: "number",
     required: true,
+    numericRule: "single_integer",
+    helper: `${SINGLE_NUMBER_HELPER} Например: 100000.`,
   },
   {
     id: "emotional_state_after",
@@ -140,10 +189,36 @@ const PART1_QUESTIONS: Question[] = [
     type: "textarea",
     required: true,
   },
-  { id: "life_changes", text: "Как изменилась ваша жизнь после прохождения программы?", type: "textarea", required: true },
-  { id: "hour_price_after", text: "Какова сейчас средняя стоимость 1 часа вашего занятия?", type: "number", required: true },
-  { id: "students_now", text: "Сколько у вас сейчас учеников?", type: "number", required: true },
-  { id: "hours_now", text: "Сколько часов в неделю вы сейчас работаете?", type: "number", required: true },
+  {
+    id: "life_changes",
+    text: "Как изменилась ваша жизнь после прохождения программы?",
+    type: "textarea",
+    required: true,
+  },
+  {
+    id: "hour_price_after",
+    text: "Какова сейчас средняя стоимость 1 часа вашего занятия?",
+    type: "number",
+    required: true,
+    numericRule: "integer_or_range",
+    helper: RANGE_NUMBER_HELPER,
+  },
+  {
+    id: "students_now",
+    text: "Сколько у вас сейчас учеников?",
+    type: "number",
+    required: true,
+    numericRule: "integer_or_range",
+    helper: RANGE_NUMBER_HELPER,
+  },
+  {
+    id: "hours_now",
+    text: "Сколько часов в неделю вы сейчас работаете?",
+    type: "number",
+    required: true,
+    numericRule: "integer_or_range",
+    helper: RANGE_NUMBER_HELPER,
+  },
 
   // Освоенные навыки (привлечение)
   {
@@ -255,7 +330,13 @@ const PART1_QUESTIONS: Question[] = [
   },
 
   // Наставник
-  { id: "mentor", text: "Кто является вашим наставником?", type: "single_radio", options: MENTORS, required: true },
+  {
+    id: "mentor",
+    text: "Кто является вашим наставником?",
+    type: "single_radio",
+    options: MENTORS,
+    required: true,
+  },
   {
     id: "hw_check_speed",
     text: "Скорость проверки ДЗ наставником",
@@ -302,7 +383,12 @@ const PART1_QUESTIONS: Question[] = [
   },
 
   // Финальные вопросы
-  { id: "mentor_improvements", text: "Что можно было бы улучшить в работе наставника?", type: "textarea", required: true },
+  {
+    id: "mentor_improvements",
+    text: "Что можно было бы улучшить в работе наставника?",
+    type: "textarea",
+    required: true,
+  },
   {
     id: "program_improvements",
     text: "Что бы вы посоветовали для Прорыва: что бы вы хотели изменить/улучшить/добавить на курсе?",
@@ -559,12 +645,18 @@ interface CertificationFormViewerProps {
 type AnswerValue = string | string[];
 type Phase = "form" | "test" | "results";
 
-export function CertificationFormViewer({ lessonId, isCompleted, isPreview = false }: CertificationFormViewerProps) {
+export function CertificationFormViewer({
+  lessonId,
+  isCompleted,
+  isPreview = false,
+}: CertificationFormViewerProps) {
   const [phase, setPhase] = useState<Phase>("form");
   const [answers, setAnswers] = useState<Record<string, AnswerValue>>({});
   const [submitted, setSubmitted] = useState(false);
   const [testScore, setTestScore] = useState<number | null>(null);
   const [revealAnswers, setRevealAnswers] = useState(false);
+  const [touchedQuestions, setTouchedQuestions] = useState<Record<string, boolean>>({});
+  const [hasAttemptedContinue, setHasAttemptedContinue] = useState(false);
   const queryClient = useQueryClient();
 
   const submitMutation = useMutation({
@@ -591,10 +683,16 @@ export function CertificationFormViewer({ lessonId, isCompleted, isPreview = fal
     setAnswers((prev) => ({ ...prev, [id]: value }));
   };
 
+  const markTouched = (id: string) => {
+    setTouchedQuestions((prev) => ({ ...prev, [id]: true }));
+  };
+
   const toggleMulti = (id: string, option: string) => {
     setAnswers((prev) => {
       const current = (prev[id] as string[] | undefined) ?? [];
-      const next = current.includes(option) ? current.filter((o) => o !== option) : [...current, option];
+      const next = current.includes(option)
+        ? current.filter((o) => o !== option)
+        : [...current, option];
       return { ...prev, [id]: next };
     });
   };
@@ -604,6 +702,24 @@ export function CertificationFormViewer({ lessonId, isCompleted, isPreview = fal
     if (v === undefined) return false;
     if (Array.isArray(v)) return v.length > 0;
     return v.toString().trim() !== "";
+  };
+
+  const getQuestionError = (q: Question): string | undefined => {
+    const kind =
+      q.type === "number"
+        ? "numeric"
+        : q.type === "textarea"
+          ? "textarea"
+          : q.type === "text"
+            ? "text"
+            : "selection";
+
+    return validateCertificationAnswer({
+      value: answers[q.id],
+      required: q.required,
+      kind,
+      numericRule: q.numericRule,
+    });
   };
 
   const isOptionCorrect = (q: Question, option: string): boolean => {
@@ -638,11 +754,32 @@ export function CertificationFormViewer({ lessonId, isCompleted, isPreview = fal
   };
 
   const handleNextToTest = () => {
-    const missing = PART1_QUESTIONS.filter((q) => q.required && !isAnswered(q));
-    if (missing.length > 0) {
-      toast.error("Пожалуйста, ответьте на все обязательные вопросы со звёздочкой");
+    const invalidQuestions = PART1_QUESTIONS.filter((q) => getQuestionError(q));
+    setHasAttemptedContinue(true);
+
+    if (invalidQuestions.length > 0) {
+      const firstInvalid = invalidQuestions[0];
+      toast.error(
+        invalidQuestions.length === 1
+          ? "Исправьте ответ в подсвеченном поле"
+          : `Исправьте ответы в ${invalidQuestions.length} подсвеченных полях`
+      );
+
+      if (typeof window !== "undefined") {
+        window.requestAnimationFrame(() => {
+          const question = document.getElementById(`question-${firstInvalid.id}`);
+          question?.scrollIntoView({ behavior: "smooth", block: "center" });
+          question
+            ?.querySelector<HTMLElement>(
+              'input, textarea, button[role="radio"], button[role="checkbox"]'
+            )
+            ?.focus({ preventScroll: true });
+        });
+      }
       return;
     }
+
+    setHasAttemptedContinue(false);
     setPhase("test");
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -686,15 +823,15 @@ export function CertificationFormViewer({ lessonId, isCompleted, isPreview = fal
   // Если урок уже пройден — показываем плашку
   if ((submitted || isCompleted) && phase !== "results") {
     return (
-      <Card className="max-w-3xl mx-auto border-blue-100 shadow-lg">
-        <CardHeader className="text-center pb-2">
-          <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
-            <CircleCheck className="w-8 h-8 text-blue-600" />
+      <Card className="mx-auto max-w-3xl border-blue-100 shadow-lg">
+        <CardHeader className="pb-2 text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-100">
+            <CircleCheck className="h-8 w-8 text-blue-600" />
           </div>
           <CardTitle className="text-2xl">Сертификация пройдена!</CardTitle>
         </CardHeader>
-        <CardContent className="text-center space-y-6 pt-4 p-4 sm:p-6">
-          <div className="bg-gray-50 p-4 sm:p-6 rounded-xl border border-gray-200">
+        <CardContent className="space-y-6 p-4 pt-4 text-center sm:p-6">
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 sm:p-6">
             <p className="text-gray-600">Спасибо за прохождение анкеты и тестирования.</p>
           </div>
         </CardContent>
@@ -708,32 +845,32 @@ export function CertificationFormViewer({ lessonId, isCompleted, isPreview = fal
     const score = testScore ?? 0;
     const percent = Math.round((score / total) * 100);
     return (
-      <div className="max-w-3xl mx-auto space-y-6 pb-12 px-2 sm:px-0">
+      <div className="mx-auto max-w-3xl space-y-6 px-2 pb-12 sm:px-0">
         <Card className="border-blue-100 shadow-lg">
-          <CardHeader className="text-center pb-2">
-            <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
-              <Trophy className="w-8 h-8 text-blue-600" />
+          <CardHeader className="pb-2 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-100">
+              <Trophy className="h-8 w-8 text-blue-600" />
             </div>
             <CardTitle className="text-2xl">Сертификация завершена!</CardTitle>
           </CardHeader>
-          <CardContent className="text-center space-y-6 pt-4 p-4 sm:p-6">
-            <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl border border-blue-200">
-              <p className="text-gray-600 mb-2">Ваш результат тестирования</p>
+          <CardContent className="space-y-6 p-4 pt-4 text-center sm:p-6">
+            <div className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100 p-6">
+              <p className="mb-2 text-gray-600">Ваш результат тестирования</p>
               <p className="text-5xl font-bold text-blue-700">
                 {score} <span className="text-2xl text-gray-500">из {total}</span>
               </p>
-              <p className="text-lg text-gray-700 mt-2">{percent}% правильных ответов</p>
+              <p className="mt-2 text-lg text-gray-700">{percent}% правильных ответов</p>
             </div>
-            <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 text-left space-y-3">
-              <p className="font-semibold text-gray-900 text-center">Разбор ответов:</p>
+            <div className="space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4 text-left">
+              <p className="text-center font-semibold text-gray-900">Разбор ответов:</p>
               {PART2_QUESTIONS.map((q, idx) => {
                 const correct = isQuestionCorrect(q);
                 return (
                   <div key={q.id} className="flex items-start gap-2">
                     {correct ? (
-                      <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                      <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-green-600" />
                     ) : (
-                      <XCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                      <XCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600" />
                     )}
                     <span className="text-sm text-gray-700">
                       <span className="font-medium">{idx + 1}.</span> {q.text}
@@ -755,9 +892,9 @@ export function CertificationFormViewer({ lessonId, isCompleted, isPreview = fal
   const isTestPhase = phase === "test";
 
   return (
-    <div className="max-w-3xl mx-auto space-y-8 pb-12 px-2 sm:px-0">
-      <div className="text-center space-y-2">
-        <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">
+    <div className="mx-auto max-w-3xl space-y-8 px-2 pb-12 sm:px-0">
+      <div className="space-y-2 text-center">
+        <h2 className="text-2xl font-bold text-gray-900 sm:text-3xl">
           {isTestPhase ? "Часть 2. Тестирование" : "Анкета сертификации «Прорыв»"}
         </h2>
         <p className="text-gray-600">
@@ -768,49 +905,108 @@ export function CertificationFormViewer({ lessonId, isCompleted, isPreview = fal
       </div>
 
       {isTestPhase && revealAnswers && (
-        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-blue-900 text-sm">
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
           Тестирование завершено. Правильные ответы подсвечены зелёным, неправильные — красным.
           Ответы заблокированы. Нажмите «Посмотреть итоги», чтобы отправить результат.
         </div>
       )}
 
-      <div className="bg-gray-50/50 rounded-2xl p-6 sm:p-8 space-y-8 border border-gray-100 shadow-sm">
+      <div className="space-y-8 rounded-2xl border border-gray-100 bg-gray-50/50 p-6 shadow-sm sm:p-8">
         {currentQuestions.map((q, idx) => {
           const locked = isTestPhase && revealAnswers;
+          const error = getQuestionError(q);
+          const showError =
+            !isTestPhase && Boolean(error) && (hasAttemptedContinue || touchedQuestions[q.id]);
+          const controlId = `question-${q.id}-input`;
+          const helpId = `question-${q.id}-help`;
+          const errorId = `question-${q.id}-error`;
+          const describedBy =
+            [q.helper ? helpId : undefined, showError ? errorId : undefined]
+              .filter(Boolean)
+              .join(" ") || undefined;
+          const answer = answers[q.id];
+          const answerLength = typeof answer === "string" ? answer.length : 0;
+          const limit =
+            q.type === "number"
+              ? CERTIFICATION_LIMITS.numeric
+              : q.type === "text"
+                ? CERTIFICATION_LIMITS.text
+                : q.type === "textarea"
+                  ? CERTIFICATION_LIMITS.textarea
+                  : undefined;
+          const showCounter =
+            !isTestPhase && limit !== undefined && shouldShowCharacterCount(answerLength, limit);
+
           return (
-            <div key={q.id} className="space-y-3">
-              <Label className="text-base font-medium text-gray-900 leading-snug block">
-                {isTestPhase && <span className="text-gray-500 mr-1">{idx + 1}.</span>}
+            <div
+              key={q.id}
+              id={`question-${q.id}`}
+              className={cn(
+                "-m-4 scroll-mt-24 space-y-3 rounded-xl border border-transparent p-4 transition-colors",
+                showError && "border-red-300 bg-red-50/70"
+              )}
+            >
+              <Label
+                htmlFor={
+                  q.type === "text" || q.type === "number" || q.type === "textarea"
+                    ? controlId
+                    : undefined
+                }
+                className="block text-base font-medium leading-snug text-gray-900"
+              >
+                {isTestPhase && <span className="mr-1 text-gray-500">{idx + 1}.</span>}
                 {q.text} {q.required && <span className="text-red-500">*</span>}
               </Label>
 
               {q.type === "text" && (
                 <Input
+                  id={controlId}
                   value={(answers[q.id] as string) || ""}
                   onChange={(e) => setSingle(q.id, e.target.value)}
+                  onBlur={() => markTouched(q.id)}
                   placeholder={q.placeholder}
-                  className="bg-white max-w-xl border-gray-300"
+                  aria-invalid={showError || undefined}
+                  aria-describedby={describedBy}
+                  className={cn(
+                    "max-w-xl border-gray-300 bg-white",
+                    showError && "border-red-500 focus-visible:border-red-500"
+                  )}
                 />
               )}
 
               {q.type === "number" && (
                 <Input
-                  type="number"
-                  inputMode="numeric"
+                  id={controlId}
+                  type="text"
+                  inputMode={q.numericRule === "integer_or_range" ? "text" : "numeric"}
+                  autoComplete="off"
                   value={(answers[q.id] as string) || ""}
                   onChange={(e) => setSingle(q.id, e.target.value)}
+                  onBlur={() => markTouched(q.id)}
                   placeholder={q.placeholder}
-                  className="bg-white max-w-xs border-gray-300"
+                  aria-invalid={showError || undefined}
+                  aria-describedby={describedBy}
+                  className={cn(
+                    "max-w-xs border-gray-300 bg-white",
+                    showError && "border-red-500 focus-visible:border-red-500"
+                  )}
                 />
               )}
 
               {q.type === "textarea" && (
                 <Textarea
+                  id={controlId}
                   value={(answers[q.id] as string) || ""}
                   onChange={(e) => setSingle(q.id, e.target.value)}
+                  onBlur={() => markTouched(q.id)}
                   placeholder={q.placeholder}
                   rows={3}
-                  className="bg-white border-gray-300"
+                  aria-invalid={showError || undefined}
+                  aria-describedby={describedBy}
+                  className={cn(
+                    "border-gray-300 bg-white",
+                    showError && "border-red-500 focus-visible:border-red-500"
+                  )}
                 />
               )}
 
@@ -818,12 +1014,21 @@ export function CertificationFormViewer({ lessonId, isCompleted, isPreview = fal
                 <RadioGroup
                   value={(answers[q.id] as string) || ""}
                   onValueChange={(val) => setSingle(q.id, val)}
+                  aria-invalid={showError || undefined}
+                  aria-describedby={describedBy}
                   className="flex flex-wrap gap-x-4 gap-y-3 pt-1"
                 >
                   {SCALE_1_10.map((num) => (
                     <div key={num} className="flex flex-row items-center space-x-2">
-                      <RadioGroupItem value={num} id={`q-${q.id}-${num}`} className="text-blue-600" />
-                      <Label htmlFor={`q-${q.id}-${num}`} className="font-normal text-gray-700 cursor-pointer">
+                      <RadioGroupItem
+                        value={num}
+                        id={`q-${q.id}-${num}`}
+                        className="text-blue-600"
+                      />
+                      <Label
+                        htmlFor={`q-${q.id}-${num}`}
+                        className="cursor-pointer font-normal text-gray-700"
+                      >
                         {num}
                       </Label>
                     </div>
@@ -835,6 +1040,8 @@ export function CertificationFormViewer({ lessonId, isCompleted, isPreview = fal
                 <RadioGroup
                   value={(answers[q.id] as string) || ""}
                   onValueChange={(val) => setSingle(q.id, val)}
+                  aria-invalid={showError || undefined}
+                  aria-describedby={describedBy}
                   className="flex flex-col gap-2 pt-1"
                 >
                   {q.options.map((option) => {
@@ -850,13 +1057,23 @@ export function CertificationFormViewer({ lessonId, isCompleted, isPreview = fal
                     );
                     return (
                       <div key={option} className={optionClass}>
-                        <RadioGroupItem value={option} id={`q-${q.id}-${option}`} className="text-blue-600" disabled={locked} />
-                        <Label htmlFor={`q-${q.id}-${option}`} className="font-normal text-gray-700 cursor-pointer flex-1">
+                        <RadioGroupItem
+                          value={option}
+                          id={`q-${q.id}-${option}`}
+                          className="text-blue-600"
+                          disabled={locked}
+                        />
+                        <Label
+                          htmlFor={`q-${q.id}-${option}`}
+                          className="flex-1 cursor-pointer font-normal text-gray-700"
+                        >
                           {option}
                         </Label>
-                        {showFeedback && correct && <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />}
+                        {showFeedback && correct && (
+                          <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-green-600" />
+                        )}
                         {showFeedback && selected && !correct && (
-                          <XCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                          <XCircle className="h-4 w-4 flex-shrink-0 text-red-600" />
                         )}
                       </div>
                     );
@@ -865,7 +1082,12 @@ export function CertificationFormViewer({ lessonId, isCompleted, isPreview = fal
               )}
 
               {q.type === "multi_checkbox" && q.options && (
-                <div className="flex flex-col gap-2 pt-1">
+                <div
+                  className="flex flex-col gap-2 pt-1"
+                  role="group"
+                  aria-invalid={showError || undefined}
+                  aria-describedby={describedBy}
+                >
                   {q.options.map((option) => {
                     const showFeedback = isTestPhase && revealAnswers;
                     const correct = isOptionCorrect(q, option);
@@ -885,17 +1107,50 @@ export function CertificationFormViewer({ lessonId, isCompleted, isPreview = fal
                           disabled={locked}
                           onCheckedChange={() => toggleMulti(q.id, option)}
                         />
-                        <Label htmlFor={`q-${q.id}-${option}`} className="font-normal text-gray-700 cursor-pointer flex-1">
+                        <Label
+                          htmlFor={`q-${q.id}-${option}`}
+                          className="flex-1 cursor-pointer font-normal text-gray-700"
+                        >
                           {option}
                         </Label>
-                        {showFeedback && correct && <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />}
+                        {showFeedback && correct && (
+                          <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-green-600" />
+                        )}
                         {showFeedback && selected && !correct && (
-                          <XCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                          <XCircle className="h-4 w-4 flex-shrink-0 text-red-600" />
                         )}
                       </div>
                     );
                   })}
                 </div>
+              )}
+
+              {(q.helper || showCounter) && (
+                <div className="flex flex-wrap items-start justify-between gap-2 text-xs">
+                  {q.helper ? (
+                    <p id={helpId} className="text-gray-500">
+                      {q.helper}
+                    </p>
+                  ) : (
+                    <span />
+                  )}
+                  {showCounter && limit !== undefined && (
+                    <span
+                      className={cn(
+                        "ml-auto tabular-nums text-gray-500",
+                        answerLength > limit && "font-medium text-red-600"
+                      )}
+                    >
+                      {answerLength}/{limit}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {showError && (
+                <p id={errorId} role="alert" className="text-sm font-medium text-red-700">
+                  {error}
+                </p>
               )}
             </div>
           );
@@ -906,7 +1161,7 @@ export function CertificationFormViewer({ lessonId, isCompleted, isPreview = fal
             <Button
               size="lg"
               onClick={handleNextToTest}
-              className="bg-[#f05a28] hover:bg-[#d94a1d] text-white min-w-[240px] h-12 text-base rounded-full"
+              className="h-12 min-w-[240px] rounded-full bg-[#f05a28] text-base text-white hover:bg-[#d94a1d]"
             >
               Перейти к тестированию
             </Button>
@@ -915,7 +1170,7 @@ export function CertificationFormViewer({ lessonId, isCompleted, isPreview = fal
             <Button
               size="lg"
               onClick={handleFinishTest}
-              className="bg-[#f05a28] hover:bg-[#d94a1d] text-white min-w-[240px] h-12 text-base rounded-full"
+              className="h-12 min-w-[240px] rounded-full bg-[#f05a28] text-base text-white hover:bg-[#d94a1d]"
             >
               Завершить тестирование
             </Button>
@@ -925,7 +1180,7 @@ export function CertificationFormViewer({ lessonId, isCompleted, isPreview = fal
               size="lg"
               onClick={handleViewResults}
               disabled={submitMutation.isPending}
-              className="bg-[#f05a28] hover:bg-[#d94a1d] text-white min-w-[240px] h-12 text-base rounded-full"
+              className="h-12 min-w-[240px] rounded-full bg-[#f05a28] text-base text-white hover:bg-[#d94a1d]"
             >
               {submitMutation.isPending ? "Отправка…" : "Посмотреть итоги"}
             </Button>
