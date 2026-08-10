@@ -4,10 +4,12 @@ import { db } from "@/lib/db";
 import { ApiResponse } from "@/types";
 import { UserRole } from "@prisma/client";
 import { z } from "zod";
+import { normalizeEnrollmentAccess } from "@/lib/enrollment-access";
 
 const updateEnrollmentSchema = z.object({
   expiresAt: z.string().nullable().optional(), // ISO Date string or null
   restrictedModules: z.array(z.string()).optional(),
+  forcedModules: z.array(z.string()).optional(),
   restrictedLessons: z.array(z.string()).optional(),
   status: z.enum(["active", "expired", "frozen"]).optional(),
 });
@@ -46,11 +48,21 @@ export async function PATCH(
         if (validatedData.expiresAt !== undefined) {
           updateData.expiresAt = validatedData.expiresAt ? new Date(validatedData.expiresAt) : null;
         }
-        if (validatedData.restrictedModules !== undefined) {
-          updateData.restrictedModules = validatedData.restrictedModules;
-        }
-        if (validatedData.restrictedLessons !== undefined) {
-          updateData.restrictedLessons = validatedData.restrictedLessons;
+        if (
+          validatedData.restrictedModules !== undefined ||
+          validatedData.restrictedLessons !== undefined ||
+          validatedData.forcedModules !== undefined
+        ) {
+          const normalizedAccess = normalizeEnrollmentAccess({
+            restrictedModules:
+              validatedData.restrictedModules ?? existingEnrollment.restrictedModules,
+            restrictedLessons:
+              validatedData.restrictedLessons ?? existingEnrollment.restrictedLessons,
+            forcedModules: validatedData.forcedModules ?? existingEnrollment.forcedModules,
+          });
+          updateData.restrictedModules = normalizedAccess.restrictedModules;
+          updateData.restrictedLessons = normalizedAccess.restrictedLessons;
+          updateData.forcedModules = normalizedAccess.forcedModules;
         }
         if (validatedData.status !== undefined) {
             updateData.status = validatedData.status;

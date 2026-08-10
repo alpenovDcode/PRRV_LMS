@@ -56,6 +56,7 @@ export async function GET(
                 startDate: true,
                 expiresAt: true,
                 restrictedModules: true,
+                forcedModules: true,
                 restrictedLessons: true,
                 course: {
                   select: {

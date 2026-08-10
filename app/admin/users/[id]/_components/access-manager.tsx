@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,24 +23,28 @@ import {
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Loader2, Settings2, CalendarIcon } from "lucide-react";
+import { Loader2, Settings2, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
 interface AccessManagerProps {
+  userId: string;
   enrollment: any;
   onUpdate: () => void;
 }
 
-export function AccessManager({ enrollment, onUpdate }: AccessManagerProps) {
+export function AccessManager({ userId, enrollment, onUpdate }: AccessManagerProps) {
+  const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
+  const [isRevokeOpen, setIsRevokeOpen] = useState(false);
   const [expiresAt, setExpiresAt] = useState<Date | undefined>(
     enrollment.expiresAt ? new Date(enrollment.expiresAt) : undefined
   );
   
   // Local state for restrictions (initially from props, assuming API returns them)
   const [restrictedModules, setRestrictedModules] = useState<string[]>(enrollment.restrictedModules || []);
+  const [forcedModules, setForcedModules] = useState<string[]>(enrollment.forcedModules || []);
   const [restrictedLessons, setRestrictedLessons] = useState<string[]>(enrollment.restrictedLessons || []);
 
   const { data: course, isLoading: isCourseLoading } = useQuery({
@@ -57,6 +61,7 @@ export function AccessManager({ enrollment, onUpdate }: AccessManagerProps) {
       const payload = {
         expiresAt: expiresAt ? expiresAt.toISOString() : null,
         restrictedModules,
+        forcedModules,
         restrictedLessons,
       };
       await apiClient.patch(`/admin/enrollments/${enrollment.id}`, payload);
@@ -71,11 +76,28 @@ export function AccessManager({ enrollment, onUpdate }: AccessManagerProps) {
     },
   });
 
+  const revokeMutation = useMutation({
+    mutationFn: async () => {
+      await apiClient.delete(`/admin/users/${userId}/enrollments`, {
+        params: { courseId: enrollment.course.id },
+      });
+    },
+    onSuccess: () => {
+      toast.success("Доступ к курсу отозван");
+      setIsRevokeOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["admin", "users", userId] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "users", userId, "lesson-progress"] });
+      onUpdate();
+    },
+    onError: () => toast.error("Не удалось отозвать доступ к курсу"),
+  });
+
   const toggleModule = (moduleId: string, checked: boolean) => {
     if (checked) {
       setRestrictedModules(prev => prev.filter(id => id !== moduleId));
     } else {
       setRestrictedModules(prev => [...prev, moduleId]);
+      setForcedModules(prev => prev.filter(id => id !== moduleId));
     }
   };
 
@@ -90,12 +112,31 @@ export function AccessManager({ enrollment, onUpdate }: AccessManagerProps) {
   const isModuleRestricted = (moduleId: string) => restrictedModules.includes(moduleId);
   const isLessonRestricted = (lessonId: string) => restrictedLessons.includes(lessonId);
 
+  const openSettings = () => {
+    setExpiresAt(enrollment.expiresAt ? new Date(enrollment.expiresAt) : undefined);
+    setRestrictedModules(enrollment.restrictedModules || []);
+    setForcedModules(enrollment.forcedModules || []);
+    setRestrictedLessons(enrollment.restrictedLessons || []);
+    setIsOpen(true);
+  };
+
   return (
     <>
-      <Button variant="outline" size="sm" onClick={() => setIsOpen(true)}>
-        <Settings2 className="mr-2 h-4 w-4" />
-        Настроить
-      </Button>
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button variant="outline" size="sm" onClick={openSettings}>
+          <Settings2 className="mr-2 h-4 w-4" />
+          Настроить
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-red-600 hover:bg-red-50 hover:text-red-700"
+          onClick={() => setIsRevokeOpen(true)}
+        >
+          <Trash2 className="mr-2 h-4 w-4" />
+          Отозвать
+        </Button>
+      </div>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
@@ -143,6 +184,7 @@ export function AccessManager({ enrollment, onUpdate }: AccessManagerProps) {
                         key={module.id} 
                         module={module}
                         isRestricted={isModuleRestricted(module.id)}
+                        isForced={forcedModules.includes(module.id)}
                         restrictedLessons={restrictedLessons}
                         onToggleModule={toggleModule}
                         onToggleLesson={toggleLesson}
@@ -163,6 +205,30 @@ export function AccessManager({ enrollment, onUpdate }: AccessManagerProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={isRevokeOpen} onOpenChange={setIsRevokeOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Полностью отозвать доступ?</DialogTitle>
+            <DialogDescription>
+              Курс «{enrollment.course.title}» исчезнет из «Моих материалов». Прогресс и
+              домашние задания сохранятся.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsRevokeOpen(false)}>
+              Отмена
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={revokeMutation.isPending}
+              onClick={() => revokeMutation.mutate()}
+            >
+              {revokeMutation.isPending ? "Отзываем…" : "Отозвать доступ"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
@@ -170,6 +236,7 @@ export function AccessManager({ enrollment, onUpdate }: AccessManagerProps) {
 function ModuleAccessItem({ 
   module, 
   isRestricted, 
+  isForced,
   restrictedLessons, 
   onToggleModule, 
   onToggleLesson 
@@ -184,6 +251,9 @@ function ModuleAccessItem({
         <span className={cn("font-medium", isRestricted && "text-gray-400 line-through")}>
            {module.title}
         </span>
+        {isForced && !isRestricted && (
+          <Badge className="border-0 bg-blue-100 text-blue-800">Открыт принудительно</Badge>
+        )}
       </div>
       
       {!isRestricted && module.lessons && module.lessons.length > 0 && (

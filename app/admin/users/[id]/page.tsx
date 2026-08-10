@@ -981,6 +981,7 @@ export default function AdminUserDetailPage() {
                          )}
                        </div>
                        <AccessManager 
+                         userId={userId}
                          enrollment={enrollment} 
                          onUpdate={() => queryClient.invalidateQueries({ queryKey: ["admin", "users", userId] })}
                        />

@@ -224,13 +224,8 @@ export async function DELETE(
           },
         });
 
-        await db.enrollment.delete({
-          where: {
-            userId_courseId: {
-              userId: id,
-              courseId,
-            },
-          },
+        const deleted = await db.enrollment.deleteMany({
+          where: { userId: id, courseId },
         });
 
         // Audit log
@@ -242,7 +237,10 @@ export async function DELETE(
           });
         }
 
-        return NextResponse.json<ApiResponse>({ success: true }, { status: 200 });
+        return NextResponse.json<ApiResponse>(
+          { success: true, data: { removed: deleted.count > 0 } },
+          { status: 200 }
+        );
       } catch (error) {
         console.error("Delete enrollment error:", error);
         return NextResponse.json<ApiResponse>(
@@ -260,5 +258,4 @@ export async function DELETE(
     { roles: [UserRole.admin, UserRole.curator] }
   );
 }
-
 
