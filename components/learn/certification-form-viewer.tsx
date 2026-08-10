@@ -13,6 +13,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { formatCertificationAnswers } from "@/lib/certification-answer-compatibility";
 import {
   CERTIFICATION_LIMITS,
   shouldShowCharacterCount,
@@ -31,6 +32,7 @@ type QuestionType =
 interface Question {
   id: string;
   text: string;
+  storageKey?: string;
   type: QuestionType;
   options?: string[];
   required?: boolean;
@@ -97,6 +99,8 @@ const PART1_QUESTIONS: Question[] = [
   {
     id: "income_point_a",
     text: 'Ваш доход в точке А? С каким уровнем дохода в месяц вы пришли на программу "Прорыв"?',
+    storageKey:
+      'Ваш доход в точке А? С каким уровнем дохода в месяц вы пришли на программу "Прорыв"? Укажите цифрой, без запятых, пробелов и прочего (Пример: 20000)',
     type: "number",
     required: true,
     numericRule: "single_integer",
@@ -178,6 +182,8 @@ const PART1_QUESTIONS: Question[] = [
   {
     id: "income_point_b",
     text: "Точка Б: Ваш доход за последний месяц в рублях?",
+    storageKey:
+      "Точка Б: Ваш доход за последний месяц в рублях? Укажите цифрой, без запятых, пробелов и прочего (Пример: 100000)",
     type: "number",
     required: true,
     numericRule: "single_integer",
@@ -800,12 +806,10 @@ export function CertificationFormViewer({
     const correctCount = testScore ?? PART2_QUESTIONS.filter((q) => isQuestionCorrect(q)).length;
     const total = PART2_QUESTIONS.length;
 
-    const formatted: Record<string, string> = {};
-    [...PART1_QUESTIONS, ...PART2_QUESTIONS].forEach((q) => {
-      const v = answers[q.id];
-      if (v === undefined) return;
-      formatted[q.text] = Array.isArray(v) ? v.join(", ") : String(v);
-    });
+    const formatted = formatCertificationAnswers(
+      [...PART1_QUESTIONS, ...PART2_QUESTIONS],
+      answers
+    );
     formatted["Тестирование: правильных ответов"] = `${correctCount} из ${total}`;
 
     submitMutation.mutate({

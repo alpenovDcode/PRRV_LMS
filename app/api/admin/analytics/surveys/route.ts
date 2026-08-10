@@ -5,6 +5,7 @@ import { ApiResponse } from "@/types";
 import { UserRole } from "@prisma/client";
 import { format } from "date-fns";
 import { rangeToFromDate } from "@/lib/analytics-range";
+import { extractCertificationIncomePoints } from "@/lib/certification-answer-compatibility";
 
 function calcNPS(scores: number[]): { nps: number | null; promoters: number; detractors: number; neutrals: number; total: number } {
   const total = scores.length;
@@ -155,33 +156,6 @@ function computeSurveyOpenDate(
   }
   // after_previous_completed зависит от студента — не считаем группой.
   return null;
-}
-
-// Парсим доход из ответа (число как строка) — устойчиво к пробелам, «₽», «руб.».
-function parseIncome(raw: string | undefined | null): number | null {
-  if (!raw) return null;
-  const cleaned = String(raw).replace(/[^\d.,]/g, "").replace(",", ".");
-  const n = parseFloat(cleaned);
-  return isNaN(n) || n <= 0 ? null : n;
-}
-
-// Извлекаем точки А и Б из _answers сертификации. Ключи в _answers — это
-// текст вопроса (см. certification-form-viewer.tsx handleViewResults).
-// Определяем по подстрокам «в точке А» / «Точка Б» — они уникальны.
-function extractPoints(
-  answers: Record<string, string>
-): { pointA: number | null; pointB: number | null } {
-  let pointA: number | null = null;
-  let pointB: number | null = null;
-  for (const [q, v] of Object.entries(answers)) {
-    const low = q.toLowerCase();
-    if (pointA === null && (low.includes("в точке а") || low.includes("точке а?"))) {
-      pointA = parseIncome(v);
-    } else if (pointB === null && (low.includes("точка б") || low.includes("точке б"))) {
-      pointB = parseIncome(v);
-    }
-  }
-  return { pointA, pointB };
 }
 
 // Студент — кейс, если доход вырос в 1.5 раза и больше.
@@ -460,7 +434,7 @@ export async function GET(request: NextRequest) {
             }
             const entry = groupMap.get(group.id)!;
             // Точка А vs Точка Б → кейс, если Б/А ≥ 1.5.
-            const { pointA, pointB } = extractPoints(answers);
+            const { pointA, pointB } = extractCertificationIncomePoints(answers);
             const isCaseFlag = isCase(pointA, pointB);
             const npsScoreForUser = findScore(answers, "порекомендуете", "порекомендовать");
             const ratio =
