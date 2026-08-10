@@ -166,3 +166,6 @@ data/knowledge_base.json
 # Claude Code (worktrees, settings, local artifacts)
 .claude/worktrees/
 .claude/settings.local.json
+
+# Codex isolated worktrees
+.worktrees/
