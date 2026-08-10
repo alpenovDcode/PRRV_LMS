@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildProgressTransferPreview,
+  buildProgressUpdateData,
   initializeProgressMappings,
   mergeProgress,
   replaceProgressMapping,
@@ -219,5 +220,25 @@ describe("curator mapping selection", () => {
         "target-1"
       )
     ).toEqual([{ sourceLessonId: "source-2", targetLessonId: "target-1" }]);
+  });
+});
+
+describe("buildProgressUpdateData", () => {
+  it("sets a completion timestamp when a curator completes a lesson", () => {
+    const now = new Date("2026-08-10T12:00:00.000Z");
+
+    expect(buildProgressUpdateData({ status: "completed" }, now)).toEqual({
+      status: "completed",
+      completedAt: now,
+    });
+  });
+
+  it("clears the completion timestamp when a lesson returns to progress", () => {
+    const now = new Date("2026-08-10T12:00:00.000Z");
+
+    expect(buildProgressUpdateData({ status: "in_progress" }, now)).toEqual({
+      status: "in_progress",
+      completedAt: null,
+    });
   });
 });

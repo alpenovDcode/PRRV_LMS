@@ -5,6 +5,7 @@ import { UserRole, ProgressStatus, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { logAction } from "@/lib/audit";
 import { z } from "zod";
+import { buildProgressUpdateData } from "@/lib/progress-transfer";
 
 const updateProgressSchema = z.object({
   lessonId: z.string().uuid(),
@@ -64,12 +65,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           );
         }
 
-        const updateData: Prisma.LessonProgressUncheckedUpdateInput = {};
-        if (status !== undefined) updateData.status = status;
-        if (watchedTime !== undefined) updateData.watchedTime = watchedTime;
-        if (completedAt !== undefined) {
-          updateData.completedAt = completedAt ? new Date(completedAt) : null;
-        }
+        const updateData: Prisma.LessonProgressUncheckedUpdateInput = buildProgressUpdateData(
+          {
+            status,
+            watchedTime,
+            completedAt:
+              completedAt === undefined ? undefined : completedAt ? new Date(completedAt) : null,
+          },
+          new Date()
+        );
 
         const progress = await db.lessonProgress.upsert({
           where: {
@@ -84,7 +88,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
             lessonId,
             status: (status as ProgressStatus) || "not_started",
             watchedTime: watchedTime || 0,
-            completedAt: completedAt ? new Date(completedAt) : null,
+            completedAt:
+              updateData.completedAt instanceof Date ? updateData.completedAt : null,
           },
         });
 

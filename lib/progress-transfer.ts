@@ -44,6 +44,12 @@ export interface ProgressTransferPreview {
   unmatchedTargetLessonIds: string[];
 }
 
+export interface ProgressUpdateInput {
+  status?: TransferStatus;
+  watchedTime?: number;
+  completedAt?: Date | null;
+}
+
 export function normalizeTransferTitle(value: string): string {
   return value
     .toLocaleLowerCase("ru-RU")
@@ -212,6 +218,25 @@ export function replaceProgressMapping(
   return targetLessonId
     ? [...remaining, { sourceLessonId, targetLessonId }]
     : remaining;
+}
+
+export function buildProgressUpdateData(
+  input: ProgressUpdateInput,
+  now: Date
+): ProgressUpdateInput {
+  const result: ProgressUpdateInput = {};
+  if (input.status !== undefined) result.status = input.status;
+  if (input.watchedTime !== undefined) result.watchedTime = input.watchedTime;
+
+  if (input.completedAt !== undefined) {
+    result.completedAt = input.completedAt;
+  } else if (input.status === "completed") {
+    result.completedAt = now;
+  } else if (input.status !== undefined) {
+    result.completedAt = null;
+  }
+
+  return result;
 }
 
 const STATUS_RANK: Record<TransferStatus, number> = {

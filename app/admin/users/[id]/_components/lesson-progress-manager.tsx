@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { RotateCcw, BookOpen, Loader2, Award } from "lucide-react";
+import { RotateCcw, BookOpen, Loader2, Award, CheckCircle2, PlayCircle } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -145,6 +145,30 @@ export function LessonProgressManager({
     },
   });
 
+  const statusMutation = useMutation({
+    mutationFn: async ({
+      lesson,
+      status,
+    }: {
+      lesson: LessonProgressRow;
+      status: "in_progress" | "completed";
+    }) => {
+      await apiClient.patch(`/admin/users/${userId}/progress/update`, {
+        lessonId: lesson.id,
+        status,
+      });
+      return { lesson, status };
+    },
+    onSuccess: ({ status }) => {
+      toast.success(status === "completed" ? "Урок отмечен пройденным" : "Урок возвращён в процесс");
+      queryClient.invalidateQueries({
+        queryKey: ["admin", "users", userId, "lesson-progress", courseId],
+      });
+      queryClient.invalidateQueries({ queryKey: ["admin", "users", userId] });
+    },
+    onError: () => toast.error("Не удалось изменить статус урока"),
+  });
+
   if (courses.length === 0) {
     return (
       <Card className="border-none bg-white shadow-sm">
@@ -167,7 +191,7 @@ export function LessonProgressManager({
           <div>
             <CardTitle>Прогресс по урокам</CardTitle>
             <CardDescription className="mt-1">
-              Выберите конкретный урок, чтобы студент смог пройти его заново.
+              Корректируйте статус конкретного урока или откройте его для повторного прохождения.
             </CardDescription>
           </div>
           <Select value={courseId} onValueChange={setCourseId}>
@@ -200,6 +224,8 @@ export function LessonProgressManager({
                 const isCertification = lesson.type === "certification_form";
                 const canReset =
                   lesson.status !== "not_started" || Boolean(lesson.latestSubmission);
+                const isUpdatingStatus =
+                  statusMutation.isPending && statusMutation.variables?.lesson.id === lesson.id;
 
                 return (
                   <div
@@ -237,16 +263,42 @@ export function LessonProgressManager({
                         )}
                       </div>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="shrink-0 text-red-600 hover:bg-red-50 hover:text-red-700"
-                      disabled={!canReset}
-                      onClick={() => setLessonToReset(lesson)}
-                    >
-                      <RotateCcw className="mr-2 h-4 w-4" />
-                      Сбросить
-                    </Button>
+                    <div className="flex shrink-0 flex-wrap gap-2">
+                      {lesson.status !== "completed" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
+                          disabled={isUpdatingStatus || resetMutation.isPending}
+                          onClick={() => statusMutation.mutate({ lesson, status: "completed" })}
+                        >
+                          <CheckCircle2 className="mr-2 h-4 w-4" />
+                          Отметить пройденным
+                        </Button>
+                      )}
+                      {lesson.status !== "in_progress" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-blue-700 hover:bg-blue-50 hover:text-blue-800"
+                          disabled={isUpdatingStatus || resetMutation.isPending}
+                          onClick={() => statusMutation.mutate({ lesson, status: "in_progress" })}
+                        >
+                          <PlayCircle className="mr-2 h-4 w-4" />
+                          Вернуть в процесс
+                        </Button>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                        disabled={!canReset || isUpdatingStatus || resetMutation.isPending}
+                        onClick={() => setLessonToReset(lesson)}
+                      >
+                        <RotateCcw className="mr-2 h-4 w-4" />
+                        Сбросить
+                      </Button>
+                    </div>
                   </div>
                 );
               })}
