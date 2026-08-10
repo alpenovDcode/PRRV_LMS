@@ -196,7 +196,13 @@ export function mergeProgress(
   source: TransferProgressState,
   target: TransferProgressState | null
 ): TransferProgressState {
-  if (!target) return { ...source };
+  if (!target) {
+    return {
+      status: source.status,
+      watchedTime: source.watchedTime,
+      completedAt: source.completedAt,
+    };
+  }
 
   const sourceWins = STATUS_RANK[source.status] > STATUS_RANK[target.status];
   const chosen = sourceWins ? source : target;
