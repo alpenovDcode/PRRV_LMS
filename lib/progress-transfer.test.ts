@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   buildProgressTransferPreview,
+  initializeProgressMappings,
   mergeProgress,
+  replaceProgressMapping,
   validateProgressMappings,
   type TransferLesson,
 } from "./progress-transfer";
@@ -177,5 +179,45 @@ describe("mergeProgress", () => {
       watchedTime: 180,
       completedAt,
     });
+  });
+});
+
+describe("curator mapping selection", () => {
+  it("initializes only safe preselected suggestions", () => {
+    expect(
+      initializeProgressMappings([
+        {
+          sourceLessonId: "source-1",
+          targetLessonId: "target-1",
+          confidence: "exact",
+          selected: true,
+        },
+        {
+          sourceLessonId: "source-2",
+          targetLessonId: "target-2",
+          confidence: "position",
+          selected: false,
+        },
+        {
+          sourceLessonId: "source-3",
+          targetLessonId: null,
+          confidence: "unmatched",
+          selected: false,
+        },
+      ])
+    ).toEqual([{ sourceLessonId: "source-1", targetLessonId: "target-1" }]);
+  });
+
+  it("moves a target lesson to the curator-selected source without duplicates", () => {
+    expect(
+      replaceProgressMapping(
+        [
+          { sourceLessonId: "source-1", targetLessonId: "target-1" },
+          { sourceLessonId: "source-2", targetLessonId: "target-2" },
+        ],
+        "source-2",
+        "target-1"
+      )
+    ).toEqual([{ sourceLessonId: "source-2", targetLessonId: "target-1" }]);
   });
 });

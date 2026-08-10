@@ -29,6 +29,10 @@ import { Pencil, Check, ChevronsUpDown, Search, ArrowRightLeft } from "lucide-re
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  MemberTransferDialog,
+  type TransferResult,
+} from "./_components/member-transfer-dialog";
 
 interface GroupDetail {
   id: string;
@@ -94,7 +98,6 @@ export default function AdminGroupDetailPage() {
   const [selectedModuleCourseId, setSelectedModuleCourseId] = React.useState<string>("");
   const [selectedModuleId, setSelectedModuleId] = React.useState<string>("");
   const [memberToTransfer, setMemberToTransfer] = React.useState<GroupMember | null>(null);
-  const [targetGroupId, setTargetGroupId] = React.useState<string>("");
 
   const { data: groups, isLoading } = useQuery<GroupDetail[]>({
     queryKey: ["admin", "groups"],
@@ -164,27 +167,16 @@ export default function AdminGroupDetailPage() {
     },
   });
 
-  const transferMemberMutation = useMutation({
-    mutationFn: async ({ userId, targetGroupId }: { userId: string; targetGroupId: string }) => {
-      await apiClient.post(`/admin/groups/${groupId}/members/transfer`, {
-        userId,
-        targetGroupId,
-      });
-    },
-    onSuccess: () => {
+  const handleTransferred = (result: TransferResult) => {
       queryClient.invalidateQueries({ queryKey: ["admin", "groups"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "groups", groupId, "members"] });
-      if (targetGroupId) {
+      if (result.targetGroupId) {
         queryClient.invalidateQueries({
-          queryKey: ["admin", "groups", targetGroupId, "members"],
+          queryKey: ["admin", "groups", result.targetGroupId, "members"],
         });
       }
       setMemberToTransfer(null);
-      setTargetGroupId("");
-      toast.success("Участник переведён, прогресс и доступы сохранены");
-    },
-    onError: () => toast.error("Не удалось перевести участника"),
-  });
+  };
 
   const bulkEnrollMutation = useMutation({
     mutationFn: async (payload: { courseId: string }) => {
@@ -454,7 +446,6 @@ export default function AdminGroupDetailPage() {
                           size="sm"
                           onClick={() => {
                             setMemberToTransfer(member);
-                            setTargetGroupId("");
                           }}
                         >
                           <ArrowRightLeft className="mr-2 h-4 w-4" />
@@ -511,70 +502,14 @@ export default function AdminGroupDetailPage() {
             </CardContent>
           </Card>
 
-          <Dialog
+          <MemberTransferDialog
             open={Boolean(memberToTransfer)}
-            onOpenChange={(open) => {
-              if (!open) {
-                setMemberToTransfer(null);
-                setTargetGroupId("");
-              }
-            }}
-          >
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Перевести участника</DialogTitle>
-                <DialogDescription>
-                  Прогресс, домашние задания и существующие доступы к курсам сохранятся. Даты
-                  текущего курса будут перенесены на расписание новой группы.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="rounded-md border bg-muted/40 p-3 text-sm">
-                  <div className="font-medium">
-                    {memberToTransfer?.user.fullName || memberToTransfer?.user.email}
-                  </div>
-                  <div className="text-muted-foreground">Из группы: {group.name}</div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Новая группа</Label>
-                  <Select value={targetGroupId} onValueChange={setTargetGroupId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Выберите группу" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {groups
-                        ?.filter((item) => item.id !== groupId)
-                        .map((item) => (
-                          <SelectItem key={item.id} value={item.id}>
-                            {item.name}
-                            {item.startDate
-                              ? ` — старт ${new Date(item.startDate).toLocaleDateString("ru-RU")}`
-                              : ""}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setMemberToTransfer(null)}>
-                  Отмена
-                </Button>
-                <Button
-                  disabled={!targetGroupId || transferMemberMutation.isPending}
-                  onClick={() =>
-                    memberToTransfer &&
-                    transferMemberMutation.mutate({
-                      userId: memberToTransfer.userId,
-                      targetGroupId,
-                    })
-                  }
-                >
-                  {transferMemberMutation.isPending ? "Переводим…" : "Перевести"}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+            sourceGroup={group}
+            member={memberToTransfer}
+            groups={groups ?? []}
+            onOpenChange={(open) => !open && setMemberToTransfer(null)}
+            onTransferred={handleTransferred}
+          />
 
           <Card>
             <CardHeader>

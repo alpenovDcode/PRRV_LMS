@@ -185,6 +185,35 @@ export function validateProgressMappings(
   }
 }
 
+export function initializeProgressMappings(
+  suggestions: ProgressTransferSuggestion[]
+): ProgressMapping[] {
+  return suggestions.flatMap((suggestion) =>
+    suggestion.selected && suggestion.targetLessonId
+      ? [
+          {
+            sourceLessonId: suggestion.sourceLessonId,
+            targetLessonId: suggestion.targetLessonId,
+          },
+        ]
+      : []
+  );
+}
+
+export function replaceProgressMapping(
+  mappings: ProgressMapping[],
+  sourceLessonId: string,
+  targetLessonId: string | null
+): ProgressMapping[] {
+  const remaining = mappings.filter(
+    (mapping) =>
+      mapping.sourceLessonId !== sourceLessonId && mapping.targetLessonId !== targetLessonId
+  );
+  return targetLessonId
+    ? [...remaining, { sourceLessonId, targetLessonId }]
+    : remaining;
+}
+
 const STATUS_RANK: Record<TransferStatus, number> = {
   not_started: 0,
   failed: 0,
