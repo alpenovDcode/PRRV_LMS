@@ -1,11 +1,10 @@
 import { db } from "@/lib/db";
-import { format } from "date-fns";
-import { ru } from "date-fns/locale";
 import { PDFDocument, rgb } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import { readFile, writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { sendEmail, emailTemplates } from "@/lib/email-service";
+import { resolveFullNameField } from "@/lib/certificate-fields";
 
 interface GenerateCertificateParams {
   userId: string;
@@ -94,7 +93,8 @@ async function generateCertificatePdf(
 
     // Draw fields
     // fieldConfig structure: { fullName: { x, y, fontSize, color, ... }, ... }
-    const config = template.fieldConfig as any;
+    const fullNameField = resolveFullNameField(template.fieldConfig);
+    const config = { fullName: fullNameField };
     
     log(`Config keys: ${Object.keys(config).join(", ")}`);
 
@@ -111,7 +111,7 @@ async function generateCertificatePdf(
       
       log(`Processing field ${key}:`, debugInfo);
 
-      if (!field || field.hidden) {
+      if (!field) {
          return;
       }
 
@@ -149,8 +149,10 @@ async function generateCertificatePdf(
       });
     };
 
-    let studentName = data.studentName?.trim();
-    if (!studentName) studentName = "Студент";
+    const studentName = data.studentName?.trim();
+    if (!studentName) {
+      throw new Error("У выбранного студента не заполнено ФИО");
+    }
 
     drawField("fullName", studentName, true);
 
