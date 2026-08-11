@@ -15,7 +15,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Upload } from "lucide-react";
 import { useParams } from "next/navigation";
 import { CertificateEditor } from "@/components/admin/certificates/certificate-editor";
 
@@ -43,16 +42,20 @@ export default function EditCertificateTemplatePage() {
   useEffect(() => {
     if (template) {
       setName(template.name);
+      setImageUrl(template.imageUrl);
       const config = template.fieldConfig || {};
       setFieldConfig({
-        fullName: config.fullName || {
+        fullName: {
+          ...(config.fullName || {
             x: 400,
             y: 300,
             fontSize: 48,
             fontFamily: "Arial",
             color: "#000000",
             align: "center",
-        }
+          }),
+          hidden: false,
+        },
       });
     }
   }, [template]);

@@ -1014,8 +1014,21 @@ export default function AdminUserDetailPage() {
   );
 }
 
+interface UserCertificate {
+  id: string;
+  certificateNumber: string;
+  pdfUrl: string;
+  issuedAt: string;
+  course: {
+    title: string;
+  };
+  template: {
+    imageUrl: string;
+  };
+}
+
 function UserCertificates({ userId }: { userId: string }) {
-  const { data: certificates, isLoading } = useQuery<any[]>({
+  const { data: certificates, isLoading } = useQuery<UserCertificate[]>({
     queryKey: ["admin", "users", userId, "certificates"],
     queryFn: async () => {
       const response = await apiClient.get(`/admin/users/${userId}/certificates`);
@@ -1057,9 +1070,9 @@ function UserCertificates({ userId }: { userId: string }) {
               <div className="flex items-center gap-4">
                 <div className="h-16 w-24 bg-gray-100 rounded overflow-hidden flex-shrink-0">
                   <img
-                    src={cert.pdfUrl}
+                    src={cert.template.imageUrl}
                     alt={cert.course.title}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-contain"
                   />
                 </div>
                 <div>

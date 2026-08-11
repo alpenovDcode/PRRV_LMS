@@ -1,11 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Card } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface FieldConfig {
@@ -28,8 +26,6 @@ interface CertificateEditorProps {
   fieldConfig: CertificateFieldConfig;
   onChange: (config: CertificateFieldConfig) => void;
 }
-
-const DEFAULT_WIDTH = 800; // Preview width
 
 export function CertificateEditor({
   imageUrl,
@@ -91,15 +87,9 @@ export function CertificateEditor({
     });
   };
 
-  const toggleFieldVisibility = (field: keyof CertificateFieldConfig) => {
-    const current = fieldConfig[field].hidden;
-    updateFieldStyle(field, "hidden", !current);
-  };
-
   const renderField = (key: keyof CertificateFieldConfig, label: string, sampleText: string) => {
     const config = fieldConfig[key];
-    if (config.hidden) return null;
-    
+
     const isSelected = selectedField === key;
 
     return (
@@ -110,7 +100,7 @@ export function CertificateEditor({
           top: config.y * scale,
           fontSize: config.fontSize * scale,
           color: config.color,
-          transform: "translate(-50%, -50%)", // Center align anchor point
+          transform: `translate(${config.align === "left" ? "0" : config.align === "right" ? "-100%" : "-50%"}, -50%)`,
           cursor: "move",
           whiteSpace: "nowrap",
           border: isSelected ? "2px dashed blue" : "1px dashed transparent",
@@ -175,19 +165,7 @@ export function CertificateEditor({
                         <span className={cn("text-sm", selectedField === key && "font-medium text-blue-600")}>
                             {fieldLabels[key]}
                         </span>
-                        <div className="flex items-center gap-2">
-                             <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="h-6 px-2 text-xs"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    toggleFieldVisibility(key);
-                                }}
-                             >
-                                {fieldConfig[key].hidden ? "Показать" : "Скрыть"}
-                             </Button>
-                        </div>
+                        <span className="text-xs text-muted-foreground">Обязательное поле</span>
                     </div>
                 ))}
             </div>
@@ -204,7 +182,6 @@ export function CertificateEditor({
             <div className="space-y-4">
                 <div className="font-medium border-b pb-2 mb-2">
                 {fieldLabels[selectedField]}
-                {fieldConfig[selectedField].hidden && <span className="ml-2 text-red-500 text-xs">(Скрыто)</span>}
                 </div>
 
                 <div className="space-y-2">
