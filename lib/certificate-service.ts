@@ -98,14 +98,13 @@ async function generateCertificatePdf(
     
     log(`Config keys: ${Object.keys(config).join(", ")}`);
 
-    const drawField = (key: string, text: string, isBold = false) => {
+    const drawField = (key: keyof typeof config, text: string, isBold = false) => {
       const field = config[key];
       
       const debugInfo = {
         key,
         text,
         fieldExists: !!field,
-        fieldHidden: field?.hidden,
         fieldConfig: field
       };
       
