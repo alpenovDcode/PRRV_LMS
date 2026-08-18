@@ -17,11 +17,13 @@ import {
   MessageSquare,
   MessageCircle,
   ClipboardList,
+  ChartNoAxesCombined,
 } from "lucide-react";
 import { useState } from "react";
 import { NotificationsPopover } from "@/components/notifications-popover";
 
 const curatorNavigation = [
+  { name: "Моя группа", href: "/curator/analytics", icon: ChartNoAxesCombined },
   { name: "Курсы", href: "/curator/courses", icon: BookOpen },
   { name: "Пользователи", href: "/curator/users", icon: Users },
   { name: "Входящие ДЗ", href: "/curator/homework", icon: Inbox },
@@ -36,7 +38,7 @@ export function CuratorLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen bg-background overflow-x-hidden">
+    <div className="flex min-h-screen overflow-x-hidden bg-background">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div
@@ -48,12 +50,12 @@ export function CuratorLayout({ children }: { children: React.ReactNode }) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-64 transform bg-card border-r transition-transform duration-300 ease-in-out lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-50 w-64 transform border-r bg-card transition-transform duration-300 ease-in-out lg:translate-x-0",
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
         <div className="flex h-full flex-col">
-          <div className="flex h-16 items-center justify-between px-6 border-b">
+          <div className="flex h-16 items-center justify-between border-b px-6">
             <Link href="/curator/inbox" className="text-xl font-bold text-primary">
               Прорыв Куратор
             </Link>
@@ -94,9 +96,9 @@ export function CuratorLayout({ children }: { children: React.ReactNode }) {
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
                 <User className="h-5 w-5 text-primary" />
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{user?.fullName || user?.email}</p>
-                <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{user?.fullName || user?.email}</p>
+                <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
               </div>
             </div>
             <Button
@@ -112,9 +114,9 @@ export function CuratorLayout({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main content */}
-      <div className="flex flex-1 flex-col min-w-0 lg:pl-64">
+      <div className="flex min-w-0 flex-1 flex-col lg:pl-64">
         {/* Header */}
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 sm:px-6">
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:px-6">
           <Button
             variant="ghost"
             size="icon"
@@ -123,8 +125,6 @@ export function CuratorLayout({ children }: { children: React.ReactNode }) {
           >
             <Menu className="h-5 w-5" />
           </Button>
-
-
 
           <div className="flex flex-1 items-center justify-between gap-4">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -140,5 +140,3 @@ export function CuratorLayout({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
-
-

@@ -29,10 +29,7 @@ import { Pencil, Check, ChevronsUpDown, Search, ArrowRightLeft } from "lucide-re
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  MemberTransferDialog,
-  type TransferResult,
-} from "./_components/member-transfer-dialog";
+import { MemberTransferDialog, type TransferResult } from "./_components/member-transfer-dialog";
 
 interface GroupDetail {
   id: string;
@@ -77,6 +74,12 @@ interface AdminCourseOption {
   title: string;
 }
 
+interface CuratorAssignment {
+  curatorId: string;
+  role: "primary" | "assistant";
+  curator: { id: string; email: string; fullName: string | null };
+}
+
 export default function AdminGroupDetailPage() {
   const params = useParams();
   const groupId = params.id as string;
@@ -98,6 +101,7 @@ export default function AdminGroupDetailPage() {
   const [selectedModuleCourseId, setSelectedModuleCourseId] = React.useState<string>("");
   const [selectedModuleId, setSelectedModuleId] = React.useState<string>("");
   const [memberToTransfer, setMemberToTransfer] = React.useState<GroupMember | null>(null);
+  const [selectedCuratorId, setSelectedCuratorId] = React.useState("");
 
   const { data: groups, isLoading } = useQuery<GroupDetail[]>({
     queryKey: ["admin", "groups"],
@@ -129,6 +133,24 @@ export default function AdminGroupDetailPage() {
   });
 
   const userOptions = usersData?.data || [];
+
+  const { data: curatorsData } = useQuery({
+    queryKey: ["admin", "users", "curators"],
+    queryFn: async () => (await apiClient.get("/admin/users?role=curator&limit=100")).data,
+  });
+  const { data: curatorAssignments = [] } = useQuery<CuratorAssignment[]>({
+    queryKey: ["admin", "groups", groupId, "curators"],
+    queryFn: async () => (await apiClient.get(`/admin/groups/${groupId}/curators`)).data.data,
+  });
+  const saveCuratorsMutation = useMutation({
+    mutationFn: async (assignments: Array<{ curatorId: string; role: "primary" | "assistant" }>) =>
+      apiClient.put(`/admin/groups/${groupId}/curators`, { assignments }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "groups", groupId, "curators"] });
+      setSelectedCuratorId("");
+      toast.success("Кураторы группы обновлены");
+    },
+  });
 
   const { data: courses } = useQuery<AdminCourseOption[]>({
     queryKey: ["admin", "courses", "options"],
@@ -168,14 +190,14 @@ export default function AdminGroupDetailPage() {
   });
 
   const handleTransferred = (result: TransferResult) => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "groups"] });
-      queryClient.invalidateQueries({ queryKey: ["admin", "groups", groupId, "members"] });
-      if (result.targetGroupId) {
-        queryClient.invalidateQueries({
-          queryKey: ["admin", "groups", result.targetGroupId, "members"],
-        });
-      }
-      setMemberToTransfer(null);
+    queryClient.invalidateQueries({ queryKey: ["admin", "groups"] });
+    queryClient.invalidateQueries({ queryKey: ["admin", "groups", groupId, "members"] });
+    if (result.targetGroupId) {
+      queryClient.invalidateQueries({
+        queryKey: ["admin", "groups", result.targetGroupId, "members"],
+      });
+    }
+    setMemberToTransfer(null);
   };
 
   const bulkEnrollMutation = useMutation({
@@ -330,6 +352,107 @@ export default function AdminGroupDetailPage() {
           </div>
 
           <div className="grid gap-4 md:grid-cols-[1.5fr,2fr]">
+            <Card className="md:col-span-2">
+              <CardHeader>
+                <CardTitle>Кураторы группы</CardTitle>
+                <CardDescription>
+                  Основной куратор видит группу в своём кабинете. Можно добавить помощников.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex max-w-xl gap-2">
+                  <Select value={selectedCuratorId} onValueChange={setSelectedCuratorId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Выберите куратора" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {curatorsData?.data
+                        ?.filter(
+                          (curator: AdminUserOption) =>
+                            !curatorAssignments.some((item) => item.curatorId === curator.id)
+                        )
+                        .map((curator: AdminUserOption) => (
+                          <SelectItem key={curator.id} value={curator.id}>
+                            {curator.fullName || curator.email}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    disabled={!selectedCuratorId || saveCuratorsMutation.isPending}
+                    onClick={() =>
+                      saveCuratorsMutation.mutate([
+                        ...curatorAssignments.map(({ curatorId, role }) => ({ curatorId, role })),
+                        {
+                          curatorId: selectedCuratorId,
+                          role: curatorAssignments.length ? "assistant" : "primary",
+                        },
+                      ])
+                    }
+                  >
+                    Добавить
+                  </Button>
+                </div>
+                {!curatorAssignments.length ? (
+                  <p className="text-sm text-muted-foreground">Кураторы не назначены.</p>
+                ) : (
+                  curatorAssignments.map((assignment) => (
+                    <div
+                      key={assignment.curatorId}
+                      className="flex items-center justify-between rounded-md border px-3 py-2"
+                    >
+                      <div>
+                        <div className="font-medium">
+                          {assignment.curator.fullName || assignment.curator.email}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {assignment.curator.email}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Select
+                          value={assignment.role}
+                          onValueChange={(role: "primary" | "assistant") =>
+                            saveCuratorsMutation.mutate(
+                              curatorAssignments.map((item) => ({
+                                curatorId: item.curatorId,
+                                role:
+                                  item.curatorId === assignment.curatorId
+                                    ? role
+                                    : role === "primary" && item.role === "primary"
+                                      ? "assistant"
+                                      : item.role,
+                              }))
+                            )
+                          }
+                        >
+                          <SelectTrigger className="w-36">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="primary">Основной</SelectItem>
+                            <SelectItem value="assistant">Помощник</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          variant="ghost"
+                          className="text-destructive"
+                          onClick={() =>
+                            saveCuratorsMutation.mutate(
+                              curatorAssignments
+                                .filter((item) => item.curatorId !== assignment.curatorId)
+                                .map(({ curatorId, role }) => ({ curatorId, role }))
+                            )
+                          }
+                        >
+                          Удалить
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
             <Card>
               <CardHeader>
                 <CardTitle>Добавить участника</CardTitle>
