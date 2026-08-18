@@ -52,37 +52,39 @@ model User {
   emailTags         Json?     @map("email_tags")
 
   auditLogs               AuditLog[]
-  courses                 Course[]                @relation("CourseAuthor")
+  courses                 Course[]                 @relation("CourseAuthor")
   enrollments             Enrollment[]
   groupMembers            GroupMember[]
-  reviewedHomeworkHistory HomeworkHistory[]       @relation("HomeworkHistoryReviewer")
-  reviewedHomework        HomeworkSubmission[]    @relation("HomeworkReviewer")
+  reviewedHomeworkHistory HomeworkHistory[]        @relation("HomeworkHistoryReviewer")
+  reviewedHomework        HomeworkSubmission[]     @relation("HomeworkReviewer")
   homework                HomeworkSubmission[]
   lessonComments          LessonComment[]
   progress                LessonProgress[]
-  uploadedMedia           MediaFile[]             @relation("MediaUploader")
+  uploadedMedia           MediaFile[]              @relation("MediaUploader")
   notificationPreference  NotificationPreference?
   notifications           Notification[]
-  reviewedQuizzes         QuizAttempt[]           @relation("QuizReviewer")
+  reviewedQuizzes         QuizAttempt[]            @relation("QuizReviewer")
   quizAttempts            QuizAttempt[]
   twoFactorAuth           TwoFactorAuth?
   userSessions            UserSession[]
   errorLogs               ErrorLog[]
   loginTokens             LoginToken[]
-  keywords                String[]                @default([]) // Накопленные ключевые слова из форм
+  keywords                String[]                 @default([]) // Накопленные ключевые слова из форм
   certificates            Certificate[]
   orders                  Order[]
   messagingBots           MessagingBot[]
   messagingSubscribers    MessagingSubscriber[]
-  broadcastsCreated       Broadcast[]             @relation("BroadcastAuthor")
-  broadcastsReceived      BroadcastRecipient[]    @relation("BroadcastRecipientUser")
-  questionsAsked          Question[]              @relation("QuestionStudent")
-  questionsAssigned       Question[]              @relation("QuestionCurator")
+  broadcastsCreated       Broadcast[]              @relation("BroadcastAuthor")
+  broadcastsReceived      BroadcastRecipient[]     @relation("BroadcastRecipientUser")
+  questionsAsked          Question[]               @relation("QuestionStudent")
+  questionsAssigned       Question[]               @relation("QuestionCurator")
   questionMessages        QuestionMessage[]
   brief                   Brief?
   tgSubscribers           TgSubscriber[]
   getcourseData           GetcourseData?
   getcourseOrders         GetcourseOrder[]
+  curatorGroupAssignments CuratorGroupAssignment[] @relation("CuratorGroupAssignments")
+  assignedGroupCurators   CuratorGroupAssignment[] @relation("GroupCuratorAssignedBy")
 
   // --- Marketing email relations (Спринт 0) ---
   emailEvents         EmailEvent[]
@@ -219,17 +221,37 @@ model Enrollment {
 }
 
 model Group {
-  id          String        @id @default(uuid())
+  id          String                   @id @default(uuid())
   name        String
   description String?
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
-  courseId    String?       @map("course_id")
-  startDate   DateTime?     @map("start_date")
+  createdAt   DateTime                 @default(now()) @map("created_at")
+  updatedAt   DateTime                 @updatedAt @map("updated_at")
+  courseId    String?                  @map("course_id")
+  startDate   DateTime?                @map("start_date")
   members     GroupMember[]
-  course      Course?       @relation(fields: [courseId], references: [id])
+  course      Course?                  @relation(fields: [courseId], references: [id])
+  curators    CuratorGroupAssignment[]
 
   @@map("groups")
+}
+
+model CuratorGroupAssignment {
+  id           String   @id @default(uuid())
+  curatorId    String   @map("curator_id")
+  groupId      String   @map("group_id")
+  role         String   @default("assistant")
+  isActive     Boolean  @default(true) @map("is_active")
+  assignedById String   @map("assigned_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  curator      User     @relation("CuratorGroupAssignments", fields: [curatorId], references: [id], onDelete: Cascade)
+  assignedBy   User     @relation("GroupCuratorAssignedBy", fields: [assignedById], references: [id], onDelete: Restrict)
+  group        Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([curatorId, groupId])
+  @@index([curatorId, isActive])
+  @@index([groupId, isActive])
+  @@map("curator_group_assignments")
 }
 
 model GroupMember {
