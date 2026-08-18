@@ -6,6 +6,7 @@ import {
   calculateDripAvailability,
   checkPrerequisites,
   resolveModuleAccess,
+  shouldExposeModule,
   type DripRule,
   type ModuleAccessContext,
 } from "@/lib/lms-logic";
@@ -182,11 +183,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         forcedModules: (enrollment.forcedModules as string[]) || [],
       };
 
-      const modulesWithAccess = course.modules.map((module: any) => {
-        // @ts-ignore
-        const restrictedModules = (enrollment.restrictedModules as string[]) || [];
-        return { module, resolved: resolveModuleAccess(module, context, restrictedModules) };
-      });
+      const modulesWithAccess = course.modules
+        .map((module: any) => {
+          // @ts-ignore
+          const restrictedModules = (enrollment.restrictedModules as string[]) || [];
+          return { module, resolved: resolveModuleAccess(module, context, restrictedModules) };
+        })
+        .filter(({ resolved }) => shouldExposeModule(resolved.access));
 
       // Calculate availability for all lessons to build navigation
       const modulesWithLessons = await Promise.all(

@@ -367,6 +367,15 @@ export interface ResolvedModuleAccess {
   resolvedGroupId?: string;
 }
 
+/**
+ * The catalog may reveal a module only when the student can access it or when
+ * the sole restriction is its opening time. Audience restrictions must not
+ * leak module titles or lesson structure to non-matching students.
+ */
+export function shouldExposeModule(access: ModuleAccessResult): boolean {
+  return access.isAccessible || access.reason === "time_locked";
+}
+
 function applyScheduleOverride(
   module: SchedulableModule,
   settings: Record<string, unknown> | undefined
