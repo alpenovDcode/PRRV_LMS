@@ -2,16 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/api-middleware";
 import { db } from "@/lib/db";
 import { ApiResponse } from "@/types";
-import { calculateDripAvailability, checkPrerequisites, checkModuleAccess, type DripRule, type ModuleAccessContext } from "@/lib/lms-logic";
+import {
+  calculateDripAvailability,
+  checkPrerequisites,
+  resolveModuleAccess,
+  type DripRule,
+  type ModuleAccessContext,
+} from "@/lib/lms-logic";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ slug: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   return withAuth(request, async (req) => {
     try {
       const { slug } = await params;
-        const course = await db.course.findUnique({
+      const course = await db.course.findUnique({
         where: { slug: decodeURIComponent(slug) },
         include: {
           modules: {
@@ -49,7 +52,7 @@ export async function GET(
       });
 
       const hasAccess = enrollment && enrollment.status === "active";
-      
+
       // If no access, return course info without detailed lesson data but WITH hierarchy
       if (!hasAccess) {
         const flatModules = course.modules.map((module: any) => ({
@@ -78,11 +81,13 @@ export async function GET(
               coverImage: course.coverImage,
               modules: structuredModules,
               progress: 0,
-              enrollment: enrollment ? {
-                status: enrollment.status,
-                startDate: enrollment.startDate.toISOString(),
-                expiresAt: enrollment.expiresAt?.toISOString() || null,
-              } : null,
+              enrollment: enrollment
+                ? {
+                    status: enrollment.status,
+                    startDate: enrollment.startDate.toISOString(),
+                    expiresAt: enrollment.expiresAt?.toISOString() || null,
+                  }
+                : null,
               hasAccess: false,
             },
           },
@@ -101,12 +106,12 @@ export async function GET(
 
       const progressMap = new Map(
         progressRecords.map((p: any) => [
-          p.lessonId, 
-          { 
-            status: p.status, 
+          p.lessonId,
+          {
+            status: p.status,
             watchedTime: p.watchedTime,
-            completedAt: p.completedAt 
-          }
+            completedAt: p.completedAt,
+          },
         ])
       );
 
@@ -121,14 +126,13 @@ export async function GET(
         include: {
           groupMembers: {
             include: {
-                 group: {
-                     select: {
-                         id: true,
-                         startDate: true,
-
-                     }
-                 }
-            }
+              group: {
+                select: {
+                  id: true,
+                  startDate: true,
+                },
+              },
+            },
           },
         },
       });
@@ -146,11 +150,11 @@ export async function GET(
         );
       }
 
-      const userGroupIds = user.groupMembers.map(gm => gm.groupId);
+      const userGroupIds = user.groupMembers.map((gm) => gm.groupId);
       // Map of group start dates for quick lookup
       const userGroupsMap = new Map<string, Date | null>();
-      user.groupMembers.forEach(gm => {
-          userGroupsMap.set(gm.groupId, gm.group.startDate ? new Date(gm.group.startDate) : null);
+      user.groupMembers.forEach((gm) => {
+        userGroupsMap.set(gm.groupId, gm.group.startDate ? new Date(gm.group.startDate) : null);
       });
 
       // Find user's track definition lesson completion date
@@ -163,15 +167,15 @@ export async function GET(
           userId: user.id,
           status: "completed",
           lesson: {
-             type: "track_definition",
-             // Optional: restrict to current course if needed, but track might be global
-          } 
+            type: "track_definition",
+            module: { courseId: course.id },
+          },
         },
-        orderBy: { completedAt: 'desc' }
+        orderBy: { completedAt: "desc" },
       });
-      
+
       if (trackDefProgress && trackDefProgress.completedAt) {
-          trackDefinitionCompletedAt = new Date(trackDefProgress.completedAt);
+        trackDefinitionCompletedAt = new Date(trackDefProgress.completedAt);
       }
 
       // Find user's certification completion date
@@ -180,85 +184,44 @@ export async function GET(
         where: {
           userId: user.id,
           status: "completed",
-          lesson: { type: "certification_form" }
+          lesson: { type: "certification_form", module: { courseId: course.id } },
         },
-        orderBy: { completedAt: 'desc' }
+        orderBy: { completedAt: "desc" },
       });
       if (certificationProgress && certificationProgress.completedAt) {
-          certificationCompletedAt = new Date(certificationProgress.completedAt);
+        certificationCompletedAt = new Date(certificationProgress.completedAt);
       }
 
       const context: ModuleAccessContext = {
-          userTariff: user.tariff,
-          userTrack: user.track,
-          userGroupIds,
-          userGroupsMap,
-          trackDefinitionCompletedAt,
-          certificationCompletedAt,
-          // @ts-ignore
-          forcedModules: enrollment.forcedModules as string[] || []
+        userTariff: user.tariff,
+        userTrack: user.track,
+        userGroupIds,
+        userGroupsMap,
+        trackDefinitionCompletedAt,
+        certificationCompletedAt,
+        // @ts-ignore
+        forcedModules: (enrollment.forcedModules as string[]) || [],
       };
 
-      // Filter modules based on access rules
-      const accessibleModules = course.modules.filter((module: any) => {
+      // Keep future modules in the response so the client knows when to
+      // refresh. Authorization is still enforced for every lesson request.
+      const modulesWithAccess = course.modules.map((module: any) => {
         // @ts-ignore
-        const restrictedModules = enrollment.restrictedModules as string[] || [];
-
-        // Apply track specific logic if exists
-        let effectiveModule = { ...module };
-        if (user.track && module.trackSettings) {
-             const settings = (module.trackSettings as Record<string, any>)[user.track];
-             if (settings) {
-                 if (settings.openAt) {
-                     effectiveModule.openAt = settings.openAt;
-                     effectiveModule.openAfterEvent = null;
-                     effectiveModule.openAfterAmount = null;
-                     effectiveModule.openAfterUnit = null;
-                 }
-                 else if (settings.openAfterEvent) {
-                     effectiveModule.openAt = null;
-                     effectiveModule.openAfterEvent = settings.openAfterEvent;
-                     effectiveModule.openAfterAmount = settings.openAfterAmount;
-                     effectiveModule.openAfterUnit = settings.openAfterUnit;
-                 }
-             }
-        }
-        // Apply group-specific logic (overrides track if user is in a configured group)
-        if (module.groupSettings) {
-             const gs = module.groupSettings as Record<string, any>;
-             const matchedGroupId = userGroupIds.find((gid: string) => gs[gid]);
-             if (matchedGroupId) {
-                 const settings = gs[matchedGroupId];
-                 if (settings.openAt) {
-                     effectiveModule.openAt = settings.openAt;
-                     effectiveModule.openAfterEvent = null;
-                     effectiveModule.openAfterAmount = null;
-                     effectiveModule.openAfterUnit = null;
-                 } else if (settings.openAfterEvent) {
-                     effectiveModule.openAt = null;
-                     effectiveModule.openAfterEvent = settings.openAfterEvent;
-                     effectiveModule.openAfterAmount = settings.openAfterAmount ?? null;
-                     effectiveModule.openAfterUnit = settings.openAfterUnit ?? null;
-                 }
-             }
-        }
-
-        const accessResult = checkModuleAccess(effectiveModule, context, restrictedModules);
-
-        // Hide module if NOT accessible.
-        // matches user request: "should be open and available only those modules... to which he has access"
-        return accessResult.isAccessible;
+        const restrictedModules = (enrollment.restrictedModules as string[]) || [];
+        return { module, resolved: resolveModuleAccess(module, context, restrictedModules) };
       });
 
       // Используем централизованную бизнес-логику для проверки доступности уроков
       const startDate = new Date(enrollment.startDate);
 
       const modulesWithLessons = await Promise.all(
-        accessibleModules.map(async (module: any) => {
+        modulesWithAccess.map(async ({ module, resolved }: any) => {
           // Filter restricted lessons (NEW)
           const filteredLessons = module.lessons.filter((lesson: any) => {
-             // @ts-ignore
-             return !(enrollment.restrictedLessons && enrollment.restrictedLessons.includes(lesson.id));
+            // @ts-ignore
+            return !(
+              enrollment.restrictedLessons && enrollment.restrictedLessons.includes(lesson.id)
+            );
           });
 
           return {
@@ -266,46 +229,59 @@ export async function GET(
             lessons: await Promise.all(
               filteredLessons.map(async (lesson: any) => {
                 const lessonProgress = progressMap.get(lesson.id);
-              
-              // Find previous lesson for drip check
-              const lessonIndex = allLessons.findIndex((l: any) => l.id === lesson.id);
-              let previousLessonCompletedAt: Date | null = null;
-              
-              if (lessonIndex > 0) {
-                const previousLessonId = allLessons[lessonIndex - 1].id;
-                const prevProgress = progressMap.get(previousLessonId);
-                if (prevProgress?.status === "completed" && prevProgress.completedAt) {
-                  previousLessonCompletedAt = new Date(prevProgress.completedAt);
+
+                // Find previous lesson for drip check
+                const lessonIndex = allLessons.findIndex((l: any) => l.id === lesson.id);
+                let previousLessonCompletedAt: Date | null = null;
+
+                if (lessonIndex > 0) {
+                  const previousLessonId = allLessons[lessonIndex - 1].id;
+                  const prevProgress = progressMap.get(previousLessonId);
+                  if (prevProgress?.status === "completed" && prevProgress.completedAt) {
+                    previousLessonCompletedAt = new Date(prevProgress.completedAt);
+                  }
                 }
-              }
 
-              // Проверка drip content
-              const dripAvailability = calculateDripAvailability(
-                lesson.dripRule as DripRule | null,
-                startDate,
-                previousLessonCompletedAt
-              );
+                // Проверка drip content
+                const dripAvailability = calculateDripAvailability(
+                  lesson.dripRule as DripRule | null,
+                  startDate,
+                  previousLessonCompletedAt
+                );
 
-              // Проверка prerequisites (стоп-уроки)
-              const prerequisitesCheck = await checkPrerequisites(req.user!.userId, lesson.id);
+                // Проверка prerequisites (стоп-уроки)
+                const prerequisitesCheck = await checkPrerequisites(req.user!.userId, lesson.id);
 
-              const isAvailable = dripAvailability.isAvailable && prerequisitesCheck.isUnlocked;
+                const isAvailable =
+                  resolved.access.isAccessible &&
+                  dripAvailability.isAvailable &&
+                  prerequisitesCheck.isUnlocked;
+                const availableDate = !resolved.access.isAccessible
+                  ? resolved.access.unlockDate
+                  : dripAvailability.availableDate;
 
-              return {
-                ...lesson,
-                isAvailable,
-                hasHomework: !!lesson.content?.homework,
-                availableDate: dripAvailability.availableDate?.toISOString(),
-                progress: lessonProgress ? {
-                  status: lessonProgress.status,
-                  watchedTime: lessonProgress.watchedTime
-                } : null,
-              };
-            })
-          ),
-          children: [], // Initialize children array
-        }
-      }));
+                return {
+                  ...lesson,
+                  isAvailable,
+                  hasHomework: !!lesson.content?.homework,
+                  availableDate: availableDate?.toISOString(),
+                  progress: lessonProgress
+                    ? {
+                        status: lessonProgress.status,
+                        watchedTime: lessonProgress.watchedTime,
+                      }
+                    : null,
+                };
+              })
+            ),
+            isAvailable: resolved.access.isAccessible,
+            availableDate: resolved.access.unlockDate?.toISOString() ?? null,
+            accessReason: resolved.access.reason,
+            scheduleSource: resolved.scheduleSource,
+            children: [], // Initialize children array
+          };
+        })
+      );
 
       const structuredModules = structureModules(modulesWithLessons);
 

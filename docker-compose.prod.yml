@@ -115,7 +115,13 @@ x-app-defaults: &app-defaults
   extra_hosts:
     - "host.docker.internal:host-gateway"
   healthcheck:
-    test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r => {if(!r.ok) throw new Error(r.statusText)}).catch(e => {console.error(e); process.exit(1)})"]
+    test:
+      [
+        "CMD",
+        "node",
+        "-e",
+        "fetch('http://localhost:3000/api/health').then(r => {if(!r.ok) throw new Error(r.statusText)}).catch(e => {console.error(e); process.exit(1)})",
+      ]
     interval: 30s
     timeout: 10s
     retries: 3
@@ -123,10 +129,10 @@ x-app-defaults: &app-defaults
   deploy:
     resources:
       limits:
-        cpus: '1.5'
+        cpus: "1.5"
         memory: 1.5G
       reservations:
-        cpus: '0.5'
+        cpus: "0.5"
         memory: 256M
   logging:
     driver: "json-file"
@@ -148,10 +154,10 @@ services:
       POSTGRES_EFFECTIVE_CACHE_SIZE: ${POSTGRES_EFFECTIVE_CACHE_SIZE:-1GB}
       POSTGRES_MAX_CONNECTIONS: ${POSTGRES_MAX_CONNECTIONS:-100}
     ports:
-      - "127.0.0.1:5432:5432"  # Only localhost access
+      - "127.0.0.1:5432:5432" # Only localhost access
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backups:/backups  # For database backups
+      - ./backups:/backups # For database backups
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-proryv} -d ${POSTGRES_DB:-proryv_lms}"]
       interval: 10s
@@ -163,10 +169,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1.5'      # Reduced from 2
-          memory: 1.5G     # Reduced from 2G
+          cpus: "1.5" # Reduced from 2
+          memory: 1.5G # Reduced from 2G
         reservations:
-          cpus: '0.5'
+          cpus: "0.5"
           memory: 512M
 
   redis:
@@ -175,7 +181,7 @@ services:
     restart: always
     command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
     ports:
-      - "127.0.0.1:6379:6379"  # Only localhost access
+      - "127.0.0.1:6379:6379" # Only localhost access
     volumes:
       - redis_data:/data
     healthcheck:
@@ -188,10 +194,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1'
+          cpus: "1"
           memory: 512M
         reservations:
-          cpus: '0.25'
+          cpus: "0.25"
           memory: 128M
 
   ollama:
@@ -205,10 +211,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2'
+          cpus: "2"
           memory: 3G
         reservations:
-          cpus: '0.5'
+          cpus: "0.5"
           memory: 1G
 
   ollama-pull:
@@ -297,6 +303,12 @@ services:
             -o /tmp/tick.log 2>/dev/null \
             && cat /tmp/tick.log \
             || echo "[email-cron] tick failed";
+          curl --max-time 90 -fsS -X POST \
+            -H "Authorization: Bearer $$EMAIL_CRON_SECRET" \
+            http://nginx/api/certificate-cron/tick \
+            -o /tmp/certificate-tick.log 2>/dev/null \
+            && cat /tmp/certificate-tick.log \
+            || echo "[certificate-cron] tick failed";
           echo;
           sleep 10;
         done
@@ -363,8 +375,8 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./public:/usr/share/nginx/html/static:ro
-      - /etc/letsencrypt:/etc/letsencrypt:ro  # Let's Encrypt certificates
-      - /var/www/certbot:/var/www/certbot:ro  # ACME challenge
+      - /etc/letsencrypt:/etc/letsencrypt:ro # Let's Encrypt certificates
+      - /var/www/certbot:/var/www/certbot:ro # ACME challenge
       - nginx_cache:/var/cache/nginx
     depends_on:
       app-blue:
@@ -376,10 +388,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1'
+          cpus: "1"
           memory: 256M
         reservations:
-          cpus: '0.25'
+          cpus: "0.25"
           memory: 64M
     logging:
       driver: "json-file"

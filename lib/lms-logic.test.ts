@@ -9,6 +9,12 @@ const { db } = vi.hoisted(() => {
         findUnique: vi.fn(),
         findFirst: vi.fn(),
       },
+      user: {
+        findUnique: vi.fn(),
+      },
+      lessonProgress: {
+        findFirst: vi.fn(),
+      },
       homeworkSubmission: {
         findFirst: vi.fn(),
       },
@@ -23,6 +29,13 @@ vi.mock("@/lib/db", () => ({
 describe("LMS Logic", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    db.user.findUnique.mockResolvedValue({
+      id: "user1",
+      tariff: null,
+      track: null,
+      groupMembers: [],
+    });
+    db.lessonProgress.findFirst.mockResolvedValue(null);
   });
 
   describe("checkLessonAvailability", () => {
@@ -43,7 +56,9 @@ describe("LMS Logic", () => {
       db.lesson.findUnique.mockResolvedValue({
         module: {
           course: {
-            enrollments: [{ status: "active", startDate: new Date(), expiresAt: subDays(new Date(), 1) }],
+            enrollments: [
+              { status: "active", startDate: new Date(), expiresAt: subDays(new Date(), 1) },
+            ],
           },
         },
       });

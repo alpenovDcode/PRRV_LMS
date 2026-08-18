@@ -8,12 +8,31 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Save, FileText, Video, CircleHelp, Plus, Trash, GripVertical, Image, Check, ChevronsUpDown, Search } from "lucide-react";
+import {
+  ArrowLeft,
+  Save,
+  FileText,
+  Video,
+  CircleHelp,
+  Plus,
+  Trash,
+  GripVertical,
+  Image,
+  Check,
+  ChevronsUpDown,
+  Search,
+} from "lucide-react";
 import {
   Command,
   CommandEmpty,
@@ -22,11 +41,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
@@ -40,7 +55,13 @@ import { LessonContentPlayer } from "@/components/learn/lesson-content-player";
 interface LessonDetail {
   id: string;
   title: string;
-  type: "video" | "text" | "quiz" | "track_definition" | "intermediate_survey" | "certification_form";
+  type:
+    | "video"
+    | "text"
+    | "quiz"
+    | "track_definition"
+    | "intermediate_survey"
+    | "certification_form";
   content: any;
   videoId: string | null;
   videoDuration: number | null;
@@ -54,6 +75,7 @@ interface LessonDetail {
   aiContext: string | null;
   autoResponse: string | null;
   hasImageAnalysis: boolean;
+  quizPassingScore: number | null;
   module: {
     id: string;
     title: string;
@@ -74,15 +96,19 @@ export default function LessonEditorPage() {
 
   // Форма
   const [title, setTitle] = useState("");
-  const [type, setType] = useState<"video" | "text" | "quiz" | "track_definition" | "intermediate_survey" | "certification_form">("video");
+  const [type, setType] = useState<
+    "video" | "text" | "quiz" | "track_definition" | "intermediate_survey" | "certification_form"
+  >("video");
   const [content, setContent] = useState<any>(null);
   // Video state
-  const [videos, setVideos] = useState<Array<{ videoId: string; title?: string; duration: number }>>([]);
+  const [videos, setVideos] = useState<
+    Array<{ videoId: string; title?: string; duration: number }>
+  >([]);
   const [openComboboxIndex, setOpenComboboxIndex] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [links, setLinks] = useState<Array<{ label: string; url: string }>>([]);
   const [thumbnailUrl, setThumbnailUrl] = useState("");
-  
+
   const [isFree, setIsFree] = useState(false);
   const [isStopLesson, setIsStopLesson] = useState(false);
   const [noHomework, setNoHomework] = useState(false);
@@ -93,6 +119,7 @@ export default function LessonEditorPage() {
   const [aiContext, setAiContext] = useState("");
   const [autoResponse, setAutoResponse] = useState("");
   const [hasImageAnalysis, setHasImageAnalysis] = useState(false);
+  const [certificationPassingScore, setCertificationPassingScore] = useState<number | null>(null);
 
   const { data: lesson, isLoading } = useQuery<LessonDetail>({
     queryKey: ["admin", "lesson", lessonId],
@@ -115,7 +142,7 @@ export default function LessonEditorPage() {
     if (lesson) {
       setTitle(lesson.title);
       setType(lesson.type);
-      
+
       // Content handling
       let lessonContent = lesson.content;
       if (lesson.type === "quiz") {
@@ -138,11 +165,13 @@ export default function LessonEditorPage() {
         setVideos(lesson.content.videos);
       } else if (lesson.videoId) {
         // Migration/Fallback: create single video entry from legacy columns
-        setVideos([{
-          videoId: lesson.videoId,
-          duration: lesson.videoDuration || 0,
-          title: "Основное видео"
-        }]);
+        setVideos([
+          {
+            videoId: lesson.videoId,
+            duration: lesson.videoDuration || 0,
+            title: "Основное видео",
+          },
+        ]);
       } else {
         setVideos([]);
       }
@@ -159,13 +188,14 @@ export default function LessonEditorPage() {
       setIsStopLesson(lesson.isStopLesson);
       setNoHomework(lesson.noHomework ?? false);
       setDripRule(lesson.dripRule);
-    setSettings(lesson.settings || {});
+      setSettings(lesson.settings || {});
       setAiPrompt(lesson.aiPrompt || "");
       setAiContext(lesson.aiContext || "");
       setAutoResponse(lesson.autoResponse || "");
       setHasImageAnalysis(lesson.hasImageAnalysis ?? false);
+      setCertificationPassingScore(lesson.quizPassingScore ?? null);
       setHomeworkDeadline(
-        (function() {
+        (function () {
           try {
             return lesson.settings?.homeworkDeadline
               ? new Date(lesson.settings.homeworkDeadline).toISOString().slice(0, 16)
@@ -209,10 +239,14 @@ export default function LessonEditorPage() {
           toast.error(`Вопрос ${i + 1}: текст вопроса не может быть пустым`);
           return;
         }
-        
+
         const qType = question.type || "single_choice";
         if (qType === "single_choice" || qType === "multiple_choice") {
-          if (!question.options || !Array.isArray(question.options) || question.options.length < 2) {
+          if (
+            !question.options ||
+            !Array.isArray(question.options) ||
+            question.options.length < 2
+          ) {
             toast.error(`Вопрос ${i + 1}: должно быть минимум 2 варианта ответа`);
             return;
           }
@@ -272,6 +306,7 @@ export default function LessonEditorPage() {
       aiContext: aiContext || null,
       autoResponse: autoResponse || null,
       hasImageAnalysis,
+      quizPassingScore: type === "certification_form" ? certificationPassingScore : undefined,
     };
 
     updateMutation.mutate(updateData);
@@ -287,14 +322,14 @@ export default function LessonEditorPage() {
   if (isLoading || !lesson) {
     return (
       <div className="container mx-auto max-w-6xl px-4 py-8">
-        <Skeleton className="h-8 w-64 mb-6" />
+        <Skeleton className="mb-6 h-8 w-64" />
         <Skeleton className="h-96 w-full" />
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto max-w-6xl px-4 py-8 space-y-6">
+    <div className="container mx-auto max-w-6xl space-y-6 px-4 py-8">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -304,7 +339,7 @@ export default function LessonEditorPage() {
             </Link>
           </Button>
           <div>
-            <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+            <div className="mb-1 flex items-center gap-2 text-sm text-gray-600">
               <span>{lesson.module.course.title}</span>
               <span>•</span>
               <span>{lesson.module.title}</span>
@@ -326,117 +361,137 @@ export default function LessonEditorPage() {
             variant="outline"
             className="border-gray-300"
             onClick={async () => {
-                try {
-                    toast.info("Подготовка выгрузки...");
-                    const { data } = await apiClient.get<{ data: any[] }>(`/admin/lessons/${lessonId}/submissions`);
-                    const submissions = data.data;
+              try {
+                toast.info("Подготовка выгрузки...");
+                const { data } = await apiClient.get<{ data: any[] }>(
+                  `/admin/lessons/${lessonId}/submissions`
+                );
+                const submissions = data.data;
 
-                    if (!submissions || submissions.length === 0) {
-                        toast.warning("Нет ответов для выгрузки");
-                        return;
+                if (!submissions || submissions.length === 0) {
+                  toast.warning("Нет ответов для выгрузки");
+                  return;
+                }
+
+                // 1. Collect all unique keys from all submissions to build headers
+                const allKeys = new Set<string>();
+                submissions.forEach((item: any) => {
+                  // Parse content if string
+                  let content: any = {};
+                  try {
+                    content =
+                      typeof item.content === "string" ? JSON.parse(item.content) : item.content;
+                  } catch {
+                    content = { text: item.content };
+                  }
+
+                  // If content is just a string, map it to "Answer"
+                  if (typeof content !== "object" || content === null) {
+                    content = { text: String(content) };
+                  }
+
+                  const { _answers, ...otherProps } = content;
+
+                  // Add keys from otherProps
+                  Object.keys(otherProps).forEach((k) => allKeys.add(k));
+
+                  // Add keys from _answers
+                  if (_answers) {
+                    if (Array.isArray(_answers)) {
+                      _answers.forEach((_, i) => allKeys.add(`Answer ${i + 1}`));
+                    } else if (typeof _answers === "object") {
+                      Object.keys(_answers).forEach((k) => allKeys.add(k));
+                    }
+                  }
+                });
+
+                // Ensure we have at least "Content" if no keys found
+                if (allKeys.size === 0) allKeys.add("Content");
+
+                const dynamicHeaders = Array.from(allKeys);
+                const headers = [
+                  "ID",
+                  "Date",
+                  "User Name",
+                  "User Email",
+                  "Status",
+                  ...dynamicHeaders,
+                ];
+
+                // 2. Build rows
+                const csvRows = [headers.join(",")];
+
+                submissions.forEach((item: any) => {
+                  let content: any = {};
+                  try {
+                    content =
+                      typeof item.content === "string" ? JSON.parse(item.content) : item.content;
+                  } catch {
+                    content = { text: item.content };
+                  }
+                  if (typeof content !== "object" || content === null) {
+                    content = { text: String(content) };
+                  }
+
+                  const { _answers, ...otherProps } = content;
+
+                  const row = [
+                    item.id,
+                    new Date(item.createdAt).toLocaleString("ru-RU"),
+                    (item.user?.fullName || "Guest").replace(/,/g, ""),
+                    (item.user?.email || "-").replace(/,/g, ""),
+                    item.status || "pending",
+                  ];
+
+                  dynamicHeaders.forEach((header) => {
+                    let val = "";
+
+                    // Check in otherProps
+                    if (otherProps[header] !== undefined) {
+                      val = otherProps[header];
+                    }
+                    // Check in _answers (object)
+                    else if (
+                      _answers &&
+                      !Array.isArray(_answers) &&
+                      typeof _answers === "object" &&
+                      _answers[header] !== undefined
+                    ) {
+                      val = _answers[header];
+                    }
+                    // Check in _answers (array) - header format "Answer X"
+                    else if (_answers && Array.isArray(_answers) && header.startsWith("Answer ")) {
+                      const idx = parseInt(header.split(" ")[1]) - 1;
+                      if (_answers[idx] !== undefined) val = _answers[idx];
                     }
 
-                    // 1. Collect all unique keys from all submissions to build headers
-                    const allKeys = new Set<string>();
-                    submissions.forEach((item: any) => {
-                        // Parse content if string
-                        let content: any = {};
-                        try {
-                            content = typeof item.content === 'string' ? JSON.parse(item.content) : item.content;
-                        } catch {
-                            content = { text: item.content };
-                        }
+                    // Value sanitization for CSV
+                    const stringVal = (
+                      typeof val === "object" ? JSON.stringify(val) : String(val)
+                    ).replace(/"/g, '""');
+                    row.push(`"${stringVal}"`);
+                  });
 
-                        // If content is just a string, map it to "Answer"
-                        if (typeof content !== 'object' || content === null) {
-                             content = { text: String(content) };
-                        }
+                  csvRows.push(row.join(","));
+                });
 
-                        const { _answers, ...otherProps } = content;
-                        
-                        // Add keys from otherProps
-                        Object.keys(otherProps).forEach(k => allKeys.add(k));
-                        
-                        // Add keys from _answers
-                        if (_answers) {
-                            if (Array.isArray(_answers)) {
-                                _answers.forEach((_, i) => allKeys.add(`Answer ${i+1}`));
-                            } else if (typeof _answers === 'object') {
-                                Object.keys(_answers).forEach(k => allKeys.add(k));
-                            }
-                        }
-                    });
-
-                    // Ensure we have at least "Content" if no keys found
-                    if (allKeys.size === 0) allKeys.add("Content");
-                    
-                    const dynamicHeaders = Array.from(allKeys);
-                    const headers = ["ID", "Date", "User Name", "User Email", "Status", ...dynamicHeaders];
-                    
-                    // 2. Build rows
-                    const csvRows = [headers.join(",")];
-                    
-                    submissions.forEach((item: any) => {
-                        let content: any = {};
-                        try {
-                             content = typeof item.content === 'string' ? JSON.parse(item.content) : item.content;
-                        } catch {
-                             content = { text: item.content };
-                        }
-                         if (typeof content !== 'object' || content === null) {
-                             content = { text: String(content) };
-                        }
-
-                        const { _answers, ...otherProps } = content;
-                        
-                        const row = [
-                            item.id,
-                            new Date(item.createdAt).toLocaleString("ru-RU"),
-                            (item.user?.fullName || "Guest").replace(/,/g, ""),
-                            (item.user?.email || "-").replace(/,/g, ""),
-                            item.status || "pending",
-                        ];
-                        
-                        dynamicHeaders.forEach(header => {
-                            let val = "";
-                            
-                            // Check in otherProps
-                            if (otherProps[header] !== undefined) {
-                                val = otherProps[header];
-                            } 
-                            // Check in _answers (object)
-                            else if (_answers && !Array.isArray(_answers) && typeof _answers === 'object' && _answers[header] !== undefined) {
-                                val = _answers[header];
-                            }
-                            // Check in _answers (array) - header format "Answer X"
-                            else if (_answers && Array.isArray(_answers) && header.startsWith("Answer ")) {
-                                const idx = parseInt(header.split(" ")[1]) - 1;
-                                if (_answers[idx] !== undefined) val = _answers[idx];
-                            }
-                            
-                            // Value sanitization for CSV
-                            const stringVal = (typeof val === 'object' ? JSON.stringify(val) : String(val)).replace(/"/g, '""');
-                            row.push(`"${stringVal}"`);
-                        });
-                        
-                        csvRows.push(row.join(","));
-                    });
-                    
-                    // 3. Download
-                    const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement("a");
-                    link.setAttribute("href", url);
-                    link.setAttribute("download", `lesson_submissions_${lessonId}_${new Date().toISOString().slice(0,10)}.csv`);
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    toast.success("Выгрузка завершена");
-
-                } catch (e) {
-                    console.error(e);
-                    toast.error("Ошибка при выгрузке ответов");
-                }
+                // 3. Download
+                const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.setAttribute("href", url);
+                link.setAttribute(
+                  "download",
+                  `lesson_submissions_${lessonId}_${new Date().toISOString().slice(0, 10)}.csv`
+                );
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                toast.success("Выгрузка завершена");
+              } catch (e) {
+                console.error(e);
+                toast.error("Ошибка при выгрузке ответов");
+              }
             }}
           >
             <FileText className="mr-2 h-4 w-4" />
@@ -448,16 +503,28 @@ export default function LessonEditorPage() {
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-4 border-b border-gray-200 bg-transparent">
-          <TabsTrigger value="basic" className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600">
+          <TabsTrigger
+            value="basic"
+            className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600"
+          >
             Основное
           </TabsTrigger>
-          <TabsTrigger value="content" className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600">
+          <TabsTrigger
+            value="content"
+            className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600"
+          >
             Содержание
           </TabsTrigger>
-          <TabsTrigger value="settings" className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600">
+          <TabsTrigger
+            value="settings"
+            className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600"
+          >
             Настройки
           </TabsTrigger>
-          <TabsTrigger value="preview" className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600">
+          <TabsTrigger
+            value="preview"
+            className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600"
+          >
             Просмотр
           </TabsTrigger>
         </TabsList>
@@ -473,7 +540,9 @@ export default function LessonEditorPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="title" className="text-gray-700">Название урока</Label>
+                <Label htmlFor="title" className="text-gray-700">
+                  Название урока
+                </Label>
                 <Input
                   id="title"
                   value={title}
@@ -484,7 +553,9 @@ export default function LessonEditorPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="type" className="text-gray-700">Тип урока</Label>
+                <Label htmlFor="type" className="text-gray-700">
+                  Тип урока
+                </Label>
                 <Select value={type} onValueChange={(v) => setType(v as typeof type)}>
                   <SelectTrigger className="border-gray-300">
                     <SelectValue />
@@ -536,7 +607,7 @@ export default function LessonEditorPage() {
                   checked={isFree}
                   onCheckedChange={(checked) => setIsFree(Boolean(checked))}
                 />
-                <Label htmlFor="isFree" className="text-gray-700 cursor-pointer">
+                <Label htmlFor="isFree" className="cursor-pointer text-gray-700">
                   Бесплатный урок (доступен без зачисления)
                 </Label>
               </div>
@@ -547,7 +618,7 @@ export default function LessonEditorPage() {
                   checked={isStopLesson}
                   onCheckedChange={(checked) => setIsStopLesson(Boolean(checked))}
                 />
-                <Label htmlFor="isStopLesson" className="text-gray-700 cursor-pointer">
+                <Label htmlFor="isStopLesson" className="cursor-pointer text-gray-700">
                   Стоп-урок (следующий урок откроется только после принятия ДЗ)
                 </Label>
               </div>
@@ -558,7 +629,7 @@ export default function LessonEditorPage() {
                   checked={noHomework}
                   onCheckedChange={(checked) => setNoHomework(Boolean(checked))}
                 />
-                <Label htmlFor="noHomework" className="text-gray-700 cursor-pointer">
+                <Label htmlFor="noHomework" className="cursor-pointer text-gray-700">
                   Нет ДЗ (студенты не смогут прикрепить домашнее задание к этому уроку)
                 </Label>
               </div>
@@ -588,27 +659,32 @@ export default function LessonEditorPage() {
                         setVideos([...videos, { videoId: "", duration: 0, title: "" }]);
                       }}
                     >
-                      <Plus className="h-4 w-4 mr-2" />
+                      <Plus className="mr-2 h-4 w-4" />
                       Добавить видео
                     </Button>
                   </div>
 
                   {videos.length === 0 ? (
-                    <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-lg">
-                      <Video className="h-10 w-10 text-gray-400 mx-auto mb-2" />
+                    <div className="rounded-lg border-2 border-dashed border-gray-200 py-8 text-center">
+                      <Video className="mx-auto mb-2 h-10 w-10 text-gray-400" />
                       <p className="text-sm text-gray-500">Нет добавленных видео</p>
                     </div>
                   ) : (
                     <div className="space-y-4">
                       {videos.map((video, index) => (
-                        <Card key={index} className="bg-gray-50 border-gray-200">
-                          <CardContent className="p-4 space-y-4">
+                        <Card key={index} className="border-gray-200 bg-gray-50">
+                          <CardContent className="space-y-4 p-4">
                             <div className="flex items-start justify-between gap-4">
                               <div className="flex items-center gap-2">
-                                <Badge variant="secondary" className="h-6 w-6 flex items-center justify-center rounded-full p-0">
+                                <Badge
+                                  variant="secondary"
+                                  className="flex h-6 w-6 items-center justify-center rounded-full p-0"
+                                >
                                   {index + 1}
                                 </Badge>
-                                <span className="font-medium text-sm text-gray-700">Видео {index + 1}</span>
+                                <span className="text-sm font-medium text-gray-700">
+                                  Видео {index + 1}
+                                </span>
                               </div>
                               <Button
                                 type="button"
@@ -618,20 +694,20 @@ export default function LessonEditorPage() {
                                   const newVideos = videos.filter((_, i) => i !== index);
                                   setVideos(newVideos);
                                 }}
-                                className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0"
+                                className="h-8 w-8 p-0 text-red-600 hover:bg-red-50 hover:text-red-700"
                               >
                                 <Trash className="h-4 w-4" />
                               </Button>
                             </div>
 
                             <div className="grid gap-4 md:grid-cols-2">
-                              <div className="space-y-2 flex flex-col">
+                              <div className="flex flex-col space-y-2">
                                 <Label className="text-xs text-gray-600">Найти видео</Label>
                                 <Popover
                                   open={openComboboxIndex === index}
                                   onOpenChange={(open) => {
                                     setOpenComboboxIndex(open ? index : null);
-                                    if(open) setSearchTerm("");
+                                    if (open) setSearchTerm("");
                                   }}
                                 >
                                   <PopoverTrigger asChild>
@@ -639,10 +715,13 @@ export default function LessonEditorPage() {
                                       variant="outline"
                                       role="combobox"
                                       aria-expanded={openComboboxIndex === index}
-                                      className="justify-between bg-white font-normal text-left h-auto min-h-[40px]"
+                                      className="h-auto min-h-[40px] justify-between bg-white text-left font-normal"
                                     >
                                       <span className="truncate">
-                                        {video.title || (video.videoId ? `ID: ${video.videoId.slice(0, 8)}...` : "Выберите видео...")}
+                                        {video.title ||
+                                          (video.videoId
+                                            ? `ID: ${video.videoId.slice(0, 8)}...`
+                                            : "Выберите видео...")}
                                       </span>
                                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                     </Button>
@@ -655,7 +734,7 @@ export default function LessonEditorPage() {
                                           placeholder="Поиск видео..."
                                           value={searchTerm}
                                           onChange={(e) => setSearchTerm(e.target.value)}
-                                          className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 h-9"
+                                          className="h-9 border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                                         />
                                       </div>
                                       <div className="max-h-[300px] overflow-y-auto p-1">
@@ -663,7 +742,9 @@ export default function LessonEditorPage() {
                                           videoLibrary
                                             .filter((v: any) => {
                                               if (!searchTerm) return true;
-                                              return v.title.toLowerCase().includes(searchTerm.toLowerCase());
+                                              return v.title
+                                                .toLowerCase()
+                                                .includes(searchTerm.toLowerCase());
                                             })
                                             .map((v: any) => (
                                               <div
@@ -671,10 +752,10 @@ export default function LessonEditorPage() {
                                                 onClick={() => {
                                                   const newVideos = [...videos];
                                                   newVideos[index] = {
-                                                      ...video,
-                                                      videoId: v.cloudflareId,
-                                                      title: v.title,
-                                                      duration: v.duration || 0,
+                                                    ...video,
+                                                    videoId: v.cloudflareId,
+                                                    title: v.title,
+                                                    duration: v.duration || 0,
                                                   };
                                                   setVideos(newVideos);
                                                   setOpenComboboxIndex(null);
@@ -687,7 +768,9 @@ export default function LessonEditorPage() {
                                                 <Check
                                                   className={cn(
                                                     "mr-2 h-4 w-4",
-                                                    video.videoId === v.cloudflareId ? "opacity-100" : "opacity-0"
+                                                    video.videoId === v.cloudflareId
+                                                      ? "opacity-100"
+                                                      : "opacity-0"
                                                   )}
                                                 />
                                                 <span className="truncate">{v.title}</span>
@@ -698,18 +781,23 @@ export default function LessonEditorPage() {
                                             Нет доступных видео
                                           </div>
                                         )}
-                                        {videoLibrary && videoLibrary.filter((v: any) => v.title.toLowerCase().includes(searchTerm.toLowerCase())).length === 0 && (
-                                           <div className="py-6 text-center text-sm text-gray-500">
-                                             Видео не найдено
-                                           </div>
-                                        )}
+                                        {videoLibrary &&
+                                          videoLibrary.filter((v: any) =>
+                                            v.title.toLowerCase().includes(searchTerm.toLowerCase())
+                                          ).length === 0 && (
+                                            <div className="py-6 text-center text-sm text-gray-500">
+                                              Видео не найдено
+                                            </div>
+                                          )}
                                       </div>
                                     </div>
                                   </PopoverContent>
                                 </Popover>
                               </div>
                               <div className="space-y-2">
-                                <Label className="text-xs text-gray-600">Название (опционально)</Label>
+                                <Label className="text-xs text-gray-600">
+                                  Название (опционально)
+                                </Label>
                                 <Input
                                   value={video.title || ""}
                                   onChange={(e) => {
@@ -728,7 +816,10 @@ export default function LessonEditorPage() {
                                   value={video.duration || ""}
                                   onChange={(e) => {
                                     const newVideos = [...videos];
-                                    newVideos[index] = { ...video, duration: parseInt(e.target.value) || 0 };
+                                    newVideos[index] = {
+                                      ...video,
+                                      duration: parseInt(e.target.value) || 0,
+                                    };
                                     setVideos(newVideos);
                                   }}
                                   placeholder="0"
@@ -780,14 +871,14 @@ export default function LessonEditorPage() {
 
 Текст урока..."
                     rows={20}
-                    className="border-gray-300 focus:border-blue-500 font-mono text-sm"
+                    className="border-gray-300 font-mono text-sm focus:border-blue-500"
                   />
                 </div>
 
                 {/* Cloudflare Image Insert Helper */}
-                <Card className="bg-blue-50 border-blue-200">
+                <Card className="border-blue-200 bg-blue-50">
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-sm flex items-center gap-2">
+                    <CardTitle className="flex items-center gap-2 text-sm">
                       <Image className="h-4 w-4" />
                       Вставить изображение из Cloudflare
                     </CardTitle>
@@ -803,24 +894,32 @@ export default function LessonEditorPage() {
                           placeholder="Например: abc123-def456-ghi789"
                           className="bg-white font-mono text-sm"
                           onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
+                            if (e.key === "Enter") {
                               e.preventDefault();
                               const imageId = (e.target as HTMLInputElement).value.trim();
                               if (imageId) {
-                                const textarea = document.getElementById('markdown') as HTMLTextAreaElement;
+                                const textarea = document.getElementById(
+                                  "markdown"
+                                ) as HTMLTextAreaElement;
                                 if (textarea) {
                                   const start = textarea.selectionStart;
                                   const end = textarea.selectionEnd;
                                   const currentValue = content?.markdown || "";
                                   const imageMarkdown = `\n\n![Описание изображения](cloudflare:${imageId})\n\n`;
-                                  const newValue = currentValue.substring(0, start) + imageMarkdown + currentValue.substring(end);
+                                  const newValue =
+                                    currentValue.substring(0, start) +
+                                    imageMarkdown +
+                                    currentValue.substring(end);
                                   handleContentChange("markdown", newValue);
                                   toast.success("Изображение вставлено!");
                                   (e.target as HTMLInputElement).value = "";
                                   // Set cursor position after inserted image
                                   setTimeout(() => {
                                     textarea.focus();
-                                    textarea.setSelectionRange(start + imageMarkdown.length, start + imageMarkdown.length);
+                                    textarea.setSelectionRange(
+                                      start + imageMarkdown.length,
+                                      start + imageMarkdown.length
+                                    );
                                   }, 0);
                                 }
                               }
@@ -832,33 +931,36 @@ export default function LessonEditorPage() {
                           size="sm"
                           variant="secondary"
                           onClick={() => {
-                            const input = document.getElementById('imageId') as HTMLInputElement;
+                            const input = document.getElementById("imageId") as HTMLInputElement;
                             const imageId = input?.value.trim();
                             if (!imageId) {
                               toast.error("Введите ID изображения");
                               return;
                             }
-                            const textarea = document.getElementById('markdown') as HTMLTextAreaElement;
+                            const textarea = document.getElementById(
+                              "markdown"
+                            ) as HTMLTextAreaElement;
                             if (textarea) {
                               const start = textarea.selectionStart;
                               const end = textarea.selectionEnd;
                               const currentValue = content?.markdown || "";
-                              
+
                               // Ensure we have newlines before and after for proper markdown parsing
                               const before = currentValue.substring(0, start);
                               const after = currentValue.substring(end);
-                              
+
                               // Add newlines if not at start/end and previous char is not newline
-                              const needsNewlineBefore = start > 0 && !before.endsWith('\n');
-                              const needsNewlineAfter = end < currentValue.length && !after.startsWith('\n');
-                              
-                              const imageMarkdown = `${needsNewlineBefore ? '\n\n' : ''}![Описание изображения](cloudflare:${imageId})${needsNewlineAfter ? '\n\n' : ''}`;
+                              const needsNewlineBefore = start > 0 && !before.endsWith("\n");
+                              const needsNewlineAfter =
+                                end < currentValue.length && !after.startsWith("\n");
+
+                              const imageMarkdown = `${needsNewlineBefore ? "\n\n" : ""}![Описание изображения](cloudflare:${imageId})${needsNewlineAfter ? "\n\n" : ""}`;
                               const newValue = before + imageMarkdown + after;
-                              
+
                               handleContentChange("markdown", newValue);
                               toast.success("Изображение вставлено!");
                               if (input) input.value = "";
-                              
+
                               // Set cursor position after inserted image
                               setTimeout(() => {
                                 textarea.focus();
@@ -868,18 +970,19 @@ export default function LessonEditorPage() {
                             }
                           }}
                         >
-                          <Plus className="h-4 w-4 mr-1" />
+                          <Plus className="mr-1 h-4 w-4" />
                           Вставить
                         </Button>
                       </div>
                     </div>
-                    <div className="text-xs text-gray-600 space-y-1 bg-white p-3 rounded border border-blue-100">
+                    <div className="space-y-1 rounded border border-blue-100 bg-white p-3 text-xs text-gray-600">
                       <p className="font-medium">Синтаксис:</p>
-                      <code className="block bg-gray-100 p-2 rounded font-mono text-xs">
+                      <code className="block rounded bg-gray-100 p-2 font-mono text-xs">
                         ![Описание](cloudflare:IMAGE_ID)
                       </code>
-                      <p className="text-gray-500 mt-2">
-                        Изображение будет автоматически загружено из Cloudflare Images при отображении урока студентам.
+                      <p className="mt-2 text-gray-500">
+                        Изображение будет автоматически загружено из Cloudflare Images при
+                        отображении урока студентам.
                       </p>
                     </div>
                   </CardContent>
@@ -930,16 +1033,16 @@ export default function LessonEditorPage() {
                     }}
                     size="sm"
                   >
-                    <Plus className="h-4 w-4 mr-2" />
+                    <Plus className="mr-2 h-4 w-4" />
                     Добавить вопрос
                   </Button>
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
-                {(!content?.questions || content.questions.length === 0) ? (
-                  <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-lg">
-                    <CircleHelp className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-600 mb-4">Тест пока не содержит вопросов</p>
+                {!content?.questions || content.questions.length === 0 ? (
+                  <div className="rounded-lg border-2 border-dashed border-gray-300 py-12 text-center">
+                    <CircleHelp className="mx-auto mb-4 h-12 w-12 text-gray-400" />
+                    <p className="mb-4 text-gray-600">Тест пока не содержит вопросов</p>
                     <Button
                       type="button"
                       onClick={() => {
@@ -957,19 +1060,24 @@ export default function LessonEditorPage() {
                       }}
                       variant="outline"
                     >
-                      <Plus className="h-4 w-4 mr-2" />
+                      <Plus className="mr-2 h-4 w-4" />
                       Создать первый вопрос
                     </Button>
                   </div>
                 ) : (
                   <div className="space-y-6">
                     {content.questions.map((question: any, questionIndex: number) => (
-                      <Card key={question.id || questionIndex} className="border-gray-200 bg-gray-50">
-                        <CardContent className="p-6 space-y-4">
+                      <Card
+                        key={question.id || questionIndex}
+                        className="border-gray-200 bg-gray-50"
+                      >
+                        <CardContent className="space-y-4 p-6">
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex items-center gap-2 text-gray-500">
                               <GripVertical className="h-5 w-5" />
-                              <span className="text-sm font-medium">Вопрос {questionIndex + 1}</span>
+                              <span className="text-sm font-medium">
+                                Вопрос {questionIndex + 1}
+                              </span>
                             </div>
                             <Button
                               type="button"
@@ -981,14 +1089,14 @@ export default function LessonEditorPage() {
                                 );
                                 setContent({ ...content, questions: newQuestions });
                               }}
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              className="text-red-600 hover:bg-red-50 hover:text-red-700"
                             >
                               <Trash className="h-4 w-4" />
                             </Button>
                           </div>
 
                           <div className="grid gap-4 md:grid-cols-4">
-                            <div className="md:col-span-3 space-y-2">
+                            <div className="space-y-2 md:col-span-3">
                               <Label className="text-gray-700">Текст вопроса *</Label>
                               <Textarea
                                 value={question.text || ""}
@@ -1005,7 +1113,7 @@ export default function LessonEditorPage() {
                                 className="border-gray-300 focus:border-blue-500"
                               />
                             </div>
-                            <div className="md:col-span-1 space-y-2">
+                            <div className="space-y-2 md:col-span-1">
                               <Label className="text-gray-700">Тип вопроса</Label>
                               <Select
                                 value={question.type || "single_choice"}
@@ -1030,7 +1138,7 @@ export default function LessonEditorPage() {
                             </div>
                           </div>
 
-                          {(question.type === "single_choice" || !question.type) ? (
+                          {question.type === "single_choice" || !question.type ? (
                             <>
                               <div className="space-y-3">
                                 <div className="flex items-center justify-between">
@@ -1043,19 +1151,22 @@ export default function LessonEditorPage() {
                                       const newQuestions = [...content.questions];
                                       newQuestions[questionIndex] = {
                                         ...newQuestions[questionIndex],
-                                        options: [...(newQuestions[questionIndex].options || []), ""],
+                                        options: [
+                                          ...(newQuestions[questionIndex].options || []),
+                                          "",
+                                        ],
                                       };
                                       setContent({ ...content, questions: newQuestions });
                                     }}
                                   >
-                                    <Plus className="h-3 w-3 mr-1" />
+                                    <Plus className="mr-1 h-3 w-3" />
                                     Добавить вариант
                                   </Button>
                                 </div>
 
                                 {question.options?.map((option: string, optionIndex: number) => (
                                   <div key={optionIndex} className="flex items-center gap-3">
-                                    <div className="flex items-center gap-2 flex-1">
+                                    <div className="flex flex-1 items-center gap-2">
                                       <input
                                         type="radio"
                                         name={`correct-${questionIndex}`}
@@ -1074,7 +1185,9 @@ export default function LessonEditorPage() {
                                         value={option}
                                         onChange={(e) => {
                                           const newQuestions = [...content.questions];
-                                          const newOptions = [...newQuestions[questionIndex].options];
+                                          const newOptions = [
+                                            ...newQuestions[questionIndex].options,
+                                          ];
                                           newOptions[optionIndex] = e.target.value;
                                           newQuestions[questionIndex] = {
                                             ...newQuestions[questionIndex],
@@ -1093,7 +1206,9 @@ export default function LessonEditorPage() {
                                         size="sm"
                                         onClick={() => {
                                           const newQuestions = [...content.questions];
-                                          const newOptions = newQuestions[questionIndex].options.filter(
+                                          const newOptions = newQuestions[
+                                            questionIndex
+                                          ].options.filter(
                                             (_: string, idx: number) => idx !== optionIndex
                                           );
                                           // Если удаляем правильный ответ, сбрасываем выбор
@@ -1110,7 +1225,7 @@ export default function LessonEditorPage() {
                                           };
                                           setContent({ ...content, questions: newQuestions });
                                         }}
-                                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                        className="text-red-600 hover:bg-red-50 hover:text-red-700"
                                       >
                                         <Trash className="h-4 w-4" />
                                       </Button>
@@ -1120,21 +1235,22 @@ export default function LessonEditorPage() {
                               </div>
 
                               {question.correct !== undefined && question.correct !== null && (
-                                <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
+                                <div className="rounded-lg bg-blue-50 p-3 text-sm text-gray-600">
                                   <span className="font-medium">Правильный ответ:</span>{" "}
                                   {question.options?.[question.correct] || "Не выбран"}
                                 </div>
                               )}
                             </>
                           ) : (
-                            <div className="text-sm text-gray-600 bg-amber-50 border border-amber-200 p-3 rounded-lg">
-                              <span className="font-medium flex items-center gap-2">
+                            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-gray-600">
+                              <span className="flex items-center gap-2 font-medium">
                                 <CircleHelp className="h-4 w-4 text-amber-500" />
                                 Ручная проверка
                               </span>
                               <p className="mt-1">
                                 Студенту будет предложено поле для ввода свободного текста или кода.
-                                Такие ответы требуют проверки куратором, прежде чем урок будет считаться пройденным.
+                                Такие ответы требуют проверки куратором, прежде чем урок будет
+                                считаться пройденным.
                               </p>
                             </div>
                           )}
@@ -1157,15 +1273,16 @@ export default function LessonEditorPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="p-4 bg-blue-50 text-blue-800 rounded-lg border border-blue-200">
+                <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-blue-800">
                   <p className="font-medium">Как это работает?</p>
-                  <p className="text-sm mt-1">
-                    Студенту будет предложено 5 вопросов о его опыте и целях. 
-                    На основе ответов система автоматически определит рекомендованный трек (1-5) 
-                    и установит его в профиле студента.
+                  <p className="mt-1 text-sm">
+                    Студенту будет предложено 5 вопросов о его опыте и целях. На основе ответов
+                    система автоматически определит рекомендованный трек (1-5) и установит его в
+                    профиле студента.
                   </p>
-                  <p className="text-sm mt-2">
-                    В случае спорного результата (равенство баллов), студенту будет предложено связаться с куратором.
+                  <p className="mt-2 text-sm">
+                    В случае спорного результата (равенство баллов), студенту будет предложено
+                    связаться с куратором.
                   </p>
                 </div>
               </CardContent>
@@ -1191,26 +1308,31 @@ export default function LessonEditorPage() {
                       setLinks([...links, { label: "", url: "" }]);
                     }}
                   >
-                    <Plus className="h-4 w-4 mr-2" />
+                    <Plus className="mr-2 h-4 w-4" />
                     Добавить кнопку
                   </Button>
                 </div>
 
                 {links.length === 0 ? (
-                  <div className="text-center py-6 border-2 border-dashed border-gray-200 rounded-lg">
+                  <div className="rounded-lg border-2 border-dashed border-gray-200 py-6 text-center">
                     <p className="text-sm text-gray-500">Нет добавленных кнопок</p>
                   </div>
                 ) : (
                   <div className="space-y-4">
                     {links.map((link, index) => (
-                      <Card key={index} className="bg-gray-50 border-gray-200">
-                        <CardContent className="p-4 space-y-4">
+                      <Card key={index} className="border-gray-200 bg-gray-50">
+                        <CardContent className="space-y-4 p-4">
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex items-center gap-2">
-                              <Badge variant="secondary" className="h-6 w-6 flex items-center justify-center rounded-full p-0">
+                              <Badge
+                                variant="secondary"
+                                className="flex h-6 w-6 items-center justify-center rounded-full p-0"
+                              >
                                 {index + 1}
                               </Badge>
-                              <span className="font-medium text-sm text-gray-700">Кнопка {index + 1}</span>
+                              <span className="text-sm font-medium text-gray-700">
+                                Кнопка {index + 1}
+                              </span>
                             </div>
                             <Button
                               type="button"
@@ -1220,7 +1342,7 @@ export default function LessonEditorPage() {
                                 const newLinks = links.filter((_, i) => i !== index);
                                 setLinks(newLinks);
                               }}
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0"
+                              className="h-8 w-8 p-0 text-red-600 hover:bg-red-50 hover:text-red-700"
                             >
                               <Trash className="h-4 w-4" />
                             </Button>
@@ -1279,9 +1401,9 @@ export default function LessonEditorPage() {
                   id="whatYoullLearn"
                   value={
                     content?.whatYoullLearn
-                      ? (Array.isArray(content.whatYoullLearn)
-                          ? content.whatYoullLearn.join("\n")
-                          : content.whatYoullLearn)
+                      ? Array.isArray(content.whatYoullLearn)
+                        ? content.whatYoullLearn.join("\n")
+                        : content.whatYoullLearn
                       : ""
                   }
                   onChange={(e) =>
@@ -1315,6 +1437,35 @@ export default function LessonEditorPage() {
 
         {/* Настройки */}
         <TabsContent value="settings" className="mt-6 space-y-6">
+          {type === "certification_form" && (
+            <Card className="border-orange-200">
+              <CardHeader>
+                <CardTitle className="text-gray-900">Условие выдачи сертификата</CardTitle>
+                <CardDescription>
+                  Если порог не задан, сертификат выдаётся после отправки сертификации.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Label htmlFor="certificationPassingScore">Проходной балл, %</Label>
+                <Input
+                  id="certificationPassingScore"
+                  type="number"
+                  min={0}
+                  max={100}
+                  placeholder="Не задан"
+                  value={certificationPassingScore ?? ""}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setCertificationPassingScore(value === "" ? null : Number(value));
+                  }}
+                  className="max-w-xs"
+                />
+                <p className="text-xs text-gray-500">
+                  При результате ниже порога задача на выдачу сертификата не создаётся.
+                </p>
+              </CardContent>
+            </Card>
+          )}
           <Card className="border-gray-200">
             <CardHeader>
               <CardTitle className="text-gray-900">Расписание (Drip Content)</CardTitle>
@@ -1341,9 +1492,17 @@ export default function LessonEditorPage() {
                     } else if (value === "after_start") {
                       setDripRule({ ...dripRule, type: "after_start", days: dripRule?.days || 0 });
                     } else if (value === "on_date") {
-                      setDripRule({ ...dripRule, type: "on_date", date: dripRule?.date || new Date().toISOString() });
+                      setDripRule({
+                        ...dripRule,
+                        type: "on_date",
+                        date: dripRule?.date || new Date().toISOString(),
+                      });
                     } else if (value === "after_previous_completed") {
-                      setDripRule({ ...dripRule, type: "after_previous_completed", delayHours: dripRule?.delayHours || 0 });
+                      setDripRule({
+                        ...dripRule,
+                        type: "after_previous_completed",
+                        delayHours: dripRule?.delayHours || 0,
+                      });
                     }
                   }}
                 >
@@ -1354,7 +1513,9 @@ export default function LessonEditorPage() {
                     <SelectItem value="immediately">Сразу после старта</SelectItem>
                     <SelectItem value="after_start">Через N дней после старта</SelectItem>
                     <SelectItem value="on_date">В определенную дату</SelectItem>
-                    <SelectItem value="after_previous_completed">После завершения предыдущего</SelectItem>
+                    <SelectItem value="after_previous_completed">
+                      После завершения предыдущего
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1384,11 +1545,7 @@ export default function LessonEditorPage() {
                   <Input
                     id="dripDate"
                     type="datetime-local"
-                    value={
-                      dripRule.date
-                        ? new Date(dripRule.date).toISOString().slice(0, 16)
-                        : ""
-                    }
+                    value={dripRule.date ? new Date(dripRule.date).toISOString().slice(0, 16) : ""}
                     onChange={(e) =>
                       setDripRule({ ...dripRule, date: new Date(e.target.value).toISOString() })
                     }
@@ -1417,7 +1574,7 @@ export default function LessonEditorPage() {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-100">
+              <div className="grid grid-cols-1 gap-4 border-t border-gray-100 pt-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="softDeadline" className="text-gray-700">
                     Мягкий дедлайн
@@ -1431,7 +1588,9 @@ export default function LessonEditorPage() {
                         : ""
                     }
                     onChange={(e) => {
-                      const val = e.target.value ? new Date(e.target.value).toISOString() : undefined;
+                      const val = e.target.value
+                        ? new Date(e.target.value).toISOString()
+                        : undefined;
                       setDripRule({ ...dripRule, softDeadline: val });
                     }}
                     className="border-gray-300 focus:border-blue-500"
@@ -1454,7 +1613,9 @@ export default function LessonEditorPage() {
                         : ""
                     }
                     onChange={(e) => {
-                      const val = e.target.value ? new Date(e.target.value).toISOString() : undefined;
+                      const val = e.target.value
+                        ? new Date(e.target.value).toISOString()
+                        : undefined;
                       setDripRule({ ...dripRule, hardDeadline: val });
                     }}
                     className="border-gray-300 focus:border-blue-500"
@@ -1466,78 +1627,80 @@ export default function LessonEditorPage() {
               </div>
             </CardContent>
           </Card>
-
-
         </TabsContent>
 
-      <TabsContent value="settings" className="mt-6 space-y-6">
+        <TabsContent value="settings" className="mt-6 space-y-6">
           <Card className="border-gray-200">
             <CardHeader>
-               <CardTitle className="text-gray-900">Настройки урока</CardTitle>
+              <CardTitle className="text-gray-900">Настройки урока</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-                <div className="space-y-2">
-                    <Label className="text-gray-700">Авто-ответ на ДЗ</Label>
-                    <p className="text-xs text-gray-500">
-                        Если заполнено — ДЗ будет автоматически принято сразу после отправки, а студент получит этот текст как комментарий куратора. ИИ-проверка в этом случае не запускается.
-                    </p>
-                    <Textarea
-                        value={autoResponse}
-                        onChange={(e) => setAutoResponse(e.target.value)}
-                        placeholder="Например: Отлично, задание выполнено! Переходи к следующему уроку."
-                        rows={4}
-                        className="text-sm border-gray-300"
-                    />
-                </div>
+              <div className="space-y-2">
+                <Label className="text-gray-700">Авто-ответ на ДЗ</Label>
+                <p className="text-xs text-gray-500">
+                  Если заполнено — ДЗ будет автоматически принято сразу после отправки, а студент
+                  получит этот текст как комментарий куратора. ИИ-проверка в этом случае не
+                  запускается.
+                </p>
+                <Textarea
+                  value={autoResponse}
+                  onChange={(e) => setAutoResponse(e.target.value)}
+                  placeholder="Например: Отлично, задание выполнено! Переходи к следующему уроку."
+                  rows={4}
+                  className="border-gray-300 text-sm"
+                />
+              </div>
 
-                <div className="space-y-2">
-                    <Label className="text-gray-700">ИИ Промпт для проверки ДЗ</Label>
-                    <p className="text-xs text-gray-500">
-                        Инструкция для ИИ: как проверять ответ, что считать зачётом, на что обратить внимание.
-                        Если заполнено — ИИ автоматически проверяет ответы студентов.
-                    </p>
-                    <Textarea
-                        value={aiPrompt}
-                        onChange={(e) => setAiPrompt(e.target.value)}
-                        placeholder="Например: Ты — куратор курса. Засчитай ответ если студент упомянул не менее 3 конкретных шагов и привёл пример из своей практики. Отклони если ответ слишком общий или скопирован."
-                        rows={5}
-                        className="font-mono text-sm border-gray-300"
-                    />
-                </div>
+              <div className="space-y-2">
+                <Label className="text-gray-700">ИИ Промпт для проверки ДЗ</Label>
+                <p className="text-xs text-gray-500">
+                  Инструкция для ИИ: как проверять ответ, что считать зачётом, на что обратить
+                  внимание. Если заполнено — ИИ автоматически проверяет ответы студентов.
+                </p>
+                <Textarea
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  placeholder="Например: Ты — куратор курса. Засчитай ответ если студент упомянул не менее 3 конкретных шагов и привёл пример из своей практики. Отклони если ответ слишком общий или скопирован."
+                  rows={5}
+                  className="border-gray-300 font-mono text-sm"
+                />
+              </div>
 
-                <div className="space-y-2">
-                    <Label className="text-gray-700">Контекст урока для ИИ</Label>
-                    <p className="text-xs text-gray-500">
-                        Материал урока, эталонный ответ или критерии оценки. ИИ использует этот текст как опорный при проверке.
-                        Можно вставить конспект, ключевые тезисы или пример правильного ответа.
-                    </p>
-                    <Textarea
-                        value={aiContext}
-                        onChange={(e) => setAiContext(e.target.value)}
-                        placeholder="Например: В этом уроке студент изучил 5 шагов работы с возражениями: 1) Выслушать... 2) Уточнить... Правильный ответ должен содержать..."
-                        rows={8}
-                        className="text-sm border-gray-300"
-                    />
-                </div>
+              <div className="space-y-2">
+                <Label className="text-gray-700">Контекст урока для ИИ</Label>
+                <p className="text-xs text-gray-500">
+                  Материал урока, эталонный ответ или критерии оценки. ИИ использует этот текст как
+                  опорный при проверке. Можно вставить конспект, ключевые тезисы или пример
+                  правильного ответа.
+                </p>
+                <Textarea
+                  value={aiContext}
+                  onChange={(e) => setAiContext(e.target.value)}
+                  placeholder="Например: В этом уроке студент изучил 5 шагов работы с возражениями: 1) Выслушать... 2) Уточнить... Правильный ответ должен содержать..."
+                  rows={8}
+                  className="border-gray-300 text-sm"
+                />
+              </div>
 
-                <div className="flex items-start gap-3 pt-2">
-                    <Checkbox
-                        id="hasImageAnalysis"
-                        checked={hasImageAnalysis}
-                        onCheckedChange={(checked) => setHasImageAnalysis(checked === true)}
-                    />
-                    <div className="space-y-1">
-                        <Label htmlFor="hasImageAnalysis" className="text-gray-700 cursor-pointer">
-                            Есть анализ картинок
-                        </Label>
-                        <p className="text-xs text-gray-500">
-                            Если включено — при проверке ДЗ ИИ будет анализировать прикреплённые студентом изображения с помощью GPT-4o.
-                        </p>
-                    </div>
+              <div className="flex items-start gap-3 pt-2">
+                <Checkbox
+                  id="hasImageAnalysis"
+                  checked={hasImageAnalysis}
+                  onCheckedChange={(checked) => setHasImageAnalysis(checked === true)}
+                />
+                <div className="space-y-1">
+                  <Label htmlFor="hasImageAnalysis" className="cursor-pointer text-gray-700">
+                    Есть анализ картинок
+                  </Label>
+                  <p className="text-xs text-gray-500">
+                    Если включено — при проверке ДЗ ИИ будет анализировать прикреплённые студентом
+                    изображения с помощью GPT-4o.
+                  </p>
                 </div>
+              </div>
             </CardContent>
           </Card>
-      </TabsContent>
+        </TabsContent>
 
         {/* Просмотр */}
         <TabsContent value="preview" className="mt-6">
@@ -1549,7 +1712,7 @@ export default function LessonEditorPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0 sm:p-6">
-              <div className="border rounded-lg overflow-hidden bg-white">
+              <div className="overflow-hidden rounded-lg border bg-white">
                 <LessonContentPlayer
                   lesson={{
                     id: lessonId,
@@ -1563,9 +1726,11 @@ export default function LessonEditorPage() {
                     isStopLesson: isStopLesson,
                     dripRule: dripRule,
                     settings: {
-                        ...settings,
-                        homeworkDeadline: homeworkDeadline ? new Date(homeworkDeadline).toISOString() : undefined,
-                    }
+                      ...settings,
+                      homeworkDeadline: homeworkDeadline
+                        ? new Date(homeworkDeadline).toISOString()
+                        : undefined,
+                    },
                   }}
                   isPreview={true}
                 />
@@ -1577,4 +1742,3 @@ export default function LessonEditorPage() {
     </div>
   );
 }
-

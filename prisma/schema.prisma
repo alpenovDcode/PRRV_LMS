@@ -328,6 +328,7 @@ model HomeworkHistory {
 model Notification {
   id        String   @id @default(uuid())
   userId    String   @map("user_id")
+  eventKey  String?  @map("event_key")
   type      String
   title     String
   message   String
@@ -336,6 +337,7 @@ model Notification {
   createdAt DateTime @default(now()) @map("created_at")
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, eventKey])
   @@index([isRead])
   @@map("notifications")
 }
@@ -668,6 +670,26 @@ model Certificate {
   @@index([courseId])
   @@index([certificateNumber])
   @@map("certificates")
+}
+
+model CertificateIssuanceJob {
+  id                    String    @id @default(uuid())
+  userId                String    @map("user_id")
+  courseId              String    @map("course_id")
+  certificationLessonId String    @map("certification_lesson_id")
+  status                String    @default("pending")
+  attempts              Int       @default(0)
+  nextAttemptAt         DateTime  @default(now()) @map("next_attempt_at")
+  lockedAt              DateTime? @map("locked_at")
+  lastError             String?   @map("last_error") @db.Text
+  certificateId         String?   @map("certificate_id")
+  emailSentAt           DateTime? @map("email_sent_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  @@unique([userId, courseId])
+  @@index([status, nextAttemptAt])
+  @@map("certificate_issuance_jobs")
 }
 
 // ─── Payments ────────────────────────────────────────────────────────────────

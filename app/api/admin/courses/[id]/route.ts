@@ -7,10 +7,7 @@ import { courseSchema } from "@/lib/validations";
 import { logAction } from "@/lib/audit";
 import { validateOrigin } from "@/lib/csrf";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return withAuth(
     request,
     async (req) => {
@@ -60,10 +57,7 @@ export async function GET(
   );
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   // CSRF защита
   if (!validateOrigin(request)) {
     return NextResponse.json<ApiResponse>(
@@ -81,10 +75,10 @@ export async function PATCH(
   return withAuth(
     request,
     async (req) => {
-        const { id } = await params;
+      const { id } = await params;
       try {
         const body = await request.json();
-        
+
         // Валидация через Zod (частичное обновление)
         const updateSchema = courseSchema.partial();
         const parsed = updateSchema.parse(body);
@@ -105,6 +99,43 @@ export async function PATCH(
             },
             { status: 404 }
           );
+        }
+
+        const effectiveAutoIssue =
+          parsed.autoIssueCertificate ?? existingCourse.autoIssueCertificate;
+        const effectiveTemplateId =
+          parsed.certificateTemplateId === undefined
+            ? existingCourse.certificateTemplateId
+            : parsed.certificateTemplateId;
+        if (effectiveAutoIssue) {
+          if (!effectiveTemplateId) {
+            return NextResponse.json<ApiResponse>(
+              {
+                success: false,
+                error: {
+                  code: "CERTIFICATE_TEMPLATE_REQUIRED",
+                  message: "Для автоматической выдачи выберите шаблон сертификата",
+                },
+              },
+              { status: 400 }
+            );
+          }
+          const template = await db.certificateTemplate.findUnique({
+            where: { id: effectiveTemplateId },
+            select: { isActive: true, courseId: true },
+          });
+          if (!template?.isActive || (template.courseId && template.courseId !== id)) {
+            return NextResponse.json<ApiResponse>(
+              {
+                success: false,
+                error: {
+                  code: "INVALID_CERTIFICATE_TEMPLATE",
+                  message: "Выбранный шаблон недоступен для этого курса",
+                },
+              },
+              { status: 400 }
+            );
+          }
         }
 
         // Sanitize description if provided
@@ -151,8 +182,6 @@ export async function PATCH(
   );
 }
 
-
-
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -176,7 +205,7 @@ export async function DELETE(
     async (req) => {
       try {
         const { id } = await params;
-        
+
         const course = await db.course.findUnique({
           where: { id },
         });

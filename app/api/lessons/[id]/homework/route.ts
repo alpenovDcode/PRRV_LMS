@@ -25,18 +25,15 @@ const homeworkSubmitSchema = z.object({
     .optional(),
 });
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return withAuth(request, async (req) => {
     try {
       const { id } = await params;
-        const body = await request.json();
+      const body = await request.json();
       const { content, files } = homeworkSubmitSchema.parse(body);
 
       if (!content && (!files || files.length === 0)) {
-         return NextResponse.json<ApiResponse>(
+        return NextResponse.json<ApiResponse>(
           {
             success: false,
             error: {
@@ -54,6 +51,7 @@ export async function POST(
         select: {
           id: true,
           title: true,
+          type: true,
           content: true,
           moduleId: true,
           aiPrompt: true,
@@ -163,9 +161,7 @@ export async function POST(
             JSON.parse(trimmed);
             // Валидный JSON — храним полностью, без обрезки.
             // Hard cap 200 КБ как защита от accidental DOS.
-            sanitizedContent = trimmed.length <= 200_000
-              ? trimmed
-              : trimmed.substring(0, 200_000);
+            sanitizedContent = trimmed.length <= 200_000 ? trimmed : trimmed.substring(0, 200_000);
           } catch {
             // Похоже на JSON, но не парсится — фолбэк на стандартный
             // санитайзер.
@@ -215,7 +211,7 @@ export async function POST(
                 id: true,
                 title: true,
                 isStopLesson: true,
-              }
+              },
             },
           },
         });
@@ -235,7 +231,7 @@ export async function POST(
                 id: true,
                 title: true,
                 isStopLesson: true,
-              }
+              },
             },
           },
         });
@@ -275,7 +271,7 @@ export async function POST(
             reviewedAt: new Date(),
           },
         });
-      // Запускаем AI-проверку только если авто-ответ не задан
+        // Запускаем AI-проверку только если авто-ответ не задан
       } else if (lesson.aiPrompt) {
         const delayMs = parseInt(process.env.AI_CHECK_DELAY_MS || "1200000");
         const checkAfter = new Date(Date.now() + delayMs);
@@ -324,19 +320,23 @@ export async function POST(
 
       // Log action
       await logAction(req.user!.userId, "SUBMIT_HOMEWORK", "homework", submission.id, {
-         title: submission.lesson?.title
+        title: submission.lesson?.title,
       });
 
-      // Проверяем и выдаем сертификат, если курс завершен (только если урок был завершен автоматически)
+      // Сертификация ставит идемпотентную задачу в очередь. Для старых
+      // курсов без certification_form сохраняем прежнюю проверку завершения.
       if (submission.lesson && !submission.lesson.isStopLesson) {
         try {
-          // Нам нужно получить courseId. В `submission.lesson` его сейчас нет в select.
-          // Но мы делали запрос `lesson` в начале (строка 39), там есть courseId.
-          const courseId = lesson.module.course.id;
-          const { checkAndIssueCertificate } = await import("@/lib/certificate-service");
-          await checkAndIssueCertificate(req.user!.userId, courseId);
+          if (lesson.type === "certification_form") {
+            const { enqueueCertificateAfterCertification } =
+              await import("@/lib/certificate-issuance-queue");
+            await enqueueCertificateAfterCertification(req.user!.userId, lesson.id);
+          } else {
+            const { checkAndIssueCertificate } = await import("@/lib/certificate-service");
+            await checkAndIssueCertificate(req.user!.userId, lesson.module.course.id);
+          }
         } catch (certError) {
-          console.error("Certificate issuance check failed:", certError);
+          console.error("Certificate issuance enqueue failed:", certError);
         }
       }
 
@@ -390,14 +390,11 @@ export async function POST(
   });
 }
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return withAuth(request, async (req) => {
     try {
       const { id } = await params;
-        const submission = await db.homeworkSubmission.findFirst({
+      const submission = await db.homeworkSubmission.findFirst({
         where: {
           userId: req.user!.userId,
           lessonId: id,
@@ -447,4 +444,3 @@ export async function GET(
     }
   });
 }
-

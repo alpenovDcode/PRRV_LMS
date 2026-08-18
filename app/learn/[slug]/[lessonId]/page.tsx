@@ -66,12 +66,15 @@ interface CourseNav {
   modules: Array<{
     id: string;
     title: string;
+    isAvailable?: boolean;
+    availableDate?: string | null;
     lessons: Array<{
       id: string;
       title: string;
       type: string;
       orderIndex: number;
       isAvailable: boolean;
+      availableDate?: string;
       progress?: { status: string };
     }>;
     children?: Array<any>;
@@ -97,7 +100,7 @@ function formatTime(seconds: number): string {
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   const secs = Math.floor(seconds % 60);
-  
+
   if (hours > 0) {
     return `${hours}:${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   }
@@ -130,7 +133,7 @@ export default function LessonPlayerPage() {
   useEffect(() => {
     const savedScroll = localStorage.getItem("lesson-sidebar-scroll");
     if (savedScroll && sidebarRef.current) {
-       sidebarRef.current.scrollTop = parseInt(savedScroll, 10);
+      sidebarRef.current.scrollTop = parseInt(savedScroll, 10);
     }
   }, []);
 
@@ -162,6 +165,34 @@ export default function LessonPlayerPage() {
     },
   });
 
+  useEffect(() => {
+    if (!courseNav) return;
+
+    const collectDates = (modules: CourseNav["modules"]): number[] =>
+      modules.flatMap((module) => [
+        ...(module.availableDate ? [new Date(module.availableDate).getTime()] : []),
+        ...module.lessons
+          .filter((item) => !item.isAvailable && item.availableDate)
+          .map((item) => new Date(item.availableDate!).getTime()),
+        ...(module.children ? collectDates(module.children) : []),
+      ]);
+
+    const now = Date.now();
+    const futureDates = collectDates(courseNav.modules).filter((time) => time > now);
+    if (futureDates.length === 0) return;
+
+    const msUntilUnlock = Math.min(...futureDates) - now;
+    const timer = setTimeout(
+      () => {
+        queryClient.invalidateQueries({ queryKey: ["course-nav", slug, lessonId] });
+        queryClient.invalidateQueries({ queryKey: ["lesson", lessonId] });
+      },
+      Math.min(msUntilUnlock + 1500, 30 * 60 * 1000)
+    );
+
+    return () => clearTimeout(timer);
+  }, [courseNav, lessonId, queryClient, slug]);
+
   const { data: homework, isLoading: homeworkLoading } = useQuery<HomeworkSubmission | null>({
     queryKey: ["homework", lessonId],
     queryFn: async () => {
@@ -181,7 +212,11 @@ export default function LessonPlayerPage() {
       if (variables.status === "completed" || variables.rating) {
         queryClient.invalidateQueries({ queryKey: ["lesson", lessonId] });
       }
-      
+      if (variables.status === "completed") {
+        queryClient.invalidateQueries({ queryKey: ["course-nav", slug, lessonId] });
+        queryClient.invalidateQueries({ queryKey: ["course", slug] });
+      }
+
       // Show toast only if rating was updated
       if (variables.rating) {
         toast.success("Спасибо за оценку!");
@@ -193,7 +228,7 @@ export default function LessonPlayerPage() {
     },
     onSettled: () => {
       isSavingRef.current = false;
-    }
+    },
   });
 
   const submitHomeworkMutation = useMutation({
@@ -216,7 +251,7 @@ export default function LessonPlayerPage() {
 
   // Filter out locked content for the sidebar
   const rawModules = courseNav?.modules || [];
-  
+
   const filterAvailableNodes = (nodes: any[]): any[] => {
     return nodes
       .map((node) => {
@@ -253,6 +288,13 @@ export default function LessonPlayerPage() {
     }
   }, [lesson]);
 
+  // Track definition and certification completion can unlock another module.
+  useEffect(() => {
+    if (lesson?.progress?.status !== "completed") return;
+    queryClient.invalidateQueries({ queryKey: ["course-nav", slug, lessonId] });
+    queryClient.invalidateQueries({ queryKey: ["course", slug] });
+  }, [lesson?.progress?.status, lessonId, queryClient, slug]);
+
   // Progress handlers
   const handleTimeUpdate = (currentTime: number, duration: number) => {
     const floorTime = Math.floor(currentTime);
@@ -263,23 +305,22 @@ export default function LessonPlayerPage() {
 
     // Check if progress reached 90% for completion
     const isNowCompleted = duration > 0 && floorTime / duration >= 0.9;
-    
+
     // Save progress if 10 seconds have elapsed since last save, OR if just completed
-    const shouldSaveProgress = 
-      floorTime - lastSavedTimeRef.current >= 10 || 
-      (isNowCompleted && !isCompletedRef.current);
+    const shouldSaveProgress =
+      floorTime - lastSavedTimeRef.current >= 10 || (isNowCompleted && !isCompletedRef.current);
 
     if (shouldSaveProgress) {
       const newStatus = isNowCompleted ? "completed" : "in_progress";
-      
+
       isSavingRef.current = true;
       updateProgressMutation.mutate({
         watchedTime: floorTime,
         status: newStatus,
       });
-      
+
       lastSavedTimeRef.current = floorTime;
-      
+
       if (isNowCompleted && !isCompletedRef.current) {
         isCompletedRef.current = true;
       }
@@ -287,18 +328,20 @@ export default function LessonPlayerPage() {
   };
 
   const handleEnded = () => {
-    const videos = lesson?.content?.videos || (lesson?.videoId ? [{ videoId: lesson.videoId, duration: lesson.videoDuration || 0 }] : []);
+    const videos =
+      lesson?.content?.videos ||
+      (lesson?.videoId ? [{ videoId: lesson.videoId, duration: lesson.videoDuration || 0 }] : []);
     const activeVideo = videos[activeVideoIndex];
-    
+
     updateProgressMutation.mutate({
       watchedTime: activeVideo.duration || 0,
       status: "completed",
     });
     queryClient.invalidateQueries({ queryKey: ["lesson", lessonId] });
-    
+
     // Auto-advance to next video in playlist if available
     if (activeVideoIndex < videos.length - 1) {
-        setActiveVideoIndex(prev => prev + 1);
+      setActiveVideoIndex((prev) => prev + 1);
     }
   };
 
@@ -323,8 +366,7 @@ export default function LessonPlayerPage() {
   });
 
   const ALLOWED_HOMEWORK_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png"];
-  const isAllowedHomeworkImage = (file: File) =>
-    ALLOWED_HOMEWORK_IMAGE_TYPES.includes(file.type);
+  const isAllowedHomeworkImage = (file: File) => ALLOWED_HOMEWORK_IMAGE_TYPES.includes(file.type);
 
   const uploadOnlyImages = (files: File[]) => {
     const rejected = files.filter((f) => !isAllowedHomeworkImage(f));
@@ -367,7 +409,7 @@ export default function LessonPlayerPage() {
   if (lessonLoading) {
     return (
       <div className="flex h-screen">
-        <div className="flex-1 flex items-center justify-center">
+        <div className="flex flex-1 items-center justify-center">
           <div className="animate-pulse text-gray-500">Загрузка урока...</div>
         </div>
       </div>
@@ -379,8 +421,8 @@ export default function LessonPlayerPage() {
       <div className="flex h-screen items-center justify-center bg-gray-50">
         <Card className="max-w-md border-gray-200">
           <CardContent className="pt-6">
-            <div className="text-center space-y-4">
-              <div className="h-16 w-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto">
+            <div className="space-y-4 text-center">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
                 <Lock className="h-8 w-8 text-gray-400" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900">Урок недоступен</h3>
@@ -399,9 +441,10 @@ export default function LessonPlayerPage() {
     );
   }
 
-  const watchedPercent = lesson.videoDuration && lesson.videoDuration > 0
-    ? Math.round((watchedTime / lesson.videoDuration) * 100)
-    : 0;
+  const watchedPercent =
+    lesson.videoDuration && lesson.videoDuration > 0
+      ? Math.round((watchedTime / lesson.videoDuration) * 100)
+      : 0;
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -414,31 +457,34 @@ export default function LessonPlayerPage() {
       )}
 
       {/* Sidebar navigation (Desktop & Mobile) */}
-      <aside 
+      <aside
         id="lesson-sidebar"
         ref={sidebarRef}
         onScroll={(e) => {
-           // Save scroll position
-           const target = e.target as HTMLElement;
-           // Debounce could be added here, but simple assignment is cheap
-           localStorage.setItem("lesson-sidebar-scroll", target.scrollTop.toString());
+          // Save scroll position
+          const target = e.target as HTMLElement;
+          // Debounce could be added here, but simple assignment is cheap
+          localStorage.setItem("lesson-sidebar-scroll", target.scrollTop.toString());
         }}
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-96 transform bg-white border-r border-gray-50 transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:block overflow-y-auto thin-scrollbar",
+          "thin-scrollbar fixed inset-y-0 left-0 z-50 w-96 transform overflow-y-auto border-r border-gray-50 bg-white transition-transform duration-300 ease-in-out lg:static lg:block lg:translate-x-0",
           mobileMenuOpen ? "translate-x-0" : "-translate-x-full" /**/
         )}
       >
-        <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-          <Button variant="ghost" asChild className="justify-start text-gray-700 hover:bg-gray-50 px-2">
+        <div className="flex items-center justify-between border-b border-gray-100 p-4">
+          <Button
+            variant="ghost"
+            asChild
+            className="justify-start px-2 text-gray-700 hover:bg-gray-50"
+          >
             <Link href={`/courses/${slug}`}>
-              <ChevronLeft className="mr-2 h-4 w-4" />
-              К курсу
+              <ChevronLeft className="mr-2 h-4 w-4" />К курсу
             </Link>
           </Button>
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden h-8 w-8"
+            className="h-8 w-8 lg:hidden"
             onClick={() => setMobileMenuOpen(false)}
           >
             <X className="h-5 w-5" />
@@ -447,59 +493,65 @@ export default function LessonPlayerPage() {
         {courseNav && (
           <div className="p-4">
             <div className="mb-4">
-              <h3 className="text-sm font-semibold text-gray-900 mb-2">Прогресс курса</h3>
+              <h3 className="mb-2 text-sm font-semibold text-gray-900">Прогресс курса</h3>
               <Progress value={45} className="h-2" />
-              <p className="text-xs text-gray-500 mt-1">45% завершено</p>
+              <p className="mt-1 text-xs text-gray-500">45% завершено</p>
             </div>
-            <ModuleList 
-              modules={courseNav.modules} 
-              slug={slug} 
-              lessonId={lessonId} 
-              setMobileMenuOpen={setMobileMenuOpen} 
+            <ModuleList
+              modules={courseNav.modules}
+              slug={slug}
+              lessonId={lessonId}
+              setMobileMenuOpen={setMobileMenuOpen}
             />
           </div>
         )}
       </aside>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col overflow-hidden w-full">
+      <div className="flex w-full flex-1 flex-col overflow-hidden">
         {/* Video/Content area */}
         <div className="flex-1 overflow-y-auto bg-white">
-          <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6 max-w-5xl">
+          <div className="container mx-auto max-w-5xl px-2 py-4 sm:px-4 sm:py-6">
             {/* Breadcrumbs & Mobile Menu Trigger */}
             <div className="mb-4 flex items-center gap-2 text-sm text-gray-600">
               <Button
                 variant="ghost"
                 size="icon"
-                className="lg:hidden -ml-2 mr-1 h-8 w-8"
+                className="-ml-2 mr-1 h-8 w-8 lg:hidden"
                 onClick={() => setMobileMenuOpen(true)}
               >
                 <Menu className="h-5 w-5" />
               </Button>
-              <Link href={`/courses/${slug}`} className="hover:text-blue-600 hidden sm:block">
+              <Link href={`/courses/${slug}`} className="hidden hover:text-blue-600 sm:block">
                 {courseNav?.modules[0]?.title || "Курс"}
               </Link>
-              <ChevronRight className="h-4 w-4 hidden sm:block" />
-              <span className="text-gray-900 font-medium truncate flex-1">{lesson.title}</span>
+              <ChevronRight className="hidden h-4 w-4 sm:block" />
+              <span className="flex-1 truncate font-medium text-gray-900">{lesson.title}</span>
             </div>
 
-
-
             {/* Content Player */}
-            <LessonContentPlayer 
+            <LessonContentPlayer
               lesson={{
                 ...lesson,
                 // Ensure content structure matches what player expects
                 content: {
-                    ...lesson.content,
-                    videos: lesson.content?.videos || (lesson.videoId ? [{ videoId: lesson.videoId, duration: lesson.videoDuration || 0, title: "Основное видео" }] : [])
-                }
+                  ...lesson.content,
+                  videos:
+                    lesson.content?.videos ||
+                    (lesson.videoId
+                      ? [
+                          {
+                            videoId: lesson.videoId,
+                            duration: lesson.videoDuration || 0,
+                            title: "Основное видео",
+                          },
+                        ]
+                      : []),
+                },
               }}
               onTimeUpdate={handleTimeUpdate}
               onEnded={handleEnded}
             />
-
-
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -509,17 +561,26 @@ export default function LessonPlayerPage() {
                   lesson.noHomework ? "grid-cols-2" : "grid-cols-3"
                 )}
               >
-                <TabsTrigger value="details" className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600">
+                <TabsTrigger
+                  value="details"
+                  className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600"
+                >
                   <FileText className="mr-2 h-4 w-4" />
                   Описание урока
                 </TabsTrigger>
                 {!lesson.noHomework && (
-                  <TabsTrigger value="homework" className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600">
+                  <TabsTrigger
+                    value="homework"
+                    className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600"
+                  >
                     <MessageSquare className="mr-2 h-4 w-4" />
                     Задание
                   </TabsTrigger>
                 )}
-                <TabsTrigger value="discussion" className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600">
+                <TabsTrigger
+                  value="discussion"
+                  className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600"
+                >
                   <MessageSquare className="mr-2 h-4 w-4" />
                   Обсуждение
                 </TabsTrigger>
@@ -528,13 +589,15 @@ export default function LessonPlayerPage() {
               <TabsContent value="details" className="mt-6">
                 <Card className="border-gray-200">
                   <CardContent className="p-6">
-                    <div className="flex items-start justify-between mb-6">
+                    <div className="mb-6 flex items-start justify-between">
                       <div>
-                        <h3 className="text-lg font-semibold text-gray-900 mb-1">О чем этот урок</h3>
+                        <h3 className="mb-1 text-lg font-semibold text-gray-900">
+                          О чем этот урок
+                        </h3>
                         <div className="flex items-center gap-1">
                           {lesson.progress?.rating ? (
                             // Static display for rated lesson
-                            <div className="flex items-center gap-1 cursor-default">
+                            <div className="flex cursor-default items-center gap-1">
                               {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((star) => (
                                 <Star
                                   key={star}
@@ -554,7 +617,7 @@ export default function LessonPlayerPage() {
                                 <button
                                   key={star}
                                   type="button"
-                                  className="cursor-pointer hover:scale-110 transition-all"
+                                  className="cursor-pointer transition-all hover:scale-110"
                                   onMouseEnter={() => setHoverRating(star)}
                                   onMouseLeave={() => setHoverRating(0)}
                                   onClick={() => {
@@ -578,14 +641,16 @@ export default function LessonPlayerPage() {
                               ))}
                             </div>
                           )}
-                          <span className={cn(
-                            "ml-2 text-sm",
-                            lesson.progress?.rating 
-                              ? "text-gray-700 font-medium" 
-                              : "text-gray-500"
-                          )}>
-                            {lesson.progress?.rating 
-                              ? `Ваша оценка: ${lesson.progress.rating}/10` 
+                          <span
+                            className={cn(
+                              "ml-2 text-sm",
+                              lesson.progress?.rating
+                                ? "font-medium text-gray-700"
+                                : "text-gray-500"
+                            )}
+                          >
+                            {lesson.progress?.rating
+                              ? `Ваша оценка: ${lesson.progress.rating}/10`
                               : "Оцените урок"}
                           </span>
                         </div>
@@ -599,14 +664,16 @@ export default function LessonPlayerPage() {
                     ) : (
                       <p className="text-gray-500">Описание урока отсутствует</p>
                     )}
-                    
+
                     {lesson.content?.whatYoullLearn && (
                       <div className="mt-6">
-                        <h4 className="text-md font-semibold text-gray-900 mb-3">Что вы узнаете:</h4>
+                        <h4 className="text-md mb-3 font-semibold text-gray-900">
+                          Что вы узнаете:
+                        </h4>
                         <ul className="space-y-2">
                           {(lesson.content.whatYoullLearn as string[]).map((item, idx) => (
                             <li key={idx} className="flex items-start gap-2 text-sm text-gray-700">
-                              <CircleCheck className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                              <CircleCheck className="mt-0.5 h-4 w-4 flex-shrink-0 text-green-500" />
                               <span>{item}</span>
                             </li>
                           ))}
@@ -618,215 +685,250 @@ export default function LessonPlayerPage() {
               </TabsContent>
 
               {!lesson.noHomework && (
-              <TabsContent value="homework" className="mt-6">
-                <Card className="border-gray-200">
-                  <CardContent className="p-6">
-                    {homeworkLoading ? (
-                      <div className="animate-pulse space-y-4">
-                        <div className="h-4 bg-gray-200 rounded w-3/4" />
-                        <div className="h-32 bg-gray-200 rounded" />
-                      </div>
-                    ) : homework && !isEditingHomework ? (
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-lg font-semibold text-gray-900">Ваше задание</h3>
-                          <Badge
-                            variant={
-                              homework.status === "approved"
-                                ? "default"
+                <TabsContent value="homework" className="mt-6">
+                  <Card className="border-gray-200">
+                    <CardContent className="p-6">
+                      {homeworkLoading ? (
+                        <div className="animate-pulse space-y-4">
+                          <div className="h-4 w-3/4 rounded bg-gray-200" />
+                          <div className="h-32 rounded bg-gray-200" />
+                        </div>
+                      ) : homework && !isEditingHomework ? (
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-semibold text-gray-900">Ваше задание</h3>
+                            <Badge
+                              variant={
+                                homework.status === "approved"
+                                  ? "default"
+                                  : homework.status === "rejected"
+                                    ? "destructive"
+                                    : "secondary"
+                              }
+                              className={
+                                homework.status === "approved"
+                                  ? "bg-green-600"
+                                  : homework.status === "rejected"
+                                    ? "bg-red-600"
+                                    : "bg-amber-500"
+                              }
+                            >
+                              {homework.status === "approved"
+                                ? "Принято"
                                 : homework.status === "rejected"
-                                  ? "destructive"
-                                  : "secondary"
-                            }
-                            className={
-                              homework.status === "approved"
-                                ? "bg-green-600"
-                                : homework.status === "rejected"
-                                  ? "bg-red-600"
-                                  : "bg-amber-500"
-                            }
-                          >
-                            {homework.status === "approved"
-                              ? "Принято"
-                              : homework.status === "rejected"
-                                ? "Требует доработки"
-                                : "На проверке"}
-                          </Badge>
-                        </div>
-                        
-                        <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                           <HomeworkContentRenderer content={homework.content} />
-                        </div>
-
-                        {homework.files && homework.files.length > 0 && (
-                          <div>
-                            <h4 className="text-sm font-medium text-gray-900 mb-2">Прикрепленные файлы:</h4>
-                            <div className="space-y-2">
-                              {homework.files.map((file, idx) => {
-                                const fileName = file.split('/').pop() || file;
-                                return (
-                                  <a
-                                    key={idx}
-                                    href={file}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex items-center gap-2 p-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                                  >
-                                    <FileText className="h-4 w-4 text-gray-500" />
-                                    <span className="text-sm text-gray-700 truncate flex-1">{fileName}</span>
-                                  </a>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-
-                        {homework.curatorAudioUrl && (
-                          <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                            <h4 className="text-sm font-medium text-blue-900 mb-2">Голосовой ответ куратора:</h4>
-                            <audio controls src={homework.curatorAudioUrl} className="w-full" />
-                          </div>
-                        )}
-
-                        {homework.curatorFiles && homework.curatorFiles.length > 0 && (
-                          <div>
-                            <h4 className="text-sm font-medium text-gray-900 mb-2">Файлы от куратора:</h4>
-                            <div className="space-y-2">
-                              {homework.curatorFiles.map((file, idx) => {
-                                const fileName = file.split('/').pop() || file;
-                                return (
-                                  <a
-                                    key={idx}
-                                    href={file}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex items-center gap-2 p-2 border border-blue-200 bg-blue-50/50 rounded-lg hover:bg-blue-50 transition-colors"
-                                  >
-                                    <FileText className="h-4 w-4 text-blue-500" />
-                                    <span className="text-sm text-blue-900 truncate flex-1">{fileName}</span>
-                                  </a>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-
-                        {homework.curatorComment && (
-                          <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                            <h4 className="text-sm font-medium text-blue-900 mb-2">Комментарий куратора:</h4>
-                            <p className="text-sm text-blue-800 whitespace-pre-wrap">{homework.curatorComment}</p>
-                          </div>
-                        )}
-
-                        {homework.status === "rejected" && (
-                          <Button
-                            onClick={() => {
-                              setIsEditingHomework(true);
-                              setHomeworkContent(homework.content || "");
-                              setUploadedFiles(homework.files || []);
-                            }}
-                            variant="outline"
-                            className="border-gray-300"
-                          >
-                            Отправить исправленную версию
-                          </Button>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        <div>
-                          <h3 className="text-lg font-semibold text-gray-900 mb-2">Домашнее задание</h3>
-                          <p className="text-sm text-gray-600">
-                            {lesson.content?.homework || "Выполните задание и отправьте ответ ниже"}
-                          </p>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="homework-content" className="text-gray-700">
-                            Ваш ответ
-                          </Label>
-                          <Textarea
-                            id="homework-content"
-                            value={homeworkContent}
-                            onChange={(e) => setHomeworkContent(e.target.value)}
-                            placeholder="Введите ваш ответ на задание..."
-                            rows={8}
-                            className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                          />
-                        </div>
-
-                        {/* File upload area */}
-                        <div className="space-y-2">
-                          <Label className="text-gray-700">Прикрепленные файлы</Label>
-                          <div
-                            onDrop={handleFileDrop}
-                            onDragOver={(e) => e.preventDefault()}
-                            className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors"
-                          >
-                            <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                            <p className="text-sm text-gray-600 mb-2">
-                              Перетащите файлы сюда или
-                            </p>
-                            <label htmlFor="homework-file-input" className="cursor-pointer inline-block">
-                              <input
-                                id="homework-file-input"
-                                type="file"
-                                multiple
-                                accept="image/jpeg,image/jpg,image/png"
-                                onChange={handleFileInput}
-                                className="hidden"
-                              />
-                              <span className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-gray-300 bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3">
-                                Выбрать изображения
-                              </span>
-                            </label>
-                            <p className="text-xs text-gray-500 mt-2">
-                              К ДЗ можно прикрепить только изображения: JPG, PNG
-                            </p>
+                                  ? "Требует доработки"
+                                  : "На проверке"}
+                            </Badge>
                           </div>
 
-                          {uploadedFiles.length > 0 && (
-                            <div className="flex flex-wrap gap-2">
-                              {uploadedFiles.map((fileUrl, idx) => {
-                                const fileName = fileUrl.split("/").pop() || "file";
-                                return (
-                                  <Badge key={idx} variant="outline" className="border-gray-300 gap-1 pr-1">
-                                    <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                                      {fileName}
-                                    </a>
-                                    <button
-                                      onClick={() => removeFile(idx)}
-                                      className="ml-1 hover:text-red-600 p-0.5 rounded-full hover:bg-red-50 transition-colors"
+                          <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                            <HomeworkContentRenderer content={homework.content} />
+                          </div>
+
+                          {homework.files && homework.files.length > 0 && (
+                            <div>
+                              <h4 className="mb-2 text-sm font-medium text-gray-900">
+                                Прикрепленные файлы:
+                              </h4>
+                              <div className="space-y-2">
+                                {homework.files.map((file, idx) => {
+                                  const fileName = file.split("/").pop() || file;
+                                  return (
+                                    <a
+                                      key={idx}
+                                      href={file}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center gap-2 rounded-lg border border-gray-200 p-2 transition-colors hover:bg-gray-50"
                                     >
-                                      <X className="h-3 w-3" />
-                                    </button>
-                                  </Badge>
-                                );
-                              })}
+                                      <FileText className="h-4 w-4 text-gray-500" />
+                                      <span className="flex-1 truncate text-sm text-gray-700">
+                                        {fileName}
+                                      </span>
+                                    </a>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {homework.curatorAudioUrl && (
+                            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                              <h4 className="mb-2 text-sm font-medium text-blue-900">
+                                Голосовой ответ куратора:
+                              </h4>
+                              <audio controls src={homework.curatorAudioUrl} className="w-full" />
+                            </div>
+                          )}
+
+                          {homework.curatorFiles && homework.curatorFiles.length > 0 && (
+                            <div>
+                              <h4 className="mb-2 text-sm font-medium text-gray-900">
+                                Файлы от куратора:
+                              </h4>
+                              <div className="space-y-2">
+                                {homework.curatorFiles.map((file, idx) => {
+                                  const fileName = file.split("/").pop() || file;
+                                  return (
+                                    <a
+                                      key={idx}
+                                      href={file}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50/50 p-2 transition-colors hover:bg-blue-50"
+                                    >
+                                      <FileText className="h-4 w-4 text-blue-500" />
+                                      <span className="flex-1 truncate text-sm text-blue-900">
+                                        {fileName}
+                                      </span>
+                                    </a>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {homework.curatorComment && (
+                            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                              <h4 className="mb-2 text-sm font-medium text-blue-900">
+                                Комментарий куратора:
+                              </h4>
+                              <p className="whitespace-pre-wrap text-sm text-blue-800">
+                                {homework.curatorComment}
+                              </p>
+                            </div>
+                          )}
+
+                          {homework.status === "rejected" && (
+                            <Button
+                              onClick={() => {
+                                setIsEditingHomework(true);
+                                setHomeworkContent(homework.content || "");
+                                setUploadedFiles(homework.files || []);
+                              }}
+                              variant="outline"
+                              className="border-gray-300"
+                            >
+                              Отправить исправленную версию
+                            </Button>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          <div>
+                            <h3 className="mb-2 text-lg font-semibold text-gray-900">
+                              Домашнее задание
+                            </h3>
+                            <p className="text-sm text-gray-600">
+                              {lesson.content?.homework ||
+                                "Выполните задание и отправьте ответ ниже"}
+                            </p>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="homework-content" className="text-gray-700">
+                              Ваш ответ
+                            </Label>
+                            <Textarea
+                              id="homework-content"
+                              value={homeworkContent}
+                              onChange={(e) => setHomeworkContent(e.target.value)}
+                              placeholder="Введите ваш ответ на задание..."
+                              rows={8}
+                              className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                            />
+                          </div>
+
+                          {/* File upload area */}
+                          <div className="space-y-2">
+                            <Label className="text-gray-700">Прикрепленные файлы</Label>
+                            <div
+                              onDrop={handleFileDrop}
+                              onDragOver={(e) => e.preventDefault()}
+                              className="rounded-lg border-2 border-dashed border-gray-300 p-6 text-center transition-colors hover:border-blue-400"
+                            >
+                              <Upload className="mx-auto mb-2 h-8 w-8 text-gray-400" />
+                              <p className="mb-2 text-sm text-gray-600">
+                                Перетащите файлы сюда или
+                              </p>
+                              <label
+                                htmlFor="homework-file-input"
+                                className="inline-block cursor-pointer"
+                              >
+                                <input
+                                  id="homework-file-input"
+                                  type="file"
+                                  multiple
+                                  accept="image/jpeg,image/jpg,image/png"
+                                  onChange={handleFileInput}
+                                  className="hidden"
+                                />
+                                <span className="inline-flex h-9 items-center justify-center rounded-md border border-gray-300 bg-background px-3 text-sm font-medium ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">
+                                  Выбрать изображения
+                                </span>
+                              </label>
+                              <p className="mt-2 text-xs text-gray-500">
+                                К ДЗ можно прикрепить только изображения: JPG, PNG
+                              </p>
+                            </div>
+
+                            {uploadedFiles.length > 0 && (
+                              <div className="flex flex-wrap gap-2">
+                                {uploadedFiles.map((fileUrl, idx) => {
+                                  const fileName = fileUrl.split("/").pop() || "file";
+                                  return (
+                                    <Badge
+                                      key={idx}
+                                      variant="outline"
+                                      className="gap-1 border-gray-300 pr-1"
+                                    >
+                                      <a
+                                        href={fileUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="hover:underline"
+                                      >
+                                        {fileName}
+                                      </a>
+                                      <button
+                                        onClick={() => removeFile(idx)}
+                                        className="ml-1 rounded-full p-0.5 transition-colors hover:bg-red-50 hover:text-red-600"
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </button>
+                                    </Badge>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+
+                          <Button
+                            onClick={handleSubmitHomework}
+                            disabled={
+                              submitHomeworkMutation.isPending ||
+                              (!homeworkContent.trim() && uploadedFiles.length === 0)
+                            }
+                            className="bg-blue-600 text-white hover:bg-blue-700"
+                          >
+                            {submitHomeworkMutation.isPending
+                              ? "Отправка..."
+                              : "Отправить на проверку"}
+                          </Button>
+
+                          {lesson.isStopLesson && (
+                            <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
+                              <p className="text-sm text-yellow-800">
+                                <strong>Важно:</strong> Это стоп-урок. Следующий урок откроется
+                                только после того, как куратор примет ваше задание.
+                              </p>
                             </div>
                           )}
                         </div>
-
-                        <Button
-                          onClick={handleSubmitHomework}
-                          disabled={submitHomeworkMutation.isPending || (!homeworkContent.trim() && uploadedFiles.length === 0)}
-                          className="bg-blue-600 hover:bg-blue-700 text-white"
-                        >
-                          {submitHomeworkMutation.isPending ? "Отправка..." : "Отправить на проверку"}
-                        </Button>
-
-                        {lesson.isStopLesson && (
-                          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                            <p className="text-sm text-yellow-800">
-                              <strong>Важно:</strong> Это стоп-урок. Следующий урок откроется только после того, как куратор примет ваше задание.
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
               )}
 
               <TabsContent value="discussion" className="mt-6">
@@ -838,7 +940,7 @@ export default function LessonPlayerPage() {
 
         {/* Navigation footer */}
         <div className="border-t border-gray-200 bg-white p-4 shadow-sm">
-          <div className="container mx-auto max-w-5xl flex items-center justify-between">
+          <div className="container mx-auto flex max-w-5xl items-center justify-between">
             <Button
               variant="outline"
               disabled={!courseNav?.prevLessonId}
@@ -863,7 +965,14 @@ export default function LessonPlayerPage() {
                 <CircleCheck className="h-4 w-4" />
                 Урок завершен
               </div>
-            ) : (["certification_form", "intermediate_survey", "quiz", "track_definition"] as string[]).includes(lesson.type) && !lesson.noHomework ? null : (
+            ) : (
+                [
+                  "certification_form",
+                  "intermediate_survey",
+                  "quiz",
+                  "track_definition",
+                ] as string[]
+              ).includes(lesson.type) && !lesson.noHomework ? null : (
               // Для уроков с обязательной формой/квизом completion должен
               // приходить из сабмишена (POST /homework), иначе получаем
               // orphan lesson_progress без ответов — куратор их не видит.
@@ -890,7 +999,7 @@ export default function LessonPlayerPage() {
             <Button
               disabled={!courseNav?.nextLessonId}
               asChild={!!courseNav?.nextLessonId}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
+              className="bg-blue-600 text-white hover:bg-blue-700"
             >
               {courseNav?.nextLessonId ? (
                 <Link href={`/learn/${slug}/${courseNav.nextLessonId}`}>
@@ -911,19 +1020,19 @@ export default function LessonPlayerPage() {
   );
 }
 
-function ModuleList({ 
-  modules, 
-  slug, 
-  lessonId, 
-  setMobileMenuOpen 
-}: { 
-  modules: any[], 
-  slug: string, 
-  lessonId: string, 
-  setMobileMenuOpen: (open: boolean) => void 
+function ModuleList({
+  modules,
+  slug,
+  lessonId,
+  setMobileMenuOpen,
+}: {
+  modules: any[];
+  slug: string;
+  lessonId: string;
+  setMobileMenuOpen: (open: boolean) => void;
 }) {
   // Initialize with all expanded to match default behavior and server rendering
-  const [expandedItems, setExpandedItems] = useState<string[]>(modules.map(m => m.id));
+  const [expandedItems, setExpandedItems] = useState<string[]>(modules.map((m) => m.id));
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
@@ -938,27 +1047,27 @@ function ModuleList({
           // But wait, we want to know if *these* modules should be open.
           // The saved list contains ALL open IDs globally.
           // We filter it to match only IDs present in this list instance.
-          const moduleIds = modules.map(m => m.id);
-          const relevantState = moduleIds.filter(id => parsed.includes(id));
-          
-          // However, if the user has NEVER interacted, maybe we want default? 
+          const moduleIds = modules.map((m) => m.id);
+          const relevantState = moduleIds.filter((id) => parsed.includes(id));
+
+          // However, if the user has NEVER interacted, maybe we want default?
           // But if "expanded_modules" exists, user has interacted or we saved it.
           // Let's assume if key exists, we respect it.
-          
+
           // Wait, if I collapse one module, the key exists.
           // If I then navigate to a new course with new modules, they won't be in the list.
           // Should they be closed?
           // If the list is a whitelist of OPEN modules, any unknown module will be closed.
           // That might be annoying for new content.
-          // Better UX: Default to OPEN if not explicitly known? 
+          // Better UX: Default to OPEN if not explicitly known?
           // Or just default to "All Open" if not found in list?
-          
+
           // Let's stick to: Whitelist. If you collapse everything, it's empty.
           // Issues with new items defaulting to closed.
           // Fix: Logic check. If an ID is NOT in the saved list, is it because it was closed or because it's new?
           // We can't know easily without storing "closed" list.
           // For now, let's just restore exactly what is saved. If new modules appear, the user will open them.
-          
+
           setExpandedItems(relevantState);
         }
       } catch (e) {
@@ -969,21 +1078,21 @@ function ModuleList({
 
   const handleValueChange = (value: string[]) => {
     setExpandedItems(value);
-    
+
     // Update global storage
     try {
       const saved = localStorage.getItem("expanded_modules");
       let allExpanded = saved ? JSON.parse(saved) : [];
       if (!Array.isArray(allExpanded)) allExpanded = [];
-      
-      const currentModuleIds = modules.map(m => m.id);
-      
+
+      const currentModuleIds = modules.map((m) => m.id);
+
       // Remove all IDs belonging to this component from the global list
       allExpanded = allExpanded.filter((id: string) => !currentModuleIds.includes(id));
-      
+
       // Add the currently expanded IDs from this component
       allExpanded = [...allExpanded, ...value];
-      
+
       localStorage.setItem("expanded_modules", JSON.stringify(allExpanded));
     } catch (e) {
       console.error("Failed to save expanded_modules", e);
@@ -991,31 +1100,42 @@ function ModuleList({
   };
 
   if (!isClient) {
-     // Render default state (all open) to match SSR
-     return (
-       <Accordion key="server-accordion" type="multiple" className="w-full" defaultValue={modules.map(m => m.id)}>
-         {modules.map((module) => (
-             <ModuleItem 
-               key={module.id} 
-               module={module} 
-               slug={slug} 
-               lessonId={lessonId} 
-               setMobileMenuOpen={setMobileMenuOpen} 
-             />
-         ))}
-       </Accordion>
-     )
+    // Render default state (all open) to match SSR
+    return (
+      <Accordion
+        key="server-accordion"
+        type="multiple"
+        className="w-full"
+        defaultValue={modules.map((m) => m.id)}
+      >
+        {modules.map((module) => (
+          <ModuleItem
+            key={module.id}
+            module={module}
+            slug={slug}
+            lessonId={lessonId}
+            setMobileMenuOpen={setMobileMenuOpen}
+          />
+        ))}
+      </Accordion>
+    );
   }
 
   return (
-    <Accordion key="client-accordion" type="multiple" className="w-full" value={expandedItems} onValueChange={handleValueChange}>
+    <Accordion
+      key="client-accordion"
+      type="multiple"
+      className="w-full"
+      value={expandedItems}
+      onValueChange={handleValueChange}
+    >
       {modules.map((module) => (
-        <ModuleItem 
-           key={module.id} 
-           module={module} 
-           slug={slug} 
-           lessonId={lessonId} 
-           setMobileMenuOpen={setMobileMenuOpen} 
+        <ModuleItem
+          key={module.id}
+          module={module}
+          slug={slug}
+          lessonId={lessonId}
+          setMobileMenuOpen={setMobileMenuOpen}
         />
       ))}
     </Accordion>
@@ -1025,61 +1145,64 @@ function ModuleList({
 // Extract Item to separate component to avoid recursion issues in map
 function ModuleItem({ module, slug, lessonId, setMobileMenuOpen }: any) {
   return (
-    <AccordionItem value={module.id} className="border-gray-50 border-b">
-          <AccordionTrigger className="text-sm font-medium text-gray-900 hover:no-underline py-2">
-            {module.title}
-          </AccordionTrigger>
-          <AccordionContent>
-            <div className="space-y-1 pt-1 pb-2">
-              {/* Lessons */}
-              {module.lessons.map((l: any) => {
-                const isCurrent = l.id === lessonId;
-                const isCompleted = l.progress?.status === "completed";
-                return (
-                  <Link
-                    key={l.id}
-                    href={l.isAvailable ? `/learn/${slug}/${l.id}` : "#"}
-                    className={cn(
-                      "flex items-center gap-2 rounded-md p-2 text-sm transition-colors ml-2",
-                      isCurrent
-                        ? "bg-blue-50 text-blue-600 font-medium"
-                        : l.isAvailable
-                          ? "hover:bg-gray-50 text-gray-700"
-                          : "opacity-50 cursor-not-allowed text-gray-400"
-                    )}
-                    onClick={(e) => {
-                      if (!l.isAvailable) e.preventDefault();
-                      setMobileMenuOpen(false);
-                    }}
+    <AccordionItem value={module.id} className="border-b border-gray-50">
+      <AccordionTrigger className="py-2 text-sm font-medium text-gray-900 hover:no-underline">
+        {module.title}
+      </AccordionTrigger>
+      <AccordionContent>
+        <div className="space-y-1 pb-2 pt-1">
+          {/* Lessons */}
+          {module.lessons.map((l: any) => {
+            const isCurrent = l.id === lessonId;
+            const isCompleted = l.progress?.status === "completed";
+            return (
+              <Link
+                key={l.id}
+                href={l.isAvailable ? `/learn/${slug}/${l.id}` : "#"}
+                className={cn(
+                  "ml-2 flex items-center gap-2 rounded-md p-2 text-sm transition-colors",
+                  isCurrent
+                    ? "bg-blue-50 font-medium text-blue-600"
+                    : l.isAvailable
+                      ? "text-gray-700 hover:bg-gray-50"
+                      : "cursor-not-allowed text-gray-400 opacity-50"
+                )}
+                onClick={(e) => {
+                  if (!l.isAvailable) e.preventDefault();
+                  setMobileMenuOpen(false);
+                }}
+              >
+                {isCompleted ? (
+                  <CircleCheck className="h-4 w-4 flex-shrink-0 text-green-500" />
+                ) : (
+                  <Play className="h-4 w-4 flex-shrink-0" />
+                )}
+                <span className="flex-1 truncate">{l.title}</span>
+                {l.hasHomework && (
+                  <Badge
+                    variant="secondary"
+                    className="ml-2 hidden h-4 flex-shrink-0 border-indigo-100 bg-indigo-50 px-1 text-[9px] uppercase tracking-wider text-indigo-600 sm:inline-flex"
                   >
-                    {isCompleted ? (
-                      <CircleCheck className="h-4 w-4 text-green-500 flex-shrink-0" />
-                    ) : (
-                      <Play className="h-4 w-4 flex-shrink-0" />
-                    )}
-                    <span className="flex-1 truncate">{l.title}</span>
-                    {l.hasHomework && (
-                      <Badge variant="secondary" className="ml-2 flex-shrink-0 h-4 px-1 text-[9px] uppercase tracking-wider bg-indigo-50 text-indigo-600 border-indigo-100 hidden sm:inline-flex">
-                        ДЗ
-                      </Badge>
-                    )}
-                  </Link>
-                );
-              })}
+                    ДЗ
+                  </Badge>
+                )}
+              </Link>
+            );
+          })}
 
-              {/* Recursive Children (Submodules) */}
-              {module.children && module.children.length > 0 && (
-                <div className="ml-4 mt-2 border-l border-gray-100 pl-2">
-                  <ModuleList 
-                    modules={module.children} 
-                    slug={slug} 
-                    lessonId={lessonId} 
-                    setMobileMenuOpen={setMobileMenuOpen} 
-                  />
-                </div>
-              )}
+          {/* Recursive Children (Submodules) */}
+          {module.children && module.children.length > 0 && (
+            <div className="ml-4 mt-2 border-l border-gray-100 pl-2">
+              <ModuleList
+                modules={module.children}
+                slug={slug}
+                lessonId={lessonId}
+                setMobileMenuOpen={setMobileMenuOpen}
+              />
             </div>
-          </AccordionContent>
-        </AccordionItem>
-  )
+          )}
+        </div>
+      </AccordionContent>
+    </AccordionItem>
+  );
 }
