@@ -6,6 +6,7 @@ import {
   calculateDripAvailability,
   checkPrerequisites,
   resolveModuleAccess,
+  shouldExposeModule,
   type DripRule,
   type ModuleAccessContext,
 } from "@/lib/lms-logic";
@@ -203,13 +204,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         forcedModules: (enrollment.forcedModules as string[]) || [],
       };
 
-      // Keep future modules in the response so the client knows when to
-      // refresh. Authorization is still enforced for every lesson request.
-      const modulesWithAccess = course.modules.map((module: any) => {
-        // @ts-ignore
-        const restrictedModules = (enrollment.restrictedModules as string[]) || [];
-        return { module, resolved: resolveModuleAccess(module, context, restrictedModules) };
-      });
+      // Future scheduled modules stay visible, but audience restrictions
+      // (tariff, track, group and manual denial) hide the module completely.
+      const modulesWithAccess = course.modules
+        .map((module: any) => {
+          // @ts-ignore
+          const restrictedModules = (enrollment.restrictedModules as string[]) || [];
+          return { module, resolved: resolveModuleAccess(module, context, restrictedModules) };
+        })
+        .filter(({ resolved }) => shouldExposeModule(resolved.access));
 
       // Используем централизованную бизнес-логику для проверки доступности уроков
       const startDate = new Date(enrollment.startDate);

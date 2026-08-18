@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveModuleAccess, type ModuleAccessContext } from "./lms-logic";
+import { resolveModuleAccess, shouldExposeModule, type ModuleAccessContext } from "./lms-logic";
 
 const baseModule = {
   id: "module-1",
@@ -24,6 +24,21 @@ const context = (now: string): ModuleAccessContext => ({
   trackDefinitionCompletedAt: null,
   certificationCompletedAt: null,
   now: new Date(now),
+});
+
+describe("shouldExposeModule", () => {
+  it("keeps modules that are waiting only for their opening time", () => {
+    expect(
+      shouldExposeModule({ isAccessible: false, reason: "time_locked", unlockDate: new Date() })
+    ).toBe(true);
+  });
+
+  it.each(["tariff_mismatch", "track_mismatch", "group_mismatch", "restricted_manually"] as const)(
+    "hides modules with %s",
+    (reason) => {
+      expect(shouldExposeModule({ isAccessible: false, reason, unlockDate: null })).toBe(false);
+    }
+  );
 });
 
 describe("resolveModuleAccess", () => {
