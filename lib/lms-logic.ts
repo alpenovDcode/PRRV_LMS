@@ -1,6 +1,10 @@
 import { db } from "@/lib/db";
 import { isAfter } from "date-fns";
-import { checkEnhancedDripAvailability, calculateEnhancedDripAvailability, EnhancedDripRule } from "./drip-content-enhanced";
+import {
+  checkEnhancedDripAvailability,
+  calculateEnhancedDripAvailability,
+  EnhancedDripRule,
+} from "./drip-content-enhanced";
 
 export interface DripRule {
   type: "after_start" | "on_date";
@@ -10,12 +14,22 @@ export interface DripRule {
 
 export interface LessonAvailabilityResult {
   isAvailable: boolean;
-  reason?: "not_enrolled" | "enrollment_not_active" | "enrollment_expired" | "drip_locked" | "prerequisites_not_met" | "hard_deadline_passed" | "access_denied";
+  reason?:
+    | "not_enrolled"
+    | "enrollment_not_active"
+    | "enrollment_expired"
+    | "drip_locked"
+    | "prerequisites_not_met"
+    | "hard_deadline_passed"
+    | "access_denied";
   availableDate?: string;
   requiredLessonId?: string;
 }
 
-export async function checkLessonAvailability(userId: string, lessonId: string): Promise<LessonAvailabilityResult> {
+export async function checkLessonAvailability(
+  userId: string,
+  lessonId: string
+): Promise<LessonAvailabilityResult> {
   // 1. Fetch user details for access control
   const user = await db.user.findUnique({
     where: { id: userId },
@@ -24,13 +38,13 @@ export async function checkLessonAvailability(userId: string, lessonId: string):
       tariff: true,
       track: true,
       groupMembers: {
-        select: { 
-            groupId: true,
-            group: {
-                select: {
-                    startDate: true
-                }
-            }
+        select: {
+          groupId: true,
+          group: {
+            select: {
+              startDate: true,
+            },
+          },
         },
       },
     },
@@ -38,37 +52,14 @@ export async function checkLessonAvailability(userId: string, lessonId: string):
 
   // Fetch track definition progress separate or via user?
   // User model likely relates to LessonProgress.
-  // Let's do a separate efficient query for track definition if needed, 
+  // Let's do a separate efficient query for track definition if needed,
   // or just reusing the pattern from route.ts is fine.
   // Check if we can include it in user query.
   // user.lessonProgress...
-  
+
   if (!user) {
     throw new Error("User not found");
   }
-
-  // Fetch track definition status
-  const trackDefProgress = await db.lessonProgress.findFirst({
-      where: {
-          userId: userId,
-          status: "completed",
-          lesson: { type: "track_definition" }
-      },
-      orderBy: { completedAt: 'desc' },
-      select: { completedAt: true }
-  });
-
-  // Fetch certification status
-  const certificationProgress = await db.lessonProgress.findFirst({
-      where: {
-          userId: userId,
-          status: "completed",
-          lesson: { type: "certification_form" }
-      },
-      orderBy: { completedAt: 'desc' },
-      select: { completedAt: true }
-  });
-
 
   // 2. Fetch lesson with module access settings
   const lesson = await db.lesson.findUnique({
@@ -88,6 +79,7 @@ export async function checkLessonAvailability(userId: string, lessonId: string):
           openAfterEvent: true,
           course: {
             select: {
+              id: true,
               enrollments: {
                 where: { userId },
               },
@@ -108,79 +100,77 @@ export async function checkLessonAvailability(userId: string, lessonId: string):
     throw new Error("Lesson not found");
   }
 
+  // Completion events are course-scoped. A certification from another
+  // course must never unlock this module.
+  const [trackDefProgress, certificationProgress] = await Promise.all([
+    db.lessonProgress.findFirst({
+      where: {
+        userId,
+        status: "completed",
+        lesson: {
+          type: "track_definition",
+          module: { courseId: lesson.module.course.id },
+        },
+      },
+      orderBy: { completedAt: "desc" },
+      select: { completedAt: true },
+    }),
+    db.lessonProgress.findFirst({
+      where: {
+        userId,
+        status: "completed",
+        lesson: {
+          type: "certification_form",
+          module: { courseId: lesson.module.course.id },
+        },
+      },
+      orderBy: { completedAt: "desc" },
+      select: { completedAt: true },
+    }),
+  ]);
+
   // 3. Check Module Access Control (Centralized)
-  const module = lesson.module;
-  
+  const lessonModule = lesson.module;
+
   const userGroupIds = user.groupMembers.map((gm) => gm.groupId);
   const userGroupsMap = new Map<string, Date | null>();
-  user.groupMembers.forEach(gm => {
-      userGroupsMap.set(gm.groupId, gm.group.startDate ? new Date(gm.group.startDate) : null);
+  user.groupMembers.forEach((gm) => {
+    userGroupsMap.set(gm.groupId, gm.group.startDate ? new Date(gm.group.startDate) : null);
   });
 
-  // @ts-ignore
-  const restrictedModules: string[] = module.course.enrollments[0]?.restrictedModules as string[] || [];
-  // @ts-ignore
-  const forcedModules: string[] = module.course.enrollments[0]?.forcedModules as string[] || [];
+  const restrictedModules: string[] =
+    (lessonModule.course.enrollments[0]?.restrictedModules as string[]) || [];
+  const forcedModules: string[] =
+    (lessonModule.course.enrollments[0]?.forcedModules as string[]) || [];
 
   const context: ModuleAccessContext = {
-      userTariff: user.tariff,
-      userTrack: user.track,
-      userGroupIds,
-      userGroupsMap,
-      trackDefinitionCompletedAt: trackDefProgress?.completedAt ? new Date(trackDefProgress.completedAt) : null,
-      certificationCompletedAt: certificationProgress?.completedAt ? new Date(certificationProgress.completedAt) : null,
-      forcedModules
+    userTariff: user.tariff,
+    userTrack: user.track,
+    userGroupIds,
+    userGroupsMap,
+    trackDefinitionCompletedAt: trackDefProgress?.completedAt
+      ? new Date(trackDefProgress.completedAt)
+      : null,
+    certificationCompletedAt: certificationProgress?.completedAt
+      ? new Date(certificationProgress.completedAt)
+      : null,
+    forcedModules,
   };
-  // Apply track specific logic if exists
-  let effectiveModule = { ...module };
-  if (user.track && module.trackSettings) {
-        const settings = (module.trackSettings as Record<string, any>)[user.track];
-        if (settings) {
-            if (settings.openAt) effectiveModule.openAt = settings.openAt;
-            if (settings.openAfterEvent) {
-                effectiveModule.openAfterEvent = settings.openAfterEvent;
-                effectiveModule.openAfterAmount = settings.openAfterAmount;
-                effectiveModule.openAfterUnit = settings.openAfterUnit;
-            }
-        }
-  }
-  // Apply group-specific logic (overrides track if user is in a configured group).
-  // If user belongs to multiple configured groups — take the first one.
-  if (module.groupSettings) {
-        const gs = module.groupSettings as Record<string, any>;
-        const matchedGroupId = userGroupIds.find((gid) => gs[gid]);
-        if (matchedGroupId) {
-            const settings = gs[matchedGroupId];
-            if (settings.openAt) {
-                effectiveModule.openAt = settings.openAt;
-                effectiveModule.openAfterEvent = null;
-                effectiveModule.openAfterAmount = null;
-                effectiveModule.openAfterUnit = null;
-            } else if (settings.openAfterEvent) {
-                effectiveModule.openAt = null;
-                effectiveModule.openAfterEvent = settings.openAfterEvent;
-                effectiveModule.openAfterAmount = settings.openAfterAmount ?? null;
-                effectiveModule.openAfterUnit = settings.openAfterUnit ?? null;
-            }
-        }
-  }
-
-  const accessResult = checkModuleAccess(effectiveModule, context, restrictedModules);
+  const accessResult = resolveModuleAccess(lessonModule, context, restrictedModules).access;
 
   if (!accessResult.isAccessible) {
-      // If time locked, checkLessonAvailability usually returns specific format or we rely on checkModuleAccess to return reason "time_locked"
-      if (accessResult.reason === 'time_locked') {
-           // We map 'time_locked' to 'drip_locked' or similar if we want to show date?
-           // The interface allows 'drip_locked'.
-           return {
-               isAvailable: false,
-               reason: "drip_locked",
-               availableDate: accessResult.unlockDate ? accessResult.unlockDate.toISOString() : undefined
-           };
-      }
-      return { isAvailable: false, reason: "access_denied" };
+    // If time locked, checkLessonAvailability usually returns specific format or we rely on checkModuleAccess to return reason "time_locked"
+    if (accessResult.reason === "time_locked") {
+      // We map 'time_locked' to 'drip_locked' or similar if we want to show date?
+      // The interface allows 'drip_locked'.
+      return {
+        isAvailable: false,
+        reason: "drip_locked",
+        availableDate: accessResult.unlockDate ? accessResult.unlockDate.toISOString() : undefined,
+      };
+    }
+    return { isAvailable: false, reason: "access_denied" };
   }
-
 
   // 4. Check Enrollment
   const enrollment = lesson.module.course.enrollments[0];
@@ -251,7 +241,10 @@ export async function checkLessonAvailability(userId: string, lessonId: string):
 /**
  * Проверяет prerequisites для урока (стоп-уроки)
  */
-export async function checkPrerequisites(userId: string, lessonId: string): Promise<{
+export async function checkPrerequisites(
+  userId: string,
+  lessonId: string
+): Promise<{
   isUnlocked: boolean;
   reason?: string;
   requiredLessonId?: string;
@@ -298,10 +291,10 @@ export async function checkPrerequisites(userId: string, lessonId: string): Prom
     });
 
     if (!submission) {
-      return { 
+      return {
         isUnlocked: false,
         reason: "previous_homework_required",
-        requiredLessonId: previousLesson.id 
+        requiredLessonId: previousLesson.id,
       };
     }
   }
@@ -315,8 +308,12 @@ export function calculateDripAvailability(
   previousLessonCompletedAt?: Date | null
 ): { isAvailable: boolean; availableDate?: Date } {
   const enhancedRule = dripRule as unknown as EnhancedDripRule | null;
-  const result = calculateEnhancedDripAvailability(enhancedRule, enrollmentStartDate, previousLessonCompletedAt);
-  
+  const result = calculateEnhancedDripAvailability(
+    enhancedRule,
+    enrollmentStartDate,
+    previousLessonCompletedAt
+  );
+
   return {
     isAvailable: result.isAvailable,
     availableDate: result.availableDate ? new Date(result.availableDate) : undefined,
@@ -338,9 +335,107 @@ export interface ModuleAccessContext {
 
 export interface ModuleAccessResult {
   isAccessible: boolean;
-  reason: "ok" | "tariff_mismatch" | "track_mismatch" | "group_mismatch" | "time_locked" | "restricted_manually";
+  reason:
+    | "ok"
+    | "tariff_mismatch"
+    | "track_mismatch"
+    | "group_mismatch"
+    | "time_locked"
+    | "restricted_manually";
   unlockDate: Date | null;
   details?: string;
+}
+
+interface SchedulableModule {
+  id: string;
+  title?: string;
+  allowedTariffs: string[];
+  allowedTracks: string[];
+  allowedGroups: string[];
+  openAt: Date | string | null;
+  openAfterAmount: number | null;
+  openAfterUnit: string | null;
+  openAfterEvent: string | null;
+  trackSettings?: unknown;
+  groupSettings?: unknown;
+}
+
+export interface ResolvedModuleAccess {
+  effectiveModule: SchedulableModule;
+  access: ModuleAccessResult;
+  scheduleSource: "group" | "track" | "default";
+  resolvedGroupId?: string;
+}
+
+function applyScheduleOverride(
+  module: SchedulableModule,
+  settings: Record<string, unknown> | undefined
+): SchedulableModule {
+  if (!settings) return { ...module };
+
+  const effective = { ...module };
+  if (settings.openAt) {
+    effective.openAt = settings.openAt as string;
+    effective.openAfterEvent = null;
+    effective.openAfterAmount = null;
+    effective.openAfterUnit = null;
+  } else if (settings.openAfterEvent) {
+    effective.openAt = null;
+    effective.openAfterEvent = settings.openAfterEvent as string;
+    effective.openAfterAmount = (settings.openAfterAmount as number | null | undefined) ?? null;
+    effective.openAfterUnit = (settings.openAfterUnit as string | null | undefined) ?? null;
+  }
+  return effective;
+}
+
+/**
+ * Resolves default, track and group schedule overrides in one place.
+ * If a user belongs to several configured groups, access through any one of
+ * them is sufficient; otherwise the earliest calculable unlock date wins.
+ */
+export function resolveModuleAccess(
+  module: SchedulableModule,
+  context: ModuleAccessContext,
+  restrictedModules: string[] = []
+): ResolvedModuleAccess {
+  const trackSettings = module.trackSettings as Record<string, Record<string, unknown>> | null;
+  const trackOverride = context.userTrack ? trackSettings?.[context.userTrack] : undefined;
+  const trackEffective = applyScheduleOverride(module, trackOverride);
+
+  const groupSettings = module.groupSettings as Record<string, Record<string, unknown>> | null;
+  const configuredGroupIds = context.userGroupIds.filter((groupId) => groupSettings?.[groupId]);
+
+  if (configuredGroupIds.length === 0) {
+    return {
+      effectiveModule: trackEffective,
+      access: checkModuleAccess(trackEffective, context, restrictedModules),
+      scheduleSource: trackOverride ? "track" : "default",
+    };
+  }
+
+  const candidates = configuredGroupIds.map((groupId) => {
+    const effectiveModule = applyScheduleOverride(trackEffective, groupSettings?.[groupId]);
+    const groupContext: ModuleAccessContext = {
+      ...context,
+      userGroupIds: [groupId],
+      userGroupsMap: new Map([[groupId, context.userGroupsMap.get(groupId) ?? null]]),
+    };
+    return {
+      effectiveModule,
+      access: checkModuleAccess(effectiveModule, groupContext, restrictedModules),
+      scheduleSource: "group" as const,
+      resolvedGroupId: groupId,
+    };
+  });
+
+  const accessible = candidates.find((candidate) => candidate.access.isAccessible);
+  if (accessible) return accessible;
+
+  return candidates.sort((a, b) => {
+    const aTime = a.access.unlockDate?.getTime() ?? Number.POSITIVE_INFINITY;
+    const bTime = b.access.unlockDate?.getTime() ?? Number.POSITIVE_INFINITY;
+    return aTime - bTime;
+  })[0];
 }
 
 export function checkModuleAccess(
@@ -358,27 +453,45 @@ export function checkModuleAccess(
   context: ModuleAccessContext,
   restrictedModules: string[] = []
 ): ModuleAccessResult {
-  const { userTariff, userTrack, userGroupIds, userGroupsMap, trackDefinitionCompletedAt, certificationCompletedAt, forcedModules } = context;
+  const {
+    userTariff,
+    userTrack,
+    userGroupIds,
+    userGroupsMap,
+    trackDefinitionCompletedAt,
+    certificationCompletedAt,
+    forcedModules,
+  } = context;
   const now = context.now || new Date();
 
   // -1. Check Forced Access
   if (forcedModules && forcedModules.includes(module.id)) {
-      return { isAccessible: true, reason: "ok", unlockDate: null, details: "Доступ открыт принудительно администратором" };
+    return {
+      isAccessible: true,
+      reason: "ok",
+      unlockDate: null,
+      details: "Доступ открыт принудительно администратором",
+    };
   }
 
   // 0. Restricted Manually
   if (restrictedModules && restrictedModules.includes(module.id)) {
-      return { isAccessible: false, reason: "restricted_manually", unlockDate: null, details: "Доступ закрыт вручную администратором" };
+    return {
+      isAccessible: false,
+      reason: "restricted_manually",
+      unlockDate: null,
+      details: "Доступ закрыт вручную администратором",
+    };
   }
 
   // 1. Tariff check
   if (module.allowedTariffs && module.allowedTariffs.length > 0) {
     if (!userTariff || !module.allowedTariffs.includes(userTariff)) {
-      return { 
-          isAccessible: false, 
-          reason: "tariff_mismatch", 
-          unlockDate: null,
-          details: `Необходим тариф: ${module.allowedTariffs.join(", ")}. У пользователя: ${userTariff || "Нет тарифа"}`
+      return {
+        isAccessible: false,
+        reason: "tariff_mismatch",
+        unlockDate: null,
+        details: `Необходим тариф: ${module.allowedTariffs.join(", ")}. У пользователя: ${userTariff || "Нет тарифа"}`,
       };
     }
   }
@@ -386,11 +499,11 @@ export function checkModuleAccess(
   // 2. Track check
   if (module.allowedTracks && module.allowedTracks.length > 0) {
     if (!userTrack || !module.allowedTracks.includes(userTrack)) {
-      return { 
-          isAccessible: false, 
-          reason: "track_mismatch", 
-          unlockDate: null,
-          details: `Необходим трек: ${module.allowedTracks.join(", ")}. У пользователя: ${userTrack || "Нет трека"}`
+      return {
+        isAccessible: false,
+        reason: "track_mismatch",
+        unlockDate: null,
+        details: `Необходим трек: ${module.allowedTracks.join(", ")}. У пользователя: ${userTrack || "Нет трека"}`,
       };
     }
   }
@@ -401,17 +514,17 @@ export function checkModuleAccess(
       userGroupIds.includes(allowedGroupId)
     );
     if (!hasGroupAccess) {
-      return { 
-          isAccessible: false, 
-          reason: "group_mismatch", 
-          unlockDate: null,
-          details: "Пользователь не состоит ни в одной из разрешенных групп"
+      return {
+        isAccessible: false,
+        reason: "group_mismatch",
+        unlockDate: null,
+        details: "Пользователь не состоит ни в одной из разрешенных групп",
       };
     }
   }
 
   // 4. Time-based check
-  
+
   // 4.1 Absolute date
   if (module.openAt) {
     const openAtDate = new Date(module.openAt);
@@ -424,10 +537,19 @@ export function checkModuleAccess(
   else if (module.openAfterEvent === "track_definition_completed") {
     if (!trackDefinitionCompletedAt) {
       // Event hasn't happened yet
-      return { isAccessible: false, reason: "time_locked", unlockDate: null, details: "Waiting for track definition" };
+      return {
+        isAccessible: false,
+        reason: "time_locked",
+        unlockDate: null,
+        details: "Waiting for track definition",
+      };
     }
 
-    if (module.openAfterAmount !== null && module.openAfterAmount !== undefined && module.openAfterUnit) {
+    if (
+      module.openAfterAmount !== null &&
+      module.openAfterAmount !== undefined &&
+      module.openAfterUnit
+    ) {
       const openDate = new Date(trackDefinitionCompletedAt);
       addTime(openDate, module.openAfterAmount, module.openAfterUnit);
 
@@ -437,10 +559,19 @@ export function checkModuleAccess(
     }
   } else if (module.openAfterEvent === "certification_completed") {
     if (!certificationCompletedAt) {
-      return { isAccessible: false, reason: "time_locked", unlockDate: null, details: "Waiting for certification" };
+      return {
+        isAccessible: false,
+        reason: "time_locked",
+        unlockDate: null,
+        details: "Waiting for certification",
+      };
     }
 
-    if (module.openAfterAmount !== null && module.openAfterAmount !== undefined && module.openAfterUnit) {
+    if (
+      module.openAfterAmount !== null &&
+      module.openAfterAmount !== undefined &&
+      module.openAfterUnit
+    ) {
       const openDate = new Date(certificationCompletedAt);
       addTime(openDate, module.openAfterAmount, module.openAfterUnit);
 
@@ -458,49 +589,53 @@ export function checkModuleAccess(
     }
 
     if (eligibleGroups.length === 0) {
-         // Should have been caught by group check, but redundancy is fine
-         return { isAccessible: false, reason: "group_mismatch", unlockDate: null };
+      // Should have been caught by group check, but redundancy is fine
+      return { isAccessible: false, reason: "group_mismatch", unlockDate: null };
     }
-    
+
     let bestUnlockDate: Date | null = null;
     let hasAccess = false;
 
     // Use a loop to check all groups
     for (const groupId of eligibleGroups) {
-        const startDate = userGroupsMap.get(groupId);
-        if (!startDate) continue;
+      const startDate = userGroupsMap.get(groupId);
+      if (!startDate) continue;
 
-        if (module.openAfterAmount !== null && module.openAfterAmount !== undefined && module.openAfterUnit) {
-            const openDate = new Date(startDate);
-            addTime(openDate, module.openAfterAmount, module.openAfterUnit);
+      if (
+        module.openAfterAmount !== null &&
+        module.openAfterAmount !== undefined &&
+        module.openAfterUnit
+      ) {
+        const openDate = new Date(startDate);
+        addTime(openDate, module.openAfterAmount, module.openAfterUnit);
 
-            if (now >= openDate) {
-                hasAccess = true;
-                bestUnlockDate = openDate;
-                break; // Found one that is already open!
-            } else {
-                // It's in the future. Keep track of the *earliest* future unlock date.
-                if (!bestUnlockDate || openDate < bestUnlockDate) {
-                    bestUnlockDate = openDate;
-                }
-            }
+        if (now >= openDate) {
+          hasAccess = true;
+          bestUnlockDate = openDate;
+          break; // Found one that is already open!
         } else {
-             // No delay, opens immediately with group start
-             // BUG FIX: Must check if group has actually started!
-             if (now >= startDate) {
-                 hasAccess = true;
-                 bestUnlockDate = startDate;
-                 break;
-             } else {
-                 if (!bestUnlockDate || startDate < bestUnlockDate) {
-                     bestUnlockDate = startDate;
-                 }
-             }
+          // It's in the future. Keep track of the *earliest* future unlock date.
+          if (!bestUnlockDate || openDate < bestUnlockDate) {
+            bestUnlockDate = openDate;
+          }
         }
+      } else {
+        // No delay, opens immediately with group start
+        // BUG FIX: Must check if group has actually started!
+        if (now >= startDate) {
+          hasAccess = true;
+          bestUnlockDate = startDate;
+          break;
+        } else {
+          if (!bestUnlockDate || startDate < bestUnlockDate) {
+            bestUnlockDate = startDate;
+          }
+        }
+      }
     }
 
     if (!hasAccess) {
-        return { isAccessible: false, reason: "time_locked", unlockDate: bestUnlockDate };
+      return { isAccessible: false, reason: "time_locked", unlockDate: bestUnlockDate };
     }
   }
 
@@ -508,11 +643,11 @@ export function checkModuleAccess(
 }
 
 function addTime(date: Date, amount: number, unit: string) {
-    if (unit === 'days') {
-        date.setDate(date.getDate() + amount);
-    } else if (unit === 'weeks') {
-        date.setDate(date.getDate() + (amount * 7));
-    } else if (unit === 'months') {
-        date.setMonth(date.getMonth() + amount);
-    }
+  if (unit === "days") {
+    date.setDate(date.getDate() + amount);
+  } else if (unit === "weeks") {
+    date.setDate(date.getDate() + amount * 7);
+  } else if (unit === "months") {
+    date.setMonth(date.getMonth() + amount);
+  }
 }

@@ -67,6 +67,7 @@ const MENTORS = [
   "Anastasia @your_special_place",
   "Мария @mariyatsep",
   "Виктория @alieva_viktoriia",
+  "Виктория @miss_viktorys",
   "Наталья @taha_snv",
   "Татьяна @miss_tanya_01",
   "Кристина @ry_kris",

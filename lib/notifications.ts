@@ -1,15 +1,16 @@
 import { db } from "./db";
 import { UserRole } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 export async function createNotification(
   userId: string,
   type: string,
   title: string,
   message: string,
-  link?: string
+  link?: string,
+  eventKey?: string
 ) {
   try {
-
     await db.notification.create({
       data: {
         userId,
@@ -17,11 +18,14 @@ export async function createNotification(
         title,
         message,
         link,
+        eventKey,
       },
     });
-
   } catch (error) {
-
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return;
+    }
+    console.error("Failed to create notification:", error);
   }
 }
 
@@ -67,7 +71,7 @@ export async function notifyHomeworkReviewed(
     message,
     // Link to the lesson page would be ideal, but we need slug and lessonId.
     // For now, we can link to the course list or dashboard.
-    "/dashboard" 
+    "/dashboard"
   );
 }
 

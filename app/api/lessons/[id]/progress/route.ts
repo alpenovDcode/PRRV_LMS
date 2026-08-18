@@ -11,19 +11,18 @@ const progressSchema = z.object({
   status: z.enum(["not_started", "in_progress", "completed"]).optional(),
 });
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return withAuth(request, async (req) => {
     try {
       const { id } = await params;
-        const body = await request.json();
-      const { watchedTime, status, rating } = z.object({
-        watchedTime: z.number().int().min(0),
-        status: z.enum(["not_started", "in_progress", "completed"]).optional(),
-        rating: z.number().int().min(1).max(10).optional(),
-      }).parse(body);
+      const body = await request.json();
+      const { watchedTime, status, rating } = z
+        .object({
+          watchedTime: z.number().int().min(0),
+          status: z.enum(["not_started", "in_progress", "completed"]).optional(),
+          rating: z.number().int().min(1).max(10).optional(),
+        })
+        .parse(body);
 
       const isAdminOrCurator = req.user?.role === "admin" || req.user?.role === "curator";
 
@@ -127,7 +126,10 @@ export async function POST(
           status: effectiveStatus || "in_progress",
           // Если ratingToSave === undefined, Prisma просто не будет обновлять это поле
           rating: ratingToSave,
-          completedAt: effectiveStatus === "completed" ? (existingProgress?.completedAt || new Date()) : undefined,
+          completedAt:
+            effectiveStatus === "completed"
+              ? existingProgress?.completedAt || new Date()
+              : undefined,
           lastUpdated: new Date(),
         },
         create: {
@@ -145,17 +147,20 @@ export async function POST(
         await logAction(req.user!.userId, "LESSON_COMPLETED", "lesson", id, {
           rating: ratingToSave,
           lessonTitle: lesson.title,
-          courseTitle: lesson.module.course.title
+          courseTitle: lesson.module.course.title,
         });
 
-        // Проверяем и выдаем сертификат, если курс завершен
+        // Сертификацию обрабатывает надёжная очередь; старое поведение
+        // оставляем для курсов, где сертификат выдаётся без такой формы.
         try {
-          // Нам нужен courseId. Мы уже получали урок с курсом выше.
-          const courseId = lesson.module.course.id;
-          // Импортируем динамически, чтобы избежать циклических зависимостей, если они есть,
-          // или просто импортируем стандартно.
-          const { checkAndIssueCertificate } = await import("@/lib/certificate-service");
-          await checkAndIssueCertificate(req.user!.userId, courseId);
+          if (lesson.type === "certification_form") {
+            const { enqueueCertificateAfterCertification } =
+              await import("@/lib/certificate-issuance-queue");
+            await enqueueCertificateAfterCertification(req.user!.userId, lesson.id);
+          } else {
+            const { checkAndIssueCertificate } = await import("@/lib/certificate-service");
+            await checkAndIssueCertificate(req.user!.userId, lesson.module.course.id);
+          }
         } catch (certError) {
           console.error("Certificate issuance check failed:", certError);
           // Не блокируем ответ, если сертификат не выдался
@@ -200,4 +205,3 @@ export async function POST(
     }
   });
 }
-

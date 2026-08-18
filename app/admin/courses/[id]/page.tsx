@@ -16,7 +16,12 @@ import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { getCloudflareImageUrl, extractImageId } from "@/lib/cloudflare-images";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import {
   Select,
   SelectContent,
@@ -24,7 +29,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
 
 interface CourseDetail {
   id: string;
@@ -105,7 +109,7 @@ export default function AdminCourseEditPage() {
   if (isLoading || !course) {
     return (
       <div className="container mx-auto max-w-4xl px-4 py-8">
-        <Skeleton className="h-8 w-64 mb-6" />
+        <Skeleton className="mb-6 h-8 w-64" />
         <Skeleton className="h-96 w-full" />
       </div>
     );
@@ -114,11 +118,11 @@ export default function AdminCourseEditPage() {
   const totalLessons = course.modules.reduce((acc, m) => acc + m.lessons.length, 0);
 
   return (
-    <div className="container mx-auto max-w-4xl px-4 py-8 space-y-6">
+    <div className="container mx-auto max-w-4xl space-y-6 px-4 py-8">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <div className="flex items-center gap-3 mb-2">
+          <div className="mb-2 flex items-center gap-3">
             <Button variant="ghost" size="icon" asChild>
               <Link href="/admin/courses">
                 <ArrowLeft className="h-4 w-4" />
@@ -126,7 +130,9 @@ export default function AdminCourseEditPage() {
             </Button>
             <h1 className="text-3xl font-bold tracking-tight text-gray-900">Настройки курса</h1>
           </div>
-          <p className="text-gray-600 ml-12">Управляйте основными параметрами и просматривайте структуру</p>
+          <p className="ml-12 text-gray-600">
+            Управляйте основными параметрами и просматривайте структуру
+          </p>
         </div>
         <Button asChild variant="outline">
           <Link href={`/admin/courses/${courseId}/builder`}>
@@ -155,12 +161,12 @@ export default function AdminCourseEditPage() {
             <div className="text-sm text-gray-600">Статус</div>
             <div className="text-2xl font-bold text-gray-900">
               {isPublished ? (
-                <span className="text-green-600 flex items-center gap-2">
+                <span className="flex items-center gap-2 text-green-600">
                   <Eye className="h-5 w-5" />
                   Опубликован
                 </span>
               ) : (
-                <span className="text-orange-600 flex items-center gap-2">
+                <span className="flex items-center gap-2 text-orange-600">
                   <EyeOff className="h-5 w-5" />
                   Черновик
                 </span>
@@ -171,12 +177,18 @@ export default function AdminCourseEditPage() {
       </div>
 
       <Tabs defaultValue="settings" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 border-b border-gray-200 bg-transparent mb-6">
-          <TabsTrigger value="settings" className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600">
+        <TabsList className="mb-6 grid w-full grid-cols-2 border-b border-gray-200 bg-transparent">
+          <TabsTrigger
+            value="settings"
+            className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600"
+          >
             Настройки
           </TabsTrigger>
-          <TabsTrigger value="curriculum" className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600">
-             Программа курса (Просмотр)
+          <TabsTrigger
+            value="curriculum"
+            className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600"
+          >
+            Программа курса (Просмотр)
           </TabsTrigger>
         </TabsList>
 
@@ -244,14 +256,16 @@ export default function AdminCourseEditPage() {
                   className="border-gray-300"
                 />
                 <p className="text-xs text-gray-500">
-                  Введите Cloudflare Images ID (например: <code className="bg-gray-100 px-1 rounded">abc123</code>) или полный URL изображения
+                  Введите Cloudflare Images ID (например:{" "}
+                  <code className="rounded bg-gray-100 px-1">abc123</code>) или полный URL
+                  изображения
                 </p>
                 {coverImage && (
                   <div className="mt-2">
                     <img
                       src={getCloudflareImageUrl(coverImage)}
                       alt="Предпросмотр обложки"
-                      className="w-full max-w-md h-48 object-cover rounded-lg border border-gray-200"
+                      className="h-48 w-full max-w-md rounded-lg border border-gray-200 object-cover"
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = "none";
                       }}
@@ -260,27 +274,21 @@ export default function AdminCourseEditPage() {
                 )}
               </div>
 
-              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-4">
                 <div className="space-y-0.5">
                   <Label htmlFor="isPublished" className="text-gray-900">
                     Опубликовать курс
                   </Label>
-                  <p className="text-sm text-gray-600">
-                    Курс будет виден студентам в каталоге
-                  </p>
+                  <p className="text-sm text-gray-600">Курс будет виден студентам в каталоге</p>
                 </div>
-                <Switch
-                  id="isPublished"
-                  checked={isPublished}
-                  onCheckedChange={setIsPublished}
-                />
+                <Switch id="isPublished" checked={isPublished} onCheckedChange={setIsPublished} />
               </div>
 
               <div className="flex items-center gap-3 pt-4">
                 <Button
                   onClick={() => updateCourseMutation.mutate()}
                   disabled={updateCourseMutation.isPending}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  className="bg-blue-600 text-white hover:bg-blue-700"
                 >
                   <Save className="mr-2 h-4 w-4" />
                   {updateCourseMutation.isPending ? "Сохранение..." : "Сохранить изменения"}
@@ -337,58 +345,68 @@ export default function AdminCourseEditPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-               {course.modules.length === 0 ? (
-                  <div className="text-center py-12">
-                    <p className="text-gray-500">В курсе нет модулей</p>
-                    <Button variant="outline" className="mt-4" asChild>
-                         <Link href={`/admin/courses/${courseId}/builder`}>
-                             Перейти в конструктор
-                         </Link>
-                    </Button>
-                  </div>
-               ) : (
+              {course.modules.length === 0 ? (
+                <div className="py-12 text-center">
+                  <p className="text-gray-500">В курсе нет модулей</p>
+                  <Button variant="outline" className="mt-4" asChild>
+                    <Link href={`/admin/courses/${courseId}/builder`}>Перейти в конструктор</Link>
+                  </Button>
+                </div>
+              ) : (
                 <Accordion type="single" collapsible className="w-full space-y-4">
                   {course.modules.map((module) => (
-                    <AccordionItem key={module.id} value={module.id} className="border rounded-lg px-4 bg-white">
-                      <AccordionTrigger className="hover:no-underline py-4">
+                    <AccordionItem
+                      key={module.id}
+                      value={module.id}
+                      className="rounded-lg border bg-white px-4"
+                    >
+                      <AccordionTrigger className="py-4 hover:no-underline">
                         <div className="flex flex-col items-start text-left">
-                          <span className="font-medium text-gray-900 text-lg">{module.title}</span>
-                          <span className="text-sm text-gray-500 font-normal">{module.lessons.length} уроков</span>
+                          <span className="text-lg font-medium text-gray-900">{module.title}</span>
+                          <span className="text-sm font-normal text-gray-500">
+                            {module.lessons.length} уроков
+                          </span>
                         </div>
                       </AccordionTrigger>
-                      <AccordionContent className="pt-2 pb-4">
+                      <AccordionContent className="pb-4 pt-2">
                         <div className="space-y-1">
                           {module.lessons.map((lesson, idx) => (
-                            <div key={lesson.id} className="flex items-center gap-3 p-2 rounded-md hover:bg-gray-50">
-                               <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-medium text-blue-600">
-                                  {idx + 1}
-                               </div>
-                               <span className="text-gray-700 text-sm">{lesson.title}</span>
-                               <Button variant="ghost" size="sm" asChild className="ml-auto h-8 w-8 p-0 text-gray-400 hover:text-blue-600">
-                                   <Link href={`/admin/lessons/${lesson.id}/edit`}>
-                                     <Wrench className="h-4 w-4" />
-                                   </Link>
-                               </Button>
+                            <div
+                              key={lesson.id}
+                              className="flex items-center gap-3 rounded-md p-2 hover:bg-gray-50"
+                            >
+                              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-medium text-blue-600">
+                                {idx + 1}
+                              </div>
+                              <span className="text-sm text-gray-700">{lesson.title}</span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                asChild
+                                className="ml-auto h-8 w-8 p-0 text-gray-400 hover:text-blue-600"
+                              >
+                                <Link href={`/admin/lessons/${lesson.id}/edit`}>
+                                  <Wrench className="h-4 w-4" />
+                                </Link>
+                              </Button>
                             </div>
                           ))}
                           {module.lessons.length === 0 && (
-                            <p className="text-sm text-gray-400 pl-9">Нет уроков</p>
+                            <p className="pl-9 text-sm text-gray-400">Нет уроков</p>
                           )}
                         </div>
                       </AccordionContent>
                     </AccordionItem>
                   ))}
                 </Accordion>
-               )}
+              )}
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
-
     </div>
   );
 }
-
 
 function CertificateSettings({
   courseId,
@@ -416,17 +434,17 @@ function CertificateSettings({
       <CardHeader>
         <CardTitle className="text-gray-900">Настройки сертификата</CardTitle>
         <CardDescription className="text-gray-600">
-          Настройте автоматическую выдачу сертификатов при завершении курса
+          Настройте автоматическую выдачу после успешной сертификации
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+        <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-4">
           <div className="space-y-0.5">
             <Label htmlFor="autoIssue" className="text-gray-900">
               Автоматическая выдача
             </Label>
             <p className="text-sm text-gray-600">
-              Сертификат будет выдан автоматически, когда студент завершит все уроки
+              Сертификат будет сформирован в фоне после прохождения сертификационного урока
             </p>
           </div>
           <Switch
@@ -450,18 +468,24 @@ function CertificateSettings({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Не выбран</SelectItem>
-                {templates?.map((template) => (
-                  <SelectItem key={template.id} value={template.id}>
-                    {template.name}
-                  </SelectItem>
-                ))}
+                {templates
+                  ?.filter(
+                    (template) =>
+                      template.isActive !== false &&
+                      (!template.courseId || template.courseId === courseId)
+                  )
+                  .map((template) => (
+                    <SelectItem key={template.id} value={template.id}>
+                      {template.name}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
             <p className="text-xs text-gray-500">
               Выберите шаблон, который будет использоваться для генерации PDF
             </p>
-             <div className="pt-2">
-              <Button variant="link" asChild className="p-0 h-auto text-blue-600">
+            <div className="pt-2">
+              <Button variant="link" asChild className="h-auto p-0 text-blue-600">
                 <Link href="/admin/certificates/templates" target="_blank">
                   Управление шаблонами
                 </Link>

@@ -2,16 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/api-middleware";
 import { db } from "@/lib/db";
 import { ApiResponse } from "@/types";
-import { calculateDripAvailability, checkPrerequisites, checkModuleAccess, type DripRule, type ModuleAccessContext } from "@/lib/lms-logic";
+import {
+  calculateDripAvailability,
+  checkPrerequisites,
+  resolveModuleAccess,
+  type DripRule,
+  type ModuleAccessContext,
+} from "@/lib/lms-logic";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ slug: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   return withAuth(request, async (req) => {
     try {
       const { slug } = await params;
-        const { searchParams } = new URL(request.url);
+      const { searchParams } = new URL(request.url);
       const currentLessonId = searchParams.get("lessonId");
 
       if (!currentLessonId) {
@@ -65,7 +68,7 @@ export async function GET(
       });
 
       const hasAccess = enrollment && enrollment.status === "active";
-      
+
       if (!hasAccess) {
         return NextResponse.json<ApiResponse>(
           {
@@ -81,9 +84,9 @@ export async function GET(
 
       // Deep clone and structure course modules to get correctly ordered flat list of lessons
       function getStructuredFlatLessons(rawModules: any[]): any[] {
-        const clonedModules = rawModules.map(m => ({ ...m, lessons: [...m.lessons] }));
+        const clonedModules = rawModules.map((m) => ({ ...m, lessons: [...m.lessons] }));
         const structured = structureModules(clonedModules);
-        
+
         function flatten(nodes: any[]): any[] {
           let result: any[] = [];
           for (const node of nodes) {
@@ -92,7 +95,7 @@ export async function GET(
           }
           return result;
         }
-        
+
         return flatten(structured);
       }
 
@@ -106,40 +109,38 @@ export async function GET(
 
       const progressMap = new Map(
         progressRecords.map((p: any) => [
-          p.lessonId, 
-          { 
-            status: p.status, 
-            completedAt: p.completedAt 
-          }
+          p.lessonId,
+          {
+            status: p.status,
+            completedAt: p.completedAt,
+          },
         ])
       );
 
       const startDate = new Date(enrollment.startDate);
 
-
-      
       const user = await db.user.findUnique({
         where: { id: req.user!.userId },
-        include: { 
-            groupMembers: { 
-                include: {
-                    group: {
-                        select: {
-                            id: true,
-                            startDate: true,
-                        }
-                    }
-                } 
-            } 
-        }
+        include: {
+          groupMembers: {
+            include: {
+              group: {
+                select: {
+                  id: true,
+                  startDate: true,
+                },
+              },
+            },
+          },
+        },
       });
-      const userGroupIds = user?.groupMembers.map(gm => gm.groupId) || [];
+      const userGroupIds = user?.groupMembers.map((gm) => gm.groupId) || [];
       const userTariff = user?.tariff;
       const userTrack = user?.track;
       // Map of group start dates for quick lookup
       const userGroupsMap = new Map<string, Date | null>();
-      user?.groupMembers.forEach(gm => {
-          userGroupsMap.set(gm.groupId, gm.group.startDate ? new Date(gm.group.startDate) : null);
+      user?.groupMembers.forEach((gm) => {
+        userGroupsMap.set(gm.groupId, gm.group.startDate ? new Date(gm.group.startDate) : null);
       });
 
       // Find user's track definition lesson completion date
@@ -148,12 +149,12 @@ export async function GET(
         where: {
           userId: req.user!.userId,
           status: "completed",
-          lesson: { type: "track_definition" } 
+          lesson: { type: "track_definition", module: { courseId: course.id } },
         },
-        orderBy: { completedAt: 'desc' }
+        orderBy: { completedAt: "desc" },
       });
       if (trackDefProgress && trackDefProgress.completedAt) {
-          trackDefinitionCompletedAt = new Date(trackDefProgress.completedAt);
+        trackDefinitionCompletedAt = new Date(trackDefProgress.completedAt);
       }
 
       // Find user's certification completion date
@@ -162,152 +163,121 @@ export async function GET(
         where: {
           userId: req.user!.userId,
           status: "completed",
-          lesson: { type: "certification_form" }
+          lesson: { type: "certification_form", module: { courseId: course.id } },
         },
-        orderBy: { completedAt: 'desc' }
+        orderBy: { completedAt: "desc" },
       });
       if (certificationProgress && certificationProgress.completedAt) {
-          certificationCompletedAt = new Date(certificationProgress.completedAt);
+        certificationCompletedAt = new Date(certificationProgress.completedAt);
       }
 
       const context: ModuleAccessContext = {
-          userTariff: userTariff || null,
-          userTrack: userTrack || null,
-          userGroupIds,
-          userGroupsMap,
-          trackDefinitionCompletedAt,
-          certificationCompletedAt,
-          // @ts-ignore
-          forcedModules: enrollment.forcedModules as string[] || []
+        userTariff: userTariff || null,
+        userTrack: userTrack || null,
+        userGroupIds,
+        userGroupsMap,
+        trackDefinitionCompletedAt,
+        certificationCompletedAt,
+        // @ts-ignore
+        forcedModules: (enrollment.forcedModules as string[]) || [],
       };
 
-      // Filter modules based on restriction (same logic as main course page)
-      const accessibleModules = course.modules.filter((module: any) => {
+      const modulesWithAccess = course.modules.map((module: any) => {
         // @ts-ignore
-        const restrictedModules = enrollment.restrictedModules as string[] || [];
-
-        // Apply track specific logic if exists
-        let effectiveModule = { ...module };
-        if (userTrack && module.trackSettings) {
-             const settings = (module.trackSettings as Record<string, any>)[userTrack];
-             if (settings) {
-                 if (settings.openAt) {
-                     effectiveModule.openAt = settings.openAt;
-                     effectiveModule.openAfterEvent = null;
-                     effectiveModule.openAfterAmount = null;
-                     effectiveModule.openAfterUnit = null;
-                 }
-                 else if (settings.openAfterEvent) {
-                     effectiveModule.openAt = null;
-                     effectiveModule.openAfterEvent = settings.openAfterEvent;
-                     effectiveModule.openAfterAmount = settings.openAfterAmount;
-                     effectiveModule.openAfterUnit = settings.openAfterUnit;
-                 }
-             }
-        }
-        // Apply group-specific logic (overrides track if user is in a configured group)
-        if (module.groupSettings) {
-             const gs = module.groupSettings as Record<string, any>;
-             const matchedGroupId = userGroupIds.find((gid: string) => gs[gid]);
-             if (matchedGroupId) {
-                 const settings = gs[matchedGroupId];
-                 if (settings.openAt) {
-                     effectiveModule.openAt = settings.openAt;
-                     effectiveModule.openAfterEvent = null;
-                     effectiveModule.openAfterAmount = null;
-                     effectiveModule.openAfterUnit = null;
-                 } else if (settings.openAfterEvent) {
-                     effectiveModule.openAt = null;
-                     effectiveModule.openAfterEvent = settings.openAfterEvent;
-                     effectiveModule.openAfterAmount = settings.openAfterAmount ?? null;
-                     effectiveModule.openAfterUnit = settings.openAfterUnit ?? null;
-                 }
-             }
-        }
-
-        const accessResult = checkModuleAccess(effectiveModule, context, restrictedModules);
-
-        // Hide module if NOT accessible.
-        return accessResult.isAccessible;
+        const restrictedModules = (enrollment.restrictedModules as string[]) || [];
+        return { module, resolved: resolveModuleAccess(module, context, restrictedModules) };
       });
 
       // Calculate availability for all lessons to build navigation
       const modulesWithLessons = await Promise.all(
-        accessibleModules.map(async (module: any) => {
-           // Filter restricted lessons
-           const filteredLessons = module.lessons.filter((lesson: any) => {
-              // @ts-ignore
-              return !(enrollment.restrictedLessons && enrollment.restrictedLessons.includes(lesson.id));
-           });
+        modulesWithAccess.map(async ({ module, resolved }: any) => {
+          // Filter restricted lessons
+          const filteredLessons = module.lessons.filter((lesson: any) => {
+            // @ts-ignore
+            return !(
+              enrollment.restrictedLessons && enrollment.restrictedLessons.includes(lesson.id)
+            );
+          });
 
-           return {
-          id: module.id,
-          title: module.title,
-          lessons: await Promise.all(
-            filteredLessons.map(async (lesson: any) => {
-              const lessonProgress = progressMap.get(lesson.id);
-              
-              // Find previous lesson for drip check
-              const lessonIndex = allLessons.findIndex((l: any) => l.id === lesson.id);
-              let previousLessonCompletedAt: Date | null = null;
-              
-              if (lessonIndex > 0) {
-                const previousLessonId = allLessons[lessonIndex - 1].id;
-                const prevProgress = progressMap.get(previousLessonId);
-                if (prevProgress?.status === "completed" && prevProgress.completedAt) {
-                  previousLessonCompletedAt = new Date(prevProgress.completedAt);
+          return {
+            id: module.id,
+            title: module.title,
+            lessons: await Promise.all(
+              filteredLessons.map(async (lesson: any) => {
+                const lessonProgress = progressMap.get(lesson.id);
+
+                // Find previous lesson for drip check
+                const lessonIndex = allLessons.findIndex((l: any) => l.id === lesson.id);
+                let previousLessonCompletedAt: Date | null = null;
+
+                if (lessonIndex > 0) {
+                  const previousLessonId = allLessons[lessonIndex - 1].id;
+                  const prevProgress = progressMap.get(previousLessonId);
+                  if (prevProgress?.status === "completed" && prevProgress.completedAt) {
+                    previousLessonCompletedAt = new Date(prevProgress.completedAt);
+                  }
                 }
-              }
 
-              // Проверка drip content
-              const dripAvailability = calculateDripAvailability(
-                lesson.dripRule as DripRule | null,
-                startDate,
-                previousLessonCompletedAt
-              );
+                // Проверка drip content
+                const dripAvailability = calculateDripAvailability(
+                  lesson.dripRule as DripRule | null,
+                  startDate,
+                  previousLessonCompletedAt
+                );
 
-              // Проверка prerequisites (стоп-уроки)
-              const prerequisitesCheck = await checkPrerequisites(req.user!.userId, lesson.id);
+                // Проверка prerequisites (стоп-уроки)
+                const prerequisitesCheck = await checkPrerequisites(req.user!.userId, lesson.id);
 
-              // isRestricted checks are now redundant for visibility, but implicit for availability
-              // Since we filtered them out, we only check drip/prerequisites for remaining ones
-              const isAvailable = dripAvailability.isAvailable && prerequisitesCheck.isUnlocked;
+                // isRestricted checks are now redundant for visibility, but implicit for availability
+                // Since we filtered them out, we only check drip/prerequisites for remaining ones
+                const isAvailable =
+                  resolved.access.isAccessible &&
+                  dripAvailability.isAvailable &&
+                  prerequisitesCheck.isUnlocked;
+                const availableDate = !resolved.access.isAccessible
+                  ? resolved.access.unlockDate
+                  : dripAvailability.availableDate;
 
-              return {
-                id: lesson.id,
-                title: lesson.title,
-                type: lesson.type,
-                orderIndex: lesson.orderIndex,
-                isAvailable,
-                hasHomework: !!(lesson.content as any)?.homework,
-                progress: lessonProgress ? { status: lessonProgress.status } : null,
-              };
-            })
-          ),
-          parentId: module.parentId, // Ensure parentId is passed
-        };
-      }));
+                return {
+                  id: lesson.id,
+                  title: lesson.title,
+                  type: lesson.type,
+                  orderIndex: lesson.orderIndex,
+                  isAvailable,
+                  availableDate: availableDate?.toISOString(),
+                  hasHomework: !!(lesson.content as any)?.homework,
+                  progress: lessonProgress ? { status: lessonProgress.status } : null,
+                };
+              })
+            ),
+            parentId: module.parentId, // Ensure parentId is passed
+            isAvailable: resolved.access.isAccessible,
+            availableDate: resolved.access.unlockDate?.toISOString() ?? null,
+            accessReason: resolved.access.reason,
+          };
+        })
+      );
 
       // Structure modules hierarchically
       const structuredModules = structureModules(modulesWithLessons);
 
       // Determine prev/next navigation by performing hierarchical flatten on structured modules
       function flattenNavigationLessons(nodes: any[]): any[] {
-          let lessons: any[] = [];
-          for (const node of nodes) {
-              if (node.lessons && node.lessons.length > 0) {
-                  lessons = lessons.concat(node.lessons);
-              }
-              if (node.children && node.children.length > 0) {
-                  lessons = lessons.concat(flattenNavigationLessons(node.children));
-              }
+        let lessons: any[] = [];
+        for (const node of nodes) {
+          if (node.lessons && node.lessons.length > 0) {
+            lessons = lessons.concat(node.lessons);
           }
-          return lessons;
+          if (node.children && node.children.length > 0) {
+            lessons = lessons.concat(flattenNavigationLessons(node.children));
+          }
+        }
+        return lessons;
       }
-      
+
       const flattenedLessons = flattenNavigationLessons(structuredModules);
-      const currentIndex = flattenedLessons.findIndex(l => l.id === currentLessonId);
-      
+      const currentIndex = flattenedLessons.findIndex((l) => l.id === currentLessonId);
+
       let prevLessonId: string | null = null;
       let nextLessonId: string | null = null;
 
@@ -319,7 +289,7 @@ export async function GET(
             prevLessonId = prevLesson.id;
           }
         }
-        
+
         if (currentIndex < flattenedLessons.length - 1) {
           const nextLesson = flattenedLessons[currentIndex + 1];
           // Only allow navigation to next if it is available

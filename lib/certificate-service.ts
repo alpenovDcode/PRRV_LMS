@@ -1,15 +1,17 @@
 import { db } from "@/lib/db";
 import { PDFDocument, rgb } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
-import { readFile, writeFile, mkdir } from "fs/promises";
+import { readFile } from "fs/promises";
 import { join } from "path";
 import { sendEmail, emailTemplates } from "@/lib/email-service";
 import { resolveFullNameField } from "@/lib/certificate-fields";
+import { readStoredFile, saveBuffer } from "@/lib/storage";
 
 interface GenerateCertificateParams {
   userId: string;
   courseId: string;
   templateId: string;
+  emailDelivery?: "background" | "skip";
 }
 
 export async function generateCertificateNumber(courseSlug: string): Promise<string> {
@@ -26,28 +28,26 @@ async function generateCertificatePdf(
     date: Date;
     certificateNumber: string;
   }
-): Promise<{ url: string, logs: string[] }> {
+): Promise<{ buffer: Buffer; logs: string[] }> {
   const logs: string[] = [];
   const log = (msg: string, data?: any) => {
-      const entry = `[${new Date().toISOString()}] ${msg} ${data ? JSON.stringify(data, null, 2) : ''}`;
-      console.log(entry);
-      logs.push(entry);
+    const entry = `[${new Date().toISOString()}] ${msg} ${data ? JSON.stringify(data, null, 2) : ""}`;
+    console.log(entry);
+    logs.push(entry);
   };
 
   try {
     // Resolve template image path
     // Assuming template.imageUrl starts with /uploads/
     const publicDir = join(process.cwd(), "public");
-    const safeImageUrl = decodeURIComponent(template.imageUrl);
-    const imagePath = join(publicDir, safeImageUrl);
-    const imageBytes = await readFile(imagePath);
+    const imageBytes = await readStoredFile(template.imageUrl);
 
     // Create PDF
     const pdfDoc = await PDFDocument.create();
-    
+
     // Register fontkit
     pdfDoc.registerFontkit(fontkit);
-    
+
     // Embed image
     let image;
     if (template.imageUrl.toLowerCase().endsWith(".png")) {
@@ -58,7 +58,7 @@ async function generateCertificatePdf(
 
     const { width, height } = image.scale(1);
     const page = pdfDoc.addPage([width, height]);
-    
+
     // Draw background
     page.drawImage(image, {
       x: 0,
@@ -66,7 +66,7 @@ async function generateCertificatePdf(
       width,
       height,
     });
-    
+
     log(`STARTED PDF GENERATION for ${data.studentName}`);
 
     // Load custom fonts (Roboto) for Cyrillic support
@@ -77,41 +77,43 @@ async function generateCertificatePdf(
 
     let customFont, customFontBold;
     try {
-        const fontBytes = await readFile(fontPath);
-        const fontBoldBytes = await readFile(fontBoldPath);
-        
-        // Debug: Log first 16 bytes to check header
-        log(`Font Header (Regular): ${fontBytes.subarray(0, 16).toString('hex')}`);
+      const fontBytes = await readFile(fontPath);
+      const fontBoldBytes = await readFile(fontBoldPath);
 
-        customFont = await pdfDoc.embedFont(fontBytes);
-        customFontBold = await pdfDoc.embedFont(fontBoldBytes);
+      // Debug: Log first 16 bytes to check header
+      log(`Font Header (Regular): ${fontBytes.subarray(0, 16).toString("hex")}`);
+
+      customFont = await pdfDoc.embedFont(fontBytes);
+      customFontBold = await pdfDoc.embedFont(fontBoldBytes);
     } catch (fontError: any) {
-        log(`Font loading failed: ${fontError.message}. Falling back to Helvetica (No Cyrillic support)`);
-        customFont = await pdfDoc.embedFont("Helvetica");
-        customFontBold = await pdfDoc.embedFont("Helvetica-Bold");
+      log(
+        `Font loading failed: ${fontError.message}. Falling back to Helvetica (No Cyrillic support)`
+      );
+      customFont = await pdfDoc.embedFont("Helvetica");
+      customFontBold = await pdfDoc.embedFont("Helvetica-Bold");
     }
 
     // Draw fields
     // fieldConfig structure: { fullName: { x, y, fontSize, color, ... }, ... }
     const fullNameField = resolveFullNameField(template.fieldConfig);
     const config = { fullName: fullNameField };
-    
+
     log(`Config keys: ${Object.keys(config).join(", ")}`);
 
     const drawField = (key: keyof typeof config, text: string, isBold = false) => {
       const field = config[key];
-      
+
       const debugInfo = {
         key,
         text,
         fieldExists: !!field,
-        fieldConfig: field
+        fieldConfig: field,
       };
-      
+
       log(`Processing field ${key}:`, debugInfo);
 
       if (!field) {
-         return;
+        return;
       }
 
       const size = Number(field.fontSize) || 24;
@@ -125,7 +127,7 @@ async function generateCertificatePdf(
       const fontToUse = isBold ? customFontBold : customFont;
       const textToDraw = text?.trim() ? text.trim() : " ";
       const textWidth = fontToUse.widthOfTextAtSize(textToDraw, size);
-      
+
       let x = Number(field.x);
       // Adjust X based on alignment
       if (field.align === "center") {
@@ -133,11 +135,11 @@ async function generateCertificatePdf(
       } else if (field.align === "right") {
         x = x - textWidth;
       }
-      
+
       const fieldY = Number(field.y);
       // More accurate vertical centering accounting for ascenders and descenders
       const textHeight = fontToUse.heightAtSize(size);
-      const y = height - fieldY - (textHeight / 2);
+      const y = height - fieldY - textHeight / 2;
 
       page.drawText(textToDraw, {
         x,
@@ -155,30 +157,20 @@ async function generateCertificatePdf(
 
     drawField("fullName", studentName, true);
 
-    // Save PDF
+    // Serialize PDF. Persistence is handled separately by the storage layer.
     const pdfBytes = await pdfDoc.save();
-    
-    const outputDir = join(publicDir, "uploads", "certificates", "generated");
-    await mkdir(outputDir, { recursive: true });
-    
-    const filename = `${data.certificateNumber}.pdf`;
-    const outputPath = join(outputDir, filename);
-    await writeFile(outputPath, pdfBytes);
 
-    return { 
-        url: `/uploads/certificates/generated/${filename}`,
-        logs
-    };
+    return { buffer: Buffer.from(pdfBytes), logs };
   } catch (error: any) {
     console.error("PDF Generation error:", error);
     // DO NOT Fallback. Throw error to make it visible.
-    const combinedLog = logs.join('\n');
+    const combinedLog = logs.join("\n");
     throw new Error(`PDF Gen Failed: ${error.message}\nLogs:\n${combinedLog}`);
   }
 }
 
 export async function generateCertificate(params: GenerateCertificateParams) {
-  const { userId, courseId, templateId } = params;
+  const { userId, courseId, templateId, emailDelivery = "background" } = params;
 
   // Check if certificate already exists
   const existing = await db.certificate.findFirst({
@@ -186,11 +178,12 @@ export async function generateCertificate(params: GenerateCertificateParams) {
       userId,
       courseId,
     },
-    include: { // Include relations for consistency if we return existing
-        user: { select: { id: true, fullName: true, email: true } },
-        course: { select: { id: true, title: true, slug: true } },
-        template: true
-    }
+    include: {
+      // Include relations for consistency if we return existing
+      user: { select: { id: true, fullName: true, email: true } },
+      course: { select: { id: true, title: true, slug: true } },
+      template: true,
+    },
   });
 
   if (existing) {
@@ -207,17 +200,29 @@ export async function generateCertificate(params: GenerateCertificateParams) {
   if (!user || !course || !template) {
     throw new Error("User, course, or template not found");
   }
+  if (!template.isActive) {
+    throw new Error("Certificate template is inactive");
+  }
+  if (template.courseId && template.courseId !== courseId) {
+    throw new Error("Certificate template belongs to another course");
+  }
 
   // Generate certificate number
   const certificateNumber = await generateCertificateNumber(course.slug);
 
   // Generate PDF
-  const { url: pdfUrl, logs } = await generateCertificatePdf(template, {
+  const { buffer: pdfBuffer, logs } = await generateCertificatePdf(template, {
     studentName: user.fullName || "Студент",
     courseName: course.title,
     date: new Date(),
     certificateNumber,
   });
+  const pdfUrl = await saveBuffer(
+    pdfBuffer,
+    `certificates/generated/${certificateNumber}.pdf`,
+    "application/pdf",
+    { requireRemote: process.env.NODE_ENV === "production" }
+  );
 
   // Create certificate record
   const certificate = await db.certificate.create({
@@ -248,39 +253,42 @@ export async function generateCertificate(params: GenerateCertificateParams) {
   });
 
   // Send certificate to student's email (fire-and-forget — не блокируем выдачу)
-  if (certificate.user.email) {
-    const { join } = await import("path");
-    const { readFile } = await import("fs/promises");
-    const publicDir = join(process.cwd(), "public");
-    const pdfPath = join(publicDir, certificate.pdfUrl.replace(/^\//, ""));
-
-    (async () => {
-      try {
-        const pdfBuffer = await readFile(pdfPath);
-        await sendEmail({
-          to: certificate.user.email,
-          subject: `Ваш сертификат: ${certificate.course.title}`,
-          html: emailTemplates.certificateIssued(
-            certificate.user.fullName || "Студент",
-            certificate.course.title,
-            certificate.certificateNumber
-          ),
-          attachments: [
-            {
-              filename: `certificate-${certificate.certificateNumber}.pdf`,
-              content: pdfBuffer,
-              contentType: "application/pdf",
-            },
-          ],
-        });
-        logs.push(`[email] Sent certificate to ${certificate.user.email}`);
-      } catch (e: any) {
-        console.error("[certificate] Failed to email certificate:", e);
-      }
-    })();
+  if (emailDelivery === "background" && certificate.user.email) {
+    void sendCertificateEmail(certificate, pdfBuffer).catch((error) => {
+      console.error("[certificate] Failed to email certificate:", error);
+    });
   }
 
   return { certificate, logs };
+}
+
+export async function sendCertificateEmail(
+  certificate: {
+    certificateNumber: string;
+    pdfUrl: string;
+    user: { email: string; fullName: string | null };
+    course: { title: string };
+  },
+  existingBuffer?: Buffer
+) {
+  if (!certificate.user.email) return;
+  const pdfBuffer = existingBuffer ?? (await readStoredFile(certificate.pdfUrl));
+  await sendEmail({
+    to: certificate.user.email,
+    subject: `Ваш сертификат: ${certificate.course.title}`,
+    html: emailTemplates.certificateIssued(
+      certificate.user.fullName || "Студент",
+      certificate.course.title,
+      certificate.certificateNumber
+    ),
+    attachments: [
+      {
+        filename: `certificate-${certificate.certificateNumber}.pdf`,
+        content: pdfBuffer,
+        contentType: "application/pdf",
+      },
+    ],
+  });
 }
 
 export async function checkAndIssueCertificate(userId: string, courseId: string) {
@@ -362,6 +370,6 @@ export async function checkAndIssueCertificate(userId: string, courseId: string)
     courseId,
     templateId: course.certificateTemplateId,
   });
-  
+
   return certificate;
 }

@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { CheckCircle, Clock, AlertTriangle, TriangleAlert } from "lucide-react";
+import { CheckCircle, Clock, AlertTriangle, TriangleAlert, Workflow } from "lucide-react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { apiClient } from "@/lib/api-client";
@@ -25,7 +25,9 @@ interface ScheduleItem {
   groupId: string;
   groupName: string;
   expectedOpenDate: string | null;
-  status: "opened" | "waiting" | "error_no_date";
+  status: "opened" | "waiting" | "event_waiting" | "error_no_date";
+  scheduleDescription: string | null;
+  scheduleSource: "group" | "default";
 }
 
 export default function SchedulePage() {
@@ -53,7 +55,11 @@ export default function SchedulePage() {
   }
 
   async function handleForceOpen(moduleId: string, groupId: string) {
-    if (!confirm("Вы действительно хотите принудительно открыть этот модуль для всех студентов группы?")) {
+    if (
+      !confirm(
+        "Вы действительно хотите принудительно открыть этот модуль для всех студентов группы?"
+      )
+    ) {
       return;
     }
     setProcessingId(`${moduleId}-${groupId}`);
@@ -64,11 +70,13 @@ export default function SchedulePage() {
       });
       if (response.data.success) {
         alert(response.data.data.message || "Модуль успешно открыт");
-        setItems(prevItems => prevItems.map(item =>
-          (item.moduleId === moduleId && item.groupId === groupId)
-            ? { ...item, status: "opened" }
-            : item
-        ));
+        setItems((prevItems) =>
+          prevItems.map((item) =>
+            item.moduleId === moduleId && item.groupId === groupId
+              ? { ...item, status: "opened" }
+              : item
+          )
+        );
       }
     } catch (error: any) {
       alert("Ошибка: " + (error.response?.data?.error?.message || "Не удалось открыть модуль"));
@@ -116,9 +124,9 @@ export default function SchedulePage() {
                 : `${groupsWithNoDate.length} группы без даты старта`}
             </p>
             <p className="mt-1 text-sm">
-              Следующие группы содержат модули с привязкой к старту группы, но у них не указана дата начала.
-              Студенты этих групп{" "}
-              <strong>никогда не получат доступ</strong> к этим модулям, пока не будет проставлена дата:
+              Следующие группы содержат модули с привязкой к старту группы, но у них не указана дата
+              начала. Студенты этих групп <strong>никогда не получат доступ</strong> к этим модулям,
+              пока не будет проставлена дата:
             </p>
             <ul className="mt-2 space-y-0.5 text-sm">
               {groupsWithNoDate.map(([groupId, groupName]) => (
@@ -130,7 +138,9 @@ export default function SchedulePage() {
                   >
                     {groupName}
                   </Link>
-                  <span className="text-amber-600">— откройте карточку группы и укажите дату старта</span>
+                  <span className="text-amber-600">
+                    — откройте карточку группы и укажите дату старта
+                  </span>
                 </li>
               ))}
             </ul>
@@ -152,13 +162,13 @@ export default function SchedulePage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
                   Загрузка расписания...
                 </TableCell>
               </TableRow>
             ) : items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
                   Нет запланированных модулей для групп
                 </TableCell>
               </TableRow>
@@ -177,47 +187,68 @@ export default function SchedulePage() {
                   <TableCell>
                     <Badge
                       variant="outline"
-                      className={item.status === "error_no_date" ? "border-amber-300 text-amber-700" : ""}
+                      className={
+                        item.status === "error_no_date" ? "border-amber-300 text-amber-700" : ""
+                      }
                     >
                       {item.groupName}
                     </Badge>
                   </TableCell>
                   <TableCell>
                     {item.expectedOpenDate ? (
-                      <div className="text-sm flex flex-col">
-                        <span>{format(new Date(item.expectedOpenDate), "d MMMM yyyy", { locale: ru })}</span>
-                        <span className="text-xs text-muted-foreground">{format(new Date(item.expectedOpenDate), "HH:mm")}</span>
+                      <div className="flex flex-col text-sm">
+                        <span>
+                          {format(new Date(item.expectedOpenDate), "d MMMM yyyy", { locale: ru })}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {format(new Date(item.expectedOpenDate), "HH:mm")}
+                        </span>
                       </div>
+                    ) : item.status === "event_waiting" ? (
+                      <span className="text-xs text-muted-foreground">
+                        {item.scheduleDescription}
+                      </span>
                     ) : (
-                      <span className="text-xs text-red-500 font-medium">Невозможно вычислить (нет даты старта)</span>
+                      <span className="text-xs font-medium text-red-500">
+                        Невозможно вычислить (нет даты старта)
+                      </span>
                     )}
                   </TableCell>
                   <TableCell>
                     {item.status === "opened" && (
                       <Badge variant="default" className="bg-green-600 hover:bg-green-700">
-                        <CheckCircle className="w-3 h-3 mr-1" /> Открыт
+                        <CheckCircle className="mr-1 h-3 w-3" /> Открыт
                       </Badge>
                     )}
                     {item.status === "waiting" && (
-                      <Badge variant="secondary" className="text-amber-600 bg-amber-50">
-                        <Clock className="w-3 h-3 mr-1" /> Ожидает
+                      <Badge variant="secondary" className="bg-amber-50 text-amber-600">
+                        <Clock className="mr-1 h-3 w-3" /> Ожидает
                       </Badge>
                     )}
                     {item.status === "error_no_date" && (
                       <Badge variant="destructive">
-                        <AlertTriangle className="w-3 h-3 mr-1" /> Нет даты старта
+                        <AlertTriangle className="mr-1 h-3 w-3" /> Нет даты старта
+                      </Badge>
+                    )}
+                    {item.status === "event_waiting" && (
+                      <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-600">
+                        <Workflow className="mr-1 h-3 w-3" /> По событию
                       </Badge>
                     )}
                   </TableCell>
                   <TableCell className="text-right">
-                    {(item.status === "waiting" || item.status === "error_no_date") && (
+                    {(item.status === "waiting" ||
+                      item.status === "event_waiting" ||
+                      item.status === "error_no_date") && (
                       <Button
                         size="sm"
                         variant="default"
                         disabled={processingId === `${item.moduleId}-${item.groupId}`}
                         onClick={() => handleForceOpen(item.moduleId, item.groupId)}
                       >
-                        {processingId === `${item.moduleId}-${item.groupId}` ? "Открываем..." : "Принудительно открыть"}
+                        {processingId === `${item.moduleId}-${item.groupId}`
+                          ? "Открываем..."
+                          : "Принудительно открыть"}
                       </Button>
                     )}
                   </TableCell>

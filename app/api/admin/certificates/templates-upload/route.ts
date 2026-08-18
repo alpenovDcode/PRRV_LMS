@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/api-middleware";
 import { UserRole } from "@prisma/client";
-import { writeFile, mkdir } from "fs/promises";
-import { join } from "path";
 import { ApiResponse } from "@/types";
+import { saveBuffer } from "@/lib/storage";
 
 export async function POST(request: NextRequest) {
   return withAuth(
     request,
-    async (req) => {
+    async () => {
       try {
         const formData = await request.formData();
         const file = formData.get("file") as File;
@@ -55,18 +54,13 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        // Upload to local storage
-        const uploadDir = join(process.cwd(), "public", "uploads", "certificates");
-        await mkdir(uploadDir, { recursive: true });
-
-        const filename = `${Date.now()}-${file.name}`;
-        const filepath = join(uploadDir, filename);
-        
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const filename = `certificates/templates/${Date.now()}-${safeName}`;
         const bytes = await file.arrayBuffer();
         const buffer = Buffer.from(bytes);
-        await writeFile(filepath, buffer);
-
-        const url = `/uploads/certificates/${filename}`;
+        const url = await saveBuffer(buffer, filename, file.type, {
+          requireRemote: process.env.NODE_ENV === "production",
+        });
 
         return NextResponse.json<ApiResponse>(
           {

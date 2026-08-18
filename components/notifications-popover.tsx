@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
-import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 interface Notification {
@@ -43,8 +42,8 @@ export function NotificationsPopover() {
         return { notifications: [], unreadCount: 0 };
       }
     },
-    // Poll every 5 seconds for better responsiveness
-    refetchInterval: 5000,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
   });
 
   const markAllReadMutation = useMutation({
@@ -72,22 +71,25 @@ export function NotificationsPopover() {
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" className="relative hover:bg-blue-50">
-          <Bell className="h-5 w-5 text-blue-600" /> 
+          <Bell className="h-5 w-5 text-blue-600" />
           {unreadCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 h-5 w-5 rounded-full bg-red-500 text-white text-xs font-semibold flex items-center justify-center shadow-md">
-              {unreadCount > 9 ? '9+' : unreadCount}
+            <span className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-semibold text-white shadow-md">
+              {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-96 max-h-[600px] overflow-y-auto bg-slate-900 border-slate-700 shadow-2xl">
-        <DropdownMenuLabel className="flex items-center justify-between py-3 px-4 border-b border-slate-700">
+      <DropdownMenuContent
+        align="end"
+        className="max-h-[600px] w-96 overflow-y-auto border-slate-700 bg-slate-900 shadow-2xl"
+      >
+        <DropdownMenuLabel className="flex items-center justify-between border-b border-slate-700 px-4 py-3">
           <span className="text-base font-semibold text-white">Уведомления</span>
           {unreadCount > 0 && (
             <Button
               variant="ghost"
               size="sm"
-              className="h-auto px-3 py-1.5 text-xs font-medium text-blue-400 hover:text-blue-300 hover:bg-slate-800"
+              className="h-auto px-3 py-1.5 text-xs font-medium text-blue-400 hover:bg-slate-800 hover:text-blue-300"
               onClick={(e) => {
                 e.preventDefault();
                 markAllReadMutation.mutate();
@@ -101,7 +103,7 @@ export function NotificationsPopover() {
         <DropdownMenuSeparator className="bg-slate-700" />
         {notifications.length === 0 ? (
           <div className="p-8 text-center">
-            <Bell className="h-12 w-12 text-slate-600 mx-auto mb-3" />
+            <Bell className="mx-auto mb-3 h-12 w-12 text-slate-600" />
             <p className="text-sm font-medium text-slate-400">Нет новых уведомлений</p>
           </div>
         ) : (
@@ -109,9 +111,9 @@ export function NotificationsPopover() {
             <DropdownMenuItem
               key={notification.id}
               className={cn(
-                "flex flex-col items-start gap-2 p-4 cursor-pointer border-b border-slate-800 last:border-0 transition-colors focus:bg-slate-800",
-                !notification.isRead 
-                  ? "bg-slate-800/50 hover:bg-slate-800" 
+                "flex cursor-pointer flex-col items-start gap-2 border-b border-slate-800 p-4 transition-colors last:border-0 focus:bg-slate-800",
+                !notification.isRead
+                  ? "bg-slate-800/50 hover:bg-slate-800"
                   : "hover:bg-slate-800/30"
               )}
               onClick={(e) => {
@@ -119,26 +121,33 @@ export function NotificationsPopover() {
                 if (!notification.isRead) {
                   markAsReadMutation.mutate(notification.id);
                 }
+                if (notification.link) {
+                  window.location.href = notification.link;
+                }
               }}
             >
               <div className="flex w-full justify-between gap-3">
-                <span className={cn(
-                  "font-semibold text-sm leading-tight",
-                  !notification.isRead ? "text-white" : "text-slate-300"
-                )}>
+                <span
+                  className={cn(
+                    "text-sm font-semibold leading-tight",
+                    !notification.isRead ? "text-white" : "text-slate-300"
+                  )}
+                >
                   {notification.title}
                 </span>
-                <span className="text-xs text-slate-500 whitespace-nowrap flex-shrink-0">
+                <span className="flex-shrink-0 whitespace-nowrap text-xs text-slate-500">
                   {formatDistanceToNow(new Date(notification.createdAt), {
                     addSuffix: true,
                     locale: ru,
                   })}
                 </span>
               </div>
-              <p className={cn(
-                "text-sm line-clamp-2 leading-relaxed",
-                !notification.isRead ? "text-slate-300" : "text-slate-400"
-              )}>
+              <p
+                className={cn(
+                  "line-clamp-2 text-sm leading-relaxed",
+                  !notification.isRead ? "text-slate-300" : "text-slate-400"
+                )}
+              >
                 {notification.message}
               </p>
             </DropdownMenuItem>
