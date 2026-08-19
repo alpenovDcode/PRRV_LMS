@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
         const bytes = await file.arrayBuffer();
         const buffer = Buffer.from(bytes);
         const url = await saveBuffer(buffer, filename, file.type, {
-          requireRemote: process.env.NODE_ENV === "production",
+          forceLocal: true,
         });
 
         return NextResponse.json<ApiResponse>(
