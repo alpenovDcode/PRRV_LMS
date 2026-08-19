@@ -33,9 +33,13 @@ export async function saveBuffer(
   buffer: Buffer,
   fileName: string,
   contentType = "application/octet-stream",
-  options: { requireRemote?: boolean } = {}
+  options: { requireRemote?: boolean; forceLocal?: boolean } = {}
 ): Promise<string> {
-  if (isRemoteStorageConfigured()) {
+  if (options.requireRemote && options.forceLocal) {
+    throw new Error("Storage cannot be both remote-only and local-only");
+  }
+
+  if (!options.forceLocal && isRemoteStorageConfigured()) {
     try {
       await s3Client.send(
         new PutObjectCommand({
@@ -57,7 +61,10 @@ export async function saveBuffer(
   }
 
   const uploadDir = path.join(process.cwd(), "public", "uploads");
-  const filePath = path.join(uploadDir, fileName);
+  const filePath = path.resolve(uploadDir, fileName);
+  if (!filePath.startsWith(`${path.resolve(uploadDir)}${path.sep}`)) {
+    throw new Error("Invalid upload file path");
+  }
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, buffer);
   return `/uploads/${fileName}`;

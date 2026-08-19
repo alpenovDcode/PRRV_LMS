@@ -221,7 +221,7 @@ export async function generateCertificate(params: GenerateCertificateParams) {
     pdfBuffer,
     `certificates/generated/${certificateNumber}.pdf`,
     "application/pdf",
-    { requireRemote: process.env.NODE_ENV === "production" }
+    { forceLocal: true }
   );
 
   // Create certificate record
